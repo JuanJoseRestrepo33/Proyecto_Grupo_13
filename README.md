@@ -1,12 +1,12 @@
 # Grupo 13 - Proyecto Integrador I
 
-# Solventa — Aseguradora Digital de Finanzas Abiertas
+# Solventa - Aseguradora Digital de Finanzas Abiertas
 
 > Proyecto Final · MISW4501 · Maestría en Ingeniería de Software · Universidad de los Andes
 
 Solventa es una aseguradora digital (*insurtech*) que nace sin sistemas heredados: una "fintech de seguros" construida desde cero sobre la nube y sobre el ecosistema de **Finanzas Abiertas (Open Finance)** y **Datos Abiertos (Open Data)**. Este repositorio contiene el diseño de arquitectura y la implementación (cliente web, cliente móvil y backend) desarrollados por el equipo como parte del curso Proyecto Final.
 
-## 📋 Tabla de contenido
+## Tabla de contenido
 
 - [Descripción del proyecto](#-descripción-del-proyecto)
 - [Equipo](#-equipo)
@@ -18,7 +18,7 @@ Solventa es una aseguradora digital (*insurtech*) que nace sin sistemas heredado
 - [Tablero y flujo de trabajo](#-tablero-y-flujo-de-trabajo)
 - [Cómo contribuir](#-cómo-contribuir)
 
-## 🎯 Descripción del proyecto
+## Descripción del proyecto
 
 El mercado de seguros en América Latina arrastra baja penetración, procesos manuales, tiempos de emisión de días y una experiencia de siniestros que erosiona la confianza del cliente. **Solventa** apuesta a resolver esto combinando:
 
@@ -27,29 +27,21 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 
 **Propuesta de valor:** cotizar, suscribir, emitir y pagar siniestros de forma casi instantánea, a través de un cliente web y un cliente móvil, cada uno con capacidades propias de su canal.
 
-> 📄 Este es un caso de estudio académico. Solventa es una empresa ficticia creada con fines de enseñanza (MISW4501-2026); cualquier semejanza con entidades reales es coincidencia.
+> Este es un caso de estudio académico. Solventa es una empresa ficticia creada con fines de enseñanza (MISW4501-2026); cualquier semejanza con entidades reales es coincidencia.
 
-## 👥 Equipo
+## Equipo
 
 | Nombre | Rol | Código | Correo |
 |---|---|---|---|
-| Erick Julián Coral Crespo | Gerente del proyecto (Monitor) | — | — |
+| Erick Julián Coral Crespo | Gerente del proyecto (Monitor) | - | - |
 | Edwin Hernan Hurtado Cruz | Desarrollo | 202326341 | eh.hurtado@uniandes.edu.co |
 | Harold Andres Bartolo Moscoso | Desarrollo | 202513889 | h.bartolo@uniandes.edu.co |
 | Sergio Fernando Barrera Molano | Desarrollo | 202517034 | sf.barreram1@uniandes.edu.co |
 | Juan Jose Restrepo Bonilla | Desarrollo | 202516633 | jj.restrepob1@uniandes.edu.co |
 
-## 📚 Documentación
-
-| Documento | Descripción |
-|---|---|
-| [Acta de Constitución](docs/Acta_Constitucion_Solventa.docx) | Objetivos, alcance, interesados, riesgos e hitos del proyecto |
-| [Épicas y Features](docs/Epicas_Features_Solventa.docx) | Épicas e historias de usuario de los componentes web y móvil |
-| [Caso de estudio Solventa](docs/Caso_Solventa.pdf) | Documento base entregado por el curso (MISW4501-2026) |
-
 > Coloca estos archivos en una carpeta `docs/` en la raíz del repo y ajusta los enlaces si usas otra ubicación.
 
-## ⚖️ Atributos de calidad
+## Atributos de calidad
 
 La arquitectura debe satisfacer simultáneamente seis atributos de calidad, cada uno con metas medibles y validables mediante experimentos de arquitectura:
 
@@ -64,7 +56,7 @@ La arquitectura debe satisfacer simultáneamente seis atributos de calidad, cada
 
 Detalle completo de los escenarios de calidad en la Acta de Constitución y en el caso de estudio.
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 <!-- TODO: completar con el estilo arquitectónico elegido por el equipo -->
 
@@ -76,7 +68,7 @@ Detalle completo de los escenarios de calidad en la Acta de Constitución y en e
 
 Diagramas y vistas de arquitectura: _enlazar aquí (C4, diagramas de despliegue, ADRs, etc.)_
 
-## 📂 Estructura del repositorio
+## Estructura del repositorio
 
 ```
 Proyecto_Grupo_13/
@@ -91,7 +83,7 @@ Proyecto_Grupo_13/
 
 > Ajusta esta estructura a como esté organizado realmente el repositorio.
 
-## 🚀 Cómo ejecutar el proyecto
+## Cómo ejecutar el proyecto
 
 <!-- TODO: completar con las instrucciones reales una vez definida la arquitectura -->
 
@@ -122,7 +114,7 @@ cd mobile
 # instrucciones de instalación y ejecución
 ```
 
-## 🗂️ Tablero y flujo de trabajo
+## Tablero y flujo de trabajo
 
 El trabajo del equipo se organiza mediante **épicas** y **features (historias de usuario)** registradas como issues de GitHub:
 
@@ -132,7 +124,7 @@ El trabajo del equipo se organiza mediante **épicas** y **features (historias d
 
 Tablero del proyecto: _enlazar aquí la URL del GitHub Project_
 
-## 🤝 Cómo contribuir
+## Cómo contribuir
 
 1. Crea una rama a partir de `main`: `git checkout -b feature/F-WEB-01-01-cotizacion-asistida`
 2. Referencia el issue correspondiente en tus commits (`#<número-de-issue>`).
@@ -141,4 +133,4 @@ Tablero del proyecto: _enlazar aquí la URL del GitHub Project_
 
 ---
 
-**Curso:** MISW4501 — Proyecto Final · **Institución:** Universidad de los Andes · **Código del caso:** MISW4501-2026
+**Curso:** MISW4501 - Proyecto Final · **Institución:** Universidad de los Andes · **Código del caso:** MISW4501-2026
