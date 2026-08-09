@@ -1,0 +1,81 @@
+name: "✨ Feature / Historia de usuario"
+description: Define una feature o historia de usuario asociada a una épica del proyecto Solventa
+title: "[FEATURE] "
+labels: ["feature"]
+body:
+  - type: dropdown
+    id: componente
+    attributes:
+      label: Componente
+      description: ¿A qué cliente pertenece esta feature?
+      options:
+        - Web
+        - Móvil
+        - Backend / Transversal
+    validations:
+      required: true
+
+  - type: input
+    id: epica
+    attributes:
+      label: Épica relacionada
+      description: "Código y/o número del issue de la épica a la que pertenece (Ej: EPIC-WEB-01 / #3)"
+      placeholder: EPIC-WEB-01 (#3)
+    validations:
+      required: true
+
+  - type: textarea
+    id: historia
+    attributes:
+      label: Historia de usuario
+      description: Redacta la feature como historia de usuario.
+      placeholder: |
+        Como [tipo de usuario],
+        quiero [acción / capacidad],
+        para [beneficio esperado].
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios_aceptacion
+    attributes:
+      label: Criterios de aceptación
+      description: Lista los criterios verificables (formato Given/When/Then o checklist).
+      placeholder: |
+        - [ ] Dado que ..., cuando ..., entonces ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: notas_tecnicas
+    attributes:
+      label: Notas técnicas / dependencias
+      description: Integraciones externas, servicios, restricciones técnicas relevantes (Open Finance, KYC, pasarela de pagos, etc.)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad
+      options:
+        - Alta
+        - Media
+        - Baja
+    validations:
+      required: true
+
+  - type: dropdown
+    id: estimacion
+    attributes:
+      label: Estimación (story points)
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "5"
+        - "8"
+        - "13"
+    validations:
+      required: false

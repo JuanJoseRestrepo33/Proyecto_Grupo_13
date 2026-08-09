@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Acta de constitución del proyecto
+    url: https://github.com/OWNER/REPO/blob/main/docs/Acta_Constitucion_Solventa.docx
+    about: Consulta el alcance, objetivos y restricciones del proyecto antes de crear un issue.

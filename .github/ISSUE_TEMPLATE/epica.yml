@@ -1,0 +1,78 @@
+name: "📦 Épica"
+description: Define una épica del proyecto Solventa (agrupa varias features/historias)
+title: "[EPIC] "
+labels: ["epic"]
+body:
+  - type: dropdown
+    id: componente
+    attributes:
+      label: Componente
+      description: ¿A qué cliente pertenece esta épica?
+      options:
+        - Web
+        - Móvil
+        - Backend / Transversal
+    validations:
+      required: true
+
+  - type: input
+    id: codigo
+    attributes:
+      label: Código de la épica
+      description: "Ej: EPIC-WEB-01, EPIC-MOB-02"
+      placeholder: EPIC-WEB-01
+    validations:
+      required: true
+
+  - type: textarea
+    id: descripcion
+    attributes:
+      label: Descripción
+      description: ¿Qué problema de negocio resuelve esta épica? ¿Qué valor entrega?
+      placeholder: |
+        Como [rol / stakeholder], quiero [capacidad de alto nivel]
+        para [beneficio de negocio].
+    validations:
+      required: true
+
+  - type: textarea
+    id: alcance
+    attributes:
+      label: Alcance de la épica
+      description: Lista a alto nivel qué queda dentro de esta épica (las features se crean como issues separados y se enlazan aquí).
+      placeholder: |
+        - Feature 1
+        - Feature 2
+        - Feature 3
+    validations:
+      required: false
+
+  - type: textarea
+    id: atributos_calidad
+    attributes:
+      label: Atributos de calidad relacionados
+      description: "Marca cuáles de los 6 atributos del caso Solventa tensiona esta épica (latencia, escalabilidad, disponibilidad, seguridad, facilidad de modificación, facilidad de integración)"
+    validations:
+      required: false
+
+  - type: textarea
+    id: criterios_aceptacion
+    attributes:
+      label: Criterios de aceptación de la épica
+      description: Condiciones generales que deben cumplirse para considerar la épica terminada (Definition of Done a nivel épica).
+      placeholder: |
+        - [ ] Todas las features asociadas están cerradas
+        - [ ] ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad
+      options:
+        - Alta
+        - Media
+        - Baja
+    validations:
+      required: true
