@@ -21,7 +21,7 @@ El backend no lo carga una sola persona: se divide por dominio de negocio.
 
 Alcance de prototipo funcional con integraciones simuladas (Open Finance, KYC/AML, pasarela de pago), como indica el propio caso Solventa.
 
-### WEB-EP01 — Adquisición y consulta de seguros (39 pts · 77h)
+### WEB-EP01 · Adquisición y consulta de seguros (39 pts · 77h)
 
 | Historia | Título | Prioridad | Responsable(s) | Puntos | Horas |
 |---|---|---|---|---:|---:|
@@ -30,7 +30,7 @@ Alcance de prototipo funcional con integraciones simuladas (Open Finance, KYC/AM
 | WEB-F03 | Suscripción y emisión de póliza | Alta | Sergio + Harold | 13 | 26h |
 | WEB-F04 | Consulta de pólizas y coberturas | Media | Sergio + Harold | 5 | 11h |
 
-### WEB-EP02 — Ciclo de vida, siniestros y operación (47 pts · 94h)
+### WEB-EP02 · Ciclo de vida, siniestros y operación (47 pts · 94h)
 
 | Historia | Título | Prioridad | Responsable(s) | Puntos | Horas |
 |---|---|---|---|---:|---:|
@@ -42,7 +42,7 @@ Alcance de prototipo funcional con integraciones simuladas (Open Finance, KYC/AM
 | WEB-F10 | Tablero operacional | Media | Juan + Harold | 5 | 14h |
 | WEB-F11 | Back-office de socios de distribución | Media | Juan + Harold | 8 | 19h |
 
-### MOB-EP01 — Onboarding, identidad y autoservicio (39 pts · 45h)
+### MOB-EP01 · Onboarding, identidad y autoservicio (39 pts · 45h)
 
 | Historia | Título | Prioridad | Responsable(s) | Puntos | Horas |
 |---|---|---|---|---:|---:|
@@ -51,7 +51,7 @@ Alcance de prototipo funcional con integraciones simuladas (Open Finance, KYC/AM
 | MOB-F03 | Billetera de pólizas y modo offline | Alta | Edwin *(reusa API de Sergio)* | 13 | 14h |
 | MOB-F04 | Cotización y suscripción de autoservicio | Media | Edwin *(reusa API de Sergio)* | 8 | 7h |
 
-### MOB-EP02 — Siniestros, asistencia y notificaciones (29 pts · 40h)
+### MOB-EP02 · Siniestros, asistencia y notificaciones (29 pts · 40h)
 
 | Historia | Título | Prioridad | Responsable(s) | Puntos | Horas |
 |---|---|---|---|---:|---:|
@@ -63,59 +63,59 @@ Alcance de prototipo funcional con integraciones simuladas (Open Finance, KYC/AM
 
 **Total backlog: 154 puntos · 256h**
 
-## Plan de 8 semanas — 4 sprints
+## Plan de 8 semanas · 4 sprints
 
 Cada sprint dura 2 semanas y cada persona tiene 16h de presupuesto. Las horas de cada tarjeta suman exactamente ese presupuesto por persona y por sprint.
 
-### Sprint 1 — Semanas 1–2 · 21 pts entregados
+### Sprint 1 · Semanas 1–2 · 21 pts entregados
 
 | Persona | Tareas | Horas |
 |---|---|---:|
-| Sergio | Servicio de consentimiento (WEB-F02 · MOB-F02) — 10h · Motor de cotización, avance (WEB-F01) — 6h | 16h |
-| Harold | UI consentimiento (WEB-F02) — 4h · UI cotizador (WEB-F01) — 8h · UI checkout, avance (WEB-F03) — 4h | 16h |
-| Edwin | Onboarding biométrico (MOB-F01) — 14h · Consentimiento móvil, avance (MOB-F02) — 2h | 16h |
-| Juan | Hook de verificación KYC/AML (MOB-F01) — 6h · Servicio de siniestros: reporte (WEB-F05 · MOB-F05) — 10h | 16h |
+| Sergio | Servicio de consentimiento (WEB-F02 · MOB-F02): 10h · Motor de cotización, avance (WEB-F01): 6h | 16h |
+| Harold | UI consentimiento (WEB-F02): 4h · UI cotizador (WEB-F01): 8h · UI checkout, avance (WEB-F03): 4h | 16h |
+| Edwin | Onboarding biométrico (MOB-F01): 14h · Consentimiento móvil, avance (MOB-F02): 2h | 16h |
+| Juan | Hook de verificación KYC/AML (MOB-F01): 6h · Servicio de siniestros: reporte (WEB-F05 · MOB-F05): 10h | 16h |
 
 **Cierra:** WEB-F02 (8 pts) · MOB-F01 (13 pts)
 
-### Sprint 2 — Semanas 3–4 · 34 pts entregados
+### Sprint 2 · Semanas 3–4 · 34 pts entregados
 
 | Persona | Tareas | Horas |
 |---|---|---:|
-| Sergio | Motor de cotización, cierre (WEB-F01) — 12h · Suscripción y emisión, avance (WEB-F03) — 4h | 16h |
-| Harold | UI checkout, cierre (WEB-F03) — 4h · UI reporte de siniestro (WEB-F05) — 5h · UI seguimiento de siniestros (WEB-F06) — 5h · UI consulta de pólizas, avance (WEB-F04) — 2h | 16h |
-| Edwin | Consentimiento móvil, cierre (MOB-F02) — 2h · Billetera y modo offline (MOB-F03) — 14h | 16h |
-| Juan | Servicio de siniestros: seguimiento y eventos paramétricos a escala (WEB-F06 · MOB-F06) — 16h | 16h |
+| Sergio | Motor de cotización, cierre (WEB-F01): 12h · Suscripción y emisión, avance (WEB-F03): 4h | 16h |
+| Harold | UI checkout, cierre (WEB-F03): 4h · UI reporte de siniestro (WEB-F05): 5h · UI seguimiento de siniestros (WEB-F06): 5h · UI consulta de pólizas, avance (WEB-F04): 2h | 16h |
+| Edwin | Consentimiento móvil, cierre (MOB-F02): 2h · Billetera y modo offline (MOB-F03): 14h | 16h |
+| Juan | Servicio de siniestros: seguimiento y eventos paramétricos a escala (WEB-F06 · MOB-F06): 16h | 16h |
 
 **Cierra:** WEB-F01 (13 pts) · MOB-F02 (5 pts) · WEB-F05 (8 pts) · WEB-F06 (8 pts)
 
-### Sprint 3 — Semanas 5–6 · 29 pts entregados
+### Sprint 3 · Semanas 5–6 · 29 pts entregados
 
 | Persona | Tareas | Horas |
 |---|---|---:|
-| Sergio | Suscripción y emisión, cierre (WEB-F03) — 14h · Consulta de pólizas, avance (WEB-F04 · MOB-F03) — 2h | 16h |
-| Harold | UI consulta de pólizas, cierre (WEB-F04) — 3h · UI renovación (WEB-F07) — 5h · UI cancelación (WEB-F08) — 4h · UI modificación (WEB-F09) — 4h | 16h |
-| Edwin | Reporte de siniestro con evidencia (MOB-F05) — 8h · Seguimiento y push (MOB-F06) — 7h · Cotización autoservicio, avance (MOB-F04) — 1h | 16h |
-| Juan | Disparadores de notificaciones push (MOB-F06) — 6h · Geolocalización y match de prestadores (MOB-F07) — 5h · Validación de documentos escaneados (MOB-F09) — 4h · API de agregación, avance (WEB-F10) — 1h | 16h |
+| Sergio | Suscripción y emisión, cierre (WEB-F03): 14h · Consulta de pólizas, avance (WEB-F04 · MOB-F03): 2h | 16h |
+| Harold | UI consulta de pólizas, cierre (WEB-F04): 3h · UI renovación (WEB-F07): 5h · UI cancelación (WEB-F08): 4h · UI modificación (WEB-F09): 4h | 16h |
+| Edwin | Reporte de siniestro con evidencia (MOB-F05): 8h · Seguimiento y push (MOB-F06): 7h · Cotización autoservicio, avance (MOB-F04): 1h | 16h |
+| Juan | Disparadores de notificaciones push (MOB-F06): 6h · Geolocalización y match de prestadores (MOB-F07): 5h · Validación de documentos escaneados (MOB-F09): 4h · API de agregación, avance (WEB-F10): 1h | 16h |
 
 **Cierra:** WEB-F03 (13 pts) · MOB-F05 (8 pts) · MOB-F06 (8 pts)
 
-### Sprint 4 — Semanas 7–8 · 70 pts entregados
+### Sprint 4 · Semanas 7–8 · 70 pts entregados
 
 | Persona | Tareas | Horas |
 |---|---|---:|
-| Sergio | Consulta de pólizas, cierre (WEB-F04 · MOB-F03) — 4h · Ciclo de vida: renovación, cancelación, modificación (WEB-F07/08/09) — 12h | 16h |
-| Harold | UI tablero operacional (WEB-F10) — 8h · UI back-office de socios (WEB-F11) — 8h | 16h |
-| Edwin | Cotización autoservicio, cierre (MOB-F04) — 6h · Geolocalización y asistencia (MOB-F07) — 4h · Notificaciones de ciclo de vida (MOB-F08) — 3h · Escaneo de documentos (MOB-F09) — 3h | 16h |
-| Juan | API de agregación operacional, cierre (WEB-F10) — 5h · API de back-office de socios (WEB-F11) — 11h | 16h |
+| Sergio | Consulta de pólizas, cierre (WEB-F04 · MOB-F03): 4h · Ciclo de vida: renovación, cancelación, modificación (WEB-F07/08/09): 12h | 16h |
+| Harold | UI tablero operacional (WEB-F10): 8h · UI back-office de socios (WEB-F11): 8h | 16h |
+| Edwin | Cotización autoservicio, cierre (MOB-F04): 6h · Geolocalización y asistencia (MOB-F07): 4h · Notificaciones de ciclo de vida (MOB-F08): 3h · Escaneo de documentos (MOB-F09): 3h | 16h |
+| Juan | API de agregación operacional, cierre (WEB-F10): 5h · API de back-office de socios (WEB-F11): 11h | 16h |
 
 **Cierra:** WEB-F04, WEB-F07, WEB-F08, WEB-F09, WEB-F10, WEB-F11, MOB-F03, MOB-F04, MOB-F07, MOB-F08, MOB-F09 (70 pts)
 
 ## Notas de secuenciación
 
-> **Los Sprints 1–3 son enteramente historias de prioridad Alta** (84 pts, 9 de las 10 historias): consentimiento, cotización, suscripción, onboarding biométrico, y el flujo completo de siniestros en ambos canales. La única excepción es **MOB-F03 · Billetera offline** (13 pts), que espera al Sprint 4 porque comparte el servicio de consulta de pólizas con WEB-F04, y Sergio prioriza cerrar primero Suscripción y emisión — la base del recorrido crítico de venta. Si el equipo prefiere adelantarla, basta con invertir ese orden en Sergio; no cambia el total de horas, solo qué llega antes.
+> **Los Sprints 1–3 son enteramente historias de prioridad Alta** (84 pts, 9 de las 10 historias): consentimiento, cotización, suscripción, onboarding biométrico, y el flujo completo de siniestros en ambos canales. La única excepción es **MOB-F03 · Billetera offline** (13 pts), que espera al Sprint 4 porque comparte el servicio de consulta de pólizas con WEB-F04, y Sergio prioriza cerrar primero Suscripción y emisión (la base del recorrido crítico de venta). Si el equipo prefiere adelantarla, basta con invertir ese orden en Sergio; no cambia el total de horas, solo qué llega antes.
 
-> **El Sprint 4 concentra 70 pts:** los 57 pts de la cola de historias Media (ciclo de vida, tablero, back-office, features móviles secundarias) más los 13 pts de Billetera offline que quedaron pendientes. Es el sprint con menos margen — si algo se atrasa en S1–S3, lo primero que se recorta aquí es el back-office de socios (WEB-F11) o el escaneo de documentos (MOB-F09), ninguno de los dos toca un recorrido crítico del caso.
+> **El Sprint 4 concentra 70 pts:** los 57 pts de la cola de historias Media (ciclo de vida, tablero, back-office, features móviles secundarias) más los 13 pts de Billetera offline que quedaron pendientes. Es el sprint con menos margen: si algo se atrasa en S1–S3, lo primero que se recorta aquí es el back-office de socios (WEB-F11) o el escaneo de documentos (MOB-F09), ninguno de los dos toca un recorrido crítico del caso.
 
 ---
 
