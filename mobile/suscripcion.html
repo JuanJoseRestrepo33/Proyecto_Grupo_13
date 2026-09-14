@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Suscripción · Solventa Móvil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-page="suscripcion">
+<a class="skip-link" href="#screen-content">Saltar al contenido principal</a>
+<div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+<div class="device-stage">
+<div class="device-frame">
+
+<div class="app-shell">
+<header class="app-header">
+      <a class="header-btn" href="cotizar.html" aria-label="Volver">←</a>
+      <div class="header-title"><span aria-hidden="true">✅</span> <span data-i18n>Emisión</span></div>
+      <div class="header-actions">
+        <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
+        <span class="avatar-sm" aria-hidden="true">JR</span>
+      </div>
+    </header>
+<main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
+<div class="screen-inner">
+
+<div class="alert success"><span class="ic" aria-hidden="true">✅</span><div><strong data-i18n>¡Póliza emitida!</strong> <span data-i18n>Tu cobertura ya está activa.</span></div></div>
+<h1 data-i18n>Dispositivos</h1>
+<div class="card">
+  <div class="form-group"><label data-i18n>Número de póliza</label><p class="mono">POL-2026-005214</p></div>
+  <div class="form-group"><label data-i18n>Vigencia</label><p class="text-sm"><span data-date="2026-09-13">13 sep 2026</span> – <span data-date="2027-09-12">12 sep 2027</span></p></div>
+</div>
+<div class="btn-row">
+  <a class="btn btn-primary" href="billetera.html" data-i18n>Ver en mi billetera</a>
+</div>
+<button class="btn btn-ghost" style="margin-top:10px" data-i18n>📥 Descargar PDF</button>
+
+<footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
+</div></main>
+<nav class="bottom-nav" aria-label="Navegación principal">
+<a class="bn-item" href="index.html" aria-current="page"><span class="ic" aria-hidden="true">🏠</span><span data-i18n>Inicio</span></a>
+<a class="bn-item" href="billetera.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Pólizas</span><span class="bn-badge" aria-label="3 notificaciones">3</span></a>
+<a class="bn-item" href="notificaciones.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Avisos</span><span class="bn-badge" aria-label="2 notificaciones">2</span></a>
+<a class="bn-item" href="perfil.html"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Perfil</span></a>
+</nav>
+<div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
+<aside class="drawer" id="drawer" aria-label="Menú">
+<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-body">
+<div class="drawer-group-label" data-i18n>General</div>
+<a class="drawer-link" href="index.html" aria-current="page"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
+<a class="drawer-link" href="cotizar.html"><span class="ic" aria-hidden="true">🧮</span><span data-i18n>Cotizar y suscribir</span></a>
+<a class="drawer-link" href="billetera.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Billetera de pólizas</span></a>
+<div class="drawer-group-label" data-i18n>Siniestros</div>
+<a class="drawer-link" href="siniestro-reportar.html"><span class="ic" aria-hidden="true">📷</span><span data-i18n>Reportar siniestro</span></a>
+<a class="drawer-link" href="siniestros.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Mis siniestros</span></a>
+<a class="drawer-link" href="asistencia.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Asistencia en sitio</span></a>
+<div class="drawer-group-label" data-i18n>Datos y documentos</div>
+<a class="drawer-link" href="consentimiento.html"><span class="ic" aria-hidden="true">🔐</span><span data-i18n>Consentimiento Open Finance</span></a>
+<a class="drawer-link" href="escaneo.html"><span class="ic" aria-hidden="true">🖨️</span><span data-i18n>Escanear documento</span></a>
+<div class="drawer-group-label" data-i18n>Cuenta</div>
+<a class="drawer-link" href="notificaciones.html"><span class="ic" aria-hidden="true">🔔</span><span data-i18n>Notificaciones</span></a>
+<a class="drawer-link" href="perfil.html"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Mi perfil</span></a>
+<a class="drawer-link" href="configuracion.html"><span class="ic" aria-hidden="true">⚙️</span><span data-i18n>Configuración</span></a>
+<a class="drawer-link" href="ayuda.html"><span class="ic" aria-hidden="true">❓</span><span data-i18n>Ayuda</span></a>
+<a class="drawer-link drawer-danger" href="login.html"><span class="ic" aria-hidden="true">🚪</span><span data-i18n>Cerrar sesión</span></a>
+</div></aside>
+</div>
+</div>
+</div>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

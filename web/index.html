@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inicio · Solventa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-page="home">
+<a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+<div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+
+<div class="app-shell">
+<header class="topbar">
+    <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
+    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html" aria-current="page"><span data-i18n>Inicio</span></a>
+      <a href="polizas.html"><span data-i18n>Mis Pólizas</span></a>
+      <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
+      <a href="ayuda.html"><span data-i18n>Soporte</span></a></nav>
+    <div class="topbar-actions">
+      <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">
+        🌐 <span class="lang-cur" id="langToggleCur">ES</span>
+      </button>
+      <div class="dropdown-wrap">
+        <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
+        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+          <div class="dropdown-head" data-i18n>Notificaciones</div>
+          <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
+          <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
+          <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
+          <div class="dropdown-foot" data-i18n>Ver todas las notificaciones</div>
+        </div>
+      </div>
+      <div class="dropdown-wrap">
+        <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
+          <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
+        </button>
+        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+          <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
+          <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
+          <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
+          <a class="dropdown-item" href="ayuda.html">❓ <span data-i18n>Ayuda</span></a>
+          <a class="dropdown-item danger" href="login.html">🚪 <span data-i18n>Cerrar sesión</span></a>
+        </div>
+      </div>
+    </div>
+  </header>
+<div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>General</div>
+<a class="nav-link" href="index.html" aria-current="page"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
+<a class="nav-link" href="cotizacion.html"><span class="ic" aria-hidden="true">🧮</span><span data-i18n>Cotizar</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Pólizas</div>
+<a class="nav-link" href="polizas.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Mis Pólizas</span></a>
+<div class="nav-sub">
+<a class="nav-link" href="polizas.html#activas"><span data-i18n>Activas</span></a>
+<a class="nav-link" href="polizas.html#vencidas"><span data-i18n>Vencidas</span></a>
+<a class="nav-link" href="polizas.html#archivadas"><span data-i18n>Archivadas</span></a>
+<a class="nav-link" href="polizas.html#todas"><span data-i18n>Ver todas</span></a>
+</div>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Siniestros</div>
+<a class="nav-link" href="siniestros.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Siniestros</span><span class="nav-badge" aria-label="2 notificaciones">2</span></a>
+<div class="nav-sub">
+<a class="nav-link" href="siniestro-reportar.html"><span data-i18n>Reportar siniestro</span></a>
+<a class="nav-link" href="siniestros.html#historial"><span data-i18n>Ver historial</span></a>
+</div>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Datos y consentimiento</div>
+<a class="nav-link" href="consentimientos.html"><span class="ic" aria-hidden="true">🔐</span><span data-i18n>Consentimientos</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Vida hipotecario</div>
+<a class="nav-link" href="hipotecario.html"><span class="ic" aria-hidden="true">🏦</span><span data-i18n>Oferta vida hipotecario</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Backoffice</div>
+<a class="nav-link" href="operaciones.html"><span class="ic" aria-hidden="true">📊</span><span data-i18n>Tablero operacional</span></a>
+<a class="nav-link" href="socios.html"><span class="ic" aria-hidden="true">🤝</span><span data-i18n>Socios de distribución</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Cuenta</div>
+<a class="nav-link" href="perfil.html"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Mi Perfil</span></a>
+<a class="nav-link" href="configuracion.html"><span class="ic" aria-hidden="true">⚙️</span><span data-i18n>Configuración</span></a>
+<a class="nav-link" href="ayuda.html"><span class="ic" aria-hidden="true">❓</span><span data-i18n>Ayuda</span></a>
+</div>
+<div class="nav-group">
+      <a class="nav-link nav-danger" href="login.html"><span class="ic" aria-hidden="true">🚪</span><span data-i18n>Cerrar sesión</span></a>
+    </div>
+</nav>
+<main class="main" id="main-content" tabindex="-1" aria-label="Contenido principal">
+<div class="main-inner">
+<nav class="breadcrumb" aria-label="Miga de pan"><span class="current" aria-current="page" data-i18n>Inicio</span></nav>
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow" data-i18n>Panel principal</div>
+    <h1 data-i18n>Bienvenido, Juan</h1>
+    <p class="text-muted">Bogotá, D.C. · Cliente desde enero de 2026</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="cotizacion.html" data-i18n>🧮 Cotizar un seguro</a>
+  </div>
+</div>
+
+<div class="alert warning">
+  <span class="ic" aria-hidden="true">⚠️</span>
+  <div><strong data-i18n>Tu póliza de dispositivos vence en 15 días.</strong> Renuévala para no perder cobertura.
+    <a href="poliza-renovar.html" style="color:var(--warning-600);font-weight:600">Renovar ahora →</a></div>
+</div>
+
+<div class="card-grid" style="margin-bottom:32px">
+  <div class="stat-card"><div class="n">3</div><div class="l" data-i18n>Pólizas activas</div></div>
+  <div class="stat-card"><div class="n">1</div><div class="l" data-i18n>Siniestros en curso</div></div>
+  <div class="stat-card"><div class="n"><span data-money="85000" data-currency="COP">$85.000</span></div><div class="l" data-i18n>Prima mensual total</div></div>
+  <div class="stat-card"><div class="n">2</div><div class="l" data-i18n>Consentimientos vigentes</div></div>
+</div>
+
+<div class="section-title" data-i18n>Resumen de pólizas</div>
+<div class="card-grid" style="margin-bottom:32px">
+  <div class="card">
+    <div class="card-header"><h4 data-i18n>Seguro de Viaje</h4><span class="badge success" data-i18n>Activa</span></div>
+    <p class="text-sm text-muted mono">POL-2026-001234</p>
+    <p class="text-sm"><span data-money="45000" data-currency="COP">$45.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2027-01-14">14 ene 2027</span></p>
+    <a class="btn btn-secondary btn-sm" href="poliza-detalle.html" data-i18n>Ver detalle</a>
+  </div>
+  <div class="card">
+    <div class="card-header"><h4 data-i18n>Dispositivos</h4><span class="badge warning" data-i18n>Vence pronto</span></div>
+    <p class="text-sm text-muted mono">POL-2026-001235</p>
+    <p class="text-sm"><span data-money="20000" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2026-09-27">27 sep 2026</span></p>
+    <a class="btn btn-secondary btn-sm" href="poliza-detalle.html" data-i18n>Ver detalle</a>
+  </div>
+  <div class="card">
+    <div class="card-header"><h4 data-i18n>Vida Hipotecario</h4><span class="badge success" data-i18n>Activa</span></div>
+    <p class="text-sm text-muted mono">POL-2026-002891</p>
+    <p class="text-sm"><span data-money="20000" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2031-03-02">02 mar 2031</span></p>
+    <a class="btn btn-secondary btn-sm" href="poliza-detalle.html" data-i18n>Ver detalle</a>
+  </div>
+</div>
+<a class="link-btn" href="polizas.html" data-i18n>Ver todas mis pólizas →</a>
+
+<hr class="divider">
+
+<div class="section-title" data-i18n>Siniestros recientes</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th scope="col" data-i18n>ID</th><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Estado</th><th scope="col"></th></tr></thead>
+    <tbody>
+      <tr><td class="mono">CLM-2026-000118</td><td>Seguro de Viaje</td><td>Retraso de vuelo</td><td><span class="badge warning" data-i18n>En revisión</span></td><td><a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver</a></td></tr>
+      <tr><td class="mono">CLM-2026-000094</td><td>Dispositivos</td><td>Pantalla dañada</td><td><span class="badge success" data-i18n>Pagado</span></td><td><a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver</a></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer class="app-footer">
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
+      </footer>
+</div></main></div></div>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

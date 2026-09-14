@@ -1,0 +1,6 @@
+#!/bin/bash
+mkdir -p /opt/servicio-cotizacion
+cat <<'PYEOF' > /opt/servicio-cotizacion/app.py
+${contenido_app}
+PYEOF
+nohup env ZONA="${zona}" PORT=8000 python3 /opt/servicio-cotizacion/app.py > /var/log/servicio-cotizacion.log 2>&1 &

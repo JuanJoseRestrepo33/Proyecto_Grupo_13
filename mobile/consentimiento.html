@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Consentimiento · Solventa Móvil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-page="consentimiento">
+<a class="skip-link" href="#screen-content">Saltar al contenido principal</a>
+<div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+<div class="device-stage">
+<div class="device-frame">
+
+<div class="app-shell">
+<header class="app-header">
+      <a class="header-btn" href="index.html" aria-label="Volver">←</a>
+      <div class="header-title"><span aria-hidden="true">🔐</span> <span data-i18n>Consentimiento</span></div>
+      <div class="header-actions">
+        <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
+      <div style="position:relative">
+        <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
+        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+          <div class="dropdown-head" data-i18n>Notificaciones</div>
+          <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
+          <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
+        </div>
+      </div>
+        <span class="avatar-sm" aria-hidden="true">JR</span>
+      </div>
+    </header>
+<main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
+<div class="screen-inner">
+
+<div class="eyebrow" data-i18n>MOB-F02 · Onboarding</div>
+<h1 data-i18n>Consentimiento Open Finance</h1>
+<p class="text-muted text-sm">Gestiona desde el celular el uso de tus datos financieros, sincronizado con el canal web.</p>
+
+<div class="card">
+  <div class="card-header"><div><h4 data-i18n>Perfilamiento y suscripción</h4><p class="text-xs text-muted mono">CONSENT-2026-00417</p></div><span class="badge success" data-i18n>Vigente</span></div>
+  <p class="text-sm"><label data-i18n>Vigente hasta</label>10 de enero de 2027</p>
+  <div class="btn-row" style="margin-top:8px">
+    <button class="btn btn-ghost btn-sm" data-i18n>Ver uso</button>
+    <button class="btn btn-danger-outline btn-sm" data-dropdown-trigger="revoke1" data-i18n>Revocar</button>
+  </div>
+  <div class="dropdown-panel" id="revoke1" style="position:static;margin-top:10px;display:none">
+    <div class="dropdown-head" data-i18n>¿Revocar este consentimiento?</div>
+    <div style="padding:10px 14px" class="text-xs text-muted">La revocación se hace efectiva en menos de 5 minutos y no afecta pólizas ya emitidas.</div>
+    <div style="padding:0 14px 14px" class="btn-row"><button class="btn btn-error btn-sm" data-i18n>Confirmar</button><button class="btn btn-ghost btn-sm" data-i18n>Cancelar</button></div>
+  </div>
+</div>
+
+<div class="section-title" data-i18n>Otorgar nuevo consentimiento</div>
+<div class="card">
+  <div class="form-group"><label for="cEnt" data-i18n>Entidad financiera</label><select id="cEnt"><option data-i18n>Banco Andes S.A.</option></select></div>
+  <div class="checkbox-row"><input type="checkbox" id="chk1"><label for="chk1" data-i18n>Autorizo el uso de mis datos financieros según la política de tratamiento de datos.</label></div>
+  <button class="btn btn-primary" data-i18n>Otorgar consentimiento</button>
+</div>
+<script>
+document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(b){
+  b.addEventListener("click", function(){ var p=document.getElementById("revoke1"); p.style.display = p.style.display==="none"?"block":"none"; });
+});
+</script>
+
+<footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
+</div></main>
+<nav class="bottom-nav" aria-label="Navegación principal">
+<a class="bn-item" href="index.html"><span class="ic" aria-hidden="true">🏠</span><span data-i18n>Inicio</span></a>
+<a class="bn-item" href="billetera.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Pólizas</span><span class="bn-badge" aria-label="3 notificaciones">3</span></a>
+<a class="bn-item" href="notificaciones.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Avisos</span><span class="bn-badge" aria-label="2 notificaciones">2</span></a>
+<a class="bn-item" href="perfil.html" aria-current="page"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Perfil</span></a>
+</nav>
+<div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
+<aside class="drawer" id="drawer" aria-label="Menú">
+<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-body">
+<div class="drawer-group-label" data-i18n>General</div>
+<a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
+<a class="drawer-link" href="cotizar.html"><span class="ic" aria-hidden="true">🧮</span><span data-i18n>Cotizar y suscribir</span></a>
+<a class="drawer-link" href="billetera.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Billetera de pólizas</span></a>
+<div class="drawer-group-label" data-i18n>Siniestros</div>
+<a class="drawer-link" href="siniestro-reportar.html"><span class="ic" aria-hidden="true">📷</span><span data-i18n>Reportar siniestro</span></a>
+<a class="drawer-link" href="siniestros.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Mis siniestros</span></a>
+<a class="drawer-link" href="asistencia.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Asistencia en sitio</span></a>
+<div class="drawer-group-label" data-i18n>Datos y documentos</div>
+<a class="drawer-link" href="consentimiento.html"><span class="ic" aria-hidden="true">🔐</span><span data-i18n>Consentimiento Open Finance</span></a>
+<a class="drawer-link" href="escaneo.html"><span class="ic" aria-hidden="true">🖨️</span><span data-i18n>Escanear documento</span></a>
+<div class="drawer-group-label" data-i18n>Cuenta</div>
+<a class="drawer-link" href="notificaciones.html"><span class="ic" aria-hidden="true">🔔</span><span data-i18n>Notificaciones</span></a>
+<a class="drawer-link" href="perfil.html" aria-current="page"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Mi perfil</span></a>
+<a class="drawer-link" href="configuracion.html"><span class="ic" aria-hidden="true">⚙️</span><span data-i18n>Configuración</span></a>
+<a class="drawer-link" href="ayuda.html"><span class="ic" aria-hidden="true">❓</span><span data-i18n>Ayuda</span></a>
+<a class="drawer-link drawer-danger" href="login.html"><span class="ic" aria-hidden="true">🚪</span><span data-i18n>Cerrar sesión</span></a>
+</div></aside>
+</div>
+</div>
+</div>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

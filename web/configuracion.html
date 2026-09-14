@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configuración · Solventa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-page="configuracion">
+<a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+<div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+
+<div class="app-shell">
+<header class="topbar">
+    <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
+    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html" aria-current="page"><span data-i18n>Inicio</span></a>
+      <a href="polizas.html"><span data-i18n>Mis Pólizas</span></a>
+      <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
+      <a href="ayuda.html"><span data-i18n>Soporte</span></a></nav>
+    <div class="topbar-actions">
+      <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">
+        🌐 <span class="lang-cur" id="langToggleCur">ES</span>
+      </button>
+      <div class="dropdown-wrap">
+        <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
+        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+          <div class="dropdown-head" data-i18n>Notificaciones</div>
+          <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
+          <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
+          <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
+          <div class="dropdown-foot" data-i18n>Ver todas las notificaciones</div>
+        </div>
+      </div>
+      <div class="dropdown-wrap">
+        <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
+          <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
+        </button>
+        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+          <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
+          <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
+          <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
+          <a class="dropdown-item" href="ayuda.html">❓ <span data-i18n>Ayuda</span></a>
+          <a class="dropdown-item danger" href="login.html">🚪 <span data-i18n>Cerrar sesión</span></a>
+        </div>
+      </div>
+    </div>
+  </header>
+<div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
+<div class="layout">
+<nav class="sidebar" id="sidebar" aria-label="Navegación principal">
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>General</div>
+<a class="nav-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
+<a class="nav-link" href="cotizacion.html"><span class="ic" aria-hidden="true">🧮</span><span data-i18n>Cotizar</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Pólizas</div>
+<a class="nav-link" href="polizas.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Mis Pólizas</span></a>
+<div class="nav-sub">
+<a class="nav-link" href="polizas.html#activas"><span data-i18n>Activas</span></a>
+<a class="nav-link" href="polizas.html#vencidas"><span data-i18n>Vencidas</span></a>
+<a class="nav-link" href="polizas.html#archivadas"><span data-i18n>Archivadas</span></a>
+<a class="nav-link" href="polizas.html#todas"><span data-i18n>Ver todas</span></a>
+</div>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Siniestros</div>
+<a class="nav-link" href="siniestros.html"><span class="ic" aria-hidden="true">🚨</span><span data-i18n>Siniestros</span><span class="nav-badge" aria-label="2 notificaciones">2</span></a>
+<div class="nav-sub">
+<a class="nav-link" href="siniestro-reportar.html"><span data-i18n>Reportar siniestro</span></a>
+<a class="nav-link" href="siniestros.html#historial"><span data-i18n>Ver historial</span></a>
+</div>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Datos y consentimiento</div>
+<a class="nav-link" href="consentimientos.html"><span class="ic" aria-hidden="true">🔐</span><span data-i18n>Consentimientos</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Vida hipotecario</div>
+<a class="nav-link" href="hipotecario.html"><span class="ic" aria-hidden="true">🏦</span><span data-i18n>Oferta vida hipotecario</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Backoffice</div>
+<a class="nav-link" href="operaciones.html"><span class="ic" aria-hidden="true">📊</span><span data-i18n>Tablero operacional</span></a>
+<a class="nav-link" href="socios.html"><span class="ic" aria-hidden="true">🤝</span><span data-i18n>Socios de distribución</span></a>
+</div>
+<div class="nav-group">
+<div class="nav-group-label" data-i18n>Cuenta</div>
+<a class="nav-link" href="perfil.html"><span class="ic" aria-hidden="true">👤</span><span data-i18n>Mi Perfil</span></a>
+<a class="nav-link" href="configuracion.html" aria-current="page"><span class="ic" aria-hidden="true">⚙️</span><span data-i18n>Configuración</span></a>
+<a class="nav-link" href="ayuda.html"><span class="ic" aria-hidden="true">❓</span><span data-i18n>Ayuda</span></a>
+</div>
+<div class="nav-group">
+      <a class="nav-link nav-danger" href="login.html"><span class="ic" aria-hidden="true">🚪</span><span data-i18n>Cerrar sesión</span></a>
+    </div>
+</nav>
+<main class="main" id="main-content" tabindex="-1" aria-label="Contenido principal">
+<div class="main-inner">
+<nav class="breadcrumb" aria-label="Miga de pan"><a href="index.html" data-i18n>Inicio</a><span class="sep" aria-hidden="true">/</span><span class="current" aria-current="page" data-i18n>Configuración</span></nav>
+
+<div class="page-head"><div><div class="eyebrow" data-i18n>Cuenta</div><h1 data-i18n>Configuración</h1></div></div>
+
+<div class="card" style="max-width:640px">
+  <div class="section-title" data-i18n>Notificaciones</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--neutral-200)">
+    <label for="notifEmail" class="text-sm" data-i18n>Notificaciones por correo</label><label class="switch"><input type="checkbox" id="notifEmail" checked><span class="slider" aria-hidden="true"></span></label>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--neutral-200)">
+    <label for="notifPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="notifPush" checked><span class="slider" aria-hidden="true"></span></label>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
+    <label for="notifVence" class="text-sm" data-i18n>Recordatorios de vencimiento</label><label class="switch"><input type="checkbox" id="notifVence" checked><span class="slider" aria-hidden="true"></span></label>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="section-title" data-i18n>Idioma / Language</div>
+  <p class="text-sm text-muted" style="margin-bottom:12px">Cambia el idioma de la interfaz. Los montos y fechas se reformatean automáticamente según el idioma (es-CO / en-US).</p>
+  <div class="form-group" style="max-width:280px">
+    <label for="langSelect" data-i18n>Idioma de la interfaz</label>
+    <select id="langSelect">
+      <option value="es" data-i18n>Español (Colombia)</option>
+      <option value="en" data-i18n>English (United States)</option>
+    </select>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px">
+  <div class="section-title" data-i18n>Accesibilidad</div>
+  <p class="text-sm text-muted" style="margin-bottom:12px">Condiciones de usabilidad implementadas en esta plataforma, conforme a WCAG 2.1 nivel AA.</p>
+  <ul style="margin:0;padding-left:20px;font-size:14px;color:var(--neutral-700);display:flex;flex-direction:column;gap:8px">
+    <li>Enlace de salto al contenido principal ("Saltar al contenido principal") en cada página.</li>
+    <li>Navegación completa por teclado (Tab, Enter, Esc) con indicador de foco visible en todos los controles.</li>
+    <li>Encabezados de tabla con <code class="mono text-xs">scope="col"</code>, roles y regiones ARIA (<code class="mono text-xs">nav</code>, <code class="mono text-xs">main</code>, <code class="mono text-xs">aria-current</code>, <code class="mono text-xs">aria-live</code>).</li>
+    <li>Etiquetas asociadas explícitamente a cada campo de formulario (<code class="mono text-xs">label for</code>).</li>
+    <li>Contraste mínimo 4,5:1 y objetivos táctiles ≥ 44×44px.</li>
+    <li>Los íconos decorativos se marcan con <code class="mono text-xs">aria-hidden</code>; el estado nunca se comunica solo por color.</li>
+  </ul>
+</div>
+
+<footer class="app-footer">
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
+      </footer>
+</div></main></div></div>
+<script src="assets/js/i18n.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
