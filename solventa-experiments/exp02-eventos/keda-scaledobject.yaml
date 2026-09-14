@@ -1,0 +1,50 @@
+# EXP-02 | Auto-escalado de consumidores por profundidad de la suscripcion.
+# El punto de sensibilidad es maxReplicaCount y el valor de subscriptionSize:
+# ese par determina si la rafaga se absorbe dentro de la ventana de 10 minutos.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: consumidor-parametricos
+  namespace: solventa
+spec:
+  scaleTargetRef:
+    name: consumidor-parametricos
+  pollingInterval: 5        # s; cada cuanto consulta la profundidad
+  cooldownPeriod: 120       # s antes de escalar hacia abajo
+  minReplicaCount: 2
+  maxReplicaCount: 40       # variable del experimento: probar 10, 20, 40
+  triggers:
+    - type: gcp-pubsub
+      metadata:
+        subscriptionName: siniestros-parametricos-sub
+        mode: SubscriptionSize
+        value: "500"        # variable del experimento: mensajes pendientes por replica
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumidor-parametricos
+  namespace: solventa
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: consumidor-parametricos }
+  template:
+    metadata:
+      labels: { app: consumidor-parametricos }
+    spec:
+      containers:
+        - name: consumidor
+          image: gcr.io/PROJECT_ID/consumidor-parametricos:latest
+          env:
+            - name: GCP_PROJECT_ID
+              value: "PROJECT_ID"
+            - name: SUBSCRIPTION
+              value: "siniestros-parametricos-sub"
+            - name: REDIS_URL
+              value: "redis://memorystore-ip:6379"
+            - name: MAX_MESSAGES
+              value: "200"
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits:   { cpu: "1000m", memory: "512Mi" }

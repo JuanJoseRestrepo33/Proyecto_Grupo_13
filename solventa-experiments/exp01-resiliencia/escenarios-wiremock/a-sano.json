@@ -1,0 +1,13 @@
+{
+  "mappings": [
+    {
+      "name": "EXP-01 escenario A: proveedor sano",
+      "request": { "method": "GET", "urlPathPattern": "/perfil.*" },
+      "response": {
+        "status": 200,
+        "jsonBody": { "score": 720, "fuente": "open-finance" },
+        "fixedDelayMilliseconds": 40
+      }
+    }
+  ]
+}

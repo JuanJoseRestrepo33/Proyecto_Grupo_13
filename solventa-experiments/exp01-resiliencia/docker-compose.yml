@@ -1,0 +1,30 @@
+# EXP-01 | Montaje local completo del experimento.
+#   docker compose up -d
+#   # cambiar de escenario:
+#   docker compose exec wiremock sh -c "cp /home/wiremock/escenarios/b-degradado.json /home/wiremock/mappings/ && rm -f /home/wiremock/mappings/a-sano.json"
+#   curl -X POST http://localhost:8081/__admin/mappings/reset
+version: "3.8"
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  wiremock:
+    image: wiremock/wiremock:3.5.4
+    ports: ["8081:8080"]
+    volumes:
+      - ./escenarios-wiremock:/home/wiremock/escenarios:ro
+      - ./escenarios-wiremock/a-sano.json:/home/wiremock/mappings/a-sano.json:ro
+    command: ["--verbose", "--global-response-templating"]
+
+  cotizacion:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      OPEN_FINANCE_URL: "http://wiremock:8080/perfil"
+      REDIS_URL: "redis://redis:6379"
+      BUDGET_MS: "120"
+      HARD_TIMEOUT_MS: "700"
+      MIN_CALLS: "5"
+      FAIL_THRESHOLD: "0.10"
+    depends_on: [redis, wiremock]

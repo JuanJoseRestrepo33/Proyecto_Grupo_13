@@ -1,0 +1,7 @@
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+redis==5.0.3
+google-cloud-bigquery==3.19.0
+google-cloud-pubsub==2.21.1
+pydantic==2.6.4
+requests==2.31.0
