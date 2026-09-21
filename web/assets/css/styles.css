@@ -492,3 +492,23 @@ input:focus, select:focus, textarea:focus{ outline:3px solid var(--primary-700);
 .chat-form{ display:flex; gap:8px; align-items:center; }
 .chat-form input{ flex:1; }
 .btn-auto{ width:auto; }
+
+/* ==========================================================================
+   Accesibilidad (WCAG 2.2 AAA · contraste de texto >= 7:1)
+   Sobrescribe los tokens de color; el HTML no cambia.
+   ========================================================================== */
+:root{
+  --primary-700:#5B21B6;
+  --neutral-500:#454B5C;
+  --success-600:#005A39;
+  --warning-600:#7C2D12;
+  --error-600:#7F1D1D;
+}
+.notif-dot, .nav-badge, .bn-badge, .bn-item .bn-badge{ background:#991B1B; color:#fff; }
+.btn-success{ background:#065F46; } .btn-success:hover{ background:#064E3B; }
+.btn-error{ background:#991B1B; color:#fff; } .btn-error:hover{ background:#7F1D1D; }
+.badge.success{ background:#D1FAE5; color:#005A39; }
+.badge.warning{ background:#FEF3C7; color:#7C2D12; }
+.badge.error{ background:#FEE2E2; color:#7F1D1D; }
+.delta.up{ color:#005A39; } .delta.down{ color:#7F1D1D; }
+.btn-primary{ box-shadow:0 4px 12px rgba(91,33,182,.25); }
