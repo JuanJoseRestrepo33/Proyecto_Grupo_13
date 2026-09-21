@@ -14,25 +14,26 @@
 <div class="device-stage">
 <div class="device-frame">
 <div class="app-shell">
-  <div class="splash" id="screen-content" tabindex="-1">
-    <div class="mark" aria-hidden="true">🛡️</div>
+  <main class="splash" id="screen-content" tabindex="-1">
+    <div class="mark" aria-hidden="true"><span class="brand-mark brand-mark-lg"></span></div>
     <h1 data-i18n>Solventa</h1>
     <p data-i18n>Aseguradora digital de finanzas abiertas, en tu bolsillo.</p>
-    <form onsubmit="return false" style="width:100%;max-width:280px;margin-top:12px;text-align:left">
+    <form onsubmit="location.href='index.html';return false" style="width:100%;max-width:280px;margin-top:12px;text-align:left">
       <div class="form-group">
         <label for="email" style="color:#fff" data-i18n>Correo electrónico</label>
-        <input type="email" id="email" placeholder="nombre@correo.com">
+        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com">
       </div>
       <div class="form-group">
         <label for="pass" style="color:#fff" data-i18n>Contraseña</label>
-        <input type="password" id="pass" placeholder="••••••••">
+        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••">
       </div>
       <a class="btn btn-primary" href="index.html" style="background:#fff;color:var(--primary-700)" data-i18n>Iniciar sesión</a>
       <button class="btn btn-ghost" style="border-color:rgba(255,255,255,.5);color:#fff;margin-top:10px" data-i18n>👆 Ingresar con huella</button>
     </form>
-  </div>
+  </main>
 </div></div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

@@ -15,7 +15,7 @@
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html"><span data-i18n>Inicio</span></a>
       <a href="polizas.html" aria-current="page"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -103,7 +103,6 @@
 
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F04 · Ciclo de vida</div>
     <h1 data-i18n>Mis pólizas</h1>
     <p class="text-muted">Consulta el estado, vigencia y coberturas de tus pólizas.</p>
   </div>
@@ -118,43 +117,43 @@
     <button class="tab-btn" data-tab="todas" data-i18n>Ver todas</button>
   </div>
   <div class="tab-panel active" data-tab-panel="activas">
-    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"></th></tr></thead><tbody><tr>
-      <td class="mono">POL-2026-001234</td><td>Seguro de Viaje</td><td><span class="badge success" data-i18n>Activa</span></td>
-      <td><span data-money="45000" data-currency="COP">$45.000</span>/mes</td><td><span data-date="2027-01-14">14 ene 2027</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
-    </tr><tr>
-      <td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td><span class="badge success" data-i18n>Activa</span></td>
-      <td><span data-money="20000" data-currency="COP">$20.000</span>/mes</td><td><span data-date="2031-03-02">02 mar 2031</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
+    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead><tbody><tr data-pol-row="1234">
+      <td class="mono">POL-2026-001234</td><td>Seguro de Viaje</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$45.000</span>/mes</td><td><span data-pol-date="end" data-date="2027-01-14">14 ene 2027</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=1234" data-i18n>Ver detalle</a></td>
+    </tr><tr data-pol-row="2891">
+      <td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/mes</td><td><span data-pol-date="end" data-date="2031-03-02">02 mar 2031</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=2891" data-i18n>Ver detalle</a></td>
     </tr></tbody></table></div>
   </div>
   <div class="tab-panel" data-tab-panel="vencidas">
-    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"></th></tr></thead><tbody><tr>
-      <td class="mono">POL-2026-001235</td><td>Dispositivos</td><td><span class="badge warning" data-i18n>Vence pronto</span></td>
-      <td><span data-money="20000" data-currency="COP">$20.000</span>/mes</td><td><span data-date="2026-09-27">27 sep 2026</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
+    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead><tbody><tr data-pol-row="1235">
+      <td class="mono">POL-2026-001235</td><td>Dispositivos</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/mes</td><td><span data-pol-date="end" data-date="2026-09-27">27 sep 2026</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=1235" data-i18n>Ver detalle</a></td>
     </tr></tbody></table></div>
   </div>
   <div class="tab-panel" data-tab-panel="archivadas">
-    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"></th></tr></thead><tbody><tr>
+    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead><tbody><tr>
       <td class="mono">POL-2025-009981</td><td>Hogar</td><td><span class="badge neutral" data-i18n>Vencida</span></td>
       <td><span data-money="38000" data-currency="COP">$38.000</span>/mes</td><td><span data-date="2026-08-01">01 ago 2026</span></td>
       <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
     </tr></tbody></table></div>
   </div>
   <div class="tab-panel" data-tab-panel="todas">
-    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"></th></tr></thead><tbody><tr>
-      <td class="mono">POL-2026-001234</td><td>Seguro de Viaje</td><td><span class="badge success" data-i18n>Activa</span></td>
-      <td><span data-money="45000" data-currency="COP">$45.000</span>/mes</td><td><span data-date="2027-01-14">14 ene 2027</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
-    </tr><tr>
-      <td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td><span class="badge success" data-i18n>Activa</span></td>
-      <td><span data-money="20000" data-currency="COP">$20.000</span>/mes</td><td><span data-date="2031-03-02">02 mar 2031</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
-    </tr><tr>
-      <td class="mono">POL-2026-001235</td><td>Dispositivos</td><td><span class="badge warning" data-i18n>Vence pronto</span></td>
-      <td><span data-money="20000" data-currency="COP">$20.000</span>/mes</td><td><span data-date="2026-09-27">27 sep 2026</span></td>
-      <td><a class="link-btn" href="poliza-detalle.html" data-i18n>Ver detalle</a></td>
+    <div class="table-wrap"><table><thead><tr><th scope="col" data-i18n>Número</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Prima</th><th scope="col" data-i18n>Vence</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead><tbody><tr data-pol-row="1234">
+      <td class="mono">POL-2026-001234</td><td>Seguro de Viaje</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$45.000</span>/mes</td><td><span data-pol-date="end" data-date="2027-01-14">14 ene 2027</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=1234" data-i18n>Ver detalle</a></td>
+    </tr><tr data-pol-row="2891">
+      <td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/mes</td><td><span data-pol-date="end" data-date="2031-03-02">02 mar 2031</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=2891" data-i18n>Ver detalle</a></td>
+    </tr><tr data-pol-row="1235">
+      <td class="mono">POL-2026-001235</td><td>Dispositivos</td><td><span class="badge" data-pol-badge="plain" data-i18n>x</span></td>
+      <td><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/mes</td><td><span data-pol-date="end" data-date="2026-09-27">27 sep 2026</span></td>
+      <td><a class="link-btn" href="poliza-detalle.html?p=1235" data-i18n>Ver detalle</a></td>
     </tr><tr>
       <td class="mono">POL-2025-009981</td><td>Hogar</td><td><span class="badge neutral" data-i18n>Vencida</span></td>
       <td><span data-money="38000" data-currency="COP">$38.000</span>/mes</td><td><span data-date="2026-08-01">01 ago 2026</span></td>
@@ -172,10 +171,11 @@
 </script>
 
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

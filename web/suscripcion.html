@@ -15,7 +15,7 @@
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html" aria-current="page"><span data-i18n>Inicio</span></a>
       <a href="polizas.html"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -103,7 +103,6 @@
 
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F03 · Adquisición</div>
     <h1 data-i18n>Suscripción de tu póliza</h1>
     <p class="text-muted">Revisa la oferta, confirma el pago y firma para recibir tu póliza.</p>
   </div>
@@ -119,10 +118,9 @@
   <div class="card">
 
     <div class="wizard-step active">
-      <h3 data-i18n>1. Revisa las condiciones de tu oferta</h3>
-      <p class="text-muted text-sm">Criterio: permitir revisar la oferta y sus condiciones antes de aceptarla.</p>
+      <h2 data-i18n>1. Revisa las condiciones de tu oferta</h2>
       <div class="card" style="background:var(--neutral-50)">
-        <div class="card-header"><h4 data-i18n>Seguro de Auto — Plan Full</h4><span class="text-sm mono text-muted">QT-2026-08831</span></div>
+        <div class="card-header"><h2 data-i18n>Seguro de Auto — Plan Full</h2><span class="text-sm mono text-muted">QT-2026-08831</span></div>
         <p style="font-size:28px;font-weight:700;color:var(--primary-700)"><span data-money="132900" data-currency="COP">$132.900</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
         <ul style="margin:8px 0 0 20px;font-size:14px;color:var(--neutral-700)">
           <li>Responsabilidad civil hasta <span data-money="1200000000" data-currency="COP">$1.200.000.000</span></li>
@@ -133,8 +131,7 @@
     </div>
 
     <div class="wizard-step">
-      <h3 data-i18n>2. Medio de pago</h3>
-      <p class="text-muted text-sm">Criterio: procesar el cobro de la prima cuando la suscripción sea aprobada; evitar cobros duplicados.</p>
+      <h2 data-i18n>2. Medio de pago</h2>
       <div class="form-grid">
         <div class="form-group full"><label for="sTarjeta" data-i18n>Número de tarjeta</label><input type="text" id="sTarjeta" value="4532 •••• •••• 0192"></div>
         <div class="form-group"><label for="sVence" data-i18n>Vencimiento</label><input type="text" id="sVence" value="08/29"></div>
@@ -144,17 +141,19 @@
     </div>
 
     <div class="wizard-step">
-      <h3 data-i18n>3. Firma electrónica</h3>
-      <p class="text-muted text-sm">Criterio: ejecutar el proceso de firma correspondiente, con trazabilidad y no repudio.</p>
-      <div class="card" style="background:var(--neutral-50);text-align:center;padding:40px">
-        <p style="font-size:40px;margin-bottom:8px">✍️</p>
-        <p>Firma el contrato de póliza para continuar con la emisión.</p>
-        <button class="btn btn-secondary" style="margin-top:8px" data-i18n>Firmar electrónicamente</button>
+      <h2 data-i18n>3. Firma electrónica</h2>
+      <div class="card" style="background:var(--neutral-50);text-align:center;padding:40px" id="signBox">
+        <p style="font-size:40px;margin-bottom:8px" aria-hidden="true">✍️</p>
+        <p data-i18n>Firma el contrato de póliza para continuar con la emisión.</p>
+        <button type="button" class="btn btn-secondary" style="margin-top:8px" id="openSign" aria-haspopup="dialog" data-i18n>Firmar electrónicamente</button>
+      </div>
+      <div class="alert success" id="signedOk" hidden role="status">
+        <span class="ic" aria-hidden="true">✅</span>
+        <div><strong data-i18n>Contrato firmado electrónicamente.</strong> <span class="mono text-sm">FIRMA-2026-0091827</span></div>
       </div>
     </div>
-
     <div class="wizard-step">
-      <h3 data-i18n>4. ¡Póliza emitida!</h3>
+      <h2 data-i18n>4. ¡Póliza emitida!</h2>
       <div class="alert success"><span class="ic">✅</span><div><strong data-i18n>Tu póliza fue emitida correctamente.</strong> Ya puedes consultarla en cualquier momento.</div></div>
       <div class="form-grid">
         <div><label data-i18n>Número de póliza</label><p class="mono">POL-2026-005130</p></div>
@@ -170,14 +169,71 @@
   <div class="wizard-nav">
     <button class="btn btn-ghost" data-wizard-prev data-i18n>← Atrás</button>
     <button class="btn btn-primary" data-wizard-next data-i18n>Continuar</button>
+    <a class="btn btn-success" href="index.html" data-wizard-last hidden data-i18n>Finalizar</a>
   </div>
 </div>
 
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<div class="modal-backdrop" id="signModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="signTitle" aria-describedby="signDesc">
+    <h2 id="signTitle" data-i18n>Firma electrónica</h2>
+    <p id="signDesc" class="text-sm text-muted" data-i18n>Revisa el resumen del contrato antes de firmar. Esta es una simulación: no se genera ninguna firma real.</p>
+    <div class="card" style="background:var(--neutral-50);margin:12px 0">
+      <div class="summary-row"><span data-i18n>Póliza</span><strong>Seguro de Auto — Plan Full</strong></div>
+      <div class="summary-row"><span data-i18n>Prima</span><strong><span data-money="132900" data-currency="COP">$132.900</span>/<span data-i18n>mes</span></strong></div>
+      <div class="summary-row"><span data-i18n>Firmante</span><strong>Juan Rodríguez</strong></div>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="signAccept"><label for="signAccept" data-i18n>Acepto los términos del contrato y autorizo mi firma electrónica.</label></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="signCancel" data-i18n>Cancelar</button>
+      <button type="button" class="btn btn-primary" id="signConfirm" disabled data-i18n>Aceptar y firmar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById("signModal"), openBtn = document.getElementById("openSign"),
+      accept = document.getElementById("signAccept"), confirmBtn = document.getElementById("signConfirm"),
+      cancel = document.getElementById("signCancel"), box = document.getElementById("signBox"),
+      ok = document.getElementById("signedOk"), signed = false;
+  var wizard = document.querySelector("[data-wizard]"), next = wizard.querySelector("[data-wizard-next]");
+
+  // "Continuar" queda bloqueado en el paso de firma hasta que se firme
+  function gate() {
+    var step3 = wizard.querySelectorAll(".stepper .step")[2];
+    next.disabled = !signed && step3.classList.contains("active");
+  }
+  new MutationObserver(gate).observe(wizard.querySelector(".stepper"), { attributes: true, subtree: true, attributeFilter: ["class"] });
+  gate();
+
+  function close() { modal.hidden = true; document.body.style.overflow = ""; openBtn.focus(); }
+  openBtn.addEventListener("click", function () {
+    accept.checked = false; confirmBtn.disabled = true;
+    modal.hidden = false; document.body.style.overflow = "hidden"; accept.focus();
+  });
+  accept.addEventListener("change", function () { confirmBtn.disabled = !accept.checked; });
+  cancel.addEventListener("click", close);
+  modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+  confirmBtn.addEventListener("click", function () {
+    signed = true; modal.hidden = true; document.body.style.overflow = "";
+    box.hidden = true; ok.hidden = false; gate();
+    next.focus();
+  });
+  modal.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") { e.stopPropagation(); close(); return; }
+    if (e.key !== "Tab") return;
+    var f = Array.prototype.filter.call(modal.querySelectorAll("input,button"), function (n) { return !n.disabled; });
+    var a = f[0], z = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+    else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+  });
+})();
+</script>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

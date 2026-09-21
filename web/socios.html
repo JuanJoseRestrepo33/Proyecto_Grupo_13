@@ -15,7 +15,7 @@
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html" aria-current="page"><span data-i18n>Inicio</span></a>
       <a href="polizas.html"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -103,7 +103,6 @@
 
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F11 · Ciclo de vida y operación</div>
     <h1 data-i18n>Back-office de socios</h1>
     <p class="text-muted">Actividad de tu organización en la plataforma Solventa.</p>
   </div>
@@ -119,7 +118,7 @@
   <div class="stat-card"><div class="n">98,6%</div><div class="l">Tasa de éxito de la API</div></div>
 </div>
 
-<div class="section-title" data-i18n>Pólizas emitidas a través de su canal</div>
+<h2 class="section-title" data-i18n>Pólizas emitidas a través de su canal</h2>
 <div class="table-wrap" style="margin-bottom:32px">
   <table>
     <thead><tr><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Cliente</th><th scope="col" data-i18n>Fecha</th><th scope="col" data-i18n>Estado</th></tr></thead>
@@ -131,7 +130,7 @@
   </table>
 </div>
 
-<div class="section-title" data-i18n>Credenciales y cuotas de la integración</div>
+<h2 class="section-title" data-i18n>Credenciales y cuotas de la integración</h2>
 <div class="card">
   <div class="form-grid" style="margin-bottom:0">
     <div><label data-i18n>Client ID</label><p class="mono text-sm">partner_banco-andes_prod</p></div>
@@ -142,10 +141,11 @@
 </div>
 
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

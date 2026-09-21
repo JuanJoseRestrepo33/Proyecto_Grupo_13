@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -34,12 +34,11 @@
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
 
-<div class="eyebrow" data-i18n>MOB-F02 · Onboarding</div>
 <h1 data-i18n>Consentimiento Open Finance</h1>
 <p class="text-muted text-sm">Gestiona desde el celular el uso de tus datos financieros, sincronizado con el canal web.</p>
 
 <div class="card">
-  <div class="card-header"><div><h4 data-i18n>Perfilamiento y suscripción</h4><p class="text-xs text-muted mono">CONSENT-2026-00417</p></div><span class="badge success" data-i18n>Vigente</span></div>
+  <div class="card-header"><div><h2 data-i18n>Perfilamiento y suscripción</h2><p class="text-xs text-muted mono">CONSENT-2026-00417</p></div><span class="badge success" data-i18n>Vigente</span></div>
   <p class="text-sm"><label data-i18n>Vigente hasta</label>10 de enero de 2027</p>
   <div class="btn-row" style="margin-top:8px">
     <button class="btn btn-ghost btn-sm" data-i18n>Ver uso</button>
@@ -52,7 +51,7 @@
   </div>
 </div>
 
-<div class="section-title" data-i18n>Otorgar nuevo consentimiento</div>
+<h2 class="section-title" data-i18n>Otorgar nuevo consentimiento</h2>
 <div class="card">
   <div class="form-group"><label for="cEnt" data-i18n>Entidad financiera</label><select id="cEnt"><option data-i18n>Banco Andes S.A.</option></select></div>
   <div class="checkbox-row"><input type="checkbox" id="chk1"><label for="chk1" data-i18n>Autorizo el uso de mis datos financieros según la política de tratamiento de datos.</label></div>
@@ -74,7 +73,7 @@ document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -97,6 +96,7 @@ document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

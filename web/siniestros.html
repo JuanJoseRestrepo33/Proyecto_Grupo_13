@@ -15,7 +15,7 @@
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html"><span data-i18n>Inicio</span></a>
       <a href="polizas.html"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html" aria-current="page"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -103,17 +103,16 @@
 
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F06 · Ciclo de vida y siniestros</div>
     <h1 data-i18n>Mis siniestros</h1>
     <p class="text-muted">Consulta el estado y la evolución de tus reclamos, incluidos los pagos paramétricos automáticos.</p>
   </div>
-  <div class="page-actions"><a class="btn btn-primary" href="siniestro-reportar.html" data-i18n>+ Reportar siniestro</a></div>
+  <div class="page-actions"><button type="button" class="btn btn-ghost" data-chat data-i18n>💬 Chat en vivo</button><a class="btn btn-primary" href="siniestro-reportar.html" data-i18n>+ Reportar siniestro</a></div>
 </div>
 
 <div id="historial" class="table-wrap">
   <table>
-    <thead><tr><th scope="col" data-i18n>ID</th><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Origen</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Monto</th><th scope="col"></th></tr></thead>
-    <tbody>
+    <thead><tr><th scope="col" data-i18n>ID</th><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Origen</th><th scope="col" data-i18n>Estado</th><th scope="col" data-i18n>Monto</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead>
+    <tbody id="claimsBody">
       <tr>
         <td class="mono">CLM-2026-000118</td><td>Seguro de Viaje</td><td>Retraso de vuelo</td>
         <td><span class="badge neutral" data-i18n>Manual</span></td><td><span class="badge warning" data-i18n>En revisión</span></td><td>$200 USD</td>
@@ -134,10 +133,11 @@
 </div>
 
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

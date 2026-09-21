@@ -11,18 +11,19 @@
 <body data-page="login">
 <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 <div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
-<div class="auth-wrap" id="main-content" tabindex="-1">
+<main class="auth-wrap" id="main-content" tabindex="-1">
   <div class="auth-card">
-    <div class="auth-logo"><span style="font-size:26px" aria-hidden="true">🛡️</span> Solventa</div>
+    <h1 class="sr-only" data-i18n>Iniciar sesión</h1>
+    <div class="auth-logo"><span class="brand-mark" aria-hidden="true"></span> Solventa</div>
     <p class="text-muted text-sm" style="text-align:center;margin-bottom:24px" data-i18n>Aseguradora digital de finanzas abiertas</p>
-    <form onsubmit="return false" action="index.html">
+    <form onsubmit="location.href='index.html';return false" action="index.html">
       <div class="form-group">
         <label for="email" data-i18n>Correo electrónico</label>
-        <input type="email" id="email" placeholder="nombre@correo.com" required>
+        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com" required>
       </div>
       <div class="form-group">
         <label for="pass" data-i18n>Contraseña</label>
-        <input type="password" id="pass" placeholder="••••••••" required>
+        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••" required>
       </div>
       <a class="btn btn-primary btn-block" href="index.html" style="margin-top:8px" data-i18n>Iniciar sesión</a>
       <p class="text-sm text-muted" style="text-align:center;margin-top:16px">
@@ -30,7 +31,8 @@
       </p>
     </form>
   </div>
-</div><script src="assets/js/i18n.js"></script>
+</main><script src="assets/js/flow.js"></script>
+<script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

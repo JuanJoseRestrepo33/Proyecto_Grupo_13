@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -34,22 +34,22 @@
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
 
-<div class="eyebrow" data-i18n>MOB-F06 · Siniestros y asistencia</div>
 <h1 data-i18n>Mis siniestros</h1>
-<button class="btn btn-ghost btn-sm btn-auto" data-push-demo="pushDemo" style="margin-bottom:12px" data-i18n>🔔 Simular notificación push</button>
+<div class="btn-row" style="margin-bottom:12px"><button class="btn btn-ghost btn-sm" data-push-demo="pushDemo" data-i18n>🔔 Simular notificación push</button><button type="button" class="btn btn-ghost btn-sm" data-chat data-i18n>💬 Chat en vivo</button></div>
+<div id="claimsList"></div>
 
 <div class="card">
-  <div class="card-header"><h4 data-i18n>Retraso de vuelo</h4><span class="badge warning" data-i18n>En revisión</span></div>
+  <div class="card-header"><h2 data-i18n>Retraso de vuelo</h2><span class="badge warning" data-i18n>En revisión</span></div>
   <p class="text-sm text-muted mono">CLM-2026-000118</p>
   <a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver seguimiento →</a>
 </div>
 <div class="card">
-  <div class="card-header"><h4 data-i18n>Pantalla dañada</h4><span class="badge success" data-i18n>Pagado</span></div>
+  <div class="card-header"><h2 data-i18n>Pantalla dañada</h2><span class="badge success" data-i18n>Pagado</span></div>
   <p class="text-sm text-muted mono">CLM-2026-000094</p>
   <a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver seguimiento →</a>
 </div>
 <div class="card">
-  <div class="card-header"><h4>Retraso de vuelo ≥3h <span class="badge" style="margin-left:6px" data-i18n>⚡ Automático</span></h4><span class="badge success" data-i18n>Pagado</span></div>
+  <div class="card-header"><h2>Retraso de vuelo ≥3h <span class="badge" style="margin-left:6px" data-i18n>⚡ Automático</span></h2><span class="badge success" data-i18n>Pagado</span></div>
   <p class="text-sm text-muted mono">CLM-2026-000151 · <span data-money="350000" data-currency="COP">$350.000</span></p>
   <a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver seguimiento →</a>
 </div>
@@ -60,8 +60,8 @@
 </div>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
-</div></main>
 <a class="fab" href="siniestro-reportar.html" aria-label="Reportar siniestro">+</a>
+</div></main>
 <nav class="bottom-nav" aria-label="Navegación principal">
 <a class="bn-item" href="index.html"><span class="ic" aria-hidden="true">🏠</span><span data-i18n>Inicio</span></a>
 <a class="bn-item" href="billetera.html"><span class="ic" aria-hidden="true">📋</span><span data-i18n>Pólizas</span><span class="bn-badge" aria-label="3 notificaciones">3</span></a>
@@ -70,7 +70,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -93,6 +93,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

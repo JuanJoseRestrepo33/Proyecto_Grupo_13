@@ -8,14 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
-<body data-page="polizas">
+<body data-page="polizas" data-pol-guard>
 <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 <div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
 
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html"><span data-i18n>Inicio</span></a>
       <a href="polizas.html" aria-current="page"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -100,42 +100,37 @@
 <main class="main" id="main-content" tabindex="-1" aria-label="Contenido principal">
 <div class="main-inner">
 <nav class="breadcrumb" aria-label="Miga de pan"><a href="index.html" data-i18n>Inicio</a><span class="sep" aria-hidden="true">/</span><a href="polizas.html" data-i18n>Mis Pólizas</a><span class="sep" aria-hidden="true">/</span><span class="current" aria-current="page" data-i18n>Cancelar</span></nav>
-
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F08 · Ciclo de vida</div>
     <h1 data-i18n>Cancelar póliza</h1>
-    <p class="text-muted mono">Seguro de Viaje · POL-2026-001234</p>
+    <p class="text-muted mono"><span data-pol-text="name" data-i18n>Seguro de Viaje</span> · <span data-pol-text="num">POL-2026-001234</span></p>
   </div>
 </div>
-
 <div class="alert error">
-  <span class="ic">⚠️</span>
-  <div><strong data-i18n>Esta acción finalizará tu cobertura.</strong> Al cancelar, perderás la protección de esta póliza a partir de la fecha efectiva.
-  Podría aplicar un ajuste o devolución proporcional según las condiciones del producto.</div>
+  <span class="ic" aria-hidden="true">⚠️</span>
+  <div><strong data-i18n>Esta acción finalizará tu cobertura.</strong> <span data-i18n>Al cancelar, perderás la protección de esta póliza a partir de la fecha efectiva. Podría aplicar un ajuste o devolución proporcional según las condiciones del producto.</span></div>
 </div>
-
 <div class="card">
   <div class="form-group"><label for="canMotivo" data-i18n>Motivo de cancelación</label>
     <select id="canMotivo"><option data-i18n>Ya no necesito la cobertura</option><option data-i18n>Encontré una mejor oferta</option><option data-i18n>Insatisfacción con el servicio</option><option data-i18n>Otro</option></select>
   </div>
-  <div class="form-group"><label for="canFecha" data-i18n>Fecha efectiva</label><input type="date" id="canFecha" value="2026-09-13"></div>
+  <div class="form-group"><label for="canFecha" data-i18n>Fecha efectiva</label><input type="date" id="canFecha" value="2026-09-21"></div>
   <div class="form-group full"><label for="canComentarios" data-i18n>Comentarios (opcional)</label><textarea id="canComentarios" placeholder="Cuéntanos más..."></textarea></div>
   <div class="checkbox-row">
     <input type="checkbox" id="chkCancel">
     <label for="chkCancel" data-i18n>Entiendo las consecuencias y confirmo que deseo cancelar esta póliza.</label>
   </div>
   <div class="page-actions">
-    <a class="btn btn-error" href="poliza-detalle.html" data-i18n>Confirmar cancelación</a>
-    <a class="btn btn-ghost" href="poliza-detalle.html" data-i18n>Volver</a>
+    <button type="button" class="btn btn-error" id="cancelConfirm" disabled data-i18n>Confirmar cancelación</button>
+    <a class="btn btn-ghost" href="poliza-detalle.html" data-pol-href="poliza-detalle.html" data-i18n>Volver</a>
   </div>
 </div>
-
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

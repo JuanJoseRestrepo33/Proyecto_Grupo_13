@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -33,30 +33,31 @@
     </header>
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
-
-<h1><span data-i18n>Seguro de Viaje</span> <span class="badge success" data-i18n>✓ Activa</span></h1>
-<p class="text-muted mono text-sm">POL-2026-001234</p>
-
+<div class="flow-bar"><a class="back-link" href="billetera.html"><span aria-hidden="true">←</span> <span data-i18n>Volver</span></a></div>
+<h1><span data-pol-text="name" data-i18n>Seguro de Viaje</span> <span class="badge success" data-pol-badge data-i18n>✓ Activa</span></h1>
+<p class="text-muted mono text-sm" data-pol-text="num">POL-2026-001234</p>
 <div class="card" style="background:linear-gradient(135deg,var(--primary-700),var(--primary-900));color:#fff;border:none;text-align:center;padding:24px 16px">
-  <p style="color:rgba(255,255,255,.8);font-size:11px;text-transform:uppercase;letter-spacing:.06em" data-i18n>Credencial digital</p>
-  <p style="color:#fff;font-size:20px;font-weight:700;font-family:var(--font-mono);margin:6px 0">POL-2026-001234</p>
-  <p style="color:rgba(255,255,255,.85);font-size:12px"><span data-date="2026-01-15">15 ene 2026</span> – <span data-date="2027-01-14">14 ene 2027</span></p>
+  <p style="color:rgba(255,255,255,.9);font-size:11px;text-transform:uppercase;letter-spacing:.06em" data-i18n>Credencial digital</p>
+  <p style="color:#fff;font-size:20px;font-weight:700;font-family:var(--font-mono);margin:6px 0" data-pol-text="num">POL-2026-001234</p>
+  <p style="color:rgba(255,255,255,.9);font-size:12px"><span data-pol-date="start" data-date="2026-01-15">15 ene 2026</span> – <span data-pol-date="end" data-date="2027-01-14">14 ene 2027</span></p>
 </div>
-
-<div class="section-title" data-i18n>Coberturas</div>
+<div class="alert error" data-pol-show="cancelada" hidden style="margin-top:12px">
+  <span class="ic" aria-hidden="true">⚠️</span>
+  <div><strong data-i18n>Esta póliza fue cancelada.</strong> <span data-i18n>Ya no tiene cobertura vigente.</span></div>
+</div>
+<h2 class="section-title" data-i18n>Coberturas</h2>
 <div class="card">
-  <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--neutral-700);display:flex;flex-direction:column;gap:6px">
-    <li>Retraso de vuelo (6+ horas) — $200 USD</li>
-    <li>Equipo dañado o perdido — $1.000.000 COP</li>
-    <li>Cancelación de viaje — 30% de reembolso</li>
-  </ul>
+  <ul id="polCovM" style="margin:0;padding-left:18px;font-size:13px;color:var(--neutral-700);display:flex;flex-direction:column;gap:6px"></ul>
 </div>
-
-<div class="btn-row" style="margin-top:14px">
-  <a class="btn btn-secondary" href="cotizar.html" data-i18n>Modificar</a>
-  <a class="btn btn-danger-outline" href="cotizar.html" data-i18n>Cancelar</a>
+<h2 class="section-title" data-i18n>Pagos</h2>
+<div class="card"><div class="summary-row"><span data-i18n>Prima</span><strong><span data-pol-price="price" data-money="45000" data-currency="COP">$45.000</span>/<span data-i18n>mes</span></strong></div>
+  <a class="link-btn" href="#" data-pol-payments data-i18n>Ver historial de pagos</a></div>
+<div data-pol-show="notcancelled">
+<h2 class="section-title" data-i18n>Acciones</h2>
+<div class="btn-row"><a class="btn btn-secondary" href="poliza-modificar.html" data-pol-href="poliza-modificar.html" data-i18n>Modificar</a><a class="btn btn-secondary" href="poliza-renovar.html" data-pol-href="poliza-renovar.html" data-i18n>Renovar</a></div>
+<div class="btn-row" style="margin-top:10px"><a class="btn btn-danger-outline" href="poliza-cancelar.html" data-pol-href="poliza-cancelar.html" data-i18n>Cancelar</a><a class="btn btn-ghost" href="siniestro-reportar.html" data-i18n>Reportar siniestro</a></div>
 </div>
-
+<button type="button" class="btn btn-ghost" style="margin-top:10px" data-pol-pdf data-mock-download="poliza.pdf" data-i18n>📥 Descargar PDF</button>
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
 <nav class="bottom-nav" aria-label="Navegación principal">
@@ -67,7 +68,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -90,6 +91,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
