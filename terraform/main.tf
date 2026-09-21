@@ -110,15 +110,17 @@ resource "google_service_networking_connection" "privada" {
 resource "google_container_cluster" "primario" {
   name                     = "solventa-primario"
   location                 = var.region_primaria
+  node_locations           = local.zonas
   network                  = google_compute_network.vpc.id
   subnetwork               = google_compute_subnetwork.primaria.id
   remove_default_node_pool = true
   initial_node_count       = 1
   deletion_protection      = false
 
-  # El pool por defecto se crea (1 nodo por zona, 3 en total) antes de
-  # borrarse. Con el disco por defecto (100 GB SSD) excede la cuota
-  # SSD_TOTAL_GB de 250 GB; con disco estandar pequeno no la consume.
+  # El pool por defecto se crea (1 nodo por zona) antes de borrarse. Con el
+  # disco por defecto (100 GB SSD) excede la cuota SSD_TOTAL_GB de 250 GB;
+  # con disco estandar pequeno no la consume. node_locations limita las
+  # zonas a las que tienen capacidad disponible.
   node_config {
     disk_size_gb = 20
     disk_type    = var.tipo_disco
