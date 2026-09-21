@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -35,7 +35,6 @@
 <div class="screen-inner">
 
 <div class="offline-banner" id="offlineBanner" hidden>📴 Sin conexión · mostrando última sincronización (08:14 a.m.)</div>
-<div class="eyebrow" data-i18n>MOB-F03 · Onboarding y autoservicio</div>
 <h1 data-i18n>Billetera de pólizas</h1>
 <p class="text-muted text-sm">Disponible sin conexión: consulta tus coberturas en cualquier momento.</p>
 <button class="btn btn-ghost btn-sm btn-auto" onclick="document.getElementById('offlineBanner').hidden=!document.getElementById('offlineBanner').hidden" style="margin-bottom:12px" data-i18n>📴 Simular modo sin conexión</button>
@@ -46,25 +45,25 @@
     <button class="tab-btn" data-tab="vencidas" data-i18n>Por vencer</button>
   </div>
   <div class="tab-panel active" data-tab-panel="activas">
-    <div class="card">
-      <div class="card-header"><h4 data-i18n>Seguro de Viaje</h4><span class="badge success" data-i18n>✓ Activa</span></div>
+    <div class="card" data-pol-row="1234">
+      <div class="card-header"><h2 data-i18n>Seguro de Viaje</h2><span class="badge" data-pol-badge data-i18n>x</span></div>
       <p class="text-sm text-muted mono">POL-2026-001234</p>
-      <p class="text-sm"><span data-money="45000" data-currency="COP">$45.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2027-01-14">14 ene 2027</span></p>
-      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html" data-i18n>Ver credencial</a>
+      <p class="text-sm"><span data-pol-price="price" data-money="0" data-currency="COP">$45.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-pol-date="end" data-date="2027-01-14">14 ene 2027</span></p>
+      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html?p=1234" data-i18n>Ver credencial</a>
     </div>
-    <div class="card">
-      <div class="card-header"><h4 data-i18n>Vida Hipotecario</h4><span class="badge success" data-i18n>✓ Activa</span></div>
+    <div class="card" data-pol-row="2891">
+      <div class="card-header"><h2 data-i18n>Vida Hipotecario</h2><span class="badge" data-pol-badge data-i18n>x</span></div>
       <p class="text-sm text-muted mono">POL-2026-002891</p>
-      <p class="text-sm"><span data-money="20000" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2031-03-02">02 mar 2031</span></p>
-      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html" data-i18n>Ver credencial</a>
+      <p class="text-sm"><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-pol-date="end" data-date="2031-03-02">02 mar 2031</span></p>
+      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html?p=2891" data-i18n>Ver credencial</a>
     </div>
   </div>
   <div class="tab-panel" data-tab-panel="vencidas">
-    <div class="card">
-      <div class="card-header"><h4 data-i18n>Dispositivos</h4><span class="badge warning" data-i18n>Vence pronto</span></div>
+    <div class="card" data-pol-row="1235">
+      <div class="card-header"><h2 data-i18n>Dispositivos</h2><span class="badge" data-pol-badge data-i18n>x</span></div>
       <p class="text-sm text-muted mono">POL-2026-001235</p>
-      <p class="text-sm"><span data-money="20000" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-date="2026-09-27">27 sep 2026</span></p>
-      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html" data-i18n>Ver credencial</a>
+      <p class="text-sm"><span data-pol-price="price" data-money="0" data-currency="COP">$20.000</span>/<span data-i18n>mes</span> · <span data-i18n>Vence</span>: <span data-pol-date="end" data-date="2026-09-27">27 sep 2026</span></p>
+      <a class="btn btn-secondary btn-sm btn-auto" href="billetera-detalle.html?p=1235" data-i18n>Ver credencial</a>
     </div>
   </div>
 </div>
@@ -80,7 +79,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -103,6 +102,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -36,7 +36,7 @@
 
 <h1 data-i18n>Configuración</h1>
 <div class="card">
-  <div class="section-title" data-i18n>Idioma / Language</div>
+  <h2 class="section-title" data-i18n>Idioma / Language</h2>
   <div class="form-group">
     <label for="langSelect" data-i18n>Idioma de la interfaz</label>
     <select id="langSelect">
@@ -46,7 +46,7 @@
   </div>
 </div>
 <div class="card">
-  <div class="section-title" data-i18n>Notificaciones</div>
+  <h2 class="section-title" data-i18n>Notificaciones</h2>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
     <label for="nPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="nPush" checked><span class="slider" aria-hidden="true"></span></label>
   </div>
@@ -55,7 +55,7 @@
   </div>
 </div>
 <div class="card">
-  <div class="section-title" data-i18n>Accesibilidad</div>
+  <h2 class="section-title" data-i18n>Accesibilidad</h2>
   <p class="text-sm text-muted">Cumple WCAG 2.1 AA: navegación por teclado, objetivos táctiles ≥44×44px, contraste ≥4,5:1, foco visible y etiquetas ARIA en toda la app.</p>
 </div>
 
@@ -69,7 +69,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -92,6 +92,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

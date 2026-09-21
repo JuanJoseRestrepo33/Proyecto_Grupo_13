@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -33,33 +33,49 @@
     </header>
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
-
-<div class="eyebrow" data-i18n>MOB-F05 · Siniestros y asistencia</div>
+<div class="flow-bar"><a class="back-link" href="siniestros.html"><span aria-hidden="true">←</span> <span data-i18n>Cancelar</span></a></div>
 <h1 data-i18n>Reportar siniestro</h1>
-<p class="text-muted text-sm">Captura fotos, video y geoetiquetado directamente desde tu cámara.</p>
-
-<div class="form-group"><label for="sPoliza" data-i18n>Póliza afectada</label>
-  <select id="sPoliza"><option data-i18n>POL-2026-001234 · Seguro de Viaje</option><option data-i18n>POL-2026-001235 · Dispositivos</option></select>
+<div data-wizard>
+  <div class="stepper" style="margin-top:14px">
+    <div class="step active"><div class="dot">1</div><div class="label" style="display:block" data-i18n>Información</div></div>
+    <div class="step"><div class="dot">2</div><div class="label" style="display:block" data-i18n>Evidencia</div></div>
+    <div class="step"><div class="dot">3</div><div class="label" style="display:block" data-i18n>Revisión</div></div>
+  </div>
+  <div class="wizard-step active" data-required="sFecha,sDesc">
+    <div class="form-group"><label for="sPoliza" data-i18n>Póliza afectada</label>
+      <select id="sPoliza" data-claim-field="poliza"><option data-i18n>POL-2026-001234 · Seguro de Viaje</option><option data-i18n>POL-2026-001235 · Dispositivos</option></select></div>
+    <div class="form-group"><label for="sTipo" data-i18n>Tipo de evento</label>
+      <select id="sTipo" data-claim-field="tipo"><option data-i18n>Equipo dañado</option><option data-i18n>Retraso de vuelo</option><option data-i18n>Otro</option></select></div>
+    <div class="form-group"><label for="sFecha" data-i18n>Fecha del evento</label><input type="date" id="sFecha" data-claim-field="fecha" value="2026-09-19" max="2026-09-21" required></div>
+    <div class="form-group"><label for="sDesc" data-i18n>Descripción</label><textarea id="sDesc" data-claim-field="desc" placeholder="¿Qué pasó?" required></textarea></div>
+  </div>
+  <div class="wizard-step">
+    <h2 data-i18n>Toma fotos o sube archivos</h2>
+    <p class="text-sm text-muted" data-i18n>Agrega fotos, videos o documentos que soporten tu siniestro.</p>
+    <div class="camera-mock" data-camera-mock="fotoOk" style="aspect-ratio:4/3">
+      <span aria-hidden="true" style="font-size:34px">📷</span>
+      <p style="color:#fff;font-size:12px" data-i18n>Toca para simular la captura</p>
+      <div class="shutter" aria-hidden="true"></div>
+    </div>
+    <div id="fotoOk" hidden class="alert success" style="margin-top:10px"><span class="ic" aria-hidden="true">✅</span>
+      <div><strong data-i18n>Foto capturada</strong><span class="text-xs" data-i18n>📍 Geoetiquetado: Bogotá, D.C. (4.711, -74.072)</span></div></div>
+    <p class="text-xs text-muted" style="text-align:center;margin-top:10px" data-i18n>Formatos: JPG, PNG, PDF, MP4 · Tamaño máximo: 10 MB por archivo</p>
+  </div>
+  <div class="wizard-step">
+    <h2 data-i18n>Revisa tu reporte</h2>
+    <div class="card">
+      <div class="summary-row"><span data-i18n>Póliza</span><strong data-claim-review="poliza">—</strong></div>
+      <div class="summary-row"><span data-i18n>Tipo de evento</span><strong data-claim-review="tipo">—</strong></div>
+      <div class="summary-row"><span data-i18n>Fecha del evento</span><strong data-claim-review="fecha">—</strong></div>
+      <div class="summary-row"><span data-i18n>Evidencias</span><strong data-claim-review="files">—</strong></div>
+    </div>
+    <a class="btn btn-primary" href="siniestro-confirmacion.html" data-claim-submit style="margin-top:14px" data-i18n>Enviar reporte</a>
+  </div>
+  <div class="wizard-nav">
+    <button class="btn btn-ghost btn-auto" data-wizard-prev data-i18n>← Atrás</button>
+    <button class="btn btn-primary btn-auto" data-wizard-next data-i18n>Continuar</button>
+  </div>
 </div>
-<div class="form-group"><label for="sTipo" data-i18n>Tipo de evento</label>
-  <select id="sTipo"><option data-i18n>Equipo dañado</option><option data-i18n>Retraso de vuelo</option><option data-i18n>Otro</option></select>
-</div>
-
-<div class="section-title" data-i18n>Evidencia fotográfica</div>
-<div class="camera-mock" data-camera-mock="fotoOk">
-  <span aria-hidden="true">📷</span>
-  <p style="color:#fff;font-size:12px" data-i18n>Toca para simular la captura</p>
-  <div class="shutter" aria-hidden="true"></div>
-</div>
-<p id="fotoOk" hidden class="alert success" style="margin-top:10px">
-  <span class="ic" aria-hidden="true">✅</span>
-  <div><strong data-i18n>Foto capturada</strong><br><span class="text-xs" data-i18n>📍 Geoetiquetado: Bogotá, D.C. (4.711, -74.072)</span></div>
-</p>
-
-<div class="form-group" style="margin-top:14px"><label for="sDesc" data-i18n>Descripción</label><textarea id="sDesc" placeholder="¿Qué pasó?"></textarea></div>
-
-<a class="btn btn-primary" href="siniestros.html" data-i18n>Enviar reporte</a>
-
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
 <nav class="bottom-nav" aria-label="Navegación principal">
@@ -70,7 +86,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -93,6 +109,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

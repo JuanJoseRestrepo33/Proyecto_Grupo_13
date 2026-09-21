@@ -8,14 +8,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
-<body data-page="polizas">
+<body data-page="polizas" data-pol-guard>
 <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
 <div id="a11yAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
 
 <div class="app-shell">
 <header class="topbar">
     <button class="icon-btn hamburger-btn" data-drawer-open aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="sidebar" data-i18n>☰</button>
-    <a class="topbar-logo" href="index.html"><span class="mark" aria-hidden="true">🛡️</span> Solventa</a>
+    <a class="topbar-logo" href="index.html"><span class="brand-mark" aria-hidden="true"></span> Solventa</a>
     <nav class="topbar-nav" aria-label="Navegación superior"><a href="index.html"><span data-i18n>Inicio</span></a>
       <a href="polizas.html" aria-current="page"><span data-i18n>Mis Pólizas</span></a>
       <a href="siniestros.html"><span data-i18n>Siniestros</span></a>
@@ -26,7 +26,7 @@
       </button>
       <div class="dropdown-wrap">
         <button class="icon-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 3 sin leer">🔔<span class="notif-dot" aria-hidden="true">3</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 horas</span></div>
           <div class="dropdown-item">La póliza POL-2026-004821 vence en 15 días<span class="meta">Ayer</span></div>
@@ -38,7 +38,7 @@
         <button class="profile-trigger" data-dropdown-trigger="profilePanel" aria-haspopup="true" aria-expanded="false" aria-label="Menú de perfil de Juan Rodríguez">
           <span class="avatar" aria-hidden="true">JR</span><span class="chev" aria-hidden="true">▼</span>
         </button>
-        <div class="dropdown-panel" id="profilePanel" role="menu" aria-label="Menú de perfil">
+        <div class="dropdown-panel" id="profilePanel" aria-label="Menú de perfil">
           <div class="profile-panel-user"><strong data-i18n>Juan Rodríguez</strong><span>juan.rodriguez@correo.com</span></div>
           <a class="dropdown-item" href="perfil.html">👤 <span data-i18n>Mi Perfil</span></a>
           <a class="dropdown-item" href="configuracion.html">⚙️ <span data-i18n>Configuración</span></a>
@@ -100,37 +100,32 @@
 <main class="main" id="main-content" tabindex="-1" aria-label="Contenido principal">
 <div class="main-inner">
 <nav class="breadcrumb" aria-label="Miga de pan"><a href="index.html" data-i18n>Inicio</a><span class="sep" aria-hidden="true">/</span><a href="polizas.html" data-i18n>Mis Pólizas</a><span class="sep" aria-hidden="true">/</span><span class="current" aria-current="page" data-i18n>Modificar</span></nav>
-
 <div class="page-head">
   <div>
-    <div class="eyebrow" data-i18n>WEB-F09 · Ciclo de vida</div>
     <h1 data-i18n>Modificar cobertura</h1>
-    <p class="text-muted mono">Seguro de Viaje · POL-2026-001234</p>
+    <p class="text-muted mono"><span data-pol-text="name" data-i18n>Seguro de Viaje</span> · <span data-pol-text="num">POL-2026-001234</span></p>
   </div>
 </div>
-
 <div class="card">
-  <div class="section-title" data-i18n>Coberturas disponibles para este producto</div>
-  <div class="checkbox-row"><input type="checkbox" id="c1" checked><label for="c1"><strong data-i18n>Retraso de vuelo (6+ horas)</strong> — $200 USD</label></div>
-  <div class="checkbox-row"><input type="checkbox" id="c2" checked><label for="c2"><strong data-i18n>Equipo dañado o perdido</strong> — $1.000.000 COP</label></div>
-  <div class="checkbox-row"><input type="checkbox" id="c3" checked><label for="c3"><strong data-i18n>Cancelación de viaje</strong> — 30% de reembolso</label></div>
-  <div class="checkbox-row"><input type="checkbox" id="c4"><label for="c4"><strong data-i18n>Deportes de aventura</strong> — cobertura adicional</label></div>
+  <h2 class="section-title" data-i18n>Coberturas disponibles para este producto</h2>
+  <div id="polCovList"></div>
+  <p class="error-text" id="covWarn" hidden role="alert" data-i18n>Debes mantener al menos una cobertura.</p>
   <hr class="divider">
-  <div style="display:flex;justify-content:space-between;align-items:center">
-    <div><label data-i18n>Nuevo valor de la prima</label><p style="font-size:22px;font-weight:700;color:var(--primary-700)"><span data-money="52000" data-currency="COP">$52.000</span><span style="font-size:13px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+    <div><label data-i18n>Nuevo valor de la prima</label><p style="font-size:22px;font-weight:700;color:var(--primary-700)" aria-live="polite"><span id="newPrice" data-money="45000" data-currency="COP">$45.000</span><span style="font-size:13px;color:var(--neutral-500);font-weight:500">/<span data-i18n>mes</span></span></p></div>
     <div class="page-actions">
-      <a class="btn btn-primary" href="poliza-detalle.html" data-i18n>Guardar cambios</a>
-      <a class="btn btn-ghost" href="poliza-detalle.html" data-i18n>Cancelar</a>
+      <a class="btn btn-primary" id="saveCov" href="poliza-detalle.html?ok=modificada" data-pol-href="poliza-detalle.html" data-pol-ok="modificada" data-i18n>Guardar cambios</a>
+      <a class="btn btn-ghost" href="poliza-detalle.html" data-pol-href="poliza-detalle.html" data-i18n>Cancelar</a>
     </div>
   </div>
-  <p class="text-xs text-muted" style="margin-top:12px">Las condiciones anteriores quedan registradas en el historial de la póliza para trazabilidad y auditoría.</p>
+  <p class="text-xs text-muted" style="margin-top:12px" data-i18n>Las condiciones anteriores quedan registradas en el historial de la póliza para trazabilidad y auditoría.</p>
 </div>
-
 <footer class="app-footer">
-        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v1.0</span><br>
+        <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
         <a href="ayuda.html" data-i18n>Ayuda</a> · <a href="configuracion.html" data-i18n>Privacidad</a> · <a href="ayuda.html" data-i18n>Contacto</a>
       </footer>
 </div></main></div></div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

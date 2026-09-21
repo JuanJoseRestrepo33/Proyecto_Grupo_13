@@ -22,7 +22,7 @@
         <button class="lang-toggle" id="langToggle" type="button" aria-label="Cambiar idioma / Switch language">🌐 <span class="lang-cur" id="langToggleCur">ES</span></button>
       <div style="position:relative">
         <button class="header-btn" data-dropdown-trigger="notifPanel" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones, 2 sin leer">🔔<span class="notif-dot" aria-hidden="true">2</span></button>
-        <div class="dropdown-panel" id="notifPanel" role="menu" aria-label="Notificaciones">
+        <div class="dropdown-panel" id="notifPanel" aria-label="Notificaciones">
           <div class="dropdown-head" data-i18n>Notificaciones</div>
           <div class="dropdown-item">Tu siniestro CLM-2026-000118 cambió a <strong data-i18n>En revisión</strong><span class="meta">Hace 2 h</span></div>
           <div class="dropdown-item">Pago paramétrico de $350.000 procesado automáticamente<span class="meta">Hace 3 días</span></div>
@@ -33,18 +33,19 @@
     </header>
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
+<div class="flow-bar"><a class="back-link" href="siniestros.html"><span aria-hidden="true">←</span> <span data-i18n>Volver</span></a></div>
 
-<h1>Retraso de vuelo <span class="badge warning" data-i18n>En revisión</span></h1>
-<p class="text-muted mono text-sm">CLM-2026-000118</p>
+<h1><span data-claim-detail="tipo">Retraso de vuelo</span> <span class="badge warning" data-claim-detail="badge" data-i18n>En revisión</span></h1>
+<p class="text-muted mono text-sm" data-claim-detail="id">CLM-2026-000118</p>
 
-<div class="section-title" data-i18n>Línea de tiempo</div>
-<div class="timeline">
+<h2 class="section-title" data-i18n>Línea de tiempo</h2>
+<div class="timeline" id="claimTimeline">
   <div class="tl-item done"><div class="tl-date">08 sep · 09:14</div><div class="tl-title">Reporte recibido</div></div>
   <div class="tl-item done"><div class="tl-date">08 sep · 14:02</div><div class="tl-title">Documentación validada</div></div>
   <div class="tl-item current"><div class="tl-date">09 sep · 10:30</div><div class="tl-title">En evaluación</div></div>
   <div class="tl-item"><div class="tl-date">Pendiente</div><div class="tl-title">Decisión y pago</div></div>
 </div>
-<button class="btn btn-secondary" style="margin-top:16px" data-i18n>💬 Chat en vivo</button>
+<button type="button" class="btn btn-secondary" style="margin-top:16px" data-chat data-i18n>💬 Chat en vivo</button>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -56,7 +57,7 @@
 </nav>
 <div class="drawer-overlay" id="drawerOverlay" data-drawer-close></div>
 <aside class="drawer" id="drawer" aria-label="Menú">
-<div class="drawer-header"><span>🛡️ Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
+<div class="drawer-header"><span style="display:flex;align-items:center;gap:8px"><span class="brand-mark" aria-hidden="true"></span> Solventa</span><button class="header-btn" data-drawer-close aria-label="Cerrar menú" data-i18n>✕</button></div>
 <div class="drawer-body">
 <div class="drawer-group-label" data-i18n>General</div>
 <a class="drawer-link" href="index.html"><span class="ic" aria-hidden="true">📍</span><span data-i18n>Inicio</span></a>
@@ -79,6 +80,7 @@
 </div>
 </div>
 </div>
+<script src="assets/js/flow.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
