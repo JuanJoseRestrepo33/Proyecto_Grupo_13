@@ -1,0 +1,16 @@
+{
+  "experimento": "EXP-02",
+  "publicados": 50000,
+  "procesados": 47443,
+  "duplicados_detectados": 2557,
+  "duplicados_inyectados": 2557,
+  "errores": 0,
+  "pagos_unicos": 47443,
+  "perdida": 0,
+  "doble_pago": 0,
+  "t_vaciado_s": 60.07,
+  "caudal_ev_s": 832,
+  "meta_s": 60.0,
+  "valido": true,
+  "cumple_rc02": false
+}
