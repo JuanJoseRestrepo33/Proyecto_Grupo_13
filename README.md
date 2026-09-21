@@ -46,12 +46,93 @@ donde todas las solicitudes habían fallado (con cero datos, `null < 250` es ver
 
 ---
 
-## 3. Fase 1 · Local con Docker (costo $0)
+## 3. Preparación del entorno
 
-> **Windows (Git Bash):** los scripts funcionan en Git Bash. Antes de correr EXP-04,
-> instala en tu Python local: `pip install psycopg2-binary requests`.
+### 3.1 Windows (Git Bash)
+
+Los scripts funcionan en Git Bash, pero requieren cuatro ajustes:
+
+**a) Desactivar la conversión automática de rutas de MSYS.** Sin esto, Git Bash
+convierte rutas como `/app/exp02` en `C:/Program Files/Git/app/exp02` antes de
+pasarlas a Docker o kubectl, y las corridas fallan con
+`the working directory ... is invalid, it needs to be an absolute path`.
+
+```bash
+grep -q MSYS_NO_PATHCONV ~/.bashrc || echo 'export MSYS_NO_PATHCONV=1' >> ~/.bashrc
+source ~/.bashrc
+```
+
+**b) Tener un `python3` real.** En Windows, `python3` suele apuntar al alias de la
+Microsoft Store. Verificar con `which -a python python3`. Si `python3` solo aparece en
+`WindowsApps`, crear un acceso directo a la instalación real (ajustar la ruta si es otra):
+
+```bash
+mkdir -p ~/bin
+printf '#!/bin/sh\nexec /c/Python314/python "$@"\n' > ~/bin/python3
+chmod +x ~/bin/python3
+```
+
+Y desactivar `python.exe` y `python3.exe` en
+Configuración > Aplicaciones > Configuración avanzada de aplicaciones > Alias de ejecución de aplicaciones.
+
+**c) Dependencias de Python locales** (necesarias para EXP-04):
+
+```bash
+python3 -m pip install psycopg2-binary requests
+```
+
+**d) k6.** Instalarlo con winget y agregarlo al PATH de Git Bash:
+
+```bash
+winget install -e --id k6.k6
+grep -q 'Program Files/k6' ~/.bashrc || echo 'export PATH="$PATH:/c/Program Files/k6"' >> ~/.bashrc
+source ~/.bashrc
+k6 version
+```
+
 > Si editas un `.sh` en el Bloc de notas, guárdalo con finales de línea LF (no CRLF),
 > o bash fallará con `$'\r': command not found`.
+
+### 3.2 Contraseñas (Fase 2)
+
+Las contraseñas se generan localmente y se guardan en `.env.secrets`, que **nunca** se
+sube al repositorio. Solo letras y números, para que no rompan DSNs del tipo
+`postgresql://usuario:clave@host`.
+
+```bash
+gen_pass() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32; }
+
+cat > .env.secrets <<EOF
+export MSYS_NO_PATHCONV=1
+export TF_VAR_db_password_admin='$(gen_pass)'
+export DB_ADMIN_PASSWORD="\$TF_VAR_db_password_admin"
+export DB_APP_PASSWORD='$(gen_pass)'
+EOF
+chmod 600 .env.secrets
+
+for p in .env.secrets '*.tfstate' '*.tfstate.*' '.terraform/'; do
+  grep -qxF "$p" .gitignore 2>/dev/null || echo "$p" >> .gitignore
+done
+```
+
+En cada terminal nueva:
+
+```bash
+source .env.secrets
+echo "MSYS=$MSYS_NO_PATHCONV admin=${#TF_VAR_db_password_admin} app=${#DB_APP_PASSWORD}"
+# esperado: MSYS=1 admin=32 app=32
+```
+
+Notas:
+
+- 32 caracteres alfanuméricos equivalen a unos 190 bits de entropía.
+- Terraform guarda la clave en texto plano en `terraform.tfstate`; por eso se excluye del repositorio.
+- Si se cambia `TF_VAR_db_password_admin` después de un `apply`, el siguiente `apply` actualiza el usuario en Cloud SQL.
+- La clave `admin_local` del `docker-compose.yml` es solo para el Postgres local y no requiere cambio.
+
+---
+
+## 4. Fase 1 · Local con Docker (costo $0)
 
 Cubre EXP-01, EXP-04 y la corrección de EXP-02. Requiere Docker y [k6](https://k6.io/docs/get-started/installation/).
 
@@ -103,11 +184,11 @@ psql -d solventa -f db/init.sql
 
 ---
 
-## 4. Fase 2 · Google Cloud
+## 5. Fase 2 · Google Cloud
 
 Solo EXP-03 y el escalamiento de EXP-02 requieren la nube.
 
-### 4.1 Preparar
+### 5.1 Preparar
 
 ```bash
 gcloud auth login
@@ -115,10 +196,10 @@ gcloud auth application-default login
 gcloud config set project MI_PROYECTO
 
 # editar project_id en terraform/topologia-a.tfvars y topologia-b.tfvars
-export TF_VAR_db_password_admin='una-clave-segura'
+source .env.secrets               # ver sección 3.2
 ```
 
-### 4.2 Desplegar
+### 5.2 Desplegar
 
 ```bash
 cd terraform
@@ -127,18 +208,18 @@ terraform apply -var-file=topologia-b.tfvars     # tarda 15-25 min (Cloud SQL es
 cd ..
 
 export PROJECT=MI_PROYECTO
-export DB_ADMIN_PASSWORD="$TF_VAR_db_password_admin"
-export DB_APP_PASSWORD='otra-clave-segura'
 ./scripts/desplegar_gke.sh                        # imprime la IP del balanceador al final
 ```
 
-### 4.3 EXP-02 · Escalamiento real
+`DB_ADMIN_PASSWORD` y `DB_APP_PASSWORD` ya quedan definidas al hacer `source .env.secrets`.
+
+### 5.3 EXP-02 · Escalamiento real
 
 ```bash
 MODO=gke ./exp02/run.sh                           # 1.000.000 de eventos por corrida
 ```
 
-### 4.4 EXP-03 · Caída de zona (RC-03, RC-07)
+### 5.4 EXP-03 · Caída de zona (RC-03, RC-07)
 
 ```bash
 python3 exp03/caos_failover.py --url http://IP_BALANCEADOR \
@@ -153,7 +234,10 @@ Agregar `--falla-bd` fuerza también el traslado de Cloud SQL entre zonas.
 Con tres réplicas repartidas en tres zonas, lo esperado es que la caída de una zona
 **no interrumpa** el servicio.
 
-### 4.5 EXP-03 · Latencia por región
+> En Git Bash, el `kubectl exec` anterior requiere `MSYS_NO_PATHCONV=1` (sección 3.1);
+> de lo contrario `/app/exp03/...` se convierte en una ruta de Windows.
+
+### 5.5 EXP-03 · Latencia por región
 
 Ejecutar **desde Colombia** (su propio computador es el punto de prueba real),
 en horario pico y valle durante al menos tres días:
@@ -166,7 +250,7 @@ k6 run -e ENDPOINT=http://IP_SAO_PAULO -e REGION=sa-east1 -e UBICACION=cali late
 Para comparar con us-east1 hay que desplegar también en el clúster de respaldo:
 `CLUSTER_DESTINO=respaldo SKIP_BUILD=1 ./scripts/desplegar_gke.sh`
 
-### 4.6 EXP-03 · Caída de región (al final, es irreversible)
+### 5.6 EXP-03 · Caída de región (al final, es irreversible)
 
 ```bash
 PROJECT=$PROJECT ./exp03/failover_region.sh
@@ -175,7 +259,7 @@ PROJECT=$PROJECT ./exp03/failover_region.sh
 Cronometra cada paso del procedimiento. **Promover la réplica es irreversible**:
 ejecutarlo al final y luego destruir todo.
 
-### 4.7 Destruir (no olvidar)
+### 5.7 Destruir (no olvidar)
 
 ```bash
 cd terraform && terraform destroy -var-file=topologia-b.tfvars
@@ -186,7 +270,7 @@ unas diecisiete veces el costo de las corridas.
 
 ---
 
-## 5. Qué se probó y qué no
+## 6. Qué se probó y qué no
 
 **Ejecutado y probado** contra servicios reales, Redis 7, Postgres 16 y k6 0.54:
 
@@ -216,7 +300,7 @@ aparecer: esta parte hay que repetirla en la nube.
 
 ---
 
-## 6. Hallazgo de diseño pendiente (candidato a corrección D-05)
+## 7. Hallazgo de diseño pendiente (candidato a corrección D-05)
 
 El registro de qué clientes revocaron su consentimiento vive en Redis, y Memorystore
 existe solo en la región primaria. Si esa región cae, **las revocaciones se pierden** y
@@ -229,7 +313,7 @@ revocación en Postgres (que sí se replica) y usar Redis solo como caché de le
 
 ---
 
-## 7. Cambios respecto a la versión anterior
+## 8. Cambios respecto a la versión anterior
 
 | Antes | Ahora | Motivo |
 |---|---|---|
@@ -239,14 +323,25 @@ revocación en Postgres (que sí se replica) y usar Redis solo como caché de le
 | Pérdida = publicados − procesados − duplicados | Pérdida = IDs únicos − pagos únicos | Con reentregas de Pub/Sub la fórmula anterior daba negativa |
 | Terraform con errores de sintaxis | Sintaxis validada | Además: acceso privado para Cloud SQL, permisos de la cola de fallidos, un grupo de nodos por zona |
 | Verificación de salud suelta | Sonda en Kubernetes | La anterior no estaba conectada a nada |
+| Contraseñas exportadas a mano | `.env.secrets` generado con `openssl`, excluido del repositorio | Evita claves débiles y fugas en git |
+| Sin guía para Git Bash | Sección 3.1 (MSYS, `python3`, dependencias) | Las corridas fallaban en Windows por conversión de rutas y el alias de la Store |
 
 ---
 
-## 8. Problemas comunes
+## 9. Problemas comunes
 
+- **`the working directory 'C:/Program Files/Git/app/...' is invalid`:** falta
+  `export MSYS_NO_PATHCONV=1` (sección 3.1).
+- **`no se encontró Python; ejecutar sin argumentos para instalar desde el Microsoft Store`:**
+  `python3` apunta al alias de Windows (sección 3.1, punto b).
+- **`ModuleNotFoundError: No module named 'requests'` o `psycopg2`:**
+  `python3 -m pip install psycopg2-binary requests`.
+- **`k6: command not found`:** falta el PATH de k6 (sección 3.1, punto d).
+- **Una parte de un experimento no imprime nada:** revisar `logs/` y confirmar que
+  `MSYS_NO_PATHCONV=1` está activo en esa terminal.
 - **Cuota de CPU excedida:** la configuración por defecto usa ~8 vCPU. Si falla, bajar
   `nodos_por_zona` o pedir aumento de cuota en la consola.
-- **`terraform apply` pide `db_password_admin`:** falta `export TF_VAR_db_password_admin=...`.
+- **`terraform apply` pide `db_password_admin`:** falta `source .env.secrets`.
 - **Zonas inexistentes:** verificar con `gcloud compute zones list --filter=region:southamerica-east1`
   y ajustar `sufijos_zona`.
 - **Los pods no acceden a Pub/Sub:** usan la cuenta de servicio de Compute por defecto;
