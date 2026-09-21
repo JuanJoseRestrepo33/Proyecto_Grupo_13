@@ -1,8 +1,0 @@
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/*.tfvars
-local/chaos/*.jsonl
-k6/resultado-*.json
-__pycache__/
-*.pyc

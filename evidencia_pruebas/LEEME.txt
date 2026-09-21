@@ -1,0 +1,4 @@
+Resultados de la regresion local ejecutada antes de entregar el codigo
+(Redis 7, Postgres 16, k6 0.54, servicios reales, bus en modo Redis).
+Maquina de un solo nucleo: los datos de escalamiento de EXP-02 NO son concluyentes.
+Corridas cortas (15-20 s) de verificacion; las corridas oficiales usan 5 min.

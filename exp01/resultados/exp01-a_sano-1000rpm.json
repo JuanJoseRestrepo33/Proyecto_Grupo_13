@@ -1,0 +1,17 @@
+{
+  "experimento": "EXP-01",
+  "escenario": "a_sano",
+  "rpm": 1000,
+  "solicitudes": 1001,
+  "p50_ms": 41.77,
+  "p95_ms": 52.38,
+  "p99_ms": 55.91,
+  "max_ms": 62.86,
+  "pct_cache": 0,
+  "pct_sin_perfil": 0,
+  "errores_http": 0,
+  "solicitudes_exitosas": 1001,
+  "valido": true,
+  "cumple_p95": true,
+  "cumple_p99": true
+}

@@ -1,0 +1,84 @@
+# ============================================================================
+# Solventa | Entorno local completo de los experimentos (costo: $0)
+#
+#   docker compose up -d --build
+#   docker compose ps                       # todo debe quedar "healthy"
+#   docker compose up -d --scale consumidor=8   # EXP-02: variar replicas
+#   docker compose down -v                  # borrar todo
+# ============================================================================
+x-app: &app
+  build: .
+  environment: &env
+    GCP_PROJECT_ID: solventa-local
+    PUBSUB_EMULATOR_HOST: pubsub:8085
+    BUS_BACKEND: pubsub
+    REDIS_URL: redis://redis:6379
+    OPEN_FINANCE_URL: http://simulador:8090/perfil
+    PG_DSN: postgresql://solventa_app:CAMBIAR_EN_PRODUCCION@postgres:5432/solventa
+    AUDIT_MODE: async
+    BUDGET_MS: "120"
+    MIN_CALLS: "5"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, retries: 10 }
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: solventa
+      POSTGRES_PASSWORD: admin_local
+    ports: ["5432:5432"]
+    volumes: ["./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro"]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 3s, retries: 20 }
+
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=solventa-local
+    ports: ["8085:8085"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8085"]
+      interval: 3s
+      retries: 30
+
+  setup-pubsub:            # crea topicos y suscripciones y termina
+    <<: *app
+    working_dir: /app/exp02
+    command: ["python", "setup_pubsub.py"]
+    depends_on: { pubsub: { condition: service_healthy } }
+    restart: "no"
+
+  simulador:
+    <<: *app
+    command: ["uvicorn", "simulador_openfinance:app", "--host", "0.0.0.0", "--port", "8090"]
+    ports: ["8090:8090"]
+
+  cotizacion:
+    <<: *app
+    command: ["uvicorn", "cotizacion_service:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports: ["8080:8080"]
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      simulador: { condition: service_started }
+
+  perfilamiento:
+    <<: *app
+    command: ["uvicorn", "perfilamiento_service:app", "--host", "0.0.0.0", "--port", "8083"]
+    ports: ["8083:8083"]
+    depends_on: { setup-pubsub: { condition: service_completed_successfully } }
+
+  consentimiento:
+    <<: *app
+    command: ["uvicorn", "consentimiento_service:app", "--host", "0.0.0.0", "--port", "8082"]
+    ports: ["8082:8082"]
+    depends_on:
+      setup-pubsub: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+
+  consumidor:              # EXP-02: escalar con --scale consumidor=N
+    <<: *app
+    command: ["python", "consumidor_parametricos.py"]
+    depends_on: { setup-pubsub: { condition: service_completed_successfully } }

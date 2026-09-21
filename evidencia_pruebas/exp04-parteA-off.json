@@ -1,0 +1,17 @@
+{
+  "experimento": "EXP-01",
+  "escenario": "audit_off",
+  "rpm": 1000,
+  "solicitudes": 334,
+  "p50_ms": 43.525000000000006,
+  "p95_ms": 52.43449999999999,
+  "p99_ms": 57.44150000000001,
+  "max_ms": 62.21,
+  "pct_cache": 0,
+  "pct_sin_perfil": 0,
+  "errores_http": 0,
+  "solicitudes_exitosas": 334,
+  "valido": true,
+  "cumple_p95": true,
+  "cumple_p99": true
+}

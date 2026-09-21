@@ -1,0 +1,28 @@
+[
+  {
+    "procesos": 1,
+    "eventos": 30000,
+    "duplicados_inyectados": 1491,
+    "procesados": 28509,
+    "duplicados_detectados": 1491,
+    "pagos_unicos": 28509,
+    "doble_pago": 0,
+    "perdida": 0,
+    "t_vaciado_s": 5.94,
+    "caudal_ev_s": 5053,
+    "aceleracion_vs_1": 1.0
+  },
+  {
+    "procesos": 4,
+    "eventos": 30000,
+    "duplicados_inyectados": 1474,
+    "procesados": 28526,
+    "duplicados_detectados": 1474,
+    "pagos_unicos": 28526,
+    "doble_pago": 0,
+    "perdida": 0,
+    "t_vaciado_s": 6.33,
+    "caudal_ev_s": 4742,
+    "aceleracion_vs_1": 0.94
+  }
+]

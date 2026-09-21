@@ -1,9 +1,0 @@
-{
-  "mappings": [
-    {
-      "name": "EXP-01 escenario C: proveedor caido al 100%",
-      "request": { "method": "GET", "urlPathPattern": "/perfil.*" },
-      "response": { "status": 503, "fixedDelayMilliseconds": 1500 }
-    }
-  ]
-}

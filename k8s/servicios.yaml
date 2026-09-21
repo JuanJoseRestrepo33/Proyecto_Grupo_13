@@ -1,0 +1,223 @@
+# Solventa | Despliegue en GKE. Lo aplica scripts/desplegar_gke.sh, que
+# reemplaza ${IMAGEN}, ${PROJECT_ID}, ${REDIS_HOST} y ${DB_HOST}.
+apiVersion: v1
+kind: Namespace
+metadata: { name: solventa }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: solventa-config, namespace: solventa }
+data:
+  GCP_PROJECT_ID: "${PROJECT_ID}"
+  BUS_BACKEND: "pubsub"
+  REDIS_URL: "redis://${REDIS_HOST}:6379"
+  OPEN_FINANCE_URL: "http://simulador:8090/perfil"
+  AUDIT_MODE: "async"
+  BUDGET_MS: "120"
+  MIN_CALLS: "5"
+  PYTHONUNBUFFERED: "1"
+---
+# Inicializa el esquema (auditoria append-only, roles) una sola vez.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: init-db, namespace: solventa }
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:15-alpine
+          env:
+            - { name: PGHOST, value: "${DB_HOST}" }
+            - { name: PGDATABASE, value: "solventa" }
+            - { name: PGUSER, value: "solventa_admin" }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: solventa-db, key: admin_password } }
+            - name: APP_PW
+              valueFrom: { secretKeyRef: { name: solventa-db, key: app_password } }
+          command: ["sh", "-c"]
+          args:
+            - psql -v ON_ERROR_STOP=1 -f /sql/init.sql &&
+              psql -c "ALTER ROLE solventa_app PASSWORD '$APP_PW'"
+          volumeMounts: [{ name: sql, mountPath: /sql }]
+      volumes:
+        - name: sql
+          configMap: { name: solventa-sql }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: simulador, namespace: solventa }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: simulador } }
+  template:
+    metadata: { labels: { app: simulador } }
+    spec:
+      containers:
+        - name: simulador
+          image: ${IMAGEN}
+          command: ["uvicorn", "simulador_openfinance:app", "--host", "0.0.0.0", "--port", "8090"]
+          ports: [{ containerPort: 8090 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: simulador, namespace: solventa }
+spec:
+  selector: { app: simulador }
+  ports: [{ port: 8090, targetPort: 8090 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: cotizacion, namespace: solventa }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: cotizacion } }
+  template:
+    metadata: { labels: { app: cotizacion } }
+    spec:
+      # Una replica por zona: si cae una zona, las otras dos siguen atendiendo.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: { matchLabels: { app: cotizacion } }
+      containers:
+        - name: cotizacion
+          image: ${IMAGEN}
+          command: ["uvicorn", "cotizacion_service:app", "--host", "0.0.0.0", "--port", "8080"]
+          ports: [{ containerPort: 8080 }]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+          env:
+            - name: PG_DSN
+              valueFrom: { secretKeyRef: { name: solventa-db, key: app_dsn } }
+          # Parametros bajo experimentacion en EXP-03 (validados en la semana 6):
+          # revisar cada 2 s y retirar tras 3 fallos consecutivos.
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            periodSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: cotizacion, namespace: solventa }
+spec:
+  type: LoadBalancer
+  selector: { app: cotizacion }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: perfilamiento, namespace: solventa }
+spec:
+  replicas: 1   # una sola replica: la suscripcion no se reparte entre copias
+  selector: { matchLabels: { app: perfilamiento } }
+  template:
+    metadata: { labels: { app: perfilamiento } }
+    spec:
+      containers:
+        - name: perfilamiento
+          image: ${IMAGEN}
+          command: ["uvicorn", "perfilamiento_service:app", "--host", "0.0.0.0", "--port", "8083"]
+          ports: [{ containerPort: 8083 }]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: perfilamiento, namespace: solventa }
+spec:
+  selector: { app: perfilamiento }
+  ports: [{ port: 8083, targetPort: 8083 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: consentimiento, namespace: solventa }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: consentimiento } }
+  template:
+    metadata: { labels: { app: consentimiento } }
+    spec:
+      containers:
+        - name: consentimiento
+          image: ${IMAGEN}
+          command: ["uvicorn", "consentimiento_service:app", "--host", "0.0.0.0", "--port", "8082"]
+          ports: [{ containerPort: 8082 }]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+          env:
+            - name: PG_DSN
+              valueFrom: { secretKeyRef: { name: solventa-db, key: app_dsn } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: consentimiento, namespace: solventa }
+spec:
+  selector: { app: consentimiento }
+  ports: [{ port: 8082, targetPort: 8082 }]
+---
+# EXP-02: el numero de replicas es la variable del experimento.
+# Se cambia con: kubectl scale deploy/consumidor -n solventa --replicas=N
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: consumidor, namespace: solventa }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: consumidor } }
+  template:
+    metadata: { labels: { app: consumidor } }
+    spec:
+      containers:
+        - name: consumidor
+          image: ${IMAGEN}
+          command: ["python", "consumidor_parametricos.py"]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+---
+# EXP-03: escritor continuo de transacciones para medir el RPO real.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: escritor-rpo, namespace: solventa }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: escritor-rpo } }
+  template:
+    metadata: { labels: { app: escritor-rpo } }
+    spec:
+      containers:
+        - name: escritor
+          image: ${IMAGEN}
+          command: ["python", "/app/exp03/escritor_rpo.py"]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+          env:
+            - name: PG_DSN
+              valueFrom: { secretKeyRef: { name: solventa-db, key: app_dsn } }
+---
+# Pod de herramientas: desde aqui se ejecutan los scripts que necesitan
+# alcanzar Redis o la base de datos por IP privada.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: herramientas, namespace: solventa }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: herramientas } }
+  template:
+    metadata: { labels: { app: herramientas } }
+    spec:
+      containers:
+        - name: herramientas
+          image: ${IMAGEN}
+          command: ["sleep", "infinity"]
+          envFrom: [{ configMapRef: { name: solventa-config } }]
+          env:
+            - name: PG_DSN
+              valueFrom: { secretKeyRef: { name: solventa-db, key: app_dsn } }
+            - name: PG_ADMIN_DSN
+              valueFrom: { secretKeyRef: { name: solventa-db, key: admin_dsn } }
+            - { name: COTIZACION_URL, value: "http://cotizacion" }
+            - { name: CONSENTIMIENTO_URL, value: "http://consentimiento:8082" }
+            - { name: PERFILAMIENTO_URL, value: "http://perfilamiento:8083" }
+            - { name: SIMULADOR_URL, value: "http://simulador:8090" }

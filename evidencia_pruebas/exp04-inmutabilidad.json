@@ -1,0 +1,18 @@
+{
+  "experimento": "EXP-04",
+  "parte": "B",
+  "muestra": 50,
+  "reconstruidas": 50,
+  "pct_reconstruccion": 100.0,
+  "update_bloqueado": true,
+  "update_motivo": "permission denied for table auditoria_decisiones",
+  "delete_bloqueado": true,
+  "delete_motivo": "permission denied for table auditoria_decisiones",
+  "truncate_bloqueado": true,
+  "truncate_motivo": "permission denied for table auditoria_decisiones",
+  "filas_en_cadena": 4348,
+  "eslabones_rotos": 0,
+  "cadena_integra": true,
+  "valido": true,
+  "cumple_rc08": true
+}
