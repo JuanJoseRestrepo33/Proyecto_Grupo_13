@@ -21,16 +21,26 @@ from google.api_core.exceptions import GoogleAPICallError
 pub, sub = pubsub_v1.PublisherClient(), pubsub_v1.SubscriberClient()
 T = 30   # segundos maximos por operacion: nunca quedarse colgado en silencio
 
+# Autodiagnostico: muestra la configuracion que realmente ve el contenedor
+print("PUBSUB_EMULATOR_HOST =", os.getenv("PUBSUB_EMULATOR_HOST") or "(NO DEFINIDA: se usaria GCP real)", flush=True)
+proxies = {k: v for k, v in os.environ.items() if "proxy" in k.lower()}
+if proxies:
+    print("variables de proxy presentes:", proxies, flush=True)
+
 # Espera a que el emulador acepte conexiones (arranca despues del contenedor)
+ultimo_error = ""
 for intento in range(30):
     try:
         list(pub.list_topics(request={"project": f"projects/{PROJECT}"}, timeout=5, retry=None))
         break
     except Exception as e:
-        print(f"esperando Pub/Sub ({intento + 1}/30): {type(e).__name__}", flush=True)
+        # El detalle del error distingue proxy, DNS o conexion rechazada
+        ultimo_error = f"{type(e).__name__}: {str(e).strip().splitlines()[0][:200] if str(e).strip() else ''}"
+        print(f"esperando Pub/Sub ({intento + 1}/30): {ultimo_error}", flush=True)
         time.sleep(2)
 else:
-    raise SystemExit("ERROR: Pub/Sub no responde. Revisa PUBSUB_EMULATOR_HOST y: docker compose logs pubsub")
+    raise SystemExit("ERROR: Pub/Sub no responde.\n  Ultimo error: " + ultimo_error +
+                     "\n  Si el detalle menciona 'proxy' o 'DNS', revisa la seccion 8 del README.")
 for topico, subs in TOPICOS.items():
     tp = pub.topic_path(PROJECT, topico)
     try:

@@ -18,6 +18,13 @@ x-app: &app
     AUDIT_MODE: async
     BUDGET_MS: "120"
     MIN_CALLS: "5"
+    # Si Docker Desktop tiene un proxy configurado, lo inyecta en los contenedores
+    # y gRPC intenta llegar al emulador a traves de el. Estos servicios son internos.
+    NO_PROXY: pubsub,redis,postgres,simulador,cotizacion,perfilamiento,consentimiento,localhost,127.0.0.1
+    no_proxy: pubsub,redis,postgres,simulador,cotizacion,perfilamiento,consentimiento,localhost,127.0.0.1
+    # Usa el DNS del sistema en lugar del resolvedor propio de gRPC, que en algunas
+    # instalaciones de Docker no resuelve los nombres de los servicios.
+    GRPC_DNS_RESOLVER: native
 
 services:
   redis:
