@@ -1,0 +1,14 @@
+{
+  "experimento": "EXP-04",
+  "parte": "C",
+  "revocaciones": 20,
+  "precondicion_fallida": 0,
+  "propagadas": 20,
+  "no_propagadas_en_limite": 0,
+  "propagacion_p50_ms": 62.93,
+  "propagacion_p95_ms": 93.14,
+  "propagacion_max_ms": 93.14,
+  "meta_ms": 300000,
+  "valido": true,
+  "cumple_rc08": true
+}

@@ -9,8 +9,9 @@ variable "region_primaria" {
 }
 
 variable "region_respaldo" {
-  type    = string
-  default = "us-east1"
+  type        = string
+  default     = "southamerica-west1"
+  description = "us-east1 esta bloqueada por la politica de ubicacion del proyecto (LOCATION_POLICY_VIOLATED)"
 }
 
 variable "sufijos_zona" {
@@ -22,6 +23,12 @@ variable "sufijos_zona" {
 variable "tipo_maquina" {
   type    = string
   default = "e2-medium"
+}
+
+variable "tipo_disco" {
+  type        = string
+  default     = "pd-standard"
+  description = "pd-standard no consume la cuota SSD_TOTAL_GB (limite de 250 GB por region en cuentas nuevas)"
 }
 
 variable "nodos_por_zona" {

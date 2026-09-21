@@ -7,8 +7,8 @@
 #   terraform destroy -var-file=topologia-b.tfvars # AL TERMINAR CADA CORRIDA
 #
 # Tamano por defecto: reducido para experimentos y para caber en la cuota de
-# una cuenta nueva (~8 vCPU). Para replicar la estimacion de costos de
-# produccion, subir tier_sql y nodos_por_zona.
+# una cuenta nueva (~8 vCPU, 250 GB de SSD por region). Para replicar la
+# estimacion de costos de produccion, subir tier_sql y nodos_por_zona.
 # ============================================================================
 
 terraform {
@@ -116,6 +116,14 @@ resource "google_container_cluster" "primario" {
   initial_node_count       = 1
   deletion_protection      = false
 
+  # El pool por defecto se crea (1 nodo por zona, 3 en total) antes de
+  # borrarse. Con el disco por defecto (100 GB SSD) excede la cuota
+  # SSD_TOTAL_GB de 250 GB; con disco estandar pequeno no la consume.
+  node_config {
+    disk_size_gb = 20
+    disk_type    = var.tipo_disco
+  }
+
   ip_allocation_policy {
     cluster_secondary_range_name  = "pods"
     services_secondary_range_name = "servicios"
@@ -133,6 +141,7 @@ resource "google_container_node_pool" "por_zona" {
   node_config {
     machine_type = var.tipo_maquina
     disk_size_gb = 30
+    disk_type    = var.tipo_disco
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     labels = {
       zona = each.key
@@ -155,6 +164,11 @@ resource "google_container_cluster" "respaldo" {
   initial_node_count       = 1
   deletion_protection      = false
 
+  node_config {
+    disk_size_gb = 20
+    disk_type    = var.tipo_disco
+  }
+
   ip_allocation_policy {
     cluster_secondary_range_name  = "pods"
     services_secondary_range_name = "servicios"
@@ -171,6 +185,7 @@ resource "google_container_node_pool" "respaldo" {
   node_config {
     machine_type = var.tipo_maquina
     disk_size_gb = 30
+    disk_type    = var.tipo_disco
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
