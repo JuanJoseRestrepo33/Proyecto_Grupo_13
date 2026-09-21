@@ -12,6 +12,7 @@
 -- ---------- Auditoria de decisiones (EXP-04) ----------
 CREATE TABLE IF NOT EXISTS auditoria_decisiones (
     id                 BIGSERIAL PRIMARY KEY,
+    seq                BIGINT      NOT NULL UNIQUE,   -- posicion en la cadena, asignada DENTRO del candado
     id_decision        TEXT        NOT NULL UNIQUE,
     cliente            TEXT        NOT NULL,
     version_regla      TEXT        NOT NULL,
@@ -24,18 +25,23 @@ CREATE TABLE IF NOT EXISTS auditoria_decisiones (
     hash_propio        TEXT        NOT NULL
 );
 
--- Capa 3: encadenamiento. El candado serializa las inserciones concurrentes
--- para que la cadena no se bifurque.
+-- Capa 3: encadenamiento. El candado serializa las inserciones concurrentes.
+-- IMPORTANTE (correccion D-06): la posicion en la cadena (seq) se asigna DESPUES
+-- de obtener el candado. El id del BIGSERIAL se asigna antes, al insertar, asi que
+-- con escrituras concurrentes su orden NO coincide con el orden de la cadena y el
+-- verificador reportaba falsos eslabones rotos. La cadena se recorre por seq.
 CREATE OR REPLACE FUNCTION auditoria_encadenar() RETURNS trigger AS $$
 DECLARE
     previo TEXT;
+    ultimo_seq BIGINT;
 BEGIN
     PERFORM pg_advisory_xact_lock(424242);
-    SELECT hash_propio INTO previo
-      FROM auditoria_decisiones ORDER BY id DESC LIMIT 1;
+    SELECT hash_propio, seq INTO previo, ultimo_seq
+      FROM auditoria_decisiones ORDER BY seq DESC LIMIT 1;
+    NEW.seq := COALESCE(ultimo_seq, 0) + 1;
     NEW.hash_anterior := COALESCE(previo, 'GENESIS');
     NEW.hash_propio := encode(sha256(convert_to(
-        NEW.hash_anterior || '|' || NEW.id_decision || '|' || NEW.cliente || '|' ||
+        NEW.hash_anterior || '|' || NEW.seq::text || '|' || NEW.id_decision || '|' || NEW.cliente || '|' ||
         NEW.version_regla || '|' || NEW.variables_entrada::text || '|' ||
         NEW.consentimiento_id || '|' || NEW.prima::text || '|' || NEW.origen_perfil,
         'UTF8')), 'hex');

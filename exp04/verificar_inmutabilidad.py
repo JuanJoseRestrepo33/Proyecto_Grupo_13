@@ -37,10 +37,10 @@ for nombre, sql in [("update", "UPDATE auditoria_decisiones SET prima = 0"),
         res[f"{nombre}_motivo"] = str(e).strip().splitlines()[0][:120]
 
 # 3) Cadena de hashes
-cur.execute("""SELECT hash_anterior, id_decision, cliente, version_regla,
+cur.execute("""SELECT hash_anterior, seq::text AS seq_txt, id_decision, cliente, version_regla,
                       variables_entrada::text, consentimiento_id, prima::text,
                       origen_perfil, hash_propio
-               FROM auditoria_decisiones ORDER BY id""")
+               FROM auditoria_decisiones ORDER BY seq""")
 previo, rotos, total = "GENESIS", 0, 0
 for fila in cur.fetchall():
     total += 1

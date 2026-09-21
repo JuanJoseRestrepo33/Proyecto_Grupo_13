@@ -22,9 +22,17 @@ ejecutar() {   # corre un script de exp02 donde tenga acceso a Redis y Pub/Sub
   if [[ "$MODO" == "gke" ]]; then
     kubectl exec -n solventa deploy/herramientas -- python "/app/exp02/$1" "${@:2}"
   else
-    docker compose -f ../docker-compose.yml run --rm -w /app/exp02 consumidor python "$1" "${@:2}"
+    # --no-deps: evita que Compose se quede esperando al contenedor setup-pubsub
+    docker compose -f ../docker-compose.yml run --rm --no-deps -w /app/exp02 consumidor python "$1" "${@:2}"
   fi
 }
+
+if [[ "$MODO" == "local" ]]; then
+  echo ">>> Creando topicos y suscripciones en el emulador (una sola vez)"
+  docker compose -f ../docker-compose.yml up -d pubsub redis
+  docker compose -f ../docker-compose.yml run --rm --no-deps -w /app/exp02 consumidor python setup_pubsub.py \
+    || { echo "ERROR: no se pudieron crear los topicos. Revisa: docker compose logs pubsub"; exit 1; }
+fi
 
 for N in $REPLICAS; do
   echo "================ EXP-02 | $N replicas | $EVENTOS eventos en ${VENTANA}s ================"
@@ -32,7 +40,7 @@ for N in $REPLICAS; do
     kubectl scale deploy/consumidor -n solventa --replicas="$N"
     kubectl rollout status deploy/consumidor -n solventa --timeout=300s
   else
-    docker compose -f ../docker-compose.yml up -d --scale consumidor="$N" consumidor
+    docker compose -f ../docker-compose.yml up -d --no-deps --scale consumidor="$N" consumidor
     sleep 5
   fi
   ejecutar generador_rafaga.py --eventos "$EVENTOS" --ventana "$VENTANA" --duplicados 0.05

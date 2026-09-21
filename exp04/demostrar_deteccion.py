@@ -13,10 +13,10 @@ import psycopg2
 DSN = os.getenv("PG_ADMIN_DSN", "postgresql://postgres@localhost:5432/solventa")
 
 def verificar_cadena(cur):
-    cur.execute("""SELECT id, hash_anterior, id_decision, cliente, version_regla,
+    cur.execute("""SELECT id, hash_anterior, seq::text AS seq_txt, id_decision, cliente, version_regla,
                           variables_entrada::text, consentimiento_id, prima::text,
                           origen_perfil, hash_propio
-                   FROM auditoria_decisiones ORDER BY id""")
+                   FROM auditoria_decisiones ORDER BY seq""")
     previo, rotos = "GENESIS", []
     for fila in cur.fetchall():
         fid, ha, *campos, hp = fila
