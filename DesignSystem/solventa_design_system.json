@@ -1,0 +1,207 @@
+{
+  "name": "Solventa Design System",
+  "version": "1.0.0",
+  "description": "Design System completo para Solventa - Aseguradora Digital",
+  "metadata": {
+    "createdAt": "2026-01-15",
+    "updatedAt": "2026-01-15",
+    "author": "Solventa Design Team",
+    "status": "production"
+  },
+  "colors": {
+    "primary": {
+      "900": {"hex": "#0F2F6F", "rgb": "rgb(15, 47, 111)", "usage": "Hover, Press states"},
+      "700": {"hex": "#1E40AF", "rgb": "rgb(30, 64, 175)", "usage": "Primary CTA, Links, Headers"},
+      "500": {"hex": "#3B82F6", "rgb": "rgb(59, 130, 246)", "usage": "Light interactions"},
+      "100": {"hex": "#DFE7F1", "rgb": "rgb(223, 231, 241)", "usage": "Background hover"},
+      "50": {"hex": "#F0F6FF", "rgb": "rgb(240, 246, 255)", "usage": "Light backgrounds"}
+    },
+    "success": {
+      "600": {"hex": "#059669", "rgb": "rgb(5, 150, 105)", "usage": "Success hover"},
+      "500": {"hex": "#10B981", "rgb": "rgb(16, 185, 129)", "usage": "Success state"},
+      "100": {"hex": "#D1FAE5", "rgb": "rgb(209, 250, 229)", "usage": "Success background"}
+    },
+    "warning": {
+      "600": {"hex": "#B45309", "rgb": "rgb(180, 83, 9)", "usage": "Warning hover"},
+      "500": {"hex": "#F59E0B", "rgb": "rgb(245, 158, 11)", "usage": "Warning alerts"},
+      "100": {"hex": "#FEF3C7", "rgb": "rgb(254, 243, 199)", "usage": "Warning background"}
+    },
+    "error": {
+      "600": {"hex": "#DC2626", "rgb": "rgb(220, 38, 38)", "usage": "Error hover"},
+      "500": {"hex": "#EF4444", "rgb": "rgb(239, 68, 68)", "usage": "Error states"},
+      "100": {"hex": "#FCA5A5", "rgb": "rgb(252, 165, 165)", "usage": "Error text"}
+    },
+    "neutral": {
+      "900": {"hex": "#111827", "rgb": "rgb(17, 24, 39)", "usage": "Text primary"},
+      "700": {"hex": "#374151", "rgb": "rgb(55, 65, 81)", "usage": "Text secondary"},
+      "500": {"hex": "#6B7280", "rgb": "rgb(107, 114, 128)", "usage": "Text tertiary"},
+      "300": {"hex": "#D1D5DB", "rgb": "rgb(209, 213, 219)", "usage": "Dividers"},
+      "100": {"hex": "#F3F4F6", "rgb": "rgb(243, 244, 246)", "usage": "Background input"},
+      "50": {"hex": "#F9FAFB", "rgb": "rgb(249, 250, 251)", "usage": "Background page"},
+      "0": {"hex": "#FFFFFF", "rgb": "rgb(255, 255, 255)", "usage": "White"}
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "primary": "Inter",
+      "mono": "IBM Plex Mono"
+    },
+    "scales": {
+      "desktop": {
+        "h1": {"size": 48, "weight": 700, "lineHeight": 62, "letterSpacing": -0.02},
+        "h2": {"size": 36, "weight": 600, "lineHeight": 50, "letterSpacing": 0},
+        "h3": {"size": 28, "weight": 600, "lineHeight": 42, "letterSpacing": 0},
+        "h4": {"size": 20, "weight": 500, "lineHeight": 32, "letterSpacing": 0},
+        "bodyLarge": {"size": 18, "weight": 400, "lineHeight": 28, "letterSpacing": 0},
+        "body": {"size": 16, "weight": 400, "lineHeight": 26, "letterSpacing": 0},
+        "bodySmall": {"size": 14, "weight": 400, "lineHeight": 22, "letterSpacing": 0},
+        "label": {"size": 12, "weight": 500, "lineHeight": 18, "letterSpacing": 0}
+      },
+      "mobile": {
+        "h1": {"size": 32, "weight": 700, "lineHeight": 41, "letterSpacing": -0.02},
+        "h2": {"size": 28, "weight": 600, "lineHeight": 39, "letterSpacing": 0},
+        "h3": {"size": 24, "weight": 600, "lineHeight": 36, "letterSpacing": 0},
+        "body": {"size": 16, "weight": 400, "lineHeight": 26, "letterSpacing": 0},
+        "bodySmall": {"size": 14, "weight": 400, "lineHeight": 21, "letterSpacing": 0},
+        "label": {"size": 12, "weight": 500, "lineHeight": 16, "letterSpacing": 0}
+      }
+    }
+  },
+  "spacing": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "2xl": "48px",
+    "3xl": "64px"
+  },
+  "borderRadius": {
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "full": "9999px"
+  },
+  "shadows": {
+    "sm": "0 1px 2px rgba(0, 0, 0, 0.05)",
+    "md": "0 4px 6px rgba(0, 0, 0, 0.1)",
+    "lg": "0 10px 15px rgba(0, 0, 0, 0.1)",
+    "xl": "0 20px 25px rgba(0, 0, 0, 0.1)"
+  },
+  "components": {
+    "button": {
+      "primary": {
+        "variants": ["default", "hover", "active", "disabled", "loading"],
+        "sizes": ["sm", "md", "lg"],
+        "props": {
+          "default": {
+            "backgroundColor": "#1E40AF",
+            "textColor": "#FFFFFF",
+            "padding": "12px 24px",
+            "borderRadius": "8px",
+            "fontSize": "16px",
+            "fontWeight": 600
+          },
+          "hover": {
+            "backgroundColor": "#0F2F6F",
+            "opacity": 0.9
+          },
+          "active": {
+            "backgroundColor": "#0F2F6F",
+            "transform": "scale(0.98)"
+          },
+          "disabled": {
+            "backgroundColor": "#D1D5DB",
+            "textColor": "#6B7280",
+            "cursor": "not-allowed"
+          }
+        }
+      },
+      "secondary": {
+        "props": {
+          "default": {
+            "backgroundColor": "#F9FAFB",
+            "border": "2px solid #1E40AF",
+            "textColor": "#1E40AF",
+            "padding": "10px 22px"
+          }
+        }
+      }
+    },
+    "input": {
+      "states": ["default", "focus", "error", "success", "disabled"],
+      "props": {
+        "default": {
+          "backgroundColor": "#F9FAFB",
+          "border": "1px solid #D1D5DB",
+          "borderRadius": "6px",
+          "padding": "12px 16px",
+          "height": "40px",
+          "fontSize": "16px"
+        },
+        "focus": {
+          "border": "2px solid #1E40AF",
+          "backgroundColor": "#FFFFFF",
+          "boxShadow": "0 0 0 3px rgba(30, 64, 175, 0.1)"
+        },
+        "error": {
+          "border": "2px solid #EF4444",
+          "backgroundColor": "#FEE2E2"
+        }
+      }
+    },
+    "card": {
+      "default": {
+        "backgroundColor": "#FFFFFF",
+        "border": "1px solid #D1D5DB",
+        "borderRadius": "8px",
+        "padding": "20px",
+        "shadow": "0 1px 3px rgba(0, 0, 0, 0.1)"
+      },
+      "hover": {
+        "shadow": "0 4px 6px rgba(0, 0, 0, 0.1)"
+      }
+    },
+    "badge": {
+      "types": ["filled", "outlined", "soft"],
+      "colors": ["primary", "success", "warning", "error"],
+      "props": {
+        "default": {
+          "padding": "4px 8px",
+          "borderRadius": "16px",
+          "fontSize": "12px",
+          "fontWeight": 600
+        }
+      }
+    }
+  },
+  "patterns": {
+    "quotationWizard": {
+      "steps": 4,
+      "layout": "modal",
+      "width": "600px",
+      "progressBar": true
+    },
+    "notification": {
+      "types": ["success", "error", "warning", "info"],
+      "position": "bottom-right",
+      "autoDismiss": "4s"
+    },
+    "modal": {
+      "overlay": "rgba(0, 0, 0, 0.5)",
+      "animation": "fade-scale",
+      "duration": "150ms"
+    }
+  },
+  "responsiveBreakpoints": {
+    "mobile": "375px",
+    "tablet": "768px",
+    "desktop": "1024px"
+  },
+  "accessibility": {
+    "minContrastRatio": "4.5:1",
+    "minTouchTarget": "44x44px",
+    "focusIndicator": "2px solid #1E40AF",
+    "focusOffset": "2px"
+  }
+}

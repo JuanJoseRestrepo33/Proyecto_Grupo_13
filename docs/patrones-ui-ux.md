@@ -10,6 +10,13 @@ Documentación técnica de los patrones de interfaz y experiencia de usuario apl
 
 ## 1. Cómo ejecutar los mockups
 
+Versión publicada (GitHub Pages, se actualiza con cada cambio en `main`):
+
+- **Web:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+- **Móvil:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+
+En local:
+
 ```bash
 cd Proyecto_Grupo_13
 python3 -m http.server 8765
@@ -43,21 +50,9 @@ Se recomienda servirlos por HTTP (y no abrirlos con `file://`) para que el estad
 
 ### 2.1 Recorrido crítico de venta
 
-```mermaid
-flowchart LR
-  A[Producto] --> B[Datos del cliente]
-  B --> C{¿Consentimiento<br/>vigente?}
-  C -- No --> C1[Precio estándar<br/>+ enlace a otorgar]
-  C -- Sí --> D{¿Open Finance<br/>responde?}
-  D -- Sí --> E[Precio personalizado]
-  D -- Timeout 700 ms --> E2[Perfil en caché<br/>aviso de degradación]
-  C1 & E & E2 --> F[Oferta válida 5 min<br/>¿Por qué este precio?]
-  F --> G{Decisión de<br/>suscripción}
-  G -- Automática --> H[Pago]
-  G -- Revisión asistida --> G2[Analista aprueba] --> H
-  H -- Rechazado --> H
-  H -- Aprobado --> I[Firma electrónica] --> J[Póliza emitida<br/>visible en Mis pólizas]
-```
+<p align="center"><img src="img/recorrido-critico-venta.png" alt="Diagrama del recorrido crítico de venta: producto, datos, verificación de consentimiento y de respuesta de Open Finance, oferta, decisión de suscripción, pago, firma y emisión" width="520"></p>
+
+Fuente editable del diagrama (Mermaid): [`docs/img/recorrido-critico-venta.mmd`](img/recorrido-critico-venta.mmd).
 
 Cada rama del diagrama puede recorrerse en la demo mediante los controles marcados como **Demo** (ver P28).
 
