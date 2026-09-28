@@ -47,7 +47,9 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 |---|---|
 | [Guía de usuario](docs/guia-de-usuario/README.md) | Uso de la web (clientes, operaciones y socios) y de la app móvil, con capturas |
 | [Patrones de diseño UI/UX](docs/patrones-ui-ux.md) | Catálogo de patrones de interfaz, mapa de flujos, accesibilidad e implementación de los mockups |
-| [Design System v2](DesignSystem/Solventa_Design_System.md) · [Sistema de navegación](DesignSystem/Solventa_Navigation_System.md) | Tokens, componentes base y estructura de navegación |
+| [Design System v2 (PDF)](DesignSystem/Solventa_Design_System_v2.pdf) | Versión vigente: paleta índigo/violeta, botones en píldora y componentes usados por los mockups |
+| [Sistema de navegación](DesignSystem/Solventa_Navigation_System.md) ([PDF](DesignSystem/Solventa_Navigation_System.pdf)) | Estructura de navegación web y móvil, flujos y estados |
+| [Design System v1.0](DesignSystem/Solventa_Design_System.md) ([PDF](DesignSystem/Solventa_Design_System.pdf)) | Versión anterior en texto: principios, tipografía, espaciado, componentes y guía de implementación |
 | [Patrones de arquitectura por vista](docs/Patrones-QR-vistas.md) | Trazabilidad patrón → requisito de calidad |
 | [Backlog y plan de sprints](docs/backlog-sprint-plan.md) | Features, estimación y plan |
 

@@ -1,6 +1,6 @@
 # Solventa · Patrones de diseño UI/UX (web y móvil)
 
-Documentación técnica de los patrones de interfaz y experiencia de usuario aplicados en los mockups navegables de Solventa (`web/` y `mobile/`). Complementa al [Design System v2](../DesignSystem/Solventa_Design_System.md) (tokens, componentes base) y al [Sistema de Navegación](../DesignSystem/Solventa_Navigation_System.md) (estructura de navegación). Este documento responde tres preguntas: **qué patrón se usó, qué problema resuelve y cómo está implementado**, con trazabilidad a las features del backlog y a los requisitos de calidad (RC).
+Documentación técnica de los patrones de interfaz y experiencia de usuario aplicados en los mockups navegables de Solventa (`web/` y `mobile/`). Complementa al [Design System v2 (PDF)](../DesignSystem/Solventa_Design_System_v2.pdf) (tokens y componentes vigentes; la [versión 1.0 en texto](../DesignSystem/Solventa_Design_System.md) conserva principios y guía de implementación) y al [Sistema de Navegación](../DesignSystem/Solventa_Navigation_System.md) (estructura de navegación). Este documento responde tres preguntas: **qué patrón se usó, qué problema resuelve y cómo está implementado**, con trazabilidad a las features del backlog y a los requisitos de calidad (RC).
 
 - **Audiencia:** equipo de desarrollo (frontend web y móvil), evaluadores del curso.
 - **Alcance:** 20 pantallas web y 21 pantallas móviles, que cubren las 20 features del backlog (WEB-F01..F11, MOB-F01..F09).
