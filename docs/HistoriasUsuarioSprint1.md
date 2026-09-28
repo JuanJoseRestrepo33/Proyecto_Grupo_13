@@ -1,4 +1,4 @@
-# Historias de Usuario Detalladas — Sprint 1 del Proyecto Final II
+# Historias de Usuario Detalladas - Sprint 1 del Proyecto Final II
 
 > **Proyecto:** Solventa · Aseguradora Digital de Finanzas Abiertas
 > **Curso:** MISW4501 · Proyecto Final · Maestría en Ingeniería de Software · Universidad de los Andes
@@ -43,8 +43,8 @@ sección [Ajuste respecto al plan del repositorio](#ajuste-respecto-al-plan-del-
 
 ## Objetivo del Sprint 1
 
-**Objetivo del sprint:** dejar en pie el núcleo sobre el que se construye todo lo demás — la frontera
-entre módulos, los adaptadores hacia terceros y el registro de auditoría — y con él entregar el
+**Objetivo del sprint:** dejar en pie el núcleo sobre el que se construye todo lo demás - la frontera
+entre módulos, los adaptadores hacia terceros y el registro de auditoría - y con él entregar el
 primer recorrido de negocio completo: **identidad verificada y consentimiento con efecto real**.
 
 No es casualidad que el sprint empiece por ahí. El consentimiento de Open Finance es la puerta legal
@@ -89,7 +89,7 @@ operacional y back-office de socios. Cada uno entra en el sprint que le asigna e
 | WEB-F01 | Cotización y oferta personalizada *(rebanada: UI del cotizador)* | Funcional | Web | 13 | 8h | Alta | Harold |
 | WEB-F03 | Suscripción y emisión *(rebanada: UI de checkout)* | Funcional | Web | 13 | 4h | Alta | Harold |
 | MOB-F02 | Consentimiento Open Finance móvil *(rebanada: pantalla)* | Funcional | Móvil | 5 | 2h | Alta | Edwin |
-| | **En curso, cierran en sprints siguientes** | | | — | **14h** | | |
+| | **En curso, cierran en sprints siguientes** | | | - | **14h** | | |
 | | **Total del sprint** | | | **32** | **64h** | | |
 
 Las tres historias en curso no suman puntos a este sprint: en Scrum solo puntúa lo que cumple la
@@ -105,10 +105,10 @@ el estado compartido entre pantallas mediante `sessionStorage`.
 
 | Historia | Capturas | Prototipo navegable |
 |---|---|---|
-| ARQ-01 · Esqueleto del monolito modular | *No aplica* | — |
-| ARQ-02 · Capa de adaptadores | *No aplica* | — |
-| ARQ-03 · Log de auditoría | *No aplica* | — |
-| ARQ-04 · Ambiente DevOps | *No aplica* | — |
+| ARQ-01 · Esqueleto del monolito modular | *No aplica* | - |
+| ARQ-02 · Capa de adaptadores | *No aplica* | - |
+| ARQ-03 · Log de auditoría | *No aplica* | - |
+| ARQ-04 · Ambiente DevOps | *No aplica* | - |
 | **WEB-F02** · Consentimiento Open Finance | [`web-consentimientos.png`](guia-de-usuario/img/web-consentimientos.png) | [`web/consentimientos.html`](../web/consentimientos.html) |
 | **MOB-F01** · Onboarding y biometría | [`mob-registro.png`](guia-de-usuario/img/mob-registro.png) · [`mob-kyc.png`](guia-de-usuario/img/mob-kyc.png) · [`mob-login.png`](guia-de-usuario/img/mob-login.png) · [`mob-login-huella.png`](guia-de-usuario/img/mob-login-huella.png) | [`mobile/onboarding.html`](../mobile/onboarding.html) · [`mobile/login.html`](../mobile/login.html) |
 | WEB-F01 · Cotización *(rebanada)* | [`web-cotizacion-oferta.png`](guia-de-usuario/img/web-cotizacion-oferta.png) | [`web/cotizacion.html`](../web/cotizacion.html) |
@@ -374,7 +374,7 @@ Solventa consulte mi información financiera, **para** controlar en todo momento
 con qué finalidad.
 
 Esta historia es la puerta legal de todo el modelo de negocio. El perfilamiento de riesgo con datos
-reales — la propuesta de valor de Solventa — solo es lícito bajo consentimiento explícito, informado y
+reales, la propuesta de valor de Solventa, solo es lícito bajo consentimiento explícito, informado y
 revocable, según el Decreto 1297 de 2022 y la Circular Externa 004 de 2024 de la SFC. Sin
 consentimiento vigente, la cotización cae a tarifa estándar.
 
@@ -403,7 +403,7 @@ consentimiento vigente, la cotización cae a tarifa estándar.
 8. Dado un cliente que consulta el histórico, cuando abre el detalle, entonces ve todos los eventos de
    su consentimiento en orden cronológico, incluidos los revocados y los vencidos.
 9. Dado un cliente que va a revocar, cuando confirma, entonces la interfaz le explica primero la
-   consecuencia concreta — que sus próximas cotizaciones usarán tarifa estándar — y le pide una
+   consecuencia concreta, que sus próximas cotizaciones usarán tarifa estándar, y le pide una
    confirmación explícita.
 
 **Notas técnicas.** El criterio 5 es el que hace real al criterio 3: sin invalidar la caché, una
@@ -576,12 +576,12 @@ esta entrega)* · prototipo navegable en
 
 | Requisito de calidad | Historias del Sprint 1 | Qué queda para después |
 |---|---|---|
-| **RC-01 Latencia** — cotización p95 ≤ 250 ms | ARQ-02 (presupuesto de 700 ms y circuit breaker en el adaptador) | Caché de perfil, BFF y autoescalado, con el motor de cotización (Sprint 2) |
-| **RC-02 Escalabilidad de eventos** — 1.000.000 eventos / 10 min | ninguna | Consumidores concurrentes y autoescalado por cola, con siniestros paramétricos (Sprint 3) |
-| **RC-03 Disponibilidad** — ≥ 99,97% mensual | ARQ-02, MOB-F01 (criterio 8) | Redundancia multi-zona, warm standby y failover de región (Sprint 4) |
-| **RC-04 Seguridad y privacidad** — revocación ≤ 5 min | **WEB-F02**, MOB-F01 | Tokenización y cifrado por columna, mTLS entre servicios (Sprint 2) |
+| **RC-01 Latencia** - cotización p95 ≤ 250 ms | ARQ-02 (presupuesto de 700 ms y circuit breaker en el adaptador) | Caché de perfil, BFF y autoescalado, con el motor de cotización (Sprint 2) |
+| **RC-02 Escalabilidad de eventos** - 1.000.000 eventos / 10 min | ninguna | Consumidores concurrentes y autoescalado por cola, con siniestros paramétricos (Sprint 3) |
+| **RC-03 Disponibilidad** - ≥ 99,97% mensual | ARQ-02, MOB-F01 (criterio 8) | Redundancia multi-zona, warm standby y failover de región (Sprint 4) |
+| **RC-04 Seguridad y privacidad** - revocación ≤ 5 min | **WEB-F02**, MOB-F01 | Tokenización y cifrado por columna, mTLS entre servicios (Sprint 2) |
 | **RC-05 Auditabilidad y modificabilidad** | **ARQ-01, ARQ-02, ARQ-03**, WEB-F02 | Publish/subscribe para consumidores adicionales (Sprint 3) |
-| **RC-06 Integración** — nuevo socio en ≤ 1 semana | ARQ-02 | API Gateway con versionado y cuotas por socio, con el back-office (Sprint 4) |
+| **RC-06 Integración** - nuevo socio en ≤ 1 semana | ARQ-02 | API Gateway con versionado y cuotas por socio, con el back-office (Sprint 4) |
 | **RC-08 Trazabilidad y explicabilidad** | ARQ-03, WEB-F02 | Explicabilidad del precio con datos reales (Sprint 2) |
 
 RC-02 no lo toca ninguna historia de este sprint, y es correcto: la escalabilidad de eventos solo
