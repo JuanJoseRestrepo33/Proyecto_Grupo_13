@@ -106,13 +106,13 @@
 <div class="card" style="max-width:640px">
   <h2 class="section-title" data-i18n>Notificaciones</h2>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--neutral-200)">
-    <label for="notifEmail" class="text-sm" data-i18n>Notificaciones por correo</label><label class="switch"><input type="checkbox" id="notifEmail" checked><span class="slider" aria-hidden="true"></span></label>
+    <label for="notifEmail" class="text-sm" data-i18n>Notificaciones por correo</label><label class="switch"><input type="checkbox" id="notifEmail" checked data-pref="Correo"><span class="slider" aria-hidden="true"></span></label>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--neutral-200)">
-    <label for="notifPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="notifPush" checked><span class="slider" aria-hidden="true"></span></label>
+    <label for="notifPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="notifPush" checked data-pref="Push"><span class="slider" aria-hidden="true"></span></label>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0">
-    <label for="notifVence" class="text-sm" data-i18n>Recordatorios de vencimiento</label><label class="switch"><input type="checkbox" id="notifVence" checked><span class="slider" aria-hidden="true"></span></label>
+    <label for="notifVence" class="text-sm" data-i18n>Recordatorios de vencimiento</label><label class="switch"><input type="checkbox" id="notifVence" checked data-pref="Vencimientos"><span class="slider" aria-hidden="true"></span></label>
   </div>
 </div>
 
@@ -147,6 +147,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

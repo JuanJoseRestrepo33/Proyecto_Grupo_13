@@ -109,6 +109,12 @@
   <span class="badge neutral" data-i18n>Banco Andes S.A. · Socio de distribución</span>
 </div>
 
+<div class="alert warning" id="roleGate" hidden role="alert">
+  <span class="ic" aria-hidden="true">🔒</span>
+  <div><strong data-i18n>No tienes permisos para ver esta sección.</strong> <span data-i18n>Tu sesión es de cliente. En la demo puedes cambiar de rol.</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="switchRole" data-i18n>Cambiar de rol (demo)</button></div>
+</div>
+<div data-role-content>
 <div class="alert"><span class="ic">🔒</span><div>La información mostrada está aislada por socio: solo puedes ver la actividad generada por los canales de <strong data-i18n>Banco Andes S.A.</strong></div></div>
 
 <div class="card-grid" style="margin-bottom:32px">
@@ -119,16 +125,25 @@
 </div>
 
 <h2 class="section-title" data-i18n>Pólizas emitidas a través de su canal</h2>
+<form id="partnerSearch" role="search" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+  <div class="form-group" style="flex:2 1 240px;margin:0"><label for="partnerQuery" data-i18n>Buscar póliza por número</label><input type="search" id="partnerQuery" placeholder="POL-2026-002891"></div>
+  <button type="submit" class="btn btn-primary btn-auto" data-i18n>Buscar</button>
+  <div class="form-group" style="flex:1 1 180px;margin:0"><label for="partnerProduct" data-i18n>Filtrar por producto</label>
+    <select id="partnerProduct"><option value="" data-i18n>Todos</option><option value="vida" data-i18n>Vida Hipotecario</option><option value="auto" data-i18n>Auto</option></select></div>
+</form>
+<div id="partnerResult" hidden role="status"></div>
 <div class="table-wrap" style="margin-bottom:32px">
   <table>
     <thead><tr><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Producto</th><th scope="col" data-i18n>Cliente</th><th scope="col" data-i18n>Fecha</th><th scope="col" data-i18n>Estado</th></tr></thead>
     <tbody>
-      <tr><td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td>J. Rodríguez</td><td>02 mar 2026</td><td><span class="badge success" data-i18n>Activa</span></td></tr>
-      <tr><td class="mono">POL-2026-004821</td><td>Vida Hipotecario</td><td>M. Torres</td><td>28 sep 2025</td><td><span class="badge warning" data-i18n>Vence pronto</span></td></tr>
-      <tr><td class="mono">POL-2026-005130</td><td>Auto</td><td>C. Gómez</td><td>13 sep 2026</td><td><span class="badge success" data-i18n>Activa</span></td></tr>
+      <tr data-partner-pol="POL-2026-002891" data-prod="vida"><td class="mono">POL-2026-002891</td><td>Vida Hipotecario</td><td>J. Rodríguez</td><td>02 mar 2026</td><td><span class="badge success" data-i18n>Activa</span></td></tr>
+      <tr data-partner-pol="POL-2026-004821" data-prod="vida"><td class="mono">POL-2026-004821</td><td>Vida Hipotecario</td><td>M. Torres</td><td>28 sep 2025</td><td><span class="badge warning" data-i18n>Vence pronto</span></td></tr>
+      <tr data-partner-pol="POL-2026-005130" data-prod="auto"><td class="mono">POL-2026-005130</td><td>Auto</td><td>C. Gómez</td><td>13 sep 2026</td><td><span class="badge success" data-i18n>Activa</span></td></tr>
     </tbody>
   </table>
+  <p class="empty-state" id="partnerEmpty" hidden data-i18n>No hay pólizas para este filtro.</p>
 </div>
+<div class="page-actions" style="margin-bottom:32px"><button type="button" class="btn btn-ghost" data-mock-download="reporte_banco-andes_sep-2026.csv" data-i18n>📥 Descargar reporte (CSV)</button></div>
 
 <h2 class="section-title" data-i18n>Credenciales y cuotas de la integración</h2>
 <div class="card">
@@ -137,7 +152,11 @@
     <div><label data-i18n>Cuota (rate limit)</label><p class="text-sm">600 solicitudes/min</p></div>
     <div><label data-i18n>Alcance autorizado</label><p class="text-sm">Cotización, aceptación, pago y emisión embebida</p></div>
     <div><label data-i18n>Estado</label><p><span class="badge success" data-i18n>Activa</span></p></div>
+    <div><label data-i18n>Secreto del cliente</label><p class="mono text-sm" id="secretMask">sk_live_a8f2••••••••91cd</p></div>
+    <div><label data-i18n>Versión de API</label><p class="text-sm">v2 (v1 soportada hasta mar 2027)</p></div>
   </div>
+  <div class="page-actions" style="margin-top:12px"><button type="button" class="btn btn-secondary btn-sm" id="rotateSecret" data-i18n>Rotar secreto</button></div>
+</div>
 </div>
 
 <footer class="app-footer">
@@ -146,6 +165,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

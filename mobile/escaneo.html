@@ -48,10 +48,14 @@
     <select id="scTramite"><option data-i18n>Suscripción POL-2026-005214</option><option data-i18n>Siniestro CLM-2026-000118</option><option data-i18n>Actualización de datos</option></select>
   </div>
   <div class="btn-row">
-    <button class="btn btn-primary" data-i18n>Adjuntar documento</button>
-    <button class="btn btn-ghost btn-auto" data-i18n>Repetir</button>
+    <button type="button" class="btn btn-primary" id="scanAttach" data-i18n>Adjuntar documento</button>
+    <button type="button" class="btn btn-ghost btn-auto" id="scanRetry" data-i18n>Repetir</button>
   </div>
 </div>
+<p class="text-xs text-muted" style="margin-top:10px" data-i18n>Consejo: usa buena luz, evita reflejos y que el documento ocupe todo el recuadro.</p>
+
+<h2 class="section-title" data-i18n>Documentos escaneados</h2>
+<div class="card"><div id="scanList"></div><p class="text-sm text-muted" id="scanEmpty" data-i18n>Aún no has escaneado documentos.</p></div>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -87,6 +91,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

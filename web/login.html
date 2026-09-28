@@ -16,22 +16,29 @@
     <h1 class="sr-only" data-i18n>Iniciar sesión</h1>
     <div class="auth-logo"><span class="brand-mark" aria-hidden="true"></span> Solventa</div>
     <p class="text-muted text-sm" style="text-align:center;margin-bottom:24px" data-i18n>Aseguradora digital de finanzas abiertas</p>
-    <form onsubmit="location.href='index.html';return false" action="index.html">
+    <form id="loginForm" novalidate>
       <div class="form-group">
         <label for="email" data-i18n>Correo electrónico</label>
-        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com" required>
+        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com" value="juan.rodriguez@correo.com" required>
       </div>
       <div class="form-group">
         <label for="pass" data-i18n>Contraseña</label>
-        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••" required>
+        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••" value="demo1234" required>
       </div>
-      <a class="btn btn-primary btn-block" href="index.html" style="margin-top:8px" data-i18n>Iniciar sesión</a>
+      <div class="form-group">
+        <label for="loginRole" data-i18n>Ingresar como (demo)</label>
+        <select id="loginRole"><option value="cliente" data-i18n>Cliente</option><option value="operaciones" data-i18n>Operaciones</option><option value="socio" data-i18n>Socio de distribución</option></select>
+      </div>
+      <p class="error-text" id="loginErr" hidden role="alert" data-i18n>Ingresa un correo válido y tu contraseña.</p>
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:8px" data-i18n>Iniciar sesión</button>
+      <p class="text-sm" style="text-align:center;margin-top:12px"><a href="#" id="forgotPass" style="color:var(--primary-700)" data-i18n>¿Olvidaste tu contraseña?</a></p>
       <p class="text-sm text-muted" style="text-align:center;margin-top:16px">
         <span data-i18n>¿Nuevo en Solventa?</span> <a href="cotizacion.html" style="color:var(--primary-700);font-weight:600" data-i18n>Cotiza tu primer seguro</a>
       </p>
     </form>
   </div>
 </main><script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

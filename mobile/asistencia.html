@@ -37,6 +37,29 @@
 <h1 data-i18n>Asistencia en sitio</h1>
 <p class="text-muted text-sm">Ubica el prestador más cercano y solicita ayuda desde tu ubicación actual.</p>
 
+<div class="card" id="geoPerm">
+  <p style="font-size:32px;text-align:center" aria-hidden="true">📍</p>
+  <p class="text-sm" style="text-align:center"><strong data-i18n>Solventa quiere usar tu ubicación</strong></p>
+  <p class="text-xs text-muted" style="text-align:center" data-i18n>Solo la usamos mientras pides asistencia, para encontrar el prestador más cercano.</p>
+  <div class="btn-row"><button type="button" class="btn btn-ghost" id="geoDeny" data-i18n>Ahora no</button><button type="button" class="btn btn-primary" id="geoAllow" data-i18n>Permitir</button></div>
+  <div id="geoManual" hidden style="margin-top:12px">
+    <div class="form-group"><label for="geoAddr" data-i18n>Escribe tu dirección</label><input type="text" id="geoAddr" value="Calle 72 # 10-34, Bogotá"></div>
+    <button type="button" class="btn btn-secondary" id="geoManualGo" data-i18n>Buscar prestadores</button>
+  </div>
+</div>
+
+<div id="geoContent" hidden>
+<div class="card track-card" id="assistTrack" hidden role="status">
+  <div class="card-header"><h2 data-i18n>Asistencia en camino</h2><span class="badge success" data-i18n>Confirmada</span></div>
+  <p class="text-sm"><strong id="assistWho">Taller AutoExpress</strong> · <span data-i18n>llega en</span> <strong id="assistEta">20 min</strong></p>
+  <div class="timeline" style="margin:8px 0">
+    <div class="tl-item done"><div class="tl-title" data-i18n>Solicitud recibida</div></div>
+    <div class="tl-item current"><div class="tl-title" data-i18n>Prestador en camino</div></div>
+    <div class="tl-item"><div class="tl-title" data-i18n>Atención en sitio</div></div>
+  </div>
+  <div class="btn-row"><button type="button" class="btn btn-secondary btn-sm" id="assistCall" data-i18n>📞 Llamar</button><button type="button" class="btn btn-danger-outline btn-sm" id="assistCancel" data-i18n>Cancelar solicitud</button></div>
+</div>
+
 <div class="map-mock" role="img" aria-label="Mapa con tu ubicación y prestadores cercanos">
   <span class="map-pin me" style="top:52%;left:48%" aria-hidden="true">🔵</span>
   <span class="map-pin" style="top:30%;left:35%" aria-hidden="true">🔧</span>
@@ -48,13 +71,19 @@
 <h2 class="section-title" data-i18n>Prestadores cercanos</h2>
 <div class="card">
   <div class="card-header"><h2 data-i18n>Taller AutoExpress</h2><span class="badge success" data-i18n>1.2 km</span></div>
-  <p class="text-xs text-muted">Tiempo estimado de atención: 20 min</p>
-  <button class="btn btn-primary btn-sm" data-i18n>Solicitar asistencia</button>
+  <p class="text-xs text-muted">Tiempo estimado de atención: 20 min · ⭐ 4,7</p>
+  <button type="button" class="btn btn-primary btn-sm" data-assist-req="Taller AutoExpress" data-eta="20 min" data-i18n>Solicitar asistencia</button>
 </div>
 <div class="card">
   <div class="card-header"><h2 data-i18n>Punto de atención Solventa</h2><span class="badge success" data-i18n>2.4 km</span></div>
-  <p class="text-xs text-muted">Tiempo estimado de atención: 35 min</p>
-  <button class="btn btn-secondary btn-sm" data-i18n>Solicitar asistencia</button>
+  <p class="text-xs text-muted">Tiempo estimado de atención: 35 min · ⭐ 4,9</p>
+  <button type="button" class="btn btn-secondary btn-sm" data-assist-req="Punto de atención Solventa" data-eta="35 min" data-i18n>Solicitar asistencia</button>
+</div>
+<div class="card">
+  <div class="card-header"><h2 data-i18n>Clínica del Country (urgencias)</h2><span class="badge warning" data-i18n>3.1 km</span></div>
+  <p class="text-xs text-muted">Tiempo estimado de atención: 15 min · red de salud en convenio</p>
+  <button type="button" class="btn btn-secondary btn-sm" data-assist-req="Clínica del Country" data-eta="15 min" data-i18n>Solicitar asistencia</button>
+</div>
 </div>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
@@ -91,6 +120,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

@@ -103,11 +103,22 @@
 
 <div class="page-head"><div><div class="eyebrow" data-i18n>Soporte</div><h1 data-i18n>Centro de ayuda</h1></div></div>
 <div class="card-grid">
-  <div class="card"><h2 data-i18n>❓ Preguntas frecuentes</h2><p class="text-sm text-muted">Respuestas sobre cotización, pólizas, pagos y siniestros.</p><a class="link-btn" href="#" data-i18n>Ver FAQs</a></div>
-  <div class="card"><h2 data-i18n>💬 Chat en vivo</h2><p class="text-sm text-muted">Habla con un asesor en horario de oficina.</p><a class="link-btn" href="#" data-i18n>Iniciar chat</a></div>
+  <div class="card"><h2 data-i18n>❓ Preguntas frecuentes</h2><p class="text-sm text-muted">Respuestas sobre cotización, pólizas, pagos y siniestros.</p><a class="link-btn" href="#faq" data-i18n>Ver FAQs</a></div>
+  <div class="card"><h2 data-i18n>💬 Chat en vivo</h2><p class="text-sm text-muted">Habla con un asesor en horario de oficina.</p><button type="button" class="link-btn" data-chat data-i18n>Iniciar chat</button></div>
   <div class="card"><h2 data-i18n>📞 Llamar</h2><p class="text-sm text-muted">Línea nacional 01 8000 123 456.</p></div>
   <div class="card"><h2 data-i18n>✉️ Escribir</h2><p class="text-sm text-muted">soporte@solventa.co</p></div>
 </div>
+
+<h2 class="section-title" id="faq" style="margin-top:32px" data-i18n>Preguntas frecuentes</h2>
+<div class="form-group" style="max-width:420px"><label for="faqSearch" data-i18n>Buscar en las preguntas</label><input type="search" id="faqSearch" placeholder="pago, siniestro, consentimiento…"></div>
+<div id="faqList" class="card">
+  <details><summary data-i18n>¿Cuánto tarda en emitirse mi póliza?</summary><p class="text-sm text-muted">Si la decisión es automática, la póliza se emite en segundos después del pago y la firma. Si requiere revisión asistida, un analista la resuelve en máximo 4 horas hábiles.</p></details>
+  <details><summary data-i18n>¿Qué pasa si revoco mi consentimiento de Open Finance?</summary><p class="text-sm text-muted">Dejamos de usar tus datos financieros en menos de 5 minutos. Tus pólizas vigentes no se afectan; las nuevas cotizaciones usarán precio estándar.</p></details>
+  <details><summary data-i18n>¿Qué es un pago paramétrico?</summary><p class="text-sm text-muted">Es un pago automático cuando ocurre un evento verificable (por ejemplo, un retraso de vuelo de 3 horas o más). No tienes que presentar una reclamación.</p></details>
+  <details><summary data-i18n>¿Me pueden cobrar dos veces si reintento el pago?</summary><p class="text-sm text-muted">No. Cada pago tiene una llave de idempotencia: si se repite la misma operación, se reconoce y no se cobra de nuevo.</p></details>
+  <details><summary data-i18n>¿Cómo reporto un siniestro?</summary><p class="text-sm text-muted">Desde Siniestros → Reportar siniestro. El asistente te pide la póliza, qué pasó y la evidencia. Recibirás un número de reclamo para hacer seguimiento.</p></details>
+</div>
+<p class="empty-state" id="faqEmpty" hidden data-i18n>No encontramos preguntas con ese texto. Prueba el chat en vivo.</p>
 
 <footer class="app-footer">
         <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
@@ -115,6 +126,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

@@ -106,24 +106,34 @@
     <h1 data-i18n>Tablero operacional</h1>
     <p class="text-muted">Vista consolidada de cotizaciones, pólizas y siniestros para el equipo de operaciones.</p>
   </div>
-  <span class="badge neutral" data-i18n>Acceso restringido · Rol Operaciones</span>
+  <div class="page-actions">
+    <label for="opsPeriod" class="sr-only" data-i18n>Periodo</label>
+    <select id="opsPeriod" style="width:auto"><option value="hoy" data-i18n>Hoy</option><option value="7d" data-i18n>Últimos 7 días</option><option value="30d" data-i18n>Últimos 30 días</option></select>
+    <span class="badge neutral" data-i18n>Acceso restringido · Rol Operaciones</span>
+  </div>
 </div>
+<div class="alert warning" id="roleGate" hidden role="alert">
+  <span class="ic" aria-hidden="true">🔒</span>
+  <div><strong data-i18n>No tienes permisos para ver esta sección.</strong> <span data-i18n>Tu sesión es de cliente. En la demo puedes cambiar de rol.</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="switchRole" data-i18n>Cambiar de rol (demo)</button></div>
+</div>
+<div data-role-content>
 
 <div class="card-grid" style="margin-bottom:32px">
-  <div class="stat-card"><div class="n">1.284</div><div class="l">Cotizaciones (hoy)</div><div class="delta up">▲ 6,2% vs. ayer</div></div>
-  <div class="stat-card"><div class="n">312</div><div class="l">Pólizas emitidas (mes)</div><div class="delta up">▲ 3,1%</div></div>
-  <div class="stat-card"><div class="n">47</div><div class="l">Siniestros abiertos</div><div class="delta down">▼ 4 vs. ayer</div></div>
-  <div class="stat-card"><div class="n">99,97%</div><div class="l">Disponibilidad journeys críticos</div></div>
+  <div class="stat-card"><div class="n" data-ops="0">1.284</div><div class="l" data-i18n>Cotizaciones</div><div class="delta up" data-ops="4">▲ 6,2% vs. ayer</div></div>
+  <div class="stat-card"><div class="n" data-ops="1">312</div><div class="l" data-i18n>Pólizas emitidas</div><div class="delta up" data-ops="5">▲ 3,1%</div></div>
+  <div class="stat-card"><div class="n" data-ops="2">47</div><div class="l" data-i18n>Siniestros abiertos</div><div class="delta down" data-ops="6">▼ 4 vs. ayer</div></div>
+  <div class="stat-card"><div class="n" data-ops="3">99,97%</div><div class="l" data-i18n>Disponibilidad journeys críticos</div></div>
 </div>
 
 <h2 class="section-title" data-i18n>Casos que requieren intervención</h2>
 <div class="table-wrap" style="margin-bottom:32px">
   <table>
-    <thead><tr><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Referencia</th><th scope="col" data-i18n>Motivo</th><th scope="col" data-i18n>Prioridad</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead>
+    <thead><tr><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Referencia</th><th scope="col" data-i18n>Motivo</th><th scope="col" data-i18n>Prioridad</th><th scope="col" data-i18n>Estado</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead>
     <tbody>
-      <tr><td>Siniestro</td><td class="mono">CLM-2026-000118</td><td>Requiere validación manual de perito</td><td><span class="badge warning" data-i18n>Media</span></td><td><a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver</a></td></tr>
-      <tr><td>Suscripción</td><td class="mono">QT-2026-08790</td><td>Decisión automática no concluyente</td><td><span class="badge error" data-i18n>Alta</span></td><td><a class="link-btn" href="#" data-i18n>Ver</a></td></tr>
-      <tr><td>Pago paramétrico</td><td class="mono">EVT-2026-441209</td><td>Fuente climática marcada como pendiente de verificación</td><td><span class="badge error" data-i18n>Alta</span></td><td><a class="link-btn" href="#" data-i18n>Ver</a></td></tr>
+      <tr data-case="CLM-2026-000118"><td>Siniestro</td><td class="mono">CLM-2026-000118</td><td>Requiere validación manual de perito</td><td><span class="badge warning" data-i18n>Media</span></td><td><span class="badge neutral" data-case-status data-i18n>Pendiente</span></td><td><button type="button" class="link-btn" data-case-open data-i18n>Gestionar</button></td></tr>
+      <tr data-case="QT-2026-08790"><td>Suscripción</td><td class="mono">QT-2026-08790</td><td>Decisión automática no concluyente</td><td><span class="badge error" data-i18n>Alta</span></td><td><span class="badge neutral" data-case-status data-i18n>Pendiente</span></td><td><button type="button" class="link-btn" data-case-open data-i18n>Gestionar</button></td></tr>
+      <tr data-case="EVT-2026-441209"><td>Pago paramétrico</td><td class="mono">EVT-2026-441209</td><td>Fuente climática marcada como pendiente de verificación</td><td><span class="badge error" data-i18n>Alta</span></td><td><span class="badge neutral" data-case-status data-i18n>Pendiente</span></td><td><button type="button" class="link-btn" data-case-open data-i18n>Gestionar</button></td></tr>
     </tbody>
   </table>
 </div>
@@ -142,11 +152,12 @@
     <h2 class="section-title" data-i18n>Siniestros por estado</h2>
     <div class="form-grid" style="margin-bottom:0">
       <div><label data-i18n>Nuevo</label><p class="text-sm">12</p></div>
-      <div><label data-i18n>En revisión</label><p class="text-sm">28</p></div>
+      <div><label data-i18n>En revisión</label><p class="text-sm"><a class="link-btn" href="siniestros.html">28</a></p></div>
       <div><label data-i18n>Con perito</label><p class="text-sm">7</p></div>
-      <div><label data-i18n>Pagados (mes)</label><p class="text-sm">164</p></div>
+      <div><label data-i18n>Pagados (mes)</label><p class="text-sm"><a class="link-btn" href="siniestros.html">164</a></p></div>
     </div>
   </div>
+</div>
 </div>
 
 <footer class="app-footer">
@@ -155,6 +166,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

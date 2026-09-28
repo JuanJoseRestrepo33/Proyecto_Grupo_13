@@ -235,7 +235,7 @@ main[tabindex="-1"]:focus-visible{ outline:2px solid var(--primary-700); outline
 .form-group.full{ grid-column:1 / -1; }
 label{ display:block; font-size:13px; font-weight:600; color:var(--neutral-900); margin-bottom:6px; }
 .hint{ display:block; font-size:12px; color:var(--neutral-500); margin-top:6px; }
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],
 select, textarea{
   width:100%; padding:12px 14px; border:1px solid var(--neutral-300); border-radius:var(--radius-md);
   font-size:15px; font-family:var(--font-body); background:var(--neutral-0); color:var(--neutral-900);
@@ -411,7 +411,7 @@ h1,h2,h3,h4{ color:var(--primary-900); }
 .badge.success{ background:#D1FAE5; color:#047857; }
 .alert{ border-left:none; border-radius:var(--radius-md); border:1px solid var(--primary-100); }
 .alert.success{ border-color:#A7F3D0; } .alert.warning{ border-color:#FDE68A; } .alert.error{ border-color:#FECACA; }
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border-color:var(--primary-100); }
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border-color:var(--primary-100); }
 .auth-wrap{ background:radial-gradient(1200px 600px at 80% -10%, var(--primary-500) 0%, transparent 60%), var(--primary-900); }
 .auth-card{ border-radius:var(--radius-xl); }
 .dropzone{ border-color:var(--primary-500); background:var(--primary-50); border-radius:var(--radius-lg); }
@@ -439,7 +439,7 @@ input[type=text],input[type=email],input[type=password],input[type=number],input
 .badge.warning{ color:#92400E; }
 .delta.down{ color:#B91C1C; }
 /* Contraste de componentes de UI (bordes de controles >= 3:1) */
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border:1px solid var(--control-border); }
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border:1px solid var(--control-border); }
 .option-card{ border-color:var(--control-border); }
 .switch .slider{ background:var(--control-border); }
 .step .dot{ border-color:var(--control-border); }
@@ -492,3 +492,34 @@ input:focus, select:focus, textarea:focus{ outline:3px solid var(--primary-700);
 .chat-form{ display:flex; gap:8px; align-items:center; }
 .chat-form input{ flex:1; }
 .btn-auto{ width:auto; }
+
+/* ==========================================================================
+   Accesibilidad (WCAG 2.2 AAA · contraste de texto >= 7:1)
+   Sobrescribe los tokens de color; el HTML no cambia.
+   ========================================================================== */
+:root{
+  --primary-700:#5B21B6;
+  --neutral-500:#454B5C;
+  --success-600:#005A39;
+  --warning-600:#7C2D12;
+  --error-600:#7F1D1D;
+}
+.notif-dot, .nav-badge, .bn-badge, .bn-item .bn-badge{ background:#991B1B; color:#fff; }
+.btn-success{ background:#065F46; } .btn-success:hover{ background:#064E3B; }
+.btn-error{ background:#991B1B; color:#fff; } .btn-error:hover{ background:#7F1D1D; }
+.badge.success{ background:#D1FAE5; color:#005A39; }
+.badge.warning{ background:#FEF3C7; color:#7C2D12; }
+.badge.error{ background:#FEE2E2; color:#7F1D1D; }
+.delta.up{ color:#005A39; } .delta.down{ color:#7F1D1D; }
+.btn-primary{ box-shadow:0 4px 12px rgba(91,33,182,.25); }
+
+/* ---------- Flujos complementarios ---------- */
+input[aria-invalid="true"]{ border-color:var(--error-500); background:#FEF2F2; }
+.btn[aria-busy="true"]{ opacity:.8; cursor:progress; }
+a.btn[aria-disabled="true"]{ pointer-events:auto; }
+#faqList details{ border-bottom:1px solid var(--neutral-200); padding:12px 0; }
+#faqList details:last-child{ border-bottom:none; }
+#faqList summary{ cursor:pointer; font-weight:600; color:var(--neutral-900); min-height:24px; }
+#faqList summary:focus-visible{ outline:2px solid var(--primary-500); outline-offset:2px; border-radius:4px; }
+#faqList details p{ margin:8px 0 0; }
+button.link-btn{ background:none; border:none; padding:0; font:inherit; cursor:pointer; }

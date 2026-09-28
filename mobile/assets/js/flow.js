@@ -30,9 +30,9 @@
   function toast(title, text) {
     var el = document.createElement("div");
     el.className = "flow-toast"; el.setAttribute("role", "status");
-    el.innerHTML = "<span aria-hidden='true'>✅</span><div><strong></strong><span></span></div><button type='button'></button>";
+    el.innerHTML = "<span aria-hidden='true'>✅</span><div><strong></strong><span class='toast-text'></span></div><button type='button'></button>";
     el.querySelector("strong").textContent = title;
-    el.querySelector("div span").textContent = text || "";
+    el.querySelector(".toast-text").textContent = text || "";
     var b = el.querySelector("button"); b.textContent = "✕"; b.setAttribute("aria-label", t("Cerrar", "Close"));
     b.addEventListener("click", function () { el.remove(); });
     host().appendChild(el);
@@ -92,6 +92,8 @@
       cov: [["Fallecimiento", "Saldo de la deuda"], ["Incapacidad total permanente", "Saldo de la deuda"]],
       extra: [["Enfermedades graves", "cobertura adicional", 6000]] }
   };
+  // Pólizas emitidas durante la demo (flujo cotizar → suscribir): se suman al catálogo
+  rd("solv_issued", []).forEach(function (p) { POL[p.id] = p; });
   var STATUS = {
     activa: ["success", "✓ Activa", "Activa"],
     porvencer: ["warning", "Vence pronto", "Vence pronto"],
@@ -169,6 +171,23 @@
     if (document.body.hasAttribute("data-pol-guard") && v.status === "cancelada") { location.replace("poliza-detalle.html?p=" + id); return; }
     var isPolicyPage = /^poliza-/.test(location.pathname.split("/").pop()) || /billetera-detalle/.test(location.pathname);
     if (isPolicyPage) { fill(document, id); coverageTable(v); }
+    // Filas / tarjetas de pólizas emitidas en esta sesión
+    var detailPage = document.querySelector(".device-frame") ? "billetera-detalle.html" : "poliza-detalle.html";
+    rd("solv_issued", []).forEach(function (p) {
+      qa("[data-issued-rows]").forEach(function (tb) {
+        var tr = document.createElement("tr"); tr.setAttribute("data-pol-row", p.id);
+        tr.innerHTML = "<td class='mono'>" + p.num + "</td><td>" + p.name + " <span class='badge'>" + t("Nueva", "New") + "</span></td><td><span class='badge' data-pol-badge='plain'></span></td>" +
+          "<td><span data-pol-price='price'></span>/mes</td><td><span data-pol-date='end'></span></td><td><a class='link-btn' href='" + detailPage + "?p=" + p.id + "'>" + t("Ver detalle", "View details") + "</a></td>";
+        tb.insertBefore(tr, tb.firstChild);
+      });
+      qa("[data-issued-cards]").forEach(function (box) {
+        var d = document.createElement("div"); d.className = "card"; d.setAttribute("data-pol-row", p.id);
+        d.innerHTML = "<div class='card-header'><h2>" + p.name + "</h2><span class='badge' data-pol-badge></span></div><p class='text-sm text-muted mono'>" + p.num + "</p>" +
+          "<p class='text-sm'><span data-pol-price='price'></span>/" + t("mes", "mo") + " · " + t("Vence", "Expires") + ": <span data-pol-date='end'></span></p>" +
+          "<a class='btn btn-secondary btn-sm btn-auto' href='" + detailPage + "?p=" + p.id + "'>" + t(detailPage === "poliza-detalle.html" ? "Ver detalle" : "Ver credencial", detailPage === "poliza-detalle.html" ? "View details" : "View card") + "</a>";
+        box.insertBefore(d, box.firstChild);
+      });
+    });
     qa("[data-pol-row]").forEach(function (r) { fill(r, r.getAttribute("data-pol-row")); });
 
     // Alertas de vencimiento: solo mientras la póliza siga "por vencer"
@@ -251,6 +270,20 @@
   }
 
   /* ---------- reclamos ---------- */
+  // Reclamos de demostración con desenlace distinto al caso "en revisión" que trae el HTML
+  var CLAIMS = {
+    "CLM-2026-000094": { tipo: "Pantalla dañada", poliza: "POL-2026-001235", monto: "$480.000 COP", doc: "factura_reparacion.pdf",
+      prestador: "Taller TecniCel (Bogotá)", badge: ["success", "Pagado"], param: false,
+      tl: [["12 ago 2026 · 08:40", "Reporte recibido", "El cliente registró el siniestro desde la app móvil con 3 fotos."],
+           ["12 ago 2026 · 11:15", "Documentación validada", "Fotos y factura del equipo verificadas."],
+           ["13 ago 2026 · 16:20", "Aprobado", "Daño accidental cubierto; deducible del 10% aplicado."],
+           ["14 ago 2026 · 09:05", "Pagado", "Transferencia de $480.000 COP a la cuenta registrada."]] },
+    "CLM-2026-000151": { tipo: "Retraso de vuelo ≥3h (paramétrico)", poliza: "POL-2026-001234", monto: "$350.000 COP", doc: "evento_AV9312.json",
+      prestador: "No aplica (pago automático)", badge: ["success", "Pagado"], param: true,
+      tl: [["22 sep 2026 · 18:02", "Evento detectado", "Fuente de datos de vuelos: AV9312 BOG→CLO con 3 h 40 min de retraso."],
+           ["22 sep 2026 · 18:02", "Condición paramétrica cumplida", "Retraso ≥ 3 h sobre póliza vigente; no requiere reclamación."],
+           ["22 sep 2026 · 18:03", "Pagado", "Pago automático de $350.000 COP (idempotente, registrado en auditoría)."]] }
+  };
   function claims() { return rd("solv_claims", []); }
   function claimId(n) { return "CLM-2026-" + ("000000" + (142 + n)).slice(-6); }
   function fieldVal(name) {
@@ -317,8 +350,23 @@
       }
     });
 
+    // Detalle de un reclamo de demostración ya existente (pagado o paramétrico)
+    var wanted = params.get("id"), fixed = CLAIMS[wanted];
+    if (fixed && document.getElementById("claimTimeline")) {
+      qa("[data-claim-detail='tipo']").forEach(function (el) { el.textContent = fixed.tipo; });
+      qa("[data-claim-detail='id']").forEach(function (el) { el.textContent = wanted; });
+      qa("[data-claim-detail='poliza']").forEach(function (el) { el.textContent = fixed.poliza; });
+      qa("[data-claim-detail='monto']").forEach(function (el) { el.textContent = fixed.monto; });
+      qa("[data-claim-detail='doc']").forEach(function (el) { el.textContent = "📎 " + fixed.doc; el.setAttribute("data-mock-download", fixed.doc); });
+      qa("[data-claim-detail='prestador']").forEach(function (el) { el.textContent = fixed.prestador; });
+      qa("[data-claim-detail='badge']").forEach(function (el) { el.className = "badge " + fixed.badge[0]; el.setAttribute("data-i18n", ""); el.textContent = fixed.badge[1]; });
+      document.getElementById("claimTimeline").innerHTML = fixed.tl.map(function (s, i) {
+        return "<div class='tl-item done'><div class='tl-date'>" + s[0] + "</div><div class='tl-title' data-i18n>" + s[1] + "</div><div class='tl-desc'>" + s[2] + "</div></div>";
+      }).join("");
+      qa("[data-claim-param]").forEach(function (el) { el.hidden = !fixed.param; });
+    }
     // Detalle de un reclamo recién creado
-    var wanted = params.get("id"), c = list.filter(function (x) { return x.id === wanted; })[0];
+    var c = list.filter(function (x) { return x.id === wanted; })[0];
     if (c && document.getElementById("claimTimeline")) {
       qa("[data-claim-detail='tipo']").forEach(function (el) { el.textContent = c.tipo; });
       qa("[data-claim-detail='id']").forEach(function (el) { el.textContent = c.id; });
@@ -392,5 +440,6 @@
     var d = e.target.closest("[data-mock-download]");
     if (d) { e.preventDefault(); toast(t("Descarga simulada", "Simulated download"), d.getAttribute("data-mock-download")); }
   });
-  window.Solv = { modal: modal, toast: toast };
+  window.Solv = { modal: modal, toast: toast, chat: chat, rd: rd, wr: wr, t: t, money: money, dfmt: dfmt, iso: iso,
+                  addYears: addYears, addDays: addDays, qa: qa, params: params, POL: POL };
 })();

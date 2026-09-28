@@ -48,10 +48,10 @@
 <div class="card">
   <h2 class="section-title" data-i18n>Notificaciones</h2>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
-    <label for="nPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="nPush" checked><span class="slider" aria-hidden="true"></span></label>
+    <label for="nPush" class="text-sm" data-i18n>Notificaciones push</label><label class="switch"><input type="checkbox" id="nPush" checked data-pref="Push"><span class="slider" aria-hidden="true"></span></label>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
-    <label for="nVence" class="text-sm" data-i18n>Recordatorios de vencimiento</label><label class="switch"><input type="checkbox" id="nVence" checked><span class="slider" aria-hidden="true"></span></label>
+    <label for="nVence" class="text-sm" data-i18n>Recordatorios de vencimiento</label><label class="switch"><input type="checkbox" id="nVence" checked data-pref="Vencimientos"><span class="slider" aria-hidden="true"></span></label>
   </div>
 </div>
 <div class="card">
@@ -93,6 +93,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

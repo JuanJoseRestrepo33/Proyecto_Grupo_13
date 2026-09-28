@@ -124,23 +124,30 @@
   </div>
 </div>
 
-<div class="card" style="border:2px solid var(--primary-700)">
+<div class="alert warning" id="mortgageNoConsent" hidden>
+  <span class="ic" aria-hidden="true">🔐</span>
+  <div><strong data-i18n>Sin consentimiento de Open Finance vigente.</strong> <span data-i18n>La oferta usa tarifa estándar. Otorga tu consentimiento para obtener un precio según tu perfil.</span>
+    <a href="consentimientos.html?back=hipotecario" style="color:var(--warning-600);font-weight:600" data-i18n>Otorgar consentimiento →</a></div>
+</div>
+
+<div class="card" id="mortgageOffer" style="border:2px solid var(--primary-700)">
   <div class="card-header">
     <div><h2 data-i18n>Vida Hipotecario — cobertura ajustada a tu perfil</h2><p class="text-sm text-muted mono">OFFER-2026-33021 · válida 24h</p></div>
     <span class="badge" data-i18n>Scoring individual</span>
   </div>
-  <p style="font-size:32px;font-weight:700;color:var(--primary-700)"><span data-money="20400" data-currency="COP">$20.400</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
+  <p style="font-size:32px;font-weight:700;color:var(--primary-700)"><span data-offer="price" data-money="20400" data-currency="COP">$20.400</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
   <div class="form-grid" style="margin-bottom:0">
     <div><label data-i18n>Cobertura</label><p class="text-sm">100% del saldo insoluto del crédito</p></div>
-    <div><label data-i18n>Score de perfil</label><p class="text-sm">742 / 850 (riesgo bajo)</p></div>
+    <div><label data-i18n>Score de perfil</label><p class="text-sm" data-mortgage-score>742 / 850 (riesgo bajo)</p></div>
     <div><label data-i18n>Fuentes consultadas</label><p class="text-sm">Open Finance (comportamiento de pago) + Open Data (demografía, inmueble)</p></div>
-    <div><label data-i18n>Consentimiento</label><p class="text-sm"><a class="link-btn" href="consentimientos.html" data-i18n>CONSENT-2026-00417 · vigente</a></p></div>
+    <div><label data-i18n>Consentimiento</label><p class="text-sm"><a class="link-btn" href="consentimientos.html" data-mortgage-consent>CONSENT-2026-00417 · vigente</a></p></div>
   </div>
   <hr class="divider">
   <div class="page-actions">
-    <a class="btn btn-primary" href="suscripcion.html" data-i18n>Suscribir en un clic</a>
-    <button class="btn btn-ghost" data-i18n>Ver condiciones completas</button>
+    <a class="btn btn-primary" href="suscripcion.html" id="mortgageSubscribe" data-i18n>Suscribir en un clic</a>
+    <button type="button" class="btn btn-ghost" id="mortgageTerms" data-i18n>Ver condiciones completas</button>
   </div>
+  <p class="text-xs text-muted" data-offer="basis"></p>
   <p class="text-xs text-muted" style="margin-top:12px">Auditoría completa: versión del consentimiento, fuentes consultadas, timestamp y decisión quedan registradas.</p>
 </div>
 
@@ -150,6 +157,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

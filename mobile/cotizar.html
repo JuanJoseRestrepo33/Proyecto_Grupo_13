@@ -38,7 +38,7 @@
 <h1 data-i18n>Cotizar y suscribir</h1>
 <p class="text-muted text-sm">Completa la compra sin necesidad de un asesor.</p>
 
-<div data-wizard>
+<div data-wizard data-quote-wizard>
   <div class="stepper">
     <div class="step active"><div class="dot">1</div><div class="label">Producto</div></div>
     <div class="step"><div class="dot">2</div><div class="label">Datos</div></div>
@@ -48,30 +48,42 @@
 
   <div class="wizard-step active" data-option-group>
     <p class="text-sm text-muted">Selecciona el producto habilitado para autoservicio móvil.</p>
-    <label class="option-card selected" style="display:block;margin-bottom:8px"><input type="radio" name="p" checked><strong data-i18n>📱 Dispositivos</strong><p class="text-xs text-muted">Daño accidental, robo y pérdida.</p></label>
-    <label class="option-card" style="display:block;margin-bottom:8px"><input type="radio" name="p"><strong data-i18n>✈️ Viaje</strong><p class="text-xs text-muted">Asistencia médica y equipaje.</p></label>
-    <label class="option-card" style="display:block"><input type="radio" name="p"><strong data-i18n>🏠 Hogar</strong><p class="text-xs text-muted">Incendio y contenidos.</p></label>
+    <label class="option-card selected" style="display:block;margin-bottom:8px"><input type="radio" name="p" value="disp" checked><strong data-i18n>📱 Dispositivos</strong><p class="text-xs text-muted">Daño accidental, robo y pérdida.</p></label>
+    <label class="option-card" style="display:block;margin-bottom:8px"><input type="radio" name="p" value="viaje"><strong data-i18n>✈️ Viaje</strong><p class="text-xs text-muted">Asistencia médica y equipaje.</p></label>
+    <label class="option-card" style="display:block"><input type="radio" name="p" value="hogar"><strong data-i18n>🏠 Hogar</strong><p class="text-xs text-muted">Incendio y contenidos.</p></label>
   </div>
 
-  <div class="wizard-step">
+  <div class="wizard-step" data-required="mNombre,mDoc,mValor">
     <p class="text-sm text-muted">Información mínima necesaria del cliente.</p>
     <div class="form-group"><label for="mNombre" data-i18n>Nombre completo</label><input type="text" id="mNombre" value="Juan Rodríguez"></div>
     <div class="form-group"><label for="mDoc" data-i18n>Documento</label><input type="text" id="mDoc" value="1.020.456.789"></div>
-    <div class="form-group"><label for="mValor" data-i18n>Valor del equipo</label><input type="text" id="mValor" value="$ 3.200.000"></div>
+    <div class="form-group"><label for="mValor" data-i18n>Valor asegurado</label><input type="text" id="mValor" value="$ 3.200.000"></div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><strong class="text-sm" data-i18n>Usar Open Finance</strong><p class="text-xs text-muted" style="margin:2px 0 0" data-i18n>Precio según tu perfil financiero</p></div>
+      <label class="switch"><input type="checkbox" id="useOF" checked aria-label="Usar Open Finance"><span class="slider" aria-hidden="true"></span></label>
+    </div>
+    <div class="alert warning" id="ofNoConsent" hidden><span class="ic" aria-hidden="true">🔐</span><div class="text-xs"><span data-i18n>Sin consentimiento vigente: precio estándar.</span> <a href="consentimiento.html?back=cotizar" style="color:var(--warning-600);font-weight:700" data-i18n>Otorgar →</a></div></div>
   </div>
 
   <div class="wizard-step">
     <div class="card" style="border:2px solid var(--primary-700)">
-      <div class="card-header"><h2 data-i18n>Dispositivos</h2><span class="badge" data-i18n>Recomendada</span></div>
-      <p style="font-size:26px;font-weight:700;color:var(--primary-700)"><span data-money="18500" data-currency="COP">$18.500</span><span style="font-size:12px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
-      <p class="text-xs text-muted">Cotización #QT-2026-09215 · válida 5 min</p>
+      <div class="card-header"><h2 data-offer="name">Dispositivos</h2><span class="badge" data-i18n>Recomendada</span></div>
+      <p style="font-size:26px;font-weight:700;color:var(--primary-700)"><span data-offer="price" data-money="18500" data-currency="COP">$18.500</span><span style="font-size:12px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
+      <p class="text-xs" style="color:var(--success-600);font-weight:600" data-offer="saving"></p>
+      <ul data-offer="cov" style="margin:6px 0 8px 16px;font-size:12px;color:var(--neutral-700)"></ul>
+      <p class="text-xs text-muted"><span data-i18n>Cotización</span> #<span data-offer="qt">QT-2026-09215</span> · <span data-i18n>válida</span> <span id="offerTimer">5:00</span></p>
+      <p class="text-xs text-muted" data-offer="basis"></p>
+      <button type="button" class="link-btn text-sm" id="whyPrice" data-i18n>¿Por qué este precio?</button>
     </div>
+    <div class="alert error" id="offerExpired" hidden role="alert"><span class="ic" aria-hidden="true">⌛</span><div class="text-sm"><strong data-i18n>La cotización venció.</strong> <button type="button" class="btn btn-secondary btn-sm btn-auto" id="requote" data-i18n>Recotizar</button></div></div>
   </div>
 
   <div class="wizard-step">
     <p class="text-sm text-muted">Medio de pago (idempotente: sin cobros duplicados).</p>
     <div class="form-group"><label for="mTarjeta" data-i18n>Número de tarjeta</label><input type="text" id="mTarjeta" value="4532 •••• •••• 0192"></div>
-    <a class="btn btn-primary" href="suscripcion.html" data-i18n>Pagar y emitir póliza</a>
+    <div class="checkbox-row"><input type="checkbox" id="mSimFail"><label for="mSimFail" class="text-sm"><span class="badge neutral" data-i18n>Demo</span> <span data-i18n>Simular pago rechazado</span></label></div>
+    <div class="alert error" id="mPayErr" hidden role="alert"><span class="ic" aria-hidden="true">⛔</span><div class="text-sm"><strong data-i18n>Pago rechazado.</strong> <span data-i18n>No se hizo ningún cobro. Intenta de nuevo.</span></div></div>
+    <a class="btn btn-primary" href="suscripcion.html" id="payIssue" data-i18n>Pagar y emitir póliza</a>
   </div>
 
   <div class="wizard-nav">
@@ -114,6 +126,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

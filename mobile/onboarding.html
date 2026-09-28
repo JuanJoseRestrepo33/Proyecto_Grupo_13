@@ -35,17 +35,30 @@
 <div class="screen-inner">
 
 <h1 data-i18n>Verifiquemos tu identidad</h1>
-<p class="text-muted text-sm">Toma una selfie y valida tu huella o rostro para acceder de forma rápida y segura.</p>
+<p class="text-muted text-sm">Crea tu cuenta, toma una selfie y activa tu huella o rostro para acceder de forma rápida y segura.</p>
 
-<div data-wizard>
+<div data-wizard data-onboarding>
   <div class="stepper">
-    <div class="step active"><div class="dot">1</div><div class="label">Selfie</div></div>
-    <div class="step"><div class="dot">2</div><div class="label">Verificando</div></div>
-    <div class="step"><div class="dot">3</div><div class="label">Biometría</div></div>
-    <div class="step"><div class="dot">4</div><div class="label">Listo</div></div>
+    <div class="step active"><div class="dot">1</div><div class="label">Datos</div></div>
+    <div class="step"><div class="dot">2</div><div class="label">Selfie</div></div>
+    <div class="step"><div class="dot">3</div><div class="label">KYC</div></div>
+    <div class="step"><div class="dot">4</div><div class="label">Biometría</div></div>
+    <div class="step"><div class="dot">5</div><div class="label">Listo</div></div>
   </div>
 
-  <div class="wizard-step active">
+  <div class="wizard-step active" data-required="regName,regDoc,regEmail,regPhone,regTerms">
+    <h2 class="section-title" data-i18n>Tus datos</h2>
+    <div class="form-group"><label for="regName" data-i18n>Nombre completo</label><input type="text" id="regName" autocomplete="name" value="Juan Rodríguez"></div>
+    <div class="form-group"><label for="regDoc" data-i18n>Cédula de ciudadanía</label><input type="text" id="regDoc" inputmode="numeric" value="1020456789"></div>
+    <div class="form-group"><label for="regEmail" data-i18n>Correo electrónico</label><input type="email" id="regEmail" autocomplete="email" value="juan.rodriguez@correo.com"></div>
+    <div class="form-group"><label for="regPhone" data-i18n>Celular</label><input type="tel" id="regPhone" autocomplete="tel" value="+57 300 123 4567"></div>
+    <div class="checkbox-row"><input type="checkbox" id="regTermsChk" onchange="document.getElementById('regTerms').value=this.checked?'1':'';"><label for="regTermsChk" data-i18n>Acepto los términos y la política de tratamiento de datos (incluye validación de identidad KYC/AML).</label></div>
+    <input type="hidden" id="regTerms" value="">
+  </div>
+
+  <div class="wizard-step" data-required="selfieDone">
+    <h2 class="section-title" data-i18n>Selfie con prueba de vida</h2>
+    <input type="hidden" id="selfieDone" value="">
     <div class="camera-mock" data-camera-mock="selfieOk">
       <div class="frame-guide" aria-hidden="true"></div>
       <span aria-hidden="true">🤳</span>
@@ -54,12 +67,14 @@
     <p id="selfieOk" hidden class="alert success" style="margin-top:10px"><span class="ic" aria-hidden="true">✅</span><div data-i18n>Selfie capturada, prueba de vida validada.</div></p>
   </div>
 
-  <div class="wizard-step">
-    <div class="card" style="text-align:center;padding:28px">
+  <div class="wizard-step" id="kycStep" data-required="kycDone">
+    <input type="hidden" id="kycDone" value="">
+    <div class="card" style="text-align:center;padding:28px" id="kycSpin" role="status">
       <p style="font-size:34px" aria-hidden="true">🔎</p>
       <p data-i18n>Validando tu identidad con el proveedor de KYC/AML…</p>
       <span class="badge" data-i18n>CONSENT-2026-KYC-9931</span>
     </div>
+    <div class="alert success" id="kycOk" hidden role="status"><span class="ic" aria-hidden="true">✅</span><div><strong data-i18n>Identidad verificada.</strong> <span data-i18n>Documento vigente, rostro coincide y sin alertas en listas restrictivas.</span></div></div>
   </div>
 
   <div class="wizard-step">
@@ -75,7 +90,7 @@
   </div>
 
   <div class="wizard-step">
-    <div class="alert success"><span class="ic" aria-hidden="true">✅</span><div><strong data-i18n>¡Todo listo!</strong> <span data-i18n>Tu identidad quedó verificada y registrada para auditoría.</span></div></div>
+    <div class="alert success"><span class="ic" aria-hidden="true">✅</span><div><strong><span data-i18n>¡Todo listo,</span> <span data-reg-name>Juan</span>!</strong> <span data-i18n>Tu identidad quedó verificada y registrada para auditoría.</span></div></div>
     <a class="btn btn-primary" href="index.html" data-i18n>Ir a mi inicio</a>
   </div>
 
@@ -119,6 +134,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

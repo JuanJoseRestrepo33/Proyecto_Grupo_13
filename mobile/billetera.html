@@ -37,7 +37,7 @@
 <div class="offline-banner" id="offlineBanner" hidden>📴 Sin conexión · mostrando última sincronización (08:14 a.m.)</div>
 <h1 data-i18n>Billetera de pólizas</h1>
 <p class="text-muted text-sm">Disponible sin conexión: consulta tus coberturas en cualquier momento.</p>
-<button class="btn btn-ghost btn-sm btn-auto" onclick="document.getElementById('offlineBanner').hidden=!document.getElementById('offlineBanner').hidden" style="margin-bottom:12px" data-i18n>📴 Simular modo sin conexión</button>
+<button type="button" class="btn btn-ghost btn-sm btn-auto" id="offlineToggle" style="margin-bottom:12px">📴 Simular modo sin conexión</button>
 
 <div data-tabs>
   <div class="tabs">
@@ -45,6 +45,7 @@
     <button class="tab-btn" data-tab="vencidas" data-i18n>Por vencer</button>
   </div>
   <div class="tab-panel active" data-tab-panel="activas">
+    <div data-issued-cards></div>
     <div class="card" data-pol-row="1234">
       <div class="card-header"><h2 data-i18n>Seguro de Viaje</h2><span class="badge" data-pol-badge data-i18n>x</span></div>
       <p class="text-sm text-muted mono">POL-2026-001234</p>
@@ -103,6 +104,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

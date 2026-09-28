@@ -146,9 +146,9 @@
     var host = document.querySelector(".device-frame") || document.body;
     var t = document.createElement("div");
     t.className = "flow-toast"; t.setAttribute("role", "status");
-    t.innerHTML = "<span aria-hidden='true'>✅</span><div><strong></strong><span></span></div><button type='button' aria-label='Cerrar'>✕</button>";
+    t.innerHTML = "<span aria-hidden='true'>✅</span><div><strong></strong><span class='toast-text'></span></div><button type='button' aria-label='Cerrar'>✕</button>";
     t.querySelector("strong").textContent = m[i];
-    t.querySelector("div span").textContent = m[i + 1];
+    t.querySelector(".toast-text").textContent = m[i + 1];
     t.querySelector("button").addEventListener("click", function () { t.remove(); });
     host.appendChild(t);
     setTimeout(function () { t.remove(); }, 5000);
@@ -280,12 +280,13 @@
   document.querySelectorAll("#fotoOk").forEach(function (n) { n.setAttribute("role", "status"); });
 
   // 6) Propósito del enlace: "Ver" / "Ver detalle" / "Ver seguimiento" se completan con el contexto de la fila o tarjeta
-  document.querySelectorAll("tbody tr .link-btn[href], .card > .link-btn[href], .card > a.btn[href]").forEach(function (a) {
+  document.querySelectorAll("tbody tr .link-btn[href], .card > .link-btn[href], .card > a.btn[href]").forEach(function (a, i) {
     var ctx = a.closest("tr");
     var text = ctx ? (ctx.querySelector("td") || {}).textContent : (a.closest(".card").querySelector("h2") || {}).textContent;
-    if (!text || a.querySelector(".sr-only")) return;
-    var s = document.createElement("span"); s.className = "sr-only"; s.textContent = " — " + text.trim();
-    a.appendChild(s);
+    if (!text || a.hasAttribute("aria-describedby")) return;
+    // Span hermano + aria-describedby: i18n reescribe el texto del enlace y aplanaría un span interno
+    var s = document.createElement("span"); s.className = "sr-only"; s.id = "lp" + (i + 1); s.textContent = text.trim();
+    a.insertAdjacentElement("afterend", s); a.setAttribute("aria-describedby", s.id);
   });
 
   // 7) Tablas: encabezados de fila/columna explícitos

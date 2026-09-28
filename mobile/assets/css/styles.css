@@ -191,7 +191,7 @@ p{ margin:0 0 8px; color:var(--neutral-700); }
 
 label{ display:block; font-size:12px; font-weight:600; color:var(--neutral-900); margin-bottom:5px; }
 .form-group{ margin-bottom:14px; }
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],
 select, textarea{
   width:100%; padding:12px 12px; border:1px solid var(--neutral-300); border-radius:var(--radius-md);
   font-size:15px; font-family:var(--font-body); background:var(--neutral-0); color:var(--neutral-900); min-height:44px;
@@ -334,7 +334,7 @@ h1,h2,h3,h4{ color:var(--primary-900); }
 .badge.success{ background:#D1FAE5; color:#047857; }
 .alert{ border-left:none; border-radius:var(--radius-md); border:1px solid var(--primary-100); }
 .alert.success{ border-color:#A7F3D0; } .alert.warning{ border-color:#FDE68A; } .alert.error{ border-color:#FECACA; }
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border-color:var(--primary-100); }
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border-color:var(--primary-100); }
 .step .dot{ border-color:var(--primary-100); }
 .step::before{ background:var(--primary-100); }
 .step.done::before{ background:var(--primary-700); }
@@ -387,7 +387,7 @@ input[type=text],input[type=email],input[type=password],input[type=number],input
 .badge.warning{ color:#92400E; }
 .delta.down{ color:#B91C1C; }
 /* Contraste de componentes de UI (bordes de controles >= 3:1) */
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border:1px solid var(--control-border); }
+input[type=text],input[type=search],input[type=email],input[type=password],input[type=number],input[type=date],input[type=tel],select,textarea{ border:1px solid var(--control-border); }
 .option-card{ border-color:var(--control-border); }
 .switch .slider{ background:var(--control-border); }
 .step .dot{ border-color:var(--control-border); }
@@ -444,3 +444,18 @@ input:focus, select:focus, textarea:focus{ outline:3px solid var(--primary-700);
 .table-wrap td{ padding:8px 10px; border-top:1px solid var(--primary-100); }
 .hint{ display:block; font-size:12px; color:var(--neutral-500); margin-top:6px; }
 .btn-disabled, .btn[disabled]{ background:#D1D5DB; color:#4B5563; cursor:not-allowed; box-shadow:none; }
+
+/* ---------- Flujos complementarios ---------- */
+.error-text{ color:#DC2626; font-size:12px; margin:4px 0 0; }
+input[aria-invalid="true"]{ border-color:#EF4444; background:#FEF2F2; }
+.btn[aria-busy="true"]{ opacity:.8; cursor:progress; }
+#faqList details{ border-bottom:1px solid var(--neutral-200, #E5E7EB); padding:10px 0; }
+#faqList details:last-child{ border-bottom:none; }
+#faqList summary{ cursor:pointer; font-weight:600; font-size:14px; min-height:44px; display:flex; align-items:center; }
+#faqList details p{ margin:4px 0 0; }
+button.link-btn{ background:none; border:none; padding:0; font:inherit; cursor:pointer; }
+.card.unread{ border-left:4px solid var(--primary-700, #7C3AED); }
+.unread-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--primary-700, #7C3AED); margin-right:6px; vertical-align:middle; }
+.chip-row{ display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 12px; }
+.chip-row .btn.active{ background:var(--primary-700, #7C3AED); color:#fff; border-color:var(--primary-700, #7C3AED); }
+.track-card{ border:2px solid var(--success-500, #10B981); }

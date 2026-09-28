@@ -116,41 +116,7 @@
 
 <h2 class="section-title" data-i18n>Consentimientos otorgados</h2>
 
-<div class="card">
-  <div class="card-header">
-    <div><h2 data-i18n>Perfilamiento de cotización y suscripción</h2><p class="text-sm text-muted mono">CONSENT-2026-00417</p></div>
-    <span class="badge success" data-i18n>Vigente</span>
-  </div>
-  <div class="form-grid" style="margin-bottom:0">
-    <div><label data-i18n>Alcance</label><p class="text-sm">Cotización, suscripción y perfilamiento de riesgo</p></div>
-    <div><label data-i18n>Entidad financiera</label><p class="text-sm">Banco Andes S.A.</p></div>
-    <div><label data-i18n>Otorgado el</label><p class="text-sm">10 de enero de 2026</p></div>
-    <div><label data-i18n>Vigente hasta</label><p class="text-sm">10 de enero de 2027</p></div>
-  </div>
-  <div class="page-actions">
-    <button class="btn btn-ghost btn-sm" data-dropdown-trigger="hist1" data-i18n>Ver historial de uso</button>
-    <button class="btn btn-danger-outline btn-sm" data-dropdown-trigger="revoke1" data-i18n>Revocar consentimiento</button>
-  </div>
-  <div class="dropdown-panel" id="revoke1" style="position:static;margin-top:12px;display:none" role="alertdialog">
-    <div class="dropdown-head" data-i18n>¿Revocar este consentimiento?</div>
-    <div style="padding:14px 16px" class="text-sm text-muted">Dejaremos de usar tus datos financieros de Open Finance en nuevas cotizaciones.
-    Las pólizas ya emitidas con este consentimiento seguirán siendo consultables. La revocación se hace efectiva en menos de 5 minutos.</div>
-    <div style="padding:0 16px 16px;display:flex;gap:8px"><button class="btn btn-error btn-sm" data-i18n>Confirmar revocación</button><button class="btn btn-ghost btn-sm" data-i18n>Cancelar</button></div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-header">
-    <div><h2 data-i18n>Perfilamiento vida hipotecario</h2><p class="text-sm text-muted mono">CONSENT-2026-00512</p></div>
-    <span class="badge neutral" data-i18n>Revocado</span>
-  </div>
-  <div class="form-grid" style="margin-bottom:0">
-    <div><label data-i18n>Alcance</label><p class="text-sm">Perfilamiento de oferta de vida hipotecario</p></div>
-    <div><label data-i18n>Entidad financiera</label><p class="text-sm">Banco Andes S.A.</p></div>
-    <div><label data-i18n>Otorgado el</label><p class="text-sm">02 de marzo de 2026</p></div>
-    <div><label data-i18n>Revocado el</label><p class="text-sm">18 de agosto de 2026</p></div>
-  </div>
-</div>
+<div id="consentList" aria-live="polite"></div>
 
 <hr class="divider">
 
@@ -168,16 +134,9 @@
     <input type="checkbox" id="chkTerm">
     <label for="chkTerm" data-i18n>Autorizo explícitamente el uso de mis datos financieros para los fines descritos, de acuerdo con la política de tratamiento de datos.</label>
   </div>
-  <button class="btn btn-primary" data-i18n>Otorgar consentimiento</button>
+  <button type="button" class="btn btn-primary" id="grantConsent" data-i18n>Otorgar consentimiento</button>
 </div>
-<script>
-document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(b){
-  b.addEventListener("click", function(){
-    var p = document.getElementById("revoke1");
-    p.style.display = p.style.display === "none" ? "block" : "none";
-  });
-});
-</script>
+
 
 <footer class="app-footer">
         <span data-i18n>Solventa · Prototipo de navegación · Basado en el Design System v2.0</span><br>
@@ -185,6 +144,7 @@ document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

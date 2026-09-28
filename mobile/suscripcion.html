@@ -27,15 +27,16 @@
 <div class="screen-inner">
 
 <div class="alert success"><span class="ic" aria-hidden="true">✅</span><div><strong data-i18n>¡Póliza emitida!</strong> <span data-i18n>Tu cobertura ya está activa.</span></div></div>
-<h1 data-i18n>Dispositivos</h1>
+<h1 data-issued="name">Dispositivos</h1>
 <div class="card">
-  <div class="form-group"><label data-i18n>Número de póliza</label><p class="mono">POL-2026-005214</p></div>
-  <div class="form-group"><label data-i18n>Vigencia</label><p class="text-sm"><span data-date="2026-09-13">13 sep 2026</span> – <span data-date="2027-09-12">12 sep 2027</span></p></div>
+  <div class="form-group"><label data-i18n>Número de póliza</label><p class="mono" data-issued="num">POL-2026-005214</p></div>
+  <div class="form-group"><label data-i18n>Prima</label><p class="text-sm"><span data-offer="price" data-money="18500" data-currency="COP">$18.500</span>/<span data-i18n>mes</span></p></div>
+  <div class="form-group"><label data-i18n>Vigencia</label><p class="text-sm"><span data-issued="start" data-date="2026-09-13">13 sep 2026</span> – <span data-issued="end" data-date="2027-09-12">12 sep 2027</span></p></div>
 </div>
 <div class="btn-row">
-  <a class="btn btn-primary" href="billetera.html" data-i18n>Ver en mi billetera</a>
+  <a class="btn btn-primary" href="billetera.html" data-issued="link" data-i18n>Ver en mi billetera</a>
 </div>
-<button class="btn btn-ghost" style="margin-top:10px" data-i18n>📥 Descargar PDF</button>
+<button type="button" class="btn btn-ghost" style="margin-top:10px" data-issued="pdf" data-mock-download="poliza.pdf" data-i18n>📥 Descargar PDF</button>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -71,6 +72,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
