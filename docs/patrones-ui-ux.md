@@ -10,6 +10,13 @@ Documentación técnica de los patrones de interfaz y experiencia de usuario apl
 
 ## 1. Cómo ejecutar los mockups
 
+Versión publicada (GitHub Pages, se actualiza con cada cambio en `main`):
+
+- **Web:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+- **Móvil:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+
+En local:
+
 ```bash
 cd Proyecto_Grupo_13
 python3 -m http.server 8765

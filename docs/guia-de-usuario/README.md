@@ -21,10 +21,12 @@ Solventa es una aseguradora digital: puedes cotizar, comprar y administrar tus s
 
 ## Antes de empezar
 
-**Abrir la demo.** Desde la carpeta del proyecto, ejecuta `python3 -m http.server 8765` y abre:
+**Abrir la demo.** No necesitas instalar nada:
 
-- Web: `http://localhost:8765/web/login.html`
-- Móvil: `http://localhost:8765/mobile/login.html` (se muestra dentro de un marco de celular)
+- Web: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+- Móvil: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html) (se muestra dentro de un marco de celular)
+
+También puedes abrirla en tu equipo: desde la carpeta del proyecto ejecuta `python3 -m http.server 8765` y abre `http://localhost:8765/web/login.html` o `http://localhost:8765/mobile/login.html`.
 
 **Datos de prueba.** El inicio de sesión ya trae un usuario de ejemplo: `juan.rodriguez@correo.com` / `demo1234`.
 

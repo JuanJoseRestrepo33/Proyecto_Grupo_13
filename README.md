@@ -51,7 +51,14 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | [Patrones de arquitectura por vista](docs/Patrones-QR-vistas.md) | Trazabilidad patrón → requisito de calidad |
 | [Backlog y plan de sprints](docs/backlog-sprint-plan.md) | Features, estimación y plan |
 
-Los mockups navegables están en `web/` y `mobile/`; para abrirlos, ejecuta `python3 -m http.server 8765` en la raíz y visita `/web/login.html` o `/mobile/login.html`.
+### Mockups navegables (publicados con GitHub Pages)
+
+| Canal | Enlace |
+|---|---|
+| 🖥️ Web | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html) |
+| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html) |
+
+Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile/login.html`.
 
 ## Atributos de calidad
 
@@ -114,12 +121,16 @@ cd backend
 
 ### Cliente web
 
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+
 ```bash
 cd web
 # instrucciones de instalación y ejecución
 ```
 
 ### Cliente móvil
+
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
 
 ```bash
 cd mobile
