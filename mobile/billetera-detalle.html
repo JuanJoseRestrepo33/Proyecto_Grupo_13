@@ -34,6 +34,7 @@
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
 <div class="flow-bar"><a class="back-link" href="billetera.html"><span aria-hidden="true">←</span> <span data-i18n>Volver</span></a></div>
+<div class="offline-banner" id="offlineBanner" hidden>📴 <span data-i18n>Sin conexión · credencial disponible desde la última sincronización</span></div>
 <h1><span data-pol-text="name" data-i18n>Seguro de Viaje</span> <span class="badge success" data-pol-badge data-i18n>✓ Activa</span></h1>
 <p class="text-muted mono text-sm" data-pol-text="num">POL-2026-001234</p>
 <div class="card" style="background:linear-gradient(135deg,var(--primary-700),var(--primary-900));color:#fff;border:none;text-align:center;padding:24px 16px">
@@ -54,8 +55,8 @@
   <a class="link-btn" href="#" data-pol-payments data-i18n>Ver historial de pagos</a></div>
 <div data-pol-show="notcancelled">
 <h2 class="section-title" data-i18n>Acciones</h2>
-<div class="btn-row"><a class="btn btn-secondary" href="poliza-modificar.html" data-pol-href="poliza-modificar.html" data-i18n>Modificar</a><a class="btn btn-secondary" href="poliza-renovar.html" data-pol-href="poliza-renovar.html" data-i18n>Renovar</a></div>
-<div class="btn-row" style="margin-top:10px"><a class="btn btn-danger-outline" href="poliza-cancelar.html" data-pol-href="poliza-cancelar.html" data-i18n>Cancelar</a><a class="btn btn-ghost" href="siniestro-reportar.html" data-i18n>Reportar siniestro</a></div>
+<div class="btn-row"><a class="btn btn-secondary" href="poliza-modificar.html" data-pol-href="poliza-modificar.html" data-online-only data-i18n>Modificar</a><a class="btn btn-secondary" href="poliza-renovar.html" data-pol-href="poliza-renovar.html" data-online-only data-i18n>Renovar</a></div>
+<div class="btn-row" style="margin-top:10px"><a class="btn btn-danger-outline" href="poliza-cancelar.html" data-pol-href="poliza-cancelar.html" data-online-only data-i18n>Cancelar</a><a class="btn btn-ghost" href="siniestro-reportar.html" data-i18n>Reportar siniestro</a></div>
 </div>
 <button type="button" class="btn btn-ghost" style="margin-top:10px" data-pol-pdf data-mock-download="poliza.pdf" data-i18n>📥 Descargar PDF</button>
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
@@ -92,6 +93,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

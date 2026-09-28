@@ -106,11 +106,11 @@
   <div class="form-grid">
     <div class="form-group"><label for="pNombre" data-i18n>Nombre completo</label><input type="text" id="pNombre" value="Juan Rodríguez"></div>
     <div class="form-group"><label for="pDoc" data-i18n>Documento</label><input type="text" id="pDoc" value="1.020.456.789"></div>
-    <div class="form-group full"><label for="pEmail" data-i18n>Correo electrónico</label><input type="email" id="pEmail" value="juan.rodriguez@correo.com"></div>
+    <div class="form-group full"><label for="pEmail" data-i18n>Correo electrónico</label><input type="email" id="pEmail" value="juan.rodriguez@correo.com" aria-describedby="pEmailErr"><p class="error-text" id="pEmailErr" hidden data-i18n>Ingresa un correo válido.</p></div>
     <div class="form-group"><label for="pTel" data-i18n>Teléfono</label><input type="tel" id="pTel" value="+57 300 123 4567"></div>
     <div class="form-group"><label for="pCiudad" data-i18n>Ciudad</label><input type="text" id="pCiudad" value="Bogotá, D.C."></div>
   </div>
-  <button class="btn btn-primary" data-i18n>Guardar cambios</button>
+  <button type="button" class="btn btn-primary" id="saveProfile" data-i18n>Guardar cambios</button>
 </div>
 
 <footer class="app-footer">
@@ -119,6 +119,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

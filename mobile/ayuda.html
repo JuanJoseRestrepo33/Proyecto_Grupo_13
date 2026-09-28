@@ -35,9 +35,15 @@
 <div class="screen-inner">
 
 <h1 data-i18n>Ayuda</h1>
-<div class="card"><h2 data-i18n>❓ Preguntas frecuentes</h2><a class="link-btn" href="#" data-i18n>Ver FAQs</a></div>
-<div class="card"><h2 data-i18n>💬 Chat en vivo</h2><a class="link-btn" href="#" data-i18n>Iniciar chat</a></div>
-<div class="card"><h2 data-i18n>📞 Llamar</h2><p class="text-sm text-muted">01 8000 123 456</p></div>
+<div class="btn-row" style="margin-bottom:12px"><button type="button" class="btn btn-primary" data-chat data-i18n>💬 Chat en vivo</button><a class="btn btn-ghost" href="tel:018000123456" data-i18n>📞 Llamar</a></div>
+<div class="form-group"><label for="faqSearch" data-i18n>Buscar en las preguntas</label><input type="search" id="faqSearch" placeholder="pago, siniestro…"></div>
+<div class="card" id="faqList">
+  <details><summary data-i18n>¿Cómo reporto un siniestro?</summary><p class="text-sm text-muted">Toca Siniestros → Reportar. Adjunta fotos o video y recibe tu número de reclamo al instante.</p></details>
+  <details><summary data-i18n>¿Puedo ver mi póliza sin internet?</summary><p class="text-sm text-muted">Sí. La billetera guarda tus credenciales y coberturas desde la última sincronización.</p></details>
+  <details><summary data-i18n>¿Qué es un pago paramétrico?</summary><p class="text-sm text-muted">Un pago automático cuando ocurre un evento verificable, como un retraso de vuelo de 3 horas o más.</p></details>
+  <details><summary data-i18n>¿Cómo activo la huella?</summary><p class="text-sm text-muted">En el registro o desde Configuración. Si tu equipo no tiene biometría, puedes usar un PIN.</p></details>
+</div>
+<p class="empty-state" id="faqEmpty" hidden data-i18n>No encontramos preguntas con ese texto. Prueba el chat en vivo.</p>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -73,6 +79,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

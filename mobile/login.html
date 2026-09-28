@@ -18,22 +18,25 @@
     <div class="mark" aria-hidden="true"><span class="brand-mark brand-mark-lg"></span></div>
     <h1 data-i18n>Solventa</h1>
     <p data-i18n>Aseguradora digital de finanzas abiertas, en tu bolsillo.</p>
-    <form onsubmit="location.href='index.html';return false" style="width:100%;max-width:280px;margin-top:12px;text-align:left">
+    <form id="loginForm" novalidate style="width:100%;max-width:280px;margin-top:12px;text-align:left">
       <div class="form-group">
         <label for="email" style="color:#fff" data-i18n>Correo electrónico</label>
-        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com">
+        <input type="email" id="email" autocomplete="username" placeholder="nombre@correo.com" value="juan.rodriguez@correo.com">
       </div>
       <div class="form-group">
         <label for="pass" style="color:#fff" data-i18n>Contraseña</label>
-        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••">
+        <input type="password" id="pass" autocomplete="current-password" placeholder="••••••••" value="demo1234">
       </div>
-      <a class="btn btn-primary" href="index.html" style="background:#fff;color:var(--primary-700)" data-i18n>Iniciar sesión</a>
-      <button class="btn btn-ghost" style="border-color:rgba(255,255,255,.5);color:#fff;margin-top:10px" data-i18n>👆 Ingresar con huella</button>
+      <p class="error-text" id="loginErr" hidden role="alert" style="color:#FEE2E2" data-i18n>Ingresa un correo válido y tu contraseña.</p>
+      <button type="submit" class="btn btn-primary" style="background:#fff;color:var(--primary-700)" data-i18n>Iniciar sesión</button>
+      <button type="button" id="bioLogin" class="btn btn-ghost" style="border-color:rgba(255,255,255,.5);color:#fff;margin-top:10px" data-i18n>👆 Ingresar con huella</button>
+      <p style="text-align:center;margin-top:14px;font-size:13px;color:#fff"><span data-i18n>¿Nuevo en Solventa?</span> <a href="onboarding.html" style="color:#fff;font-weight:700;text-decoration:underline" data-i18n>Crear cuenta</a></p>
     </form>
   </main>
 </div></div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

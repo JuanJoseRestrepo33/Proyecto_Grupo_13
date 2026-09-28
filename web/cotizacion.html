@@ -108,7 +108,7 @@
   </div>
 </div>
 
-<div data-wizard>
+<div data-wizard data-quote-wizard>
   <div class="stepper">
     <div class="step active"><div class="dot">1</div><div class="label">Producto</div></div>
     <div class="step"><div class="dot">2</div><div class="label">Tus datos</div></div>
@@ -122,19 +122,19 @@
     <div class="wizard-step active">
       <h2 data-i18n>1. Selecciona el producto que deseas cotizar</h2>
       <div class="card-grid" data-option-group>
-        <label class="option-card selected"><input type="radio" name="producto" checked>
+        <label class="option-card selected"><input type="radio" name="producto" value="auto" checked>
           <strong data-i18n>🚗 Auto</strong><p class="text-sm text-muted">Responsabilidad civil, todo riesgo y hurto.</p></label>
-        <label class="option-card"><input type="radio" name="producto">
+        <label class="option-card"><input type="radio" name="producto" value="hogar">
           <strong data-i18n>🏠 Hogar</strong><p class="text-sm text-muted">Incendio, terremoto y contenidos.</p></label>
-        <label class="option-card"><input type="radio" name="producto">
+        <label class="option-card"><input type="radio" name="producto" value="viaje">
           <strong data-i18n>✈️ Viaje</strong><p class="text-sm text-muted">Asistencia médica, equipaje y cancelación.</p></label>
-        <label class="option-card"><input type="radio" name="producto">
+        <label class="option-card"><input type="radio" name="producto" value="disp">
           <strong data-i18n>📱 Dispositivos</strong><p class="text-sm text-muted">Daño accidental, robo y pérdida.</p></label>
       </div>
     </div>
 
     <!-- Paso 2: datos del cliente -->
-    <div class="wizard-step">
+    <div class="wizard-step" data-required="qNombre,qDoc,qValor">
       <h2 data-i18n>2. Información del cliente</h2>
       <div class="form-grid">
         <div class="form-group"><label for="qNombre" data-i18n>Nombre completo</label><input type="text" id="qNombre" value="Juan Rodríguez"></div>
@@ -155,8 +155,21 @@
             <p class="text-sm text-muted" style="margin:4px 0 0">Podemos ofrecerte una prima más precisa según tu comportamiento financiero.
               Requiere <a href="consentimientos.html" style="color:var(--primary-700);font-weight:600">consentimiento vigente</a>.</p>
           </div>
-          <label class="switch"><input type="checkbox" checked aria-label="Usar mis datos financieros (Open Finance)"><span class="slider"></span></label>
+          <label class="switch"><input type="checkbox" id="useOF" checked aria-label="Usar mis datos financieros (Open Finance)"><span class="slider"></span></label>
         </div>
+      </div>
+      <div class="alert warning" id="ofNoConsent" hidden style="margin-top:16px">
+        <span class="ic" aria-hidden="true">🔐</span>
+        <div><strong data-i18n>No tienes un consentimiento vigente.</strong> <span data-i18n>Cotizaremos con precio estándar.</span>
+          <a href="consentimientos.html?back=cotizacion" style="color:var(--warning-600);font-weight:600" data-i18n>Otorgar consentimiento →</a></div>
+      </div>
+      <div class="checkbox-row" style="margin-top:16px">
+        <input type="checkbox" id="simDegraded">
+        <label for="simDegraded"><span class="badge neutral" data-i18n>Demo</span> <span data-i18n>Simular que Open Finance no responde (timeout 700 ms)</span></label>
+      </div>
+      <div class="alert warning" id="ofDegraded" hidden role="status">
+        <span class="ic" aria-hidden="true">⏱️</span>
+        <div><strong data-i18n>Fuente externa degradada.</strong> <span data-i18n>Usaremos tu perfil financiero en caché (hace 2 h) para no demorar la cotización.</span></div>
       </div>
       <div class="alert" style="margin-top:16px">
         <span class="ic">🔗</span>
@@ -169,19 +182,22 @@
       <h2 data-i18n>4. Tu oferta personalizada</h2>
       <div class="card" style="border:2px solid var(--primary-700)">
         <div class="card-header">
-          <div><h2 data-i18n>Seguro de Auto — Plan Full</h2><span class="text-sm text-muted mono">Cotización #QT-2026-08831 · válida por 5 min</span></div>
+          <div><h2 data-offer="name">Seguro de Auto — Plan Full</h2><span class="text-sm text-muted mono"><span data-i18n>Cotización</span> #<span data-offer="qt">QT-2026-08831</span> · <span data-i18n>válida por</span> <span id="offerTimer">5:00</span></span></div>
           <span class="badge" data-i18n>Recomendada</span>
         </div>
-        <p style="font-size:32px;font-weight:700;color:var(--primary-700);margin-bottom:4px"><span data-money="132900" data-currency="COP">$132.900</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
-        <ul style="margin:12px 0 16px 20px;color:var(--neutral-700);font-size:14px">
-          <li>✓ Responsabilidad civil hasta <span data-money="1200000000" data-currency="COP">$1.200.000.000</span></li>
-          <li>✓ Todo riesgo con deducible del 5%</li>
-          <li>✓ Asistencia en vía 24/7</li>
-        </ul>
-        <p class="text-xs text-muted">Perfilamiento con Open Finance aplicado · resultado explicable y auditable.</p>
+        <p style="font-size:32px;font-weight:700;color:var(--primary-700);margin-bottom:4px"><span data-offer="price" data-money="132900" data-currency="COP">$132.900</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
+        <p class="text-sm" style="color:var(--success-600);font-weight:600" data-offer="saving"></p>
+        <ul data-offer="cov" style="margin:12px 0 16px 20px;color:var(--neutral-700);font-size:14px"></ul>
+        <p class="text-xs text-muted" data-offer="basis">Perfilamiento con Open Finance aplicado · resultado explicable y auditable.</p>
+        <button type="button" class="link-btn" id="whyPrice" data-i18n>¿Por qué este precio?</button>
+      </div>
+      <div class="alert error" id="offerExpired" hidden role="alert">
+        <span class="ic" aria-hidden="true">⌛</span>
+        <div><strong data-i18n>La cotización venció.</strong> <span data-i18n>Los precios se garantizan por 5 minutos.</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="requote" data-i18n>Recotizar</button></div>
       </div>
       <div class="page-actions" style="margin-top:16px">
-        <a class="btn btn-success" href="suscripcion.html" data-i18n>Aceptar oferta</a>
+        <a class="btn btn-success" href="suscripcion.html" id="acceptOffer" data-i18n>Aceptar oferta</a>
       </div>
     </div>
 
@@ -202,6 +218,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

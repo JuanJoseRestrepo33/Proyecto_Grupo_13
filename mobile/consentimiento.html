@@ -37,31 +37,16 @@
 <h1 data-i18n>Consentimiento Open Finance</h1>
 <p class="text-muted text-sm">Gestiona desde el celular el uso de tus datos financieros, sincronizado con el canal web.</p>
 
-<div class="card">
-  <div class="card-header"><div><h2 data-i18n>Perfilamiento y suscripción</h2><p class="text-xs text-muted mono">CONSENT-2026-00417</p></div><span class="badge success" data-i18n>Vigente</span></div>
-  <p class="text-sm"><label data-i18n>Vigente hasta</label>10 de enero de 2027</p>
-  <div class="btn-row" style="margin-top:8px">
-    <button class="btn btn-ghost btn-sm" data-i18n>Ver uso</button>
-    <button class="btn btn-danger-outline btn-sm" data-dropdown-trigger="revoke1" data-i18n>Revocar</button>
-  </div>
-  <div class="dropdown-panel" id="revoke1" style="position:static;margin-top:10px;display:none">
-    <div class="dropdown-head" data-i18n>¿Revocar este consentimiento?</div>
-    <div style="padding:10px 14px" class="text-xs text-muted">La revocación se hace efectiva en menos de 5 minutos y no afecta pólizas ya emitidas.</div>
-    <div style="padding:0 14px 14px" class="btn-row"><button class="btn btn-error btn-sm" data-i18n>Confirmar</button><button class="btn btn-ghost btn-sm" data-i18n>Cancelar</button></div>
-  </div>
-</div>
+<div class="alert"><span class="ic" aria-hidden="true">ℹ️</span><div class="text-sm"><strong data-i18n>¿Qué datos usamos?</strong> <span data-i18n>Comportamiento de pago, endeudamiento y estabilidad de ingresos, solo mientras el consentimiento esté vigente.</span></div></div>
+<div id="consentList" aria-live="polite"></div>
 
 <h2 class="section-title" data-i18n>Otorgar nuevo consentimiento</h2>
 <div class="card">
-  <div class="form-group"><label for="cEnt" data-i18n>Entidad financiera</label><select id="cEnt"><option data-i18n>Banco Andes S.A.</option></select></div>
-  <div class="checkbox-row"><input type="checkbox" id="chk1"><label for="chk1" data-i18n>Autorizo el uso de mis datos financieros según la política de tratamiento de datos.</label></div>
-  <button class="btn btn-primary" data-i18n>Otorgar consentimiento</button>
+  <div class="form-group"><label for="cEntidad" data-i18n>Entidad financiera</label><select id="cEntidad"><option data-i18n>Banco Andes S.A.</option><option data-i18n>Cooperativa Financiera del Sur</option></select></div>
+  <div class="checkbox-row"><input type="checkbox" id="chkTerm"><label for="chkTerm" data-i18n>Autorizo el uso de mis datos financieros según la política de tratamiento de datos.</label></div>
+  <button type="button" class="btn btn-primary" id="grantConsent" data-i18n>Otorgar consentimiento</button>
 </div>
-<script>
-document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(b){
-  b.addEventListener("click", function(){ var p=document.getElementById("revoke1"); p.style.display = p.style.display==="none"?"block":"none"; });
-});
-</script>
+
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -97,6 +82,7 @@ document.querySelectorAll('[data-dropdown-trigger="revoke1"]').forEach(function(
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

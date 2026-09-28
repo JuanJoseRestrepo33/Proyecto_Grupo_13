@@ -34,25 +34,42 @@
 <main class="app-screen" id="screen-content" tabindex="-1" aria-label="Contenido principal">
 <div class="screen-inner">
 
-<h1 data-i18n>Notificaciones</h1>
-<div class="card">
-  <div class="card-header"><h2 data-i18n>⏰ Vencimiento próximo</h2><span class="badge warning" data-i18n>Hoy</span></div>
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+  <div><h1 data-i18n>Notificaciones</h1><p class="text-xs text-muted" id="notifCount" aria-live="polite"></p></div>
+  <button type="button" class="btn btn-ghost btn-sm btn-auto" id="markAll" data-i18n>Marcar todo leído</button>
+</div>
+<div class="chip-row" role="group" aria-label="Filtrar notificaciones">
+  <button type="button" class="btn btn-ghost btn-sm btn-auto active" data-notif-filter="all" aria-pressed="true" data-i18n>Todas</button>
+  <button type="button" class="btn btn-ghost btn-sm btn-auto" data-notif-filter="poliza" aria-pressed="false" data-i18n>Pólizas</button>
+  <button type="button" class="btn btn-ghost btn-sm btn-auto" data-notif-filter="siniestro" aria-pressed="false" data-i18n>Siniestros</button>
+</div>
+<div id="notifList">
+<div class="card" data-notif="n1" data-kind="poliza">
+  <div class="card-header"><h2><span class="unread-dot" aria-hidden="true"></span><span data-i18n>⏰ Vencimiento próximo</span></h2><span class="badge warning" data-i18n>Hoy</span></div>
   <p class="text-sm">Tu póliza de <strong data-i18n>Dispositivos</strong> vence el 27 de septiembre.</p>
-  <a class="link-btn" href="billetera-detalle.html" data-i18n>Renovar ahora →</a>
+  <a class="link-btn" href="poliza-renovar.html?p=1235" data-i18n>Renovar ahora →</a>
 </div>
-<div class="card">
-  <div class="card-header"><h2 data-i18n>🔁 Renovación disponible</h2><span class="badge" data-i18n>Ayer</span></div>
+<div class="card" data-notif="n2" data-kind="siniestro">
+  <div class="card-header"><h2><span class="unread-dot" aria-hidden="true"></span><span data-i18n>🔎 Siniestro en revisión</span></h2><span class="badge" data-i18n>Hace 2 h</span></div>
+  <p class="text-sm">Tu reclamo CLM-2026-000118 pasó a <strong data-i18n>En revisión</strong>.</p>
+  <a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver seguimiento →</a>
+</div>
+<div class="card" data-notif="n3" data-kind="poliza">
+  <div class="card-header"><h2><span class="unread-dot" aria-hidden="true"></span><span data-i18n>🔁 Renovación disponible</span></h2><span class="badge" data-i18n>Ayer</span></div>
   <p class="text-sm">Ya puedes aceptar la renovación de tu <strong data-i18n>Seguro de Viaje</strong>.</p>
-  <a class="link-btn" href="billetera-detalle.html" data-i18n>Ver condiciones →</a>
+  <a class="link-btn" href="poliza-renovar.html?p=1234" data-i18n>Ver condiciones →</a>
 </div>
-<div class="card">
-  <div class="card-header"><h2 data-i18n>✅ Cambio confirmado</h2><span class="badge neutral" data-i18n>Hace 3 días</span></div>
+<div class="card" data-notif="n4" data-kind="poliza">
+  <div class="card-header"><h2><span class="unread-dot" aria-hidden="true"></span><span data-i18n>✅ Cambio confirmado</span></h2><span class="badge neutral" data-i18n>Hace 3 días</span></div>
   <p class="text-sm">Actualizaste tu cobertura desde el canal web. El cambio ya está sincronizado.</p>
 </div>
-<div class="card">
-  <div class="card-header"><h2 data-i18n>⚡ Pago paramétrico</h2><span class="badge success" data-i18n>Hace 5 días</span></div>
+<div class="card" data-notif="n5" data-kind="siniestro">
+  <div class="card-header"><h2><span class="unread-dot" aria-hidden="true"></span><span data-i18n>⚡ Pago paramétrico</span></h2><span class="badge success" data-i18n>Hace 5 días</span></div>
   <p class="text-sm">Recibiste <span data-money="350000" data-currency="COP">$350.000</span> automáticamente por retraso de vuelo ≥3h.</p>
+  <a class="link-btn" href="siniestro-detalle.html?id=CLM-2026-000151" data-i18n>Ver detalle →</a>
 </div>
+</div>
+<a class="link-btn" href="configuracion.html" style="display:block;margin-top:8px" data-i18n>⚙️ Preferencias de notificación</a>
 
 <footer class="app-foot" data-i18n>Solventa Móvil · Prototipo de navegación</footer>
 </div></main>
@@ -88,6 +105,7 @@
 </div>
 </div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

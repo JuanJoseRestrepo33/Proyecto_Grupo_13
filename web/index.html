@@ -122,11 +122,11 @@
   <div class="stat-card"><div class="n" data-pol-count>3</div><div class="l" data-i18n>Pólizas activas</div></div>
   <div class="stat-card"><div class="n" data-claims-count="1">1</div><div class="l" data-i18n>Siniestros en curso</div></div>
   <div class="stat-card"><div class="n"><span data-pol-total data-money="85000" data-currency="COP">$85.000</span></div><div class="l" data-i18n>Prima mensual total</div></div>
-  <div class="stat-card"><div class="n">2</div><div class="l" data-i18n>Consentimientos vigentes</div></div>
+  <div class="stat-card"><div class="n" data-consent-count>1</div><div class="l" data-i18n>Consentimientos vigentes</div></div>
 </div>
 
 <h2 class="section-title" data-i18n>Resumen de pólizas</h2>
-<div class="card-grid" style="margin-bottom:32px">
+<div class="card-grid" style="margin-bottom:32px" data-issued-cards>
   <div class="card" data-pol-row="1234">
     <div class="card-header"><h2 data-i18n>Seguro de Viaje</h2><span class="badge" data-pol-badge data-i18n>x</span></div>
     <p class="text-sm text-muted mono">POL-2026-001234</p>
@@ -156,7 +156,7 @@
     <thead><tr><th scope="col" data-i18n>ID</th><th scope="col" data-i18n>Póliza</th><th scope="col" data-i18n>Tipo</th><th scope="col" data-i18n>Estado</th><th scope="col"><span class="sr-only" data-i18n>Acciones</span></th></tr></thead>
     <tbody>
       <tr><td class="mono">CLM-2026-000118</td><td>Seguro de Viaje</td><td>Retraso de vuelo</td><td><span class="badge warning" data-i18n>En revisión</span></td><td><a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver</a></td></tr>
-      <tr><td class="mono">CLM-2026-000094</td><td>Dispositivos</td><td>Pantalla dañada</td><td><span class="badge success" data-i18n>Pagado</span></td><td><a class="link-btn" href="siniestro-detalle.html" data-i18n>Ver</a></td></tr>
+      <tr><td class="mono">CLM-2026-000094</td><td>Dispositivos</td><td>Pantalla dañada</td><td><span class="badge success" data-i18n>Pagado</span></td><td><a class="link-btn" href="siniestro-detalle.html?id=CLM-2026-000094" data-i18n>Ver</a></td></tr>
     </tbody>
   </table>
 </div>
@@ -167,6 +167,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

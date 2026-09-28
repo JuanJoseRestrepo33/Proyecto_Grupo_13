@@ -108,7 +108,7 @@
   </div>
 </div>
 
-<div data-wizard>
+<div data-wizard data-subscribe-wizard>
   <div class="stepper">
     <div class="step active"><div class="dot">1</div><div class="label">Revisar oferta</div></div>
     <div class="step"><div class="dot">2</div><div class="label">Pago</div></div>
@@ -117,27 +117,46 @@
   </div>
   <div class="card">
 
-    <div class="wizard-step active">
+    <div class="wizard-step active" data-required="decisionOk">
       <h2 data-i18n>1. Revisa las condiciones de tu oferta</h2>
       <div class="card" style="background:var(--neutral-50)">
-        <div class="card-header"><h2 data-i18n>Seguro de Auto — Plan Full</h2><span class="text-sm mono text-muted">QT-2026-08831</span></div>
-        <p style="font-size:28px;font-weight:700;color:var(--primary-700)"><span data-money="132900" data-currency="COP">$132.900</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
-        <ul style="margin:8px 0 0 20px;font-size:14px;color:var(--neutral-700)">
-          <li>Responsabilidad civil hasta <span data-money="1200000000" data-currency="COP">$1.200.000.000</span></li>
-          <li>Todo riesgo con deducible del 5%</li>
-          <li>Asistencia en vía 24/7</li>
-        </ul>
+        <div class="card-header"><h2 data-offer="name">Seguro de Auto — Plan Full</h2><span class="text-sm mono text-muted" data-offer="qt">QT-2026-08831</span></div>
+        <p style="font-size:28px;font-weight:700;color:var(--primary-700)"><span data-offer="price" data-money="132900" data-currency="COP">$132.900</span><span style="font-size:14px;color:var(--neutral-500);font-weight:500" data-i18n>/mes</span></p>
+        <ul data-offer="cov" style="margin:8px 0 0 20px;font-size:14px;color:var(--neutral-700)"></ul>
+        <p class="text-xs text-muted" style="margin-top:8px" data-offer="basis"></p>
+      </div>
+      <h3 class="section-title" data-i18n>Decisión de suscripción</h3>
+      <div id="decisionState" aria-live="polite"></div>
+      <input type="hidden" id="decisionOk" value="1">
+      <button type="button" class="btn btn-secondary btn-sm" id="analystApprove" hidden style="margin-top:8px" data-i18n>Simular aprobación del analista</button>
+      <div class="checkbox-row" style="margin-top:12px">
+        <input type="checkbox" id="simManual">
+        <label for="simManual"><span class="badge neutral" data-i18n>Demo</span> <span data-i18n>Simular caso que requiere revisión asistida</span></label>
       </div>
     </div>
 
-    <div class="wizard-step">
+    <div class="wizard-step" data-required="payOk">
       <h2 data-i18n>2. Medio de pago</h2>
       <div class="form-grid">
         <div class="form-group full"><label for="sTarjeta" data-i18n>Número de tarjeta</label><input type="text" id="sTarjeta" value="4532 •••• •••• 0192"></div>
         <div class="form-group"><label for="sVence" data-i18n>Vencimiento</label><input type="text" id="sVence" value="08/29"></div>
         <div class="form-group"><label for="sCvv" data-i18n>CVV</label><input type="text" id="sCvv" value="•••"></div>
       </div>
-      <p class="text-xs text-muted">Idempotencia garantizada: reintentar el pago no genera doble cobro.</p>
+      <input type="hidden" id="payOk" value="">
+      <div class="checkbox-row">
+        <input type="checkbox" id="simPayFail">
+        <label for="simPayFail"><span class="badge neutral" data-i18n>Demo</span> <span data-i18n>Simular pago rechazado por el banco</span></label>
+      </div>
+      <button type="button" class="btn btn-primary" id="payNow"><span data-i18n>Pagar</span> <span data-offer="price" data-money="132900" data-currency="COP">$132.900</span></button>
+      <div class="alert error" id="payErr" hidden role="alert" style="margin-top:12px">
+        <span class="ic" aria-hidden="true">⛔</span>
+        <div><strong data-i18n>Pago rechazado por el banco emisor.</strong> <span data-i18n>No se realizó ningún cobro. Verifica los datos o usa otro medio e intenta de nuevo.</span></div>
+      </div>
+      <div class="alert success" id="payDone" hidden role="status" style="margin-top:12px">
+        <span class="ic" aria-hidden="true">✅</span>
+        <div><strong data-i18n>Pago aprobado.</strong> <span class="mono text-sm">TX-2026-77120418</span></div>
+      </div>
+      <p class="text-xs text-muted" style="margin-top:8px">Idempotencia garantizada: reintentar el pago no genera doble cobro.</p>
     </div>
 
     <div class="wizard-step">
@@ -156,12 +175,15 @@
       <h2 data-i18n>4. ¡Póliza emitida!</h2>
       <div class="alert success"><span class="ic">✅</span><div><strong data-i18n>Tu póliza fue emitida correctamente.</strong> Ya puedes consultarla en cualquier momento.</div></div>
       <div class="form-grid">
-        <div><label data-i18n>Número de póliza</label><p class="mono">POL-2026-005130</p></div>
-        <div><label data-i18n>Vigencia</label><p class="text-sm">13 sep 2026 – 12 sep 2027</p></div>
+        <div><label data-i18n>Número de póliza</label><p class="mono" data-issued="num">POL-2026-005130</p></div>
+        <div><label data-i18n>Vigencia</label><p class="text-sm"><span data-issued="start">13 sep 2026</span> – <span data-issued="end">12 sep 2027</span></p></div>
+        <div><label data-i18n>Producto</label><p class="text-sm" data-issued="name">Auto</p></div>
+        <div><label data-i18n>Firma</label><p class="mono text-sm">FIRMA-2026-0091827</p></div>
       </div>
+      <p class="text-sm text-muted">Enviamos la póliza a tu correo. También la verás en <a class="link-btn" href="polizas.html">Mis pólizas</a>.</p>
       <div class="page-actions">
-        <a class="btn btn-primary" href="poliza-detalle.html" data-i18n>Ver mi póliza</a>
-        <button class="btn btn-secondary" data-i18n>📥 Descargar PDF</button>
+        <a class="btn btn-primary" href="poliza-detalle.html" data-issued="link" data-i18n>Ver mi póliza</a>
+        <button type="button" class="btn btn-secondary" data-issued="pdf" data-mock-download="poliza.pdf" data-i18n>📥 Descargar PDF</button>
       </div>
     </div>
   </div>
@@ -183,8 +205,8 @@
     <h2 id="signTitle" data-i18n>Firma electrónica</h2>
     <p id="signDesc" class="text-sm text-muted" data-i18n>Revisa el resumen del contrato antes de firmar. Esta es una simulación: no se genera ninguna firma real.</p>
     <div class="card" style="background:var(--neutral-50);margin:12px 0">
-      <div class="summary-row"><span data-i18n>Póliza</span><strong>Seguro de Auto — Plan Full</strong></div>
-      <div class="summary-row"><span data-i18n>Prima</span><strong><span data-money="132900" data-currency="COP">$132.900</span>/<span data-i18n>mes</span></strong></div>
+      <div class="summary-row"><span data-i18n>Póliza</span><strong data-offer="name">Seguro de Auto — Plan Full</strong></div>
+      <div class="summary-row"><span data-i18n>Prima</span><strong><span data-offer="price" data-money="132900" data-currency="COP">$132.900</span>/<span data-i18n>mes</span></strong></div>
       <div class="summary-row"><span data-i18n>Firmante</span><strong>Juan Rodríguez</strong></div>
     </div>
     <div class="checkbox-row"><input type="checkbox" id="signAccept"><label for="signAccept" data-i18n>Acepto los términos del contrato y autorizo mi firma electrónica.</label></div>
@@ -234,6 +256,7 @@
 })();
 </script>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

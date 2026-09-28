@@ -122,8 +122,9 @@
   <div class="card">
     <h2 class="section-title" data-i18n>Resumen</h2>
     <div class="form-group"><label data-i18n>Monto estimado</label><p class="text-sm" data-claim-detail="monto">$200 USD</p></div>
-    <div class="form-group"><label data-i18n>Documentación</label><p class="text-sm"><a class="link-btn" href="#" data-mock-download="certificado_aerolinea.pdf" data-i18n>📎 certificado_aerolinea.pdf</a></p></div>
-    <div class="form-group"><label data-i18n>Prestador asignado</label><p class="text-sm">Sin asignar</p></div>
+    <div class="form-group"><label data-i18n>Documentación</label><p class="text-sm"><a class="link-btn" href="#" data-claim-detail="doc" data-mock-download="certificado_aerolinea.pdf">📎 certificado_aerolinea.pdf</a></p></div>
+    <div class="form-group"><label data-i18n>Prestador asignado</label><p class="text-sm" data-claim-detail="prestador">Sin asignar</p></div>
+    <div class="alert" data-claim-param hidden><span class="ic" aria-hidden="true">⚡</span><div class="text-sm"><strong data-i18n>Pago paramétrico.</strong> <span data-i18n>Se pagó automáticamente al cumplirse la condición de la póliza; no requirió reclamación.</span></div></div>
   </div>
 </div>
 
@@ -133,6 +134,7 @@
       </footer>
 </div></main></div></div>
 <script src="assets/js/flow.js"></script>
+<script src="assets/js/features.js"></script>
 <script src="assets/js/i18n.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

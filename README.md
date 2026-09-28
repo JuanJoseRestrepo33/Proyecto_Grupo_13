@@ -41,6 +41,18 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 
 > Coloca estos archivos en una carpeta `docs/` en la raíz del repo y ajusta los enlaces si usas otra ubicación.
 
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [Guía de usuario](docs/guia-de-usuario/README.md) | Uso de la web (clientes, operaciones y socios) y de la app móvil, con capturas |
+| [Patrones de diseño UI/UX](docs/patrones-ui-ux.md) | Catálogo de patrones de interfaz, mapa de flujos, accesibilidad e implementación de los mockups |
+| [Design System v2](DesignSystem/Solventa_Design_System.md) · [Sistema de navegación](DesignSystem/Solventa_Navigation_System.md) | Tokens, componentes base y estructura de navegación |
+| [Patrones de arquitectura por vista](docs/Patrones-QR-vistas.md) | Trazabilidad patrón → requisito de calidad |
+| [Backlog y plan de sprints](docs/backlog-sprint-plan.md) | Features, estimación y plan |
+
+Los mockups navegables están en `web/` y `mobile/`; para abrirlos, ejecuta `python3 -m http.server 8765` en la raíz y visita `/web/login.html` o `/mobile/login.html`.
+
 ## Atributos de calidad
 
 La arquitectura debe satisfacer simultáneamente seis atributos de calidad, cada uno con metas medibles y validables mediante experimentos de arquitectura:
