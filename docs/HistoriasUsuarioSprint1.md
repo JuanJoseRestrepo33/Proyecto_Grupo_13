@@ -100,7 +100,7 @@ definición de hecho. Sus horas sí se consumen, y por eso aparecen en la tabla.
 ## Mockups por historia
 
 Todas las pantallas del Sprint 1 ya están diseñadas y navegables. Las capturas viven en
-[`guia-de-usuario/img/`](guia-de-usuario/img/) y los prototipos navegables en `web/` y `mobile/`, con
+[`guia-de-usuario/img/`](guia-de-usuario/img/) y los prototipos navegables en `web/` y `mobile-docs/`, con
 el estado compartido entre pantallas mediante `sessionStorage`.
 
 | Historia | Capturas | Prototipo navegable |
@@ -110,17 +110,17 @@ el estado compartido entre pantallas mediante `sessionStorage`.
 | ARQ-03 · Log de auditoría | *No aplica* | - |
 | ARQ-04 · Ambiente DevOps | *No aplica* | - |
 | **WEB-F02** · Consentimiento Open Finance | [`web-consentimientos.png`](guia-de-usuario/img/web-consentimientos.png) | [`web/consentimientos.html`](../web/consentimientos.html) |
-| **MOB-F01** · Onboarding y biometría | [`mob-registro.png`](guia-de-usuario/img/mob-registro.png) · [`mob-kyc.png`](guia-de-usuario/img/mob-kyc.png) · [`mob-login.png`](guia-de-usuario/img/mob-login.png) · [`mob-login-huella.png`](guia-de-usuario/img/mob-login-huella.png) | [`mobile/onboarding.html`](../mobile/onboarding.html) · [`mobile/login.html`](../mobile/login.html) |
+| **MOB-F01** · Onboarding y biometría | [`mob-registro.png`](guia-de-usuario/img/mob-registro.png) · [`mob-kyc.png`](guia-de-usuario/img/mob-kyc.png) · [`mob-login.png`](guia-de-usuario/img/mob-login.png) · [`mob-login-huella.png`](guia-de-usuario/img/mob-login-huella.png) | [`mobile-docs/onboarding.html`](../mobile-docs/onboarding.html) · [`mobile-docs/login.html`](../mobile-docs/login.html) |
 | WEB-F01 · Cotización *(rebanada)* | [`web-cotizacion-oferta.png`](guia-de-usuario/img/web-cotizacion-oferta.png) | [`web/cotizacion.html`](../web/cotizacion.html) |
 | WEB-F03 · Suscripción *(rebanada)* | [`web-suscripcion-decision.png`](guia-de-usuario/img/web-suscripcion-decision.png) · [`web-suscripcion-emitida.png`](guia-de-usuario/img/web-suscripcion-emitida.png) | [`web/suscripcion.html`](../web/suscripcion.html) |
-| MOB-F02 · Consentimiento móvil *(rebanada)* | [`mob-consentimiento.png`](guia-de-usuario/img/mob-consentimiento.png) **(nueva)** | [`mobile/consentimiento.html`](../mobile/consentimiento.html) |
+| MOB-F02 · Consentimiento móvil *(rebanada)* | [`mob-consentimiento.png`](guia-de-usuario/img/mob-consentimiento.png) **(nueva)** | [`mobile-docs/consentimiento.html`](../mobile-docs/consentimiento.html) |
 
 Las cuatro historias de arquitectura no tienen mockup porque no tienen interfaz de usuario: su
 resultado se verifica con pruebas automatizadas, con la verificación de integridad de la cadena de
 hash y con el propio pipeline, no mirando una pantalla.
 
 La captura `mob-consentimiento.png` se agregó en esta entrega: la pantalla
-[`mobile/consentimiento.html`](../mobile/consentimiento.html) ya existía en el prototipo, pero la guía
+[`mobile-docs/consentimiento.html`](../mobile-docs/consentimiento.html) ya existía en el prototipo, pero la guía
 de usuario no la documentaba porque el capítulo móvil no cubría el consentimiento. Se generó con el
 mismo procedimiento y el mismo tamaño (420 × 844) que las demás capturas móviles.
 
@@ -479,8 +479,8 @@ en línea · P14 Degradación elegante.
 [`mob-kyc.png`](guia-de-usuario/img/mob-kyc.png) ·
 [`mob-login.png`](guia-de-usuario/img/mob-login.png) ·
 [`mob-login-huella.png`](guia-de-usuario/img/mob-login-huella.png) · prototipo navegable en
-[`mobile/onboarding.html`](../mobile/onboarding.html) y
-[`mobile/login.html`](../mobile/login.html).
+[`mobile-docs/onboarding.html`](../mobile-docs/onboarding.html) y
+[`mobile-docs/login.html`](../mobile-docs/login.html).
 
 | 1. Registro | 2. Verificación KYC | 3. Ingreso | 4. Ingreso con huella |
 |---|---|---|---|
@@ -568,7 +568,7 @@ app, para tener el mismo control que en la web sin cambiar de canal.
 **Patrones.** P08, P17.
 **Mockup.** [`mob-consentimiento.png`](guia-de-usuario/img/mob-consentimiento.png) *(capturado en
 esta entrega)* · prototipo navegable en
-[`mobile/consentimiento.html`](../mobile/consentimiento.html).
+[`mobile-docs/consentimiento.html`](../mobile-docs/consentimiento.html).
 
 <p align="center"><img src="guia-de-usuario/img/mob-consentimiento.png" alt="Pantalla de consentimiento Open Finance en la app móvil, con los consentimientos vigente y revocado y el formulario para otorgar uno nuevo" width="320"></p>
 **Puntos** 5 (completa) · **Horas en el Sprint 1** 2h · **Responsable** Edwin

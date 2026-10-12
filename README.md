@@ -60,9 +60,9 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | Canal | Enlace |
 |---|---|
 | 🖥️ Web | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html) |
-| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html) |
+| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html) |
 
-Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile/login.html`.
+Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile-docs/login.html`.
 
 ## Atributos de calidad
 
@@ -100,6 +100,8 @@ Proyecto_Grupo_13/
 ├── docs/                     # Acta de constitución, épicas y features, caso de estudio
 ├── web/                      # Cliente web
 ├── mobile/                   # Cliente móvil
+│   └── android/              # App nativa Kotlin / Jetpack Compose
+├── mobile-docs/              # Mockups navegables del canal móvil
 ├── backend/                  # Servicios / API / capacidades de negocio
 └── README.md
 ```
@@ -134,7 +136,7 @@ cd web
 
 ### Cliente móvil
 
-Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html)
 
 ```bash
 cd mobile
