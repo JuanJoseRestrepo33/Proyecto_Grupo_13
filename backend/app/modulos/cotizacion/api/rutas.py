@@ -1,0 +1,128 @@
+"""Rutas HTTP del módulo de cotización, bajo la fachada /v1.
+
+La API es la del módulo, no la del canal: web y móvil la consumen a través de su propio
+BFF. Aquí no hay nada específico de una pantalla.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, status
+
+from app.compartido.reloj import Reloj
+from app.modulos.cotizacion.aplicacion.servicio import (
+    ServicioDeCotizacion,
+    SolicitudDeCotizacion,
+)
+from app.modulos.cotizacion.dominio import catalogo
+from app.modulos.cotizacion.dominio.modelo import DatosAsegurado
+
+from .dependencias import obtener_reloj, obtener_servicio
+from .esquemas import (
+    CoberturaDto,
+    CotizacionDto,
+    ExplicacionDto,
+    ProductoDto,
+    SolicitudCotizacionDto,
+    a_cotizacion_dto,
+    a_explicacion_dto,
+)
+
+router = APIRouter(prefix="/cotizacion", tags=["cotización"])
+
+# Dependencias del módulo, declaradas una vez y reutilizadas por todas las rutas.
+Servicio = Annotated[ServicioDeCotizacion, Depends(obtener_servicio)]
+RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
+
+
+@router.get(
+    "/productos",
+    response_model=list[ProductoDto],
+    summary="Catálogo de productos cotizables",
+)
+def listar_productos(solo_web: bool = True) -> list[ProductoDto]:
+    return [
+        ProductoDto(
+            id=p.id,
+            nombre=p.nombre,
+            nombre_corto=p.nombre_corto,
+            prima_estandar=p.prima_estandar.monto,
+            moneda=p.prima_estandar.moneda,
+            valor_asegurado=p.valor_asegurado,
+            deducible=p.deducible,
+            coberturas=tuple(CoberturaDto(nombre=c.nombre, limite=c.limite) for c in p.coberturas),
+        )
+        for p in catalogo.listar(solo_web=solo_web)
+    ]
+
+
+@router.post(
+    "/cotizaciones",
+    response_model=CotizacionDto,
+    status_code=status.HTTP_201_CREATED,
+    summary="Solicitar una cotización y obtener la oferta",
+)
+def crear_cotizacion(
+    solicitud: SolicitudCotizacionDto,
+    servicio: Servicio,
+    reloj: RelojDep,
+) -> CotizacionDto:
+    cotizacion = servicio.cotizar(
+        SolicitudDeCotizacion(
+            producto=solicitud.producto,
+            asegurado=DatosAsegurado(
+                edad=solicitud.asegurado.edad,
+                ciudad=solicitud.asegurado.ciudad,
+                valor_asegurado=solicitud.asegurado.valor_asegurado,
+            ),
+            id_cliente=solicitud.id_cliente,
+        )
+    )
+    return a_cotizacion_dto(cotizacion, reloj.ahora())
+
+
+@router.get(
+    "/cotizaciones/{id_cotizacion}",
+    response_model=CotizacionDto,
+    summary="Consultar una cotización",
+)
+def obtener_cotizacion(
+    id_cotizacion: str,
+    servicio: Servicio,
+    reloj: RelojDep,
+) -> CotizacionDto:
+    """Devuelve la cotización aunque haya vencido.
+
+    No falla al vencer, a propósito: el canal necesita leer el estado para ofrecer
+    recotizar. Quien no puede tomar una oferta vencida es suscripción (WEB-F03), y esa
+    regla la hace cumplir `Cotizacion.exigir_vigente`.
+    """
+    return a_cotizacion_dto(servicio.obtener(id_cotizacion), reloj.ahora())
+
+
+@router.post(
+    "/cotizaciones/{id_cotizacion}/recotizar",
+    response_model=CotizacionDto,
+    status_code=status.HTTP_201_CREATED,
+    summary="Recotizar tras el vencimiento de la oferta",
+)
+def recotizar(
+    id_cotizacion: str,
+    servicio: Servicio,
+    reloj: RelojDep,
+) -> CotizacionDto:
+    """Crea una cotización nueva a partir de los datos de otra. La anterior no cambia."""
+    return a_cotizacion_dto(servicio.recotizar(id_cotizacion), reloj.ahora())
+
+
+@router.get(
+    "/cotizaciones/{id_cotizacion}/explicacion",
+    response_model=ExplicacionDto,
+    summary="¿Por qué este precio? Factores y versión de regla",
+)
+def explicar(
+    id_cotizacion: str,
+    servicio: Servicio,
+) -> ExplicacionDto:
+    return a_explicacion_dto(servicio.obtener(id_cotizacion))

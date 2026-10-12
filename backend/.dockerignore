@@ -1,0 +1,8 @@
+tests/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+coverage.xml
+reporte-pruebas.xml
+cobertura-nueva.md
