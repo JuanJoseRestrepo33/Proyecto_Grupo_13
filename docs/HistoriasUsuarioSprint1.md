@@ -190,7 +190,7 @@ Una historia entra al sprint solo si cumple todo esto:
 
 Una historia se cierra solo si cumple todo esto:
 
-- [ ] Código en `main` por pull request aprobado por otro integrante
+- [ ] Código en `develop` por pull request aprobado por otro integrante
 - [ ] Pruebas unitarias del código nuevo, con cobertura del código nuevo ≥ 70%
 - [ ] Pruebas de integración contra los adaptadores simulados
 - [ ] Desplegada y funcionando en el ambiente de *staging*
@@ -340,8 +340,9 @@ parte de la evaluación de la primera semana del ciclo de construcción.
 
 **Criterios de aceptación**
 
-1. Dado `main`, cuando alguien intenta empujar directo, entonces la plataforma lo rechaza. Todo entra
-   por pull request, con el pipeline en verde y una aprobación de otro integrante.
+1. Dado `main`, `develop` o una rama `release/*`, cuando alguien intenta empujar directo, entonces la
+   plataforma lo rechaza. Todo entra por pull request, con el pipeline en verde y una aprobación de
+   otro integrante.
 2. Dado un pull request, cuando corre el pipeline, entonces ejecuta lint, pruebas unitarias y publica
    la cobertura; el merge se bloquea si la cobertura del código nuevo baja del 70%.
 3. Dado un commit cuyo mensaje no sigue la convención acordada ni referencia una historia del tablero,
@@ -349,15 +350,17 @@ parte de la evaluación de la primera semana del ciclo de construcción.
 4. Dado un desarrollador con Docker, cuando ejecuta `docker compose up`, entonces quedan corriendo el
    núcleo, PostgreSQL, Redis, el bus de eventos y los adaptadores simulados, con las migraciones ya
    aplicadas y datos de prueba cargados.
-5. Dado un merge a `main`, cuando termina el pipeline, entonces la imagen queda publicada y desplegada
-   en el ambiente de *staging* sin intervención manual.
+5. Dado un merge a `develop`, cuando termina el pipeline, entonces la imagen queda publicada y
+   desplegada en el ambiente de *staging* sin intervención manual. Dado el merge de una release a
+   `main`, se crean el tag y el release de la versión automáticamente.
 6. Dado el cierre del sprint, cuando se consulta el tablero, entonces el burndown, el velocity y el
    value chart se generan desde los datos ya registrados, sin trabajo manual de última hora.
 
 **Notas técnicas.** El Terraform de
 [`solventa-experiments/terraform`](../solventa-experiments/terraform) se reutiliza como base de la
-infraestructura de *staging*. La estrategia de ramas es trunk-based con ramas cortas y versionamiento
-semántico por release, etiquetando al cierre de cada sprint.
+infraestructura de *staging*. La estrategia de ramas es **GitFlow** (`main`, `develop`, `feature/*`,
+`release/*`, `hotfix/*`) con versionamiento semántico: una rama `release/vX.Y.0` al cierre de cada
+sprint, etiquetada automáticamente al fusionarse en `main`. Detalle en [`devops.md`](devops.md).
 
 **Favorece** habilitador transversal de todos los RC
 **Mockup** No aplica: historia de arquitectura sin interfaz de usuario

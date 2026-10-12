@@ -52,6 +52,8 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | [Design System v1.0](DesignSystem/Solventa_Design_System.md) ([PDF](DesignSystem/Solventa_Design_System.pdf)) | Versión anterior en texto: principios, tipografía, espaciado, componentes y guía de implementación |
 | [Patrones de arquitectura por vista](docs/Patrones-QR-vistas.md) | Trazabilidad patrón → requisito de calidad |
 | [Backlog y plan de sprints](docs/backlog-sprint-plan.md) | Features, estimación y plan |
+| [Historias del Sprint 1](docs/HistoriasUsuarioSprint1.md) | Historias detalladas, criterios de aceptación y asignación |
+| [Ambiente DevOps](docs/devops.md) | Flujo de trabajo, versionamiento, convención de commits, CI/CD, pruebas y tablero |
 
 ### Mockups navegables (publicados con GitHub Pages)
 
@@ -151,10 +153,18 @@ Tablero del proyecto: _enlazar aquí la URL del GitHub Project_
 
 ## Cómo contribuir
 
-1. Crea una rama a partir de `main`: `git checkout -b feature/F-WEB-01-01-cotizacion-asistida`
-2. Referencia el issue correspondiente en tus commits (`#<número-de-issue>`).
-3. Abre un Pull Request describiendo los cambios y enlazando la feature/issue que resuelve.
-4. Solicita revisión de al menos un integrante del equipo antes de hacer merge.
+El flujo completo está en [docs/devops.md](docs/devops.md). El equipo trabaja con **GitFlow**: `main`
+(producción), `develop` (integración, rama por defecto), `feature/*`, `release/*` y `hotfix/*`.
+
+1. Instala los hooks una vez por clon: `pip install pre-commit && pre-commit install --install-hooks`.
+2. Crea una rama corta desde `develop`: `git switch -c feature/WEB-F02-consentimiento-web`.
+3. Escribe commits con la convención `tipo(alcance): descripción (HISTORIA)`, por ejemplo
+   `feat(consentimiento): revocar consentimiento desde la web (WEB-F02)`.
+4. Abre un pull request **hacia `develop`** con la plantilla y el mismo formato en el título, y enlaza
+   la historia con `Closes #N`.
+5. El merge, por *squash*, requiere el check `ci-ok` en verde y la aprobación de otro integrante.
+6. Al cierre de cada sprint se crea `release/vX.Y.0` desde `develop` y se fusiona en `main`. El tag y
+   el release se generan solos.
 
 ---
 

@@ -1,0 +1,9 @@
+# Actualizaciones automáticas de dependencias. Al crear backend/ (ARQ-01) se agregan aquí
+# los ecosistemas pip y docker con directory: /backend.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule: { interval: weekly }
+    commit-message: { prefix: "ci" }

@@ -1,0 +1,100 @@
+# Despliegue continuo (ARQ-04), según GitFlow:
+#   push a develop → imagen :develop → environment "staging"
+#   push a main    → imagen :main    → environment "produccion" (main solo recibe releases y hotfixes)
+#
+# El repositorio no conoce la plataforma de despliegue. El pipeline publica la imagen en el registro
+# de GitHub y avisa a la plataforma por un webhook. Credenciales de bases de datos y demás
+# configuración de infraestructura viven solo en la plataforma, nunca en GitHub ni en el código.
+# Secretos de cada environment: ver docs/devops.md, sección "Despliegue continuo".
+name: CD
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SERVICIO: solventa-nucleo
+
+jobs:
+  publicar:
+    name: Publicar imagen
+    runs-on: ubuntu-latest
+    outputs:
+      imagen: ${{ steps.nombre.outputs.imagen }}
+      publicada: ${{ steps.nombre.outputs.publicada }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: nombre
+        run: |
+          echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${SERVICIO}" >> "$GITHUB_OUTPUT"
+          if [ -f backend/Dockerfile ]; then
+            echo "publicada=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publicada=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Aún no existe backend/Dockerfile; no hay imagen que publicar."
+          fi
+      - if: steps.nombre.outputs.publicada == 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.nombre.outputs.publicada == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.nombre.outputs.publicada == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: |
+            ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
+            ${{ steps.nombre.outputs.imagen }}:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  desplegar:
+    name: Desplegar en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    needs: publicar
+    if: needs.publicar.outputs.publicada == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    env:
+      HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
+      HOOK_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+      URL_AMBIENTE: ${{ secrets.AMBIENTE_URL }}
+      IMAGEN: ${{ needs.publicar.outputs.imagen }}:${{ github.sha }}
+    steps:
+      - name: Verificar configuración
+        id: config
+        run: |
+          if [ -z "$HOOK_URL" ] || [ -z "$HOOK_TOKEN" ]; then
+            echo "::notice::El environment no tiene configurado el webhook de despliegue; se omite."
+            echo "lista=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Solicitar despliegue
+        if: steps.config.outputs.lista == 'true'
+        run: |
+          curl -sf -o /dev/null -X POST "$HOOK_URL" \
+            -H "Authorization: Bearer $HOOK_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"imagen\": \"$IMAGEN\", \"commit\": \"$GITHUB_SHA\"}"
+      - name: Prueba de humo
+        if: steps.config.outputs.lista == 'true' && env.URL_AMBIENTE != ''
+        run: |
+          for _ in $(seq 1 20); do
+            if curl -sf -o /dev/null "$URL_AMBIENTE/v1/"; then echo "El ambiente responde"; exit 0; fi
+            sleep 15
+          done
+          echo "::error::El ambiente no respondió tras el despliegue"
+          exit 1
