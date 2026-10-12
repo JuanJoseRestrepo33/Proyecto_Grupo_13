@@ -1,6 +1,6 @@
 naming:
   FunctionNaming:
-    ignoreAnnotated: ['Composable']
+    ignoreAnnotated: ['Composable', 'Test']
 style:
   MagicNumber:
     active: false
