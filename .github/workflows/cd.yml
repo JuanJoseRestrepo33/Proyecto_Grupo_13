@@ -32,7 +32,7 @@ jobs:
       imagen: ${{ steps.nombre.outputs.imagen }}
       publicada: ${{ steps.nombre.outputs.publicada }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: nombre
         run: |
           echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${SERVICIO}" >> "$GITHUB_OUTPUT"
