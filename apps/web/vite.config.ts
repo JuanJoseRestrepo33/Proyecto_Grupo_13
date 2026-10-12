@@ -1,9 +1,23 @@
 /// <reference types="vitest/config" />
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
+
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+/** El worker de MSW solo sirve en desarrollo: se quita del build para no publicarlo en producción. */
+function sinWorkerDeMocks(): Plugin {
+  return {
+    name: 'sin-worker-de-mocks',
+    apply: 'build',
+    writeBundle({ dir }) {
+      if (dir) rmSync(join(dir, 'mockServiceWorker.js'), { force: true })
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), sinWorkerDeMocks()],
   server: { port: 5173 },
   test: {
     globals: true,

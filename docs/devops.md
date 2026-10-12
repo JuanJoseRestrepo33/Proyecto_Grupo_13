@@ -238,7 +238,7 @@ y en cada push a `develop` o `main`.
 | `convenciones` | Solo en PR | Flujo GitFlow (nombre de la rama y destino permitido), título del PR y todos sus commits contra la convención |
 | `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`) |
 | `backend` | Cuando existe `backend/pyproject.toml` | Lint y formato (ruff), frontera entre módulos (import-linter), pruebas unitarias con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
-| `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción |
+| `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción sin los mocks del BFF |
 | `imagen` | Cuando existe `backend/pyproject.toml` | Que la imagen Docker del núcleo construya |
 | `ci-ok` | Siempre | Agrega los anteriores. **Es el único check requerido** en la protección de ramas |
 
@@ -335,7 +335,7 @@ cd apps/web && npm install && npm run test:cobertura              # app web
 
 | Herramienta | Qué hace | Dónde se ve |
 |---|---|---|
-| **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) | Análisis estático de seguridad y calidad (`security-and-quality`) para Python, JavaScript/TypeScript y los workflows de GitHub Actions. Corre en cada PR, en cada push a `develop` o `main` y cada lunes | Security → Code scanning, y anotaciones en el PR |
+| **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) | Análisis estático de seguridad y calidad (`security-and-quality`) para Python, JavaScript/TypeScript y los workflows de GitHub Actions. Corre en cada PR, en cada push a `develop` o `main` y cada lunes. Excluye los archivos generados ([`codeql-config.yml`](../.github/codeql/codeql-config.yml)) | Security → Code scanning, y anotaciones en el PR |
 | **Dependabot** ([`dependabot.yml`](../.github/dependabot.yml)) | PR semanales hacia `develop` que actualizan las acciones de GitHub y las dependencias npm de `apps/web` (menores y parches agrupados en un solo PR). Al crear `backend/` se agregan pip y docker | Pestaña Pull requests |
 | **ruff** | Lint y formato de Python, en el hook local y en el CI | Anotaciones en el PR |
 | **ESLint** | Lint de TypeScript/React con reglas de accesibilidad (jsx-a11y estricto), en el CI | Anotaciones en el PR |
