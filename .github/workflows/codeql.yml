@@ -1,6 +1,5 @@
 # Revisión automática de código: análisis estático de seguridad y calidad con CodeQL.
 # Los hallazgos aparecen en Security → Code scanning y como anotaciones en el PR.
-# Al agregar web/móvil con código JavaScript/TypeScript, se suma "javascript-typescript".
 name: CodeQL
 
 on:
@@ -23,13 +22,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lenguaje: [python, actions]
+        lenguaje: [python, javascript-typescript, actions]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.lenguaje }}
           queries: security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.lenguaje }}

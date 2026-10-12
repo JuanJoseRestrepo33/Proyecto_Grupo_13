@@ -84,7 +84,7 @@ Detalle completo de los escenarios de calidad en la Acta de Constitución y en e
 <!-- TODO: completar con el estilo arquitectónico elegido por el equipo -->
 
 - **Estilo arquitectónico:** _por definir / describir aquí (monolito modular, microservicios, EDA, etc.) y su justificación_
-- **Cliente web:** _framework y responsabilidades (gestión completa: venta asistida, back-office de socios, tableros)_
+- **Cliente web:** React + TypeScript ([`apps/web`](apps/web)), que habla solo con su BFF según el contrato [`contratos/bff-web`](contratos/bff-web). Gestión completa: venta asistida, consentimientos, back-office de socios y tableros.
 - **Cliente móvil:** _framework y responsabilidades (autoservicio: reporte de siniestros, biometría, modo offline)_
 - **Backend / servicios:** _tecnologías y capacidades de negocio implementadas (cotización, suscripción, siniestros, pagos, identidad, perfilamiento)_
 - **Integraciones externas (simuladas):** Open Finance / Open Data, KYC/AML, pasarelas de pago, reaseguradoras
@@ -95,16 +95,17 @@ Diagramas y vistas de arquitectura: _enlazar aquí (C4, diagramas de despliegue,
 
 ```
 Proyecto_Grupo_13/
-├── .github/
-│   └── ISSUE_TEMPLATE/       # Plantillas de issues (épicas y features)
-├── docs/                     # Acta de constitución, épicas y features, caso de estudio
-├── web/                      # Cliente web
-├── mobile/                   # Cliente móvil
-├── backend/                  # Servicios / API / capacidades de negocio
-└── README.md
+├── .github/                # CI/CD (workflows), plantillas de issues y PR, Dependabot
+├── apps/
+│   └── web/                # Cliente web (React + TypeScript)
+├── contratos/
+│   └── bff-web/            # Contrato OpenAPI entre el cliente web y su BFF
+├── docs/                   # Historias, backlog, patrones, guía de usuario y ambiente DevOps
+├── DesignSystem/           # Design System, sistema de navegación y diseño del sistema
+├── scripts/                # Herramientas del repo (validadores de commits y de GitFlow)
+├── web/  ·  mobile/        # Mockups navegables (HTML), publicados con GitHub Pages
+└── experimentos/  ·  solventa-experiments/   # Experimentos de arquitectura
 ```
-
-> Ajusta esta estructura a como esté organizado realmente el repositorio.
 
 ## Cómo ejecutar el proyecto
 
@@ -125,12 +126,17 @@ cd backend
 
 ### Cliente web
 
-Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+Requiere Node.js 22. Corre contra un BFF simulado que implementa
+[`contratos/bff-web/openapi.yaml`](contratos/bff-web/openapi.yaml); detalle en
+[apps/web/README.md](apps/web/README.md).
 
 ```bash
-cd web
-# instrucciones de instalación y ejecución
+cd apps/web
+npm install
+npm run dev        # http://localhost:5173
 ```
+
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
 
 ### Cliente móvil
 

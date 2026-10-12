@@ -1,0 +1,415 @@
+openapi: 3.1.0
+info:
+  title: Solventa · BFF Web
+  version: 0.1.1
+  description: |
+    Contrato entre el cliente web y su Backend for Frontend (BFF).
+
+    El cliente web solo habla con este BFF; el BFF orquesta el núcleo. Mientras el BFF no exista,
+    el cliente web trabaja contra mocks que implementan este mismo contrato
+    (`apps/web/src/mocks`). Cubre el Sprint 1:
+
+    - **WEB-F02** · Gestión del consentimiento Open Finance.
+    - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar.
+
+    Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
+    sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
+  license:
+    name: Uso académico · MISW4501
+    identifier: LicenseRef-Academico
+servers:
+  - url: /api/v1/web
+    description: Prefijo del BFF web (relativo al dominio de la aplicación)
+security:
+  - sesion: []
+tags:
+  - name: sesion
+    description: Cliente autenticado en el canal web
+  - name: consentimientos
+    description: Consentimiento de Open Finance (WEB-F02)
+  - name: cotizaciones
+    description: Asistente de cotización (WEB-F01)
+
+paths:
+  /sesion:
+    get:
+      tags: [sesion]
+      operationId: obtenerSesion
+      summary: Cliente autenticado
+      responses:
+        "200":
+          description: Sesión vigente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /consentimientos/finalidades:
+    get:
+      tags: [consentimientos]
+      operationId: listarFinalidades
+      summary: Finalidades que el cliente puede autorizar, cada una por separado
+      description: |
+        Cada finalidad trae su alcance, su vigencia y las entidades origen de los datos, y la
+        versión del texto legal que el cliente acepta al otorgarla (WEB-F02, criterios 1 y 6).
+      responses:
+        "200":
+          description: Catálogo de finalidades
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Finalidad" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /consentimientos:
+    get:
+      tags: [consentimientos]
+      operationId: listarConsentimientos
+      summary: Consentimientos del cliente, en cualquier estado
+      responses:
+        "200":
+          description: Consentimientos del cliente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [consentimientos]
+      operationId: otorgarConsentimiento
+      summary: Otorga el consentimiento para una finalidad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudConsentimiento" }
+      responses:
+        "201":
+          description: Consentimiento otorgado y vigente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /consentimientos/{id}/revocacion:
+    post:
+      tags: [consentimientos]
+      operationId: revocarConsentimiento
+      summary: Revoca un consentimiento vigente
+      description: |
+        El estado cambia a `revocado` de inmediato. La propagación al resto de la plataforma
+        ocurre en ≤ 5 minutos (RC-04); desde ese momento las cotizaciones usan tarifa estándar.
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Consentimiento revocado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+
+  /consentimientos/{id}/renovacion:
+    post:
+      tags: [consentimientos]
+      operationId: renovarConsentimiento
+      summary: Renueva un consentimiento vigente o vencido sin repetir el flujo completo
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Consentimiento renovado con nueva fecha de expiración
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+
+  /consentimientos/{id}/eventos:
+    get:
+      tags: [consentimientos]
+      operationId: listarEventosConsentimiento
+      summary: Histórico del consentimiento en orden cronológico
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Eventos del consentimiento, del más antiguo al más reciente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventoConsentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /cotizaciones/productos:
+    get:
+      tags: [cotizaciones]
+      operationId: listarProductos
+      summary: Productos que se pueden cotizar
+      responses:
+        "200":
+          description: Catálogo de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Producto" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /cotizaciones:
+    post:
+      tags: [cotizaciones]
+      operationId: crearCotizacion
+      summary: Cotiza un producto
+      description: |
+        Con consentimiento vigente para la finalidad `cotizacion`, la prima es `personalizada`.
+        Sin él, la prima es `estandar` y `motivo_tarifa` explica por qué. No es un error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudCotizacion" }
+      responses:
+        "201":
+          description: Cotización emitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cotizacion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /cotizaciones/{id}:
+    get:
+      tags: [cotizaciones]
+      operationId: obtenerCotizacion
+      summary: Consulta una cotización emitida
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Cotización, incluida su vigencia
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cotizacion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+components:
+  securitySchemes:
+    sesion:
+      type: apiKey
+      in: cookie
+      name: sesion
+      description: Cookie de sesión del canal web, emitida por el BFF al autenticar al cliente.
+
+  parameters:
+    IdConsentimiento:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    NoAutenticado:
+      description: No hay una sesión vigente
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NoEncontrado:
+      description: El recurso no existe o no pertenece al cliente
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflicto:
+      description: La operación no aplica al estado actual del recurso
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SolicitudInvalida:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          description: Código estable para que el cliente decida qué mostrar
+          examples: [consentimiento_no_vigente]
+        mensaje:
+          type: string
+          description: Descripción para diagnóstico; la interfaz no la muestra tal cual
+
+    Sesion:
+      type: object
+      required: [cliente]
+      properties:
+        cliente:
+          type: object
+          required: [id, nombre]
+          properties:
+            id: { type: string }
+            nombre: { type: string, examples: [Ana] }
+
+    CodigoFinalidad:
+      type: string
+      enum: [cotizacion, suscripcion, prevencion_fraude]
+
+    Finalidad:
+      type: object
+      required: [codigo, nombre, descripcion, alcance, vigencia_meses, entidades_origen, version_texto]
+      properties:
+        codigo: { $ref: "#/components/schemas/CodigoFinalidad" }
+        nombre: { type: string }
+        descripcion: { type: string }
+        alcance:
+          type: array
+          description: Datos que se consultan bajo esta finalidad
+          items: { type: string }
+        vigencia_meses: { type: integer, minimum: 1 }
+        entidades_origen:
+          type: array
+          description: Entidades financieras de las que el cliente puede autorizar datos
+          items: { $ref: "#/components/schemas/Entidad" }
+        version_texto:
+          type: string
+          description: Versión del texto legal vigente para esta finalidad
+          examples: [cotizacion-2026.1]
+
+    Entidad:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { type: string }
+        nombre: { type: string }
+
+    EstadoConsentimiento:
+      type: string
+      enum: [vigente, revocado, vencido]
+
+    SolicitudConsentimiento:
+      type: object
+      required: [finalidad, entidades_origen, version_texto]
+      properties:
+        finalidad: { $ref: "#/components/schemas/CodigoFinalidad" }
+        entidades_origen:
+          type: array
+          minItems: 1
+          items: { type: string, description: Id de la entidad }
+        version_texto:
+          type: string
+          description: Versión del texto legal que el cliente leyó y aceptó
+
+    Consentimiento:
+      type: object
+      required: [id, finalidad, entidades_origen, estado, canal, otorgado_en, vence_en, version_texto]
+      properties:
+        id: { type: string }
+        finalidad: { $ref: "#/components/schemas/CodigoFinalidad" }
+        entidades_origen:
+          type: array
+          items: { $ref: "#/components/schemas/Entidad" }
+        estado: { $ref: "#/components/schemas/EstadoConsentimiento" }
+        canal: { type: string, enum: [web, movil] }
+        otorgado_en: { type: string, format: date-time }
+        vence_en: { type: string, format: date-time }
+        revocado_en:
+          type: [string, "null"]
+          format: date-time
+        version_texto: { type: string }
+
+    EventoConsentimiento:
+      type: object
+      required: [tipo, ocurrido_en, canal, version_texto]
+      properties:
+        tipo: { type: string, enum: [otorgado, renovado, revocado, vencido] }
+        ocurrido_en: { type: string, format: date-time }
+        canal: { type: string, enum: [web, movil, sistema] }
+        version_texto: { type: string }
+
+    CodigoProducto:
+      type: string
+      enum: [auto, hogar, viaje, dispositivos]
+
+    Producto:
+      type: object
+      required: [codigo, nombre, descripcion]
+      properties:
+        codigo: { $ref: "#/components/schemas/CodigoProducto" }
+        nombre: { type: string }
+        descripcion: { type: string }
+
+    SolicitudCotizacion:
+      type: object
+      required: [producto, datos]
+      properties:
+        producto: { $ref: "#/components/schemas/CodigoProducto" }
+        datos:
+          type: object
+          description: Datos del bien o del viaje a asegurar; dependen del producto
+          additionalProperties: true
+
+    Dinero:
+      type: object
+      required: [valor, moneda]
+      properties:
+        valor:
+          type: integer
+          description: Monto entero en la unidad mayor de la moneda, sin decimales (pesos para COP)
+          examples: [132900]
+        moneda:
+          type: string
+          description: Código ISO 4217 de la moneda
+          examples: [COP]
+
+    FactorPrecio:
+      type: object
+      required: [codigo, nombre, peso, efecto]
+      properties:
+        codigo: { type: string }
+        nombre: { type: string }
+        peso:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Participación del factor en la prima; los pesos suman 1
+        efecto:
+          type: string
+          enum: [aumenta, disminuye, neutro]
+
+    Cotizacion:
+      type: object
+      required: [id, producto, prima_mensual, tipo_tarifa, motivo_tarifa, factores, creada_en, vigente_hasta]
+      properties:
+        id: { type: string }
+        producto: { $ref: "#/components/schemas/CodigoProducto" }
+        prima_mensual: { $ref: "#/components/schemas/Dinero" }
+        tipo_tarifa:
+          type: string
+          enum: [personalizada, estandar]
+        motivo_tarifa:
+          type: [string, "null"]
+          enum: [sin_consentimiento, perfil_no_disponible, null]
+          description: Por qué se usó tarifa estándar; `null` si la tarifa es personalizada
+        factores:
+          type: array
+          description: Factores que componen la prima y su peso (explicabilidad)
+          items: { $ref: "#/components/schemas/FactorPrecio" }
+        creada_en: { type: string, format: date-time }
+        vigente_hasta: { type: string, format: date-time }
