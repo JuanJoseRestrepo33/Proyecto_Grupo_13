@@ -1,0 +1,31 @@
+{
+  "app": {
+    "nombre": "Solventa",
+    "saltarContenido": "Saltar al contenido principal",
+    "navegacionPrincipal": "Navegación principal",
+    "idioma": "Idioma"
+  },
+  "nav": {
+    "inicio": "Inicio",
+    "cotizar": "Cotizar",
+    "consentimientos": "Consentimientos"
+  },
+  "inicio": {
+    "saludo": "Hola, {{nombre}}",
+    "descripcion": "Cotiza tus seguros y gestiona tus consentimientos de Open Finance.",
+    "cargando": "Cargando tu información…",
+    "error": "No pudimos cargar tu información. Intenta de nuevo más tarde."
+  },
+  "consentimientos": {
+    "titulo": "Consentimientos de Open Finance",
+    "enConstruccion": "Esta pantalla está en construcción."
+  },
+  "cotizacion": {
+    "titulo": "Cotizar un seguro",
+    "enConstruccion": "Esta pantalla está en construcción."
+  },
+  "noEncontrada": {
+    "titulo": "Página no encontrada",
+    "volver": "Volver al inicio"
+  }
+}

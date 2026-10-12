@@ -238,6 +238,7 @@ y en cada push a `develop` o `main`.
 | `convenciones` | Solo en PR | Flujo GitFlow (nombre de la rama y destino permitido), título del PR y todos sus commits contra la convención |
 | `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`) |
 | `backend` | Cuando existe `backend/pyproject.toml` | Lint y formato (ruff), frontera entre módulos (import-linter), pruebas unitarias con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
+| `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción |
 | `imagen` | Cuando existe `backend/pyproject.toml` | Que la imagen Docker del núcleo construya |
 | `ci-ok` | Siempre | Agrega los anteriores. **Es el único check requerido** en la protección de ramas |
 
@@ -250,15 +251,17 @@ pipeline, el backend debe cumplir este contrato:
 - Los contratos de import-linter se declaran en `[tool.importlinter]` del mismo `pyproject.toml`.
 - `backend/Dockerfile` que construya la imagen del núcleo.
 
-Si los clientes web o móvil se implementan con su propio stack, se agrega un job análogo con su propio
-detector (por ejemplo `web/package.json`).
+El job `web` sigue el mismo patrón para [`apps/web`](../apps/web) (scripts `contratos:validar`,
+`contratos:tipos`, `lint`, `typecheck`, `test:cobertura` y `build` en su `package.json`). Si el cliente
+móvil se implementa con su propio stack, se agrega un job análogo con su propio detector (por ejemplo
+`apps/mobile/package.json`).
 
 **Resultados visibles en cada ejecución:**
 
 - Anotaciones de lint directamente en las líneas del PR.
 - Resumen de cobertura (total y del código nuevo) en la página de la ejecución.
-- Artefactos descargables: `cobertura-backend` (coverage.xml, reporte JUnit, reporte de código nuevo)
-  y `pruebas-herramientas`.
+- Artefactos descargables: `cobertura-backend` y `cobertura-web` (cobertura, reporte JUnit y reporte
+  de código nuevo) y `pruebas-herramientas`.
 
 ---
 
@@ -312,14 +315,18 @@ este repositorio, con acceso restringido a quien administra el ambiente.
 |---|---|---|---|
 | Unitarias del backend | pytest + pytest-cov | Job `backend` | Cobertura del **código nuevo ≥ 70%** (bloquea el merge) |
 | Frontera entre módulos | import-linter | Job `backend` | Cero importaciones prohibidas |
+| Unitarias y de componentes web | Vitest + Testing Library, contra los mocks del BFF (MSW) | Job `web` | Cobertura total y del **código nuevo ≥ 70%** |
+| Accesibilidad web | axe-core en las pruebas + ESLint jsx-a11y | Job `web` | Cero violaciones |
+| Contrato del BFF web | Redocly + verificación de tipos generados | Job `web` | Contrato válido y tipos al día |
 | Herramientas del repo | pytest | Job `herramientas` | Todas en verde |
 | Integración con adaptadores simulados | pytest | Job `backend` (cuando existan, ARQ-02) | Todas en verde |
 | Humo en *staging* y producción | Petición a `/v1/` sin imprimir la respuesta | Workflow CD | Respuesta HTTP exitosa |
 
-Para correrlas en local, las pruebas de herramientas se ejecutan así:
+Para correrlas en local:
 
 ```bash
-cd scripts && pip install pytest pytest-cov ruff && pytest -q
+cd scripts && pip install pytest pytest-cov ruff && pytest -q     # herramientas del repo
+cd apps/web && npm install && npm run test:cobertura              # app web
 ```
 
 ---
@@ -328,12 +335,10 @@ cd scripts && pip install pytest pytest-cov ruff && pytest -q
 
 | Herramienta | Qué hace | Dónde se ve |
 |---|---|---|
-| **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) | Análisis estático de seguridad y calidad (`security-and-quality`) para Python y para los workflows de GitHub Actions. Corre en cada PR, en cada push a `develop` o `main` y cada lunes | Security → Code scanning, y anotaciones en el PR |
-| **Dependabot** ([`dependabot.yml`](../.github/dependabot.yml)) | PR semanales hacia `develop` que actualizan las versiones de las acciones de GitHub. Al crear `backend/` se agregan pip y docker | Pestaña Pull requests |
+| **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) | Análisis estático de seguridad y calidad (`security-and-quality`) para Python, JavaScript/TypeScript y los workflows de GitHub Actions. Corre en cada PR, en cada push a `develop` o `main` y cada lunes | Security → Code scanning, y anotaciones en el PR |
+| **Dependabot** ([`dependabot.yml`](../.github/dependabot.yml)) | PR semanales hacia `develop` que actualizan las acciones de GitHub y las dependencias npm de `apps/web` (menores y parches agrupados en un solo PR). Al crear `backend/` se agregan pip y docker | Pestaña Pull requests |
 | **ruff** | Lint y formato de Python, en el hook local y en el CI | Anotaciones en el PR |
-
-Cuando haya código JavaScript/TypeScript (web o móvil), se agrega `javascript-typescript` a la matriz
-de CodeQL.
+| **ESLint** | Lint de TypeScript/React con reglas de accesibilidad (jsx-a11y estricto), en el CI | Anotaciones en el PR |
 
 ---
 

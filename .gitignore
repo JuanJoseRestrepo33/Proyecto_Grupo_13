@@ -5,3 +5,7 @@ __pycache__/
 .coverage
 coverage.xml
 reporte-pruebas.xml
+node_modules/
+dist/
+coverage/
+cobertura-nueva.md

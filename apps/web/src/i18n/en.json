@@ -1,0 +1,31 @@
+{
+  "app": {
+    "nombre": "Solventa",
+    "saltarContenido": "Skip to main content",
+    "navegacionPrincipal": "Main navigation",
+    "idioma": "Language"
+  },
+  "nav": {
+    "inicio": "Home",
+    "cotizar": "Get a quote",
+    "consentimientos": "Consents"
+  },
+  "inicio": {
+    "saludo": "Hi, {{nombre}}",
+    "descripcion": "Get insurance quotes and manage your Open Finance consents.",
+    "cargando": "Loading your information…",
+    "error": "We couldn't load your information. Please try again later."
+  },
+  "consentimientos": {
+    "titulo": "Open Finance consents",
+    "enConstruccion": "This screen is under construction."
+  },
+  "cotizacion": {
+    "titulo": "Get an insurance quote",
+    "enConstruccion": "This screen is under construction."
+  },
+  "noEncontrada": {
+    "titulo": "Page not found",
+    "volver": "Back to home"
+  }
+}
