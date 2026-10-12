@@ -5,6 +5,14 @@ __pycache__/
 .coverage
 coverage.xml
 reporte-pruebas.xml
+cobertura-nueva.md
+
+# Artefactos de construcción y cachés de herramientas del backend
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
 node_modules/
 dist/
 coverage/
