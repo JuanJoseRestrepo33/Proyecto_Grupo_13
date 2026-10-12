@@ -269,14 +269,14 @@ cada merge. También se puede lanzar a mano desde **Actions → CD → Run workf
 
 ```
 merge a develop ──▶ CI ──▶ imagen :develop ──▶ webhook del environment staging    ──▶ prueba de humo
-merge a main    ──▶ CI ──▶ imagen :main    ──▶ webhook del environment produccion ──▶ prueba de humo
+merge a main    ──▶ CI ──▶ imagen :main    ──▶ webhook del environment production ──▶ prueba de humo
                      └──▶ release.yml: tag vX.Y.Z, release, imagen :X.Y.Z, PR de back-merge
 ```
 
 | Etapa | Requisito para activarse |
 |---|---|
 | **Publicar imagen** `solventa-nucleo:<sha>` y `:<rama>` en el registro de paquetes de GitHub | Que exista `backend/Dockerfile`. No requiere secretos |
-| **Solicitar despliegue** | Que exista la imagen y que el environment (`staging` o `produccion`) tenga configurado el webhook |
+| **Solicitar despliegue** | Que exista la imagen y que el environment (`staging` o `production`) tenga configurado el webhook |
 | **Prueba de humo** | Que el environment tenga configurada su URL |
 
 ### Principio de seguridad: el repositorio no conoce la infraestructura
@@ -290,7 +290,7 @@ gestionadas ni ningún proveedor**, y no guardan ninguna credencial de infraestr
   **directamente en el gestor de secretos de la plataforma**. Nunca pasan por GitHub, ni como secreto
   ni como variable.
 - En GitHub solo existen tres secretos por environment, con los mismos nombres en `staging` y en
-  `produccion`. Ninguno revela el proveedor y todos se enmascaran en los logs.
+  `production`. Ninguno revela el proveedor y todos se enmascaran en los logs.
 - La prueba de humo solo comprueba que el servicio responde. No imprime respuestas, porque podrían
   revelar detalles internos.
 
@@ -460,8 +460,11 @@ cerrarlo y reabrirlo a mano para que corra.
   | Environment | Deployment branches | Recomendado |
   |---|---|---|
   | `staging` | Selected branches → solo `develop` | - |
-  | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
+  | `production` | Selected branches → solo `main` | *Required reviewers* con *Prevent self-review*, y sin bypass de administradores |
 
   En cada uno se cargan los tres secretos de la tabla de [despliegue continuo](#despliegue-continuo).
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
+- GitHub no distingue mayúsculas en los nombres de environment (`Staging` = `staging`), pero el
+  nombre debe coincidir con el de [`cd.yml`](../.github/workflows/cd.yml). Si no coincide, el primer
+  despliegue crea un environment nuevo **sin protecciones** y el job no encuentra los secretos.

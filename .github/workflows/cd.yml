@@ -1,6 +1,6 @@
 # Despliegue continuo (ARQ-04), según GitFlow:
 #   push a develop → imagen :develop → environment "staging"
-#   push a main    → imagen :main    → environment "produccion" (main solo recibe releases y hotfixes)
+#   push a main    → imagen :main    → environment "production" (main solo recibe releases y hotfixes)
 #
 # El repositorio no conoce la plataforma de despliegue. El pipeline publica la imagen en el registro
 # de GitHub y avisa a la plataforma por un webhook. Credenciales de bases de datos y demás
@@ -62,11 +62,11 @@ jobs:
           cache-to: type=gha,mode=max
 
   desplegar:
-    name: Desplegar en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    name: Desplegar en ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     needs: publicar
     if: needs.publicar.outputs.publicada == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     env:
       HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
       HOOK_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
