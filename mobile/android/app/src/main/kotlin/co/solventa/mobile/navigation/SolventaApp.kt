@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -67,7 +67,7 @@ fun SolventaApp() {
 
 private fun TopLevelDestination.icon() = when (this) {
     TopLevelDestination.HOME -> Icons.Default.Home
-    TopLevelDestination.POLICIES -> Icons.Default.List
+    TopLevelDestination.POLICIES -> Icons.AutoMirrored.Filled.List
     TopLevelDestination.NOTICES -> Icons.Default.Notifications
     TopLevelDestination.PROFILE -> Icons.Default.Person
 }
