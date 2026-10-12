@@ -1,0 +1,62 @@
+# Release (GitFlow): al fusionar en main un PR desde release/vX.Y.Z o hotfix/vX.Y.Z,
+#   1. crea el tag vX.Y.Z sobre el commit de merge y el release con notas generadas desde los PR,
+#   2. publica la imagen del núcleo etiquetada con la versión (si existe backend/),
+#   3. abre el PR de back-merge main → develop para que develop reciba los cambios del release.
+# Requiere: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
+# Secreto opcional RELEASE_TOKEN (token de un integrante con permiso de PR): sin él, el PR de
+# back-merge se crea igual, pero GitHub no le dispara el CI y hay que cerrarlo y reabrirlo a mano.
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      (startsWith(github.head_ref, 'release/v') || startsWith(github.head_ref, 'hotfix/v'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RAMA: ${{ github.head_ref }}
+      COMMIT: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Versión
+        id: version
+        run: echo "tag=${RAMA#*/}" >> "$GITHUB_OUTPUT"
+      - name: Crear tag y release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" --target "$COMMIT" --title "$TAG" --generate-notes
+      - name: Publicar imagen versionada
+        if: hashFiles('backend/Dockerfile') != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: hashFiles('backend/Dockerfile') != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          imagen="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/solventa-nucleo"
+          docker build -t "$imagen:${TAG#v}" backend
+          docker push "$imagen:${TAG#v}"
+      - name: Abrir back-merge main → develop
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create --base develop --head main \
+            --title "chore(release): $TAG integrar main en develop" \
+            --body "Back-merge automático tras publicar $TAG. Fusionar con **merge commit** (no squash)."
