@@ -1,6 +1,7 @@
 import java.net.URI
 
 plugins {
+    alias(libs.plugins.kover)
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -36,6 +37,7 @@ android {
         versionName = "0.1.0"
         buildConfigField("String", "BASE_URL", "\"${bffBaseUrl.get()}\"")
     }
+    testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -47,6 +49,15 @@ android {
 }
 kotlin { jvmToolchain(17) }
 
+kover {
+    reports {
+        variant("debug") {
+            xml { }
+            html { }
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
@@ -54,6 +65,9 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    debugImplementation(libs.compose.ui.test.manifest)
     implementation(libs.compose.icons)
     implementation(libs.activity.compose)
     implementation(libs.navigation.compose)

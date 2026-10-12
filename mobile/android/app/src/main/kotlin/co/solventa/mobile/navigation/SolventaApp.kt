@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -75,7 +76,7 @@ private fun TopLevelDestination.icon() = when (this) {
 @Composable
 private fun PlaceholderScreen(destination: TopLevelDestination) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(SolventaSpacing.md),
+        modifier = Modifier.fillMaxSize().padding(SolventaSpacing.md).testTag("screen-${destination.route}"),
         verticalArrangement = Arrangement.spacedBy(SolventaSpacing.sm),
     ) {
         Text(stringResource(destination.label), style = MaterialTheme.typography.headlineSmall)

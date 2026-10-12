@@ -9,16 +9,31 @@ JDK **17**, Android SDK con plataforma **35** y Build Tools **34.0.0**, y Androi
 compatible con AGP 8.7.3. Gradle **8.9** se descarga mediante el wrapper incluido;
 su distribución se valida con SHA-256. No se requiere Gradle instalado globalmente.
 
+El resolvedor Foojay 0.8.0 descarga el toolchain 17 si Gradle se ejecuta con JDK 21.
 Abrir esta carpeta en Android Studio y seleccionar JDK 17 para Gradle. Configurar
 `ANDROID_HOME` o `local.properties` (ignorado) con `sdk.dir=/ruta/al/sdk`.
 Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :app:testDebugUnitTest
+./gradlew :core:network:test :core:designsystem:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :koverXmlReport :koverVerify
+./gradlew :koverHtmlReport
+./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
 ./gradlew :app:assembleDebug
 ./gradlew :app:installDebug
 ```
+
+Kover 0.9.1 agrega `app`, `core/network` y `core/designsystem` en la raíz.
+`:koverVerify` falla si la cobertura total de líneas es menor al **70%**; XML:
+`build/reports/kover/report.xml`, HTML: `build/reports/kover/html/index.html`.
+El total incluye las variantes debug y release de Android y el módulo JVM; las tareas
+con sufijo `Debug` generan reportes individuales de debug. Kover ejecuta automáticamente
+las pruebas requeridas. Las pruebas Compose pertenecen a `src/testDebug` para usar el
+host de `ui-test-manifest`, que solo se incluye mediante `debugImplementation`. Solo se excluyen BuildConfig, R, ComposableSingletons generados y
+MainActivity; no se excluyen funciones Compose ni lógica propia. No hay previews en esta base.
+Las pruebas Compose corren en JVM con Robolectric 4.14.1, recursos Android y SDK simulado 34;
+no requieren emulador, pero sí JDK 17 y el Android SDK para compilar.
 
 En Windows usar `gradlew.bat`. `installDebug` requiere un emulador/dispositivo API 26+
 conectado; también se puede ejecutar `app` desde Android Studio. APK:
@@ -44,7 +59,8 @@ Se conservan **Inicio, Pólizas, Avisos, Perfil**, según los mockups que refere
 (`../../mobile-docs/index.html`) y el sistema de navegación. Navigation Compose guarda/restaura estado
 por destino, evita duplicados al reseleccionar y permite volver a Inicio con Atrás.
 El NavController restaura su estado tras recreación de Activity. Las pruebas JVM cubren
-resolución y selección de rutas; la interacción de Atrás y recreación necesita dispositivo.
+resolución de rutas e interacción con los cuatro destinos, su pantalla, selección y reselección;
+la interacción de Atrás y recreación necesita dispositivo.
 Todos los ítems inferiores tienen área mínima de **48 × 48 dp**, con texto accesible.
 Los textos están externalizados en `app/src/main/res/values/strings.xml`.
 
@@ -90,14 +106,15 @@ por rama y publicación de reportes descritos en `../../docs/devops.md`.
    de una organización se necesita el secreto `GITLEAKS_LICENSE`.
 2. JDK 17, SDK 35/Build Tools 34.0.0, validación del wrapper y caché de Gradle.
 3. **Lint → test → assembleDebug**: Detekt + Android lint; JUnit para cliente con
-   MockWebServer (deserialización, ruta y errores), interceptor debug y selección de destinos.
-4. Reportes lint/Detekt/JUnit y APK como artefactos, con resultado en el resumen del job.
+   MockWebServer (deserialización, ruta y errores), interceptor debug, tema y navegación Compose
+   con Robolectric. Kover genera el XML agregado y exige cobertura total de líneas ≥ 70%.
+4. Reportes lint/Detekt/JUnit/Kover y APK como artefactos, con porcentaje de líneas y resultado
+   en el resumen del job.
 
 El workflow no despliega ni publica la app. El check móvil es independiente de `ci-ok`
 del CI general: agregar **Android · lint, test, assembleDebug** a los checks obligatorios
 si se desea bloquear merges por este workflow. La protección de ramas se configura
-manualmente en GitHub, como indica devops.md. No hay gate de cobertura Android todavía;
-el umbral de cobertura del código nuevo de la definición de hecho queda pendiente.
+manualmente en GitHub, como indica devops.md. El gate mide cobertura total; la medición diferencial del código nuevo queda pendiente.
 
 ## Verificación local y pendientes
 

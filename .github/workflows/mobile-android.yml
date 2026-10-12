@@ -32,7 +32,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Detectar secretos
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
@@ -45,13 +45,37 @@ jobs:
       - name: Instalar plataforma y herramientas Android
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;34.0.0"'
       - name: Validar wrapper y configurar cache Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c  # v5.0.2
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Lint
         run: ./gradlew --no-daemon detekt lintDebug
       - name: Test
-        run: ./gradlew --no-daemon :core:network:test :app:testDebugUnitTest
+        run: >-
+          ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
+          :app:testDebugUnitTest :koverXmlReport :koverVerify
+      - name: Publicar cobertura en el resumen del pipeline
+        if: always()
+        run: |
+          python3 - <<'PYTHON' >> "$GITHUB_STEP_SUMMARY"
+          import pathlib
+          import xml.etree.ElementTree as E
+
+          print("## Cobertura de Android")
+          report = pathlib.Path("build/reports/kover/report.xml")
+          if not report.is_file():
+              print("Reporte Kover no disponible; revisar el paso Test.")
+          else:
+              root = E.parse(report).getroot()
+              counter = root.find("./counter[@type='LINE']")
+              if counter is None:
+                  raise SystemExit("El XML de Kover no contiene el contador total LINE")
+              covered = int(counter.get("covered"))
+              missed = int(counter.get("missed"))
+              total = covered + missed
+              percentage = 100 * covered / total if total else 0
+              print(f"**Total:** {percentage:.1f}% de líneas ({covered}/{total}). Mínimo: 70%.")
+          PYTHON
       - name: Assemble debug
         run: ./gradlew --no-daemon :app:assembleDebug
       - name: Resumen
@@ -66,6 +90,7 @@ jobs:
         with:
           name: reportes-mobile-android
           path: |
+            mobile/android/build/reports/kover/report.xml
             mobile/android/**/build/reports/
             mobile/android/**/build/test-results/
           if-no-files-found: ignore

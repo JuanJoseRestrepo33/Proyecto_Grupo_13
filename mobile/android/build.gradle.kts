@@ -1,4 +1,5 @@
 plugins {
+    alias(libs.plugins.kover)
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
@@ -19,6 +20,35 @@ subprojects {
         reports {
             html.required.set(true)
             sarif.required.set(true)
+        }
+    }
+}
+
+dependencies {
+    kover(project(":app"))
+    kover(project(":core:network"))
+    kover(project(":core:designsystem"))
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "*.BuildConfig",
+                    "*.R",
+                    "*.R$*",
+                    "*ComposableSingletons*",
+                    "co.solventa.mobile.MainActivity",
+                    "co.solventa.mobile.MainActivity$*",
+                )
+            }
+        }
+        total {
+            xml { xmlFile.set(layout.buildDirectory.file("reports/kover/report.xml")) }
+            verify {
+                rule { minBound(70) }
+            }
         }
     }
 }
