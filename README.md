@@ -60,9 +60,9 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | Canal | Enlace |
 |---|---|
 | 🖥️ Web | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html) |
-| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html) |
+| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html) |
 
-Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile/login.html`.
+Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile-docs/login.html`.
 
 ## Atributos de calidad
 
@@ -95,16 +95,22 @@ Diagramas y vistas de arquitectura: _enlazar aquí (C4, diagramas de despliegue,
 
 ```
 Proyecto_Grupo_13/
-├── .github/                # CI/CD (workflows), plantillas de issues y PR, Dependabot
+├── .github/                  # CI/CD (workflows), plantillas de issues y PR, Dependabot
+│   └── ISSUE_TEMPLATE/       # Plantillas de issues (épicas y features)
 ├── apps/
-│   └── web/                # Cliente web (React + TypeScript)
+│   └── web/                  # Cliente web (React + TypeScript)
 ├── contratos/
-│   └── bff-web/            # Contrato OpenAPI entre el cliente web y su BFF
-├── docs/                   # Historias, backlog, patrones, guía de usuario y ambiente DevOps
-├── DesignSystem/           # Design System, sistema de navegación y diseño del sistema
-├── scripts/                # Herramientas del repo (validadores de commits y de GitFlow)
-├── web/  ·  mobile/        # Mockups navegables (HTML), publicados con GitHub Pages
-└── experimentos/  ·  solventa-experiments/   # Experimentos de arquitectura
+│   └── bff-web/              # Contrato OpenAPI entre el cliente web y su BFF
+├── docs/                     # Acta, épicas, features, caso de estudio, historias, backlog, patrones, guía de usuario y DevOps
+├── DesignSystem/             # Design System, sistema de navegación y diseño del sistema
+├── scripts/                  # Herramientas del repo (validadores de commits y de GitFlow)
+├── web/                      # Mockups navegables del canal web (HTML), publicados con GitHub Pages
+├── mobile/                   # Cliente móvil
+│   └── android/              # App nativa Kotlin / Jetpack Compose
+├── mobile-docs/              # Mockups navegables del canal móvil (HTML), publicados con GitHub Pages
+├── experimentos/             # Experimentos de arquitectura
+├── solventa-experiments/     # Experimentos de arquitectura
+└── README.md
 ```
 
 ## Cómo ejecutar el proyecto
@@ -140,7 +146,7 @@ Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/
 
 ### Cliente móvil
 
-Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html)
 
 ```bash
 cd mobile

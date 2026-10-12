@@ -1,6 +1,6 @@
 # Solventa · Patrones de diseño UI/UX (web y móvil)
 
-Documentación técnica de los patrones de interfaz y experiencia de usuario aplicados en los mockups navegables de Solventa (`web/` y `mobile/`). Complementa al [Design System v2 (PDF)](../DesignSystem/Solventa_Design_System_v2.pdf) (tokens y componentes vigentes; la [versión 1.0 en texto](../DesignSystem/Solventa_Design_System.md) conserva principios y guía de implementación) y al [Sistema de Navegación](../DesignSystem/Solventa_Navigation_System.md) (estructura de navegación). Este documento responde tres preguntas: **qué patrón se usó, qué problema resuelve y cómo está implementado**, con trazabilidad a las features del backlog y a los requisitos de calidad (RC).
+Documentación técnica de los patrones de interfaz y experiencia de usuario aplicados en los mockups navegables de Solventa (`web/` y `mobile-docs/`). Complementa al [Design System v2 (PDF)](../DesignSystem/Solventa_Design_System_v2.pdf) (tokens y componentes vigentes; la [versión 1.0 en texto](../DesignSystem/Solventa_Design_System.md) conserva principios y guía de implementación) y al [Sistema de Navegación](../DesignSystem/Solventa_Navigation_System.md) (estructura de navegación). Este documento responde tres preguntas: **qué patrón se usó, qué problema resuelve y cómo está implementado**, con trazabilidad a las features del backlog y a los requisitos de calidad (RC).
 
 - **Audiencia:** equipo de desarrollo (frontend web y móvil), evaluadores del curso.
 - **Alcance:** 20 pantallas web y 21 pantallas móviles, que cubren las 20 features del backlog (WEB-F01..F11, MOB-F01..F09).
@@ -13,7 +13,7 @@ Documentación técnica de los patrones de interfaz y experiencia de usuario apl
 Versión publicada (GitHub Pages, se actualiza con cada cambio en `main`):
 
 - **Web:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
-- **Móvil:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+- **Móvil:** [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html)
 
 En local:
 
@@ -21,7 +21,7 @@ En local:
 cd Proyecto_Grupo_13
 python3 -m http.server 8765
 # Web:   http://localhost:8765/web/login.html
-# Móvil: http://localhost:8765/mobile/login.html
+# Móvil: http://localhost:8765/mobile-docs/login.html
 ```
 
 Se recomienda servirlos por HTTP (y no abrirlos con `file://`) para que el estado de la demo se comparta entre pantallas. Para reiniciar la demo basta con cerrar la pestaña: todo el estado vive en `sessionStorage`.
@@ -257,7 +257,7 @@ Cada pantalla carga, en este orden:
 | `i18n.js` | Traducción y formato de montos/fechas. |
 | `app.js` | Interacciones genéricas (menús, pestañas, asistente, opciones, zonas de carga) y mejoras de accesibilidad. |
 
-`flow.js` y `features.js` son **idénticos** en `web/` y `mobile/` (se detecta el canal por la presencia de `.device-frame`). Si se modifica uno, copiarlo al otro canal.
+`flow.js` y `features.js` son **idénticos** en `web/` y `mobile-docs/` (se detecta el canal por la presencia de `.device-frame`). Si se modifica uno, copiarlo al otro canal.
 
 ### 5.2 Convenciones de atributos `data-*`
 
