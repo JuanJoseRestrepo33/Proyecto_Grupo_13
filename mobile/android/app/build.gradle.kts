@@ -26,6 +26,8 @@ android {
         abortOnError = true
         warningsAsErrors = true
         checkDependencies = true
+        // Avisos de "hay versión más nueva": se gestionan al actualizar el catálogo, no deben romper el CI.
+        disable += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable", "OldTargetApi")
     }
     defaultConfig {
         applicationId = "co.solventa.mobile"
