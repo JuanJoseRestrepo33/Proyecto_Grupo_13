@@ -28,3 +28,23 @@ describe('i18n', () => {
     }
   })
 })
+
+describe('idioma al cargar la aplicación', () => {
+  // Cada caso vuelve a cargar el módulo para ejecutar su inicialización desde cero.
+  beforeEach(() => vi.resetModules())
+  afterEach(() => localStorage.removeItem('solventa_locale'))
+
+  it.each([
+    ['en', 'en'],
+    [null, 'es'],
+  ])('con preferencia guardada %s, <html lang> queda en %s y la interfaz en ese idioma', async (guardado, esperado) => {
+    if (guardado) localStorage.setItem('solventa_locale', guardado)
+    else localStorage.removeItem('solventa_locale')
+    document.documentElement.lang = ''
+
+    const { default: instancia } = await import('.')
+
+    expect(document.documentElement.lang).toBe(esperado)
+    expect(instancia.language).toBe(esperado)
+  })
+})

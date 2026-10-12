@@ -29,9 +29,13 @@ export async function cambiarIdioma(idioma: Idioma): Promise<void> {
   await i18n.changeLanguage(idioma)
 }
 
+const idiomaInicial = idiomaGuardado()
+// Los lectores de pantalla pronuncian según <html lang>: debe coincidir con el idioma restaurado.
+document.documentElement.lang = idiomaInicial
+
 void i18n.use(initReactI18next).init({
   resources: { es: { translation: es }, en: { translation: en } },
-  lng: idiomaGuardado(),
+  lng: idiomaInicial,
   fallbackLng: 'es',
   interpolation: { escapeValue: false },
 })

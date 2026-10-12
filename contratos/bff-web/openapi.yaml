@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.1.0
+  version: 0.1.1
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -12,8 +12,8 @@ info:
     - **WEB-F02** · Gestión del consentimiento Open Finance.
     - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar.
 
-    Convenciones: nombres en español y `snake_case`; montos en la unidad mínima de la moneda
-    (pesos colombianos sin decimales); fechas en ISO 8601 con zona horaria.
+    Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
+    sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
   license:
     name: Uso académico · MISW4501
     identifier: LicenseRef-Academico
@@ -371,9 +371,12 @@ components:
       properties:
         valor:
           type: integer
-          description: Monto en la unidad mínima de la moneda
+          description: Monto entero en la unidad mayor de la moneda, sin decimales (pesos para COP)
           examples: [132900]
-        moneda: { type: string, examples: [COP] }
+        moneda:
+          type: string
+          description: Código ISO 4217 de la moneda
+          examples: [COP]
 
     FactorPrecio:
       type: object

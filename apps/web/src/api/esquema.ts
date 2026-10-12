@@ -259,11 +259,14 @@ export interface components {
         };
         Dinero: {
             /**
-             * @description Monto en la unidad mínima de la moneda
+             * @description Monto entero en la unidad mayor de la moneda, sin decimales (pesos para COP)
              * @example 132900
              */
             valor: number;
-            /** @example COP */
+            /**
+             * @description Código ISO 4217 de la moneda
+             * @example COP
+             */
             moneda: string;
         };
         FactorPrecio: {
