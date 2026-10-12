@@ -180,6 +180,9 @@ jobs:
             if [ -f cobertura-nueva.md ]; then cat cobertura-nueva.md; fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Build de producción (sin mocks)
+        # VITE_MOCKS=true a propósito: aun así, un build de producción no debe incluir los mocks.
+        env:
+          VITE_MOCKS: "true"
         run: |
           npm run build
           if [ -f dist/mockServiceWorker.js ] || grep -rqs "setupWorker" dist; then
