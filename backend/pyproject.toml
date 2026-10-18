@@ -40,6 +40,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "N"]
 # N818 exige que toda excepción termine en "Error". El código del núcleo está en
 # español y estos errores se leen como sustantivos del dominio, que es lo que son.
 "app/compartido/errores.py" = ["N818"]
+"app/fachada/registro.py" = ["N818"]
+"scripts/nuevo_modulo.py" = ["N818"]
 
 # ---------------------------------------------------------------------------
 # Pruebas
@@ -64,30 +66,33 @@ root_package = "app"
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Dentro de cotización: api → aplicación → dominio, nunca al revés"
-type = "layers"
-layers = [
-    "app.modulos.cotizacion.api",
-    "app.modulos.cotizacion.aplicacion",
-    "app.modulos.cotizacion.dominio",
-]
+name = "Un módulo no importa las entrañas de otro: solo su interfaz pública (app.modulos.<x>)"
+type = "independence"
+modules = ["app.modulos.*"]
+# La interfaz pública de un módulo es su __init__; importarla sí está permitido.
+ignore_imports = ["app.modulos.** -> app.modulos.*"]
+unmatched_ignore_imports_alerting = "none"
 
 [[tool.importlinter.contracts]]
-name = "La infraestructura depende del dominio, nunca al revés"
+name = "En cada módulo: api → aplicación → dominio, nunca al revés"
 type = "layers"
-layers = [
-    "app.modulos.cotizacion.infraestructura",
-    "app.modulos.cotizacion.dominio",
-]
+containers = ["app.modulos.*"]
+layers = ["api", "aplicacion", "dominio"]
+
+[[tool.importlinter.contracts]]
+name = "En cada módulo: la infraestructura depende del dominio, nunca al revés"
+type = "layers"
+containers = ["app.modulos.*"]
+layers = ["infraestructura", "dominio"]
 
 [[tool.importlinter.contracts]]
 name = "El dominio no conoce frameworks web ni de persistencia"
 type = "forbidden"
-source_modules = ["app.modulos.cotizacion.dominio"]
+source_modules = ["app.modulos.*.dominio"]
 forbidden_modules = ["fastapi", "starlette", "pydantic", "sqlalchemy"]
 
 [[tool.importlinter.contracts]]
-name = "El kernel compartido no depende de ningún módulo de negocio"
+name = "El kernel compartido no depende de ningún módulo de negocio ni de la fachada"
 type = "forbidden"
 source_modules = ["app.compartido"]
 forbidden_modules = ["app.modulos", "app.fachada"]

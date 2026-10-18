@@ -4,8 +4,10 @@ Monolito modular con fachada versionada. Una carpeta por capacidad de negocio ba
 `app/modulos/`, y una única interfaz pública en `app/fachada/v1/` que es lo que consumen
 los BFF y los socios embebidos.
 
-Estado: **WEB-F01 · cotización**. Los demás módulos del diseño (identidad, consentimiento,
-perfilamiento, suscripción, pólizas, siniestros, pagos, socios) todavía no existen.
+Estado: existe un módulo por cada capacidad de negocio del diseño (ARQ-01). Solo
+**cotización** (WEB-F01) publica rutas; los otros ocho son esqueletos con las cuatro capas
+creadas desde la plantilla, a la espera de su historia. `GET /v1/` dice cuáles publican y
+`GET /salud` en qué estado está cada uno.
 
 ## Arrancar
 
@@ -19,8 +21,8 @@ uvicorn app.main:app --reload
 | Ruta | Para qué |
 |---|---|
 | http://127.0.0.1:8000/docs | API navegable (OpenAPI) |
-| http://127.0.0.1:8000/v1/ | Índice de la fachada. El CD lo usa como prueba de humo |
-| http://127.0.0.1:8000/salud | Estado del servicio |
+| http://127.0.0.1:8000/v1/ | Índice de la fachada: capacidades publicadas y mapa de módulos. El CD lo usa como prueba de humo |
+| http://127.0.0.1:8000/salud | Estado del núcleo, módulo por módulo y dependencia por dependencia. Responde 503 si alguna dependencia está caída |
 
 ## Verificar lo mismo que el CI
 
@@ -34,25 +36,71 @@ pytest --cov=app --cov-report=term-missing
 
 ```
 app/
-├── compartido/        Tipos sin reglas de negocio: dinero, reloj, errores
-├── fachada/v1/        Interfaz pública versionada. Agrega los routers de los módulos
-└── modulos/
-    └── cotizacion/
+├── compartido/        Tipos sin reglas de negocio: dinero, reloj, errores, contrato de módulo
+├── fachada/
+│   ├── registro.py    Descubre los módulos de app/modulos y toma su descriptor MODULO
+│   ├── salud.py       /salud: agrega el estado que reporta cada módulo
+│   └── v1/            Interfaz pública versionada. Agrega los routers de los módulos
+└── modulos/           Un paquete por capacidad de negocio, todos con la misma forma
+    ├── cotizacion/    WEB-F01 · publica rutas
+    ├── consentimiento/ WEB-F02 · esqueleto
+    ├── identidad/ perfilamiento/ suscripcion/ polizas/ siniestros/ pagos/ socios/
+    └── <modulo>/
+        ├── __init__.py        Interfaz pública del módulo y su descriptor MODULO
         ├── dominio/           Entidades y reglas. No conoce FastAPI ni la base de datos
         ├── aplicacion/        Casos de uso. Orquesta, no calcula
         ├── infraestructura/   Implementaciones de los puertos
         └── api/               Rutas HTTP y DTO del contrato v1
 ```
 
+### Cómo se registra un módulo
+
+La fachada no tiene una lista de módulos. Al arrancar recorre `app/modulos/`, importa cada
+paquete y toma su `MODULO: DescriptorDeModulo` (nombre, historia, router y una función que
+reporta sus dependencias). Un paquete sin descriptor rompe el arranque con un mensaje que
+dice qué falta, en vez de quedar fuera en silencio.
+
+Por eso un módulo nuevo no toca ningún archivo existente:
+
+```bash
+python scripts/nuevo_modulo.py garantias --historia WEB-F10 \
+  --descripcion "Garantías extendidas para dispositivos"
+lint-imports && pytest        # ya aplica los contratos y ya aparece en /v1/ y /salud
+```
+
+### Frontera entre módulos
+
 La dirección de las dependencias no es una convención: está declarada como contratos de
-import-linter en `pyproject.toml` y el pipeline falla si alguien la rompe.
+import-linter en `pyproject.toml`, aplica a todos los módulos por comodín (`app.modulos.*`)
+y el pipeline falla si alguien la rompe, señalando el archivo y la línea.
 
 | Contrato | Qué impide |
 |---|---|
+| Un módulo no importa las entrañas de otro | Que `consentimiento` importe `cotizacion.dominio.modelo`. Importar `app.modulos.cotizacion` (su `__init__`, la interfaz pública) sí está permitido |
 | `api → aplicación → dominio` | Que el dominio importe la capa web |
 | `infraestructura → dominio` | Que el dominio dependa de cómo se persiste |
 | El dominio no conoce frameworks | Que FastAPI o pydantic se filtren a las reglas de negocio |
-| El kernel no depende de módulos | Que `compartido/` acumule lógica de negocio |
+| El kernel no depende de módulos ni de la fachada | Que `compartido/` acumule lógica de negocio |
+
+### Qué reporta `/salud`
+
+Cada módulo declara sus dependencias con un estado: `ok`, `simulado`, `degradado` o
+`caido`. `simulado` existe porque en este prototipo casi todo responde desde un adaptador
+simulado, y el estado del núcleo no debe hacer creer que ya está conectado a algo real.
+Un módulo sin rutas ni dependencias se reporta como `esqueleto`. El estado global es el
+peor de los módulos activos; `caido` devuelve 503 para que el orquestador lo saque de
+rotación.
+
+```json
+{
+  "estado": "ok",
+  "modulos": {
+    "cotizacion": {"estado": "ok", "historia": "WEB-F01", "dependencias": {"consentimiento": {"estado": "simulado", "detalle": "Adaptador simulado hasta WEB-F02"}}},
+    "consentimiento": {"estado": "esqueleto", "historia": "WEB-F02", "dependencias": {}}
+  },
+  "dependencias": {"consentimiento": {"estado": "simulado", "usada_por": ["cotizacion"]}}
+}
+```
 
 ## API v1 · cotización
 
