@@ -79,31 +79,45 @@ usa negro para mejorar contraste; no se usa color como único indicador de selec
 ```
 
 Debe ser HTTPS, terminar en `/` y no contener credenciales, query ni fragmento.
-El valor por defecto `https://mobile-bff.invalid/v1/` es deliberadamente no resoluble;
+El valor por defecto `https://mobile-bff.invalid/api/v1/movil/` es deliberadamente no resoluble;
 **no es un backend desplegado**. No guardar tokens/secretos en propiedades ni BuildConfig.
 
-**Debug siempre simula la red**, incluso al cambiar la URL: `BffProvider` instala
-`DebugMockInterceptor` con `app/src/debug/assets/mocks/health.json`. GET sobre el prefijo
-configurado + `health` devuelve el fixture; todo lo demás devuelve 404 local y nunca
-se reenvía a Internet. Las clases y fixtures de mocks solo pertenecen al source set debug.
-Release crea el cliente real sin interceptor y requiere configurar la URL del ambiente.
+### Contrato y mocks
 
-`core/network/.../BffApi.kt` y `HealthResponse` son ejemplos técnicos provisionales
-(`GET health` relativo al prefijo v1), **no contratos acordados ni endpoints de negocio**.
-Cuando Harold publique OpenAPI v1 del BFF móvil, conectar sus contratos en
-`core/network/src/main/kotlin/co/solventa/core/network/` (interfaces Retrofit y DTO
-serializables) y sustituir el ejemplo según las rutas reales. Actualizar fixtures y pruebas;
-las features consumirán interfaces inyectadas desde app, sin fabricar contratos por su cuenta.
+`core/network` implementa el contrato [`contratos/bff-movil/openapi.yaml`](../../contratos/bff-movil/openapi.yaml):
+`BffApi` (Retrofit), `Modelos.kt` (esquemas en snake_case) y `ErrorBff.desde(...)` para leer el
+`codigo` estable de un error. El token de acceso se pasa con `BffProvider.create(tokenAcceso = { ... })`.
+
+**Debug siempre simula la red**, incluso al cambiar la URL: `BffProvider` instala
+`DebugMockInterceptor`, que responde con `MockBffMovil`, una implementación en memoria del contrato.
+Nada se reenvía a Internet; una ruta desconocida devuelve 404 local. Release crea el cliente real
+sin interceptor y requiere configurar la URL del ambiente.
+
+| Escenario | Cómo provocarlo |
+|---|---|
+| Código OTP válido | `123456` |
+| OTP incorrecto | Cualquier otro código: 3 intentos y el código queda bloqueado |
+| Reenviar OTP | Esperar 30 s desde el último envío; antes responde 429 con `Retry-After` |
+| KYC aprobada | Documento que termine en 0–6 |
+| KYC rechazada (`datos_no_coinciden`) | Documento que termine en 7 |
+| KYC en revisión manual | Documento que termine en 8 |
+| KYC en proceso → aprobada en la siguiente consulta | Documento que termine en 9 |
+| Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
+| Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
+
+El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
+y el mock en el mismo PR.
 
 ## Pipeline
 
-`.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`
-o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
+`.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
+`contratos/bff-movil/**` o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
 por rama y publicación de reportes descritos en `../../docs/devops.md`.
 
 1. Checkout con historial completo y **gitleaks-action v3**: los secretos detectados
    hacen fallar el job. Los comentarios automáticos están desactivados. Para repositorios
    de una organización se necesita el secreto `GITLEAKS_LICENSE`.
+   Luego valida `contratos/bff-movil/openapi.yaml` con Redocly.
 2. JDK 17, SDK 35/Build Tools 34.0.0, validación del wrapper y caché de Gradle.
 3. **Lint → test → assembleDebug**: Detekt + Android lint; JUnit para cliente con
    MockWebServer (deserialización, ruta y errores), interceptor debug, tema y navegación Compose

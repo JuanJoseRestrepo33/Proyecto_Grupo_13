@@ -1,26 +1,33 @@
 package co.solventa.mobile
 
+import co.solventa.mobile.mock.MockBffMovil
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
 
-class DebugMockInterceptor(private val readHealth: () -> String) : Interceptor {
+class DebugMockInterceptor(private val mock: MockBffMovil) : Interceptor {
+    private val prefijo = java.net.URI(BuildConfig.BASE_URL).rawPath
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val isHealth = request.method == "GET" && request.url.encodedPath ==
-            BuildConfig.BASE_URL.toHttpBasePath() + "health"
-        val body = if (isHealth) readHealth() else """{"error":"mock_not_found"}"""
+        val cuerpo = request.body?.let { body -> Buffer().also(body::writeTo).readUtf8() }.orEmpty()
+        val respuesta = mock.responder(
+            metodo = request.method,
+            ruta = request.url.encodedPath.removePrefix(prefijo),
+            cuerpo = cuerpo,
+            autorizacion = request.header("Authorization"),
+        )
         // Nunca se llama chain.proceed: debug no sale a la red, ni ante rutas desconocidas.
         return Response.Builder()
             .request(request)
             .protocol(Protocol.HTTP_1_1)
-            .code(if (isHealth) 200 else 404)
-            .message(if (isHealth) "OK" else "Not Found")
-            .body(body.toResponseBody("application/json".toMediaType()))
+            .code(respuesta.codigo)
+            .message("Mock")
+            .apply { respuesta.encabezados.forEach { (nombre, valor) -> header(nombre, valor) } }
+            .body(respuesta.cuerpo.toResponseBody("application/json".toMediaType()))
             .build()
     }
-
-    private fun String.toHttpBasePath(): String = java.net.URI(this).rawPath
 }

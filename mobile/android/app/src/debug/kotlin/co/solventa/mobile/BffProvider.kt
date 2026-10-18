@@ -1,14 +1,13 @@
 package co.solventa.mobile
 
-import android.content.Context
 import co.solventa.core.network.BffApi
 import co.solventa.core.network.NetworkClient
+import co.solventa.mobile.mock.MockBffMovil
 
 object BffProvider {
-    fun create(context: Context): BffApi = NetworkClient.create(
-        BuildConfig.BASE_URL,
-        listOf(DebugMockInterceptor {
-            context.assets.open("mocks/health.json").bufferedReader().use { it.readText() }
-        }),
-    )
+    // Un solo mock por proceso: el estado (registros, sesiones) sobrevive entre pantallas.
+    private val mock by lazy { MockBffMovil() }
+
+    fun create(tokenAcceso: () -> String? = { null }): BffApi =
+        NetworkClient.create(BuildConfig.BASE_URL, listOf(DebugMockInterceptor(mock)), tokenAcceso)
 }

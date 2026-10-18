@@ -6,3 +6,7 @@ style:
     active: false
   MaxLineLength:
     maxLineLength: 120
+complexity:
+  TooManyFunctions:
+    # Las clases de prueba agrupan un caso por función; src/testDebug no entra en las exclusiones por defecto.
+    excludes: ['**/test/**', '**/testDebug/**', '**/testRelease/**', '**/androidTest/**']

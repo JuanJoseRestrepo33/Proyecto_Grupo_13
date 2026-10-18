@@ -100,7 +100,8 @@ Proyecto_Grupo_13/
 ├── apps/
 │   └── web/                  # Cliente web (React + TypeScript)
 ├── contratos/
-│   └── bff-web/              # Contrato OpenAPI entre el cliente web y su BFF
+│   ├── bff-web/              # Contrato OpenAPI entre el cliente web y su BFF
+│   └── bff-movil/            # Contrato OpenAPI entre la app Android y su BFF
 ├── docs/                     # Acta, épicas, features, caso de estudio, historias, backlog, patrones, guía de usuario y DevOps
 ├── DesignSystem/             # Design System, sistema de navegación y diseño del sistema
 ├── scripts/                  # Herramientas del repo (validadores de commits y de GitFlow)

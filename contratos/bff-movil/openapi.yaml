@@ -1,0 +1,418 @@
+openapi: 3.1.0
+info:
+  title: Solventa · BFF Móvil
+  version: 0.1.0
+  description: |
+    Contrato entre la app Android y su Backend for Frontend (BFF).
+
+    La app solo habla con este BFF; el BFF orquesta el núcleo. Mientras el BFF no exista, la app
+    trabaja contra mocks que implementan este mismo contrato (`mobile/android/app/src/debug`).
+    Cubre el Sprint 1:
+
+    - **MOB-F01** · Onboarding y autenticación biométrica: registro, verificación del correo con
+      OTP, resultado de la verificación de identidad (KYC/AML simulado) e ingreso con contraseña o
+      con biometría.
+
+    **Biometría.** Solventa nunca recibe el dato biométrico. Tras el primer ingreso con contraseña,
+    la app guarda el `token_refresco` cifrado con una llave del Android Keystore que solo se
+    desbloquea con huella o rostro. Ingresar con biometría es, para el BFF, renovar la sesión con
+    ese token (`POST /sesiones/renovacion`).
+
+    **Auditoría.** Cada registro, intento de OTP, verificación de identidad e ingreso queda en el
+    log de auditoría (ARQ-02); lo escribe el BFF, no la app.
+
+    Convenciones: nombres en español y `snake_case`; fechas en ISO 8601 con zona horaria; los
+    errores traen un `codigo` estable que la app traduce a un mensaje propio (nunca muestra
+    `mensaje` tal cual).
+  license:
+    name: Uso académico · MISW4501
+    identifier: LicenseRef-Academico
+servers:
+  - url: /api/v1/movil
+    description: Prefijo del BFF móvil
+security:
+  - token_acceso: []
+tags:
+  - name: registro
+    description: Creación de la cuenta y verificación del correo (MOB-F01)
+  - name: sesiones
+    description: Ingreso con contraseña y renovación con biometría (MOB-F01)
+  - name: identidad
+    description: Verificación de identidad KYC/AML (MOB-F01)
+
+paths:
+  /registros:
+    post:
+      tags: [registro]
+      operationId: crearRegistro
+      summary: Crea la cuenta y envía el código de verificación al correo
+      description: |
+        La cuenta queda en estado `pendiente_verificacion`: sin acceso a funciones que requieran
+        identidad verificada (MOB-F01, criterio 1). La contraseña se guarda con hash y sal en el
+        núcleo y se emite el evento `ClientRegistered`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudRegistro" }
+      responses:
+        "201":
+          description: Cuenta creada; código enviado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Registro" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /registros/{id}/otp/verificacion:
+    post:
+      tags: [registro]
+      operationId: verificarOtp
+      summary: Verifica el código enviado al correo y abre la primera sesión
+      description: |
+        Hay **3 intentos** por código. Al tercer fallo el código queda bloqueado (`otp_bloqueado`)
+        y hay que pedir otro; la cuenta no se bloquea.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdRegistro"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudOtp" }
+      responses:
+        "200":
+          description: Correo verificado; sesión abierta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: |
+            El código no aplica: `otp_bloqueado` (se agotaron los intentos), `otp_vencido` o
+            `registro_ya_verificado`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Código incorrecto (`otp_invalido`); trae los intentos restantes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorOtp" }
+
+  /registros/{id}/otp/reenvio:
+    post:
+      tags: [registro]
+      operationId: reenviarOtp
+      summary: Envía un código nuevo e invalida el anterior
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdRegistro"
+      responses:
+        "202":
+          description: Código nuevo enviado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Otp" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "429":
+          description: Se pidió un código hace muy poco (`otp_reenvio_prematuro`)
+          headers:
+            Retry-After:
+              description: Segundos que faltan para poder pedir otro código
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /sesiones:
+    post:
+      tags: [sesiones]
+      operationId: iniciarSesion
+      summary: Ingreso con correo y contraseña
+      description: |
+        Es también el respaldo de la biometría: si el sensor falla tres veces o no existe, la app
+        vuelve a este ingreso, sin bloquear la cuenta (MOB-F01, criterio 5).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credenciales" }
+      responses:
+        "200":
+          description: Sesión abierta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "401":
+          description: Correo o contraseña incorrectos (`credenciales_invalidas`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /sesiones/renovacion:
+    post:
+      tags: [sesiones]
+      operationId: renovarSesion
+      summary: Renueva la sesión con el token de refresco (ingreso biométrico)
+      description: |
+        La app desbloquea el `token_refresco` con huella o rostro y lo envía aquí. Cada renovación
+        emite un `token_refresco` nuevo e invalida el anterior (rotación).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudRenovacion" }
+      responses:
+        "200":
+          description: Sesión renovada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "401":
+          description: |
+            Token vencido, revocado o ya usado (`token_refresco_invalido`). La app borra el token
+            guardado y pide la contraseña.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /sesion:
+    get:
+      tags: [sesiones]
+      operationId: obtenerSesion
+      summary: Cliente autenticado
+      responses:
+        "200":
+          description: Cliente de la sesión vigente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cliente" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /identidad/verificacion:
+    get:
+      tags: [identidad]
+      operationId: obtenerVerificacionIdentidad
+      summary: Estado de la última verificación de identidad
+      responses:
+        "200":
+          description: Última verificación
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+    post:
+      tags: [identidad]
+      operationId: solicitarVerificacionIdentidad
+      summary: Envía los datos del registro al proveedor KYC/AML
+      description: |
+        En el Sprint 1 el proveedor está simulado detrás del adaptador `ProveedorKYC` (ARQ-02) y
+        valida los datos del registro; la captura de documento y selfie llega después. La respuesta
+        puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o `en_proceso`, y entonces la
+        app consulta `GET /identidad/verificacion` en lugar de esperar en una pantalla de carga.
+      responses:
+        "202":
+          description: Verificación recibida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "409":
+          description: La identidad ya está verificada o hay una verificación en curso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  securitySchemes:
+    token_acceso:
+      type: http
+      scheme: bearer
+      description: Token de acceso del canal móvil, emitido al abrir o renovar la sesión.
+
+  parameters:
+    IdRegistro:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    NoAutenticado:
+      description: No hay una sesión vigente
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NoEncontrado:
+      description: El recurso no existe o no pertenece al cliente
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflicto:
+      description: La operación no aplica al estado actual del recurso
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    SolicitudInvalida:
+      description: Los datos enviados no son válidos
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorValidacion" }
+
+  schemas:
+    Error:
+      type: object
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          description: Código estable para que la app decida qué mostrar
+          examples: [correo_ya_registrado]
+        mensaje:
+          type: string
+          description: Descripción para diagnóstico; la interfaz no la muestra tal cual
+
+    ErrorValidacion:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required: [campos]
+          properties:
+            campos:
+              type: array
+              description: Un error por campo, para la validación en línea del formulario
+              items:
+                type: object
+                required: [campo, codigo]
+                properties:
+                  campo: { type: string, examples: [numero_documento] }
+                  codigo: { type: string, examples: [formato_invalido] }
+
+    ErrorOtp:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required: [intentos_restantes]
+          properties:
+            intentos_restantes: { type: integer, minimum: 0, maximum: 2 }
+
+    TipoDocumento:
+      type: string
+      enum: [cedula_ciudadania, cedula_extranjeria, pasaporte]
+
+    EstadoIdentidad:
+      type: string
+      description: |
+        `pendiente_verificacion`: correo verificado, identidad sin verificar; sin acceso a
+        funciones que la requieran. `en_revision`: el proveedor pidió revisión manual.
+      enum: [pendiente_verificacion, en_revision, verificada, rechazada]
+
+    SolicitudRegistro:
+      type: object
+      required:
+        [nombre_completo, tipo_documento, numero_documento, correo, celular, contrasena, version_terminos]
+      properties:
+        nombre_completo: { type: string, minLength: 3, maxLength: 120, examples: [Ana María Rojas] }
+        tipo_documento: { $ref: "#/components/schemas/TipoDocumento" }
+        numero_documento:
+          type: string
+          pattern: "^[A-Za-z0-9]{5,15}$"
+          examples: ["1020304050"]
+        correo: { type: string, format: email, examples: [ana@ejemplo.co] }
+        celular:
+          type: string
+          description: Celular colombiano, 10 dígitos
+          pattern: "^3\\d{9}$"
+          examples: ["3001234567"]
+        contrasena:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 64
+          description: Al menos una letra y un número
+          writeOnly: true
+        version_terminos:
+          type: string
+          description: Versión de los términos y la política de datos que el cliente aceptó
+          examples: ["2026-09"]
+
+    Otp:
+      type: object
+      required: [expira_en, intentos_restantes, reenvio_disponible_en]
+      properties:
+        expira_en: { type: string, format: date-time }
+        intentos_restantes: { type: integer, minimum: 0, maximum: 3 }
+        reenvio_disponible_en: { type: string, format: date-time }
+
+    Registro:
+      type: object
+      required: [id, estado_identidad, otp]
+      properties:
+        id: { type: string, examples: [REG-2026-000041] }
+        estado_identidad: { $ref: "#/components/schemas/EstadoIdentidad" }
+        otp: { $ref: "#/components/schemas/Otp" }
+
+    SolicitudOtp:
+      type: object
+      required: [codigo]
+      properties:
+        codigo: { type: string, pattern: "^\\d{6}$", examples: ["123456"] }
+
+    Credenciales:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email }
+        contrasena: { type: string, format: password, writeOnly: true }
+
+    SolicitudRenovacion:
+      type: object
+      required: [token_refresco]
+      properties:
+        token_refresco: { type: string, writeOnly: true }
+
+    Cliente:
+      type: object
+      required: [id, nombre_completo, correo, estado_identidad]
+      properties:
+        id: { type: string, examples: [CLI-2026-000318] }
+        nombre_completo: { type: string, examples: [Ana María Rojas] }
+        correo: { type: string, format: email }
+        estado_identidad: { $ref: "#/components/schemas/EstadoIdentidad" }
+
+    Sesion:
+      type: object
+      required: [token_acceso, token_refresco, expira_en, cliente]
+      properties:
+        token_acceso: { type: string }
+        token_refresco:
+          type: string
+          description: La app lo guarda cifrado con una llave del Keystore ligada a la biometría
+        expira_en: { type: string, format: date-time, description: Vencimiento del token de acceso }
+        cliente: { $ref: "#/components/schemas/Cliente" }
+
+    VerificacionIdentidad:
+      type: object
+      required: [id, estado, actualizada_en]
+      properties:
+        id: { type: string, examples: [KYC-2026-009931] }
+        estado:
+          type: string
+          enum: [en_proceso, aprobada, rechazada, en_revision]
+        motivo:
+          type: string
+          description: |
+            Solo si `estado` es `rechazada`. Código estable; la app lo explica en lenguaje claro y
+            sin jerga del proveedor (MOB-F01, criterio 7).
+          enum: [datos_no_coinciden, documento_no_valido, no_superada]
+        reintento_permitido:
+          type: boolean
+          description: Solo si `estado` es `rechazada`
+        actualizada_en: { type: string, format: date-time }

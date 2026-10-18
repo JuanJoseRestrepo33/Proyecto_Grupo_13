@@ -9,7 +9,7 @@ import co.solventa.mobile.navigation.SolventaApp
 
 class MainActivity : ComponentActivity() {
     // Punto de composición: las futuras features reciben la API por inyección.
-    val bffApi: BffApi by lazy { BffProvider.create(applicationContext) }
+    val bffApi: BffApi by lazy { BffProvider.create() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

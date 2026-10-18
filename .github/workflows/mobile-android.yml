@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - 'mobile/android/**'
+      - 'contratos/bff-movil/**'
       - '.github/workflows/mobile-android.yml'
   pull_request:
     branches: [main, develop, 'release/**']
     paths:
       - 'mobile/android/**'
+      - 'contratos/bff-movil/**'
       - '.github/workflows/mobile-android.yml'
   workflow_dispatch:
 
@@ -37,6 +39,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           GITLEAKS_ENABLE_COMMENTS: 'false'
+      - name: Validar contrato del BFF móvil
+        working-directory: contratos/bff-movil
+        run: npx --yes @redocly/cli@2.62.1 lint --config redocly.yaml openapi.yaml
       - name: Configurar JDK 17
         uses: actions/setup-java@v5
         with:
