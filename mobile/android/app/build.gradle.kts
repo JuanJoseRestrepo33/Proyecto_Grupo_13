@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val bffBaseUrl = providers.gradleProperty("BFF_BASE_URL").orElse("https://mobile-bff.invalid/v1/")
+val bffBaseUrl = providers.gradleProperty("BFF_BASE_URL").orElse("https://mobile-bff.invalid/api/v1/movil/")
 val parsedBaseUrl = URI(bffBaseUrl.get())
 require(parsedBaseUrl.scheme == "https" && parsedBaseUrl.host != null &&
     parsedBaseUrl.rawUserInfo == null && parsedBaseUrl.rawQuery == null &&

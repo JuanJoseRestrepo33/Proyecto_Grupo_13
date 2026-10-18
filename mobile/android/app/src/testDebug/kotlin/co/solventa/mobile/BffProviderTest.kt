@@ -1,21 +1,18 @@
 package co.solventa.mobile
 
-import android.content.Context
-import co.solventa.core.network.HealthResponse
+import co.solventa.core.network.Credenciales
+import co.solventa.core.network.EstadoIdentidad
+import co.solventa.mobile.mock.CONTRASENA_DEMO
+import co.solventa.mobile.mock.CORREO_DEMO
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
 class BffProviderTest {
     @Test
-    fun `el proveedor debug conecta assets y cliente sin red`() = runBlocking {
-        val context: Context = RuntimeEnvironment.getApplication()
-        assertEquals(HealthResponse("ok", "mock-v1"), BffProvider.create(context).health())
+    fun `el proveedor debug comparte un mock con el cliente demo y envia el token`() = runBlocking {
+        val sesion = BffProvider.create().iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO))
+        val cliente = BffProvider.create(tokenAcceso = { sesion.tokenAcceso }).obtenerSesion()
+        assertEquals(EstadoIdentidad.VERIFICADA, cliente.estadoIdentidad)
     }
 }
