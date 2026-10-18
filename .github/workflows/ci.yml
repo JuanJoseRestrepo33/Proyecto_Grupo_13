@@ -87,6 +87,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # El log de auditoría (ARQ-03) se prueba contra un PostgreSQL real: permisos de rol,
+    # triggers y advisory lock no se pueden verificar en memoria.
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: solventa
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AUDITORIA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/solventa
     steps:
       - uses: actions/checkout@v4
         with:

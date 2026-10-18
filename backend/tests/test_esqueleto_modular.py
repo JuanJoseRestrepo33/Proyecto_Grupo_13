@@ -20,6 +20,7 @@ from app.main import crear_app
 from scripts.nuevo_modulo import ModuloYaExiste, NombreDeModuloInvalido, crear_modulo
 
 CAPACIDADES_DEL_DISENO = {
+    "auditoria",
     "identidad",
     "consentimiento",
     "perfilamiento",
@@ -71,7 +72,7 @@ def test_cada_modulo_tiene_las_cuatro_capas():
 def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
     cuerpo = cliente.get("/v1/").json()
     assert cuerpo["version"] == "v1"
-    assert cuerpo["capacidades"] == ["cotizacion"]
+    assert cuerpo["capacidades"] == ["auditoria", "cotizacion"]
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["consentimiento"]["historia"] == "WEB-F02"
 
@@ -93,7 +94,7 @@ def test_salud_reporta_cada_modulo_y_cada_dependencia(cliente):
     assert cuerpo["modulos"]["consentimiento"]["estado"] == "esqueleto"
     dependencias = cuerpo["modulos"]["cotizacion"]["dependencias"]
     assert dependencias["consentimiento"]["estado"] == "simulado"
-    assert cuerpo["dependencias"]["auditoria"]["usada_por"] == ["cotizacion"]
+    assert cuerpo["dependencias"]["consentimiento"]["usada_por"] == ["cotizacion"]
 
 
 def test_salud_degrada_el_nucleo_si_una_dependencia_se_degrada():
