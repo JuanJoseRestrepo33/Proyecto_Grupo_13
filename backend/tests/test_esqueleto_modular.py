@@ -72,7 +72,7 @@ def test_cada_modulo_tiene_las_cuatro_capas():
 def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
     cuerpo = cliente.get("/v1/").json()
     assert cuerpo["version"] == "v1"
-    assert cuerpo["capacidades"] == ["auditoria", "cotizacion"]
+    assert cuerpo["capacidades"] == ["auditoria", "consentimiento", "cotizacion"]
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["consentimiento"]["historia"] == "WEB-F02"
 
@@ -91,10 +91,28 @@ def test_salud_reporta_cada_modulo_y_cada_dependencia(cliente):
     assert cuerpo["estado"] == "ok"
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["cotizacion"]["estado"] == "ok"
-    assert cuerpo["modulos"]["consentimiento"]["estado"] == "esqueleto"
+    assert cuerpo["modulos"]["identidad"]["estado"] == "esqueleto"
     dependencias = cuerpo["modulos"]["cotizacion"]["dependencias"]
-    assert dependencias["consentimiento"]["estado"] == "simulado"
-    assert cuerpo["dependencias"]["consentimiento"]["usada_por"] == ["cotizacion"]
+    assert dependencias["perfilamiento"]["estado"] == "simulado"
+    assert cuerpo["dependencias"]["perfilamiento"]["usada_por"] == ["cotizacion"]
+
+
+def test_la_fachada_invoca_el_arranque_de_cada_modulo():
+    arrancados: list[str] = []
+    modulos = [
+        DescriptorDeModulo(
+            nombre=nombre,
+            descripcion="",
+            historia="PRUEBA",
+            router=APIRouter(),
+            iniciar=lambda nombre=nombre: arrancados.append(nombre),
+        )
+        for nombre in ("a", "b")
+    ]
+
+    crear_app(modulos)
+
+    assert arrancados == ["a", "b"]
 
 
 def test_salud_degrada_el_nucleo_si_una_dependencia_se_degrada():

@@ -34,6 +34,8 @@ def crear_app(modulos: Sequence[DescriptorDeModulo] | None = None) -> FastAPI:
     app.add_exception_handler(ErrorDeNegocio, manejar_error_de_negocio)
     app.include_router(v1.construir_router(modulos))
     app.include_router(salud.construir_router(modulos, VERSION_APP))
+    for modulo in modulos:
+        modulo.iniciar()
     return app
 
 

@@ -40,13 +40,18 @@ def sin_dependencias() -> Sequence[EstadoDeDependencia]:
     return ()
 
 
+def sin_arranque() -> None:
+    return None
+
+
 @dataclass(frozen=True)
 class DescriptorDeModulo:
     """Lo único que un módulo publica hacia la fachada.
 
     `nombre` debe coincidir con el nombre del paquete bajo `app.modulos`. `historia` es la
     historia de usuario que le da origen, para que el índice de la fachada y `/salud`
-    digan de dónde sale cada capacidad.
+    digan de dónde sale cada capacidad. `iniciar` se invoca una vez al armar la aplicación:
+    es donde un módulo se suscribe a los eventos que le interesan.
     """
 
     nombre: str
@@ -54,6 +59,7 @@ class DescriptorDeModulo:
     historia: str
     router: Enrutador
     dependencias: Callable[[], Sequence[EstadoDeDependencia]] = sin_dependencias
+    iniciar: Callable[[], None] = sin_arranque
 
     @property
     def publica_rutas(self) -> bool:
