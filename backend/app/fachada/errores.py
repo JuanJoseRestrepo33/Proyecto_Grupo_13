@@ -10,11 +10,17 @@ from __future__ import annotations
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
-from app.compartido.errores import ErrorDeNegocio, RecursoNoEncontrado, ReglaDeNegocioViolada
+from app.compartido.errores import (
+    DependenciaNoDisponible,
+    ErrorDeNegocio,
+    RecursoNoEncontrado,
+    ReglaDeNegocioViolada,
+)
 
 ESTADOS: dict[type[ErrorDeNegocio], int] = {
     RecursoNoEncontrado: status.HTTP_404_NOT_FOUND,
     ReglaDeNegocioViolada: status.HTTP_409_CONFLICT,
+    DependenciaNoDisponible: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 
