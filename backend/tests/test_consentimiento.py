@@ -6,6 +6,7 @@ interfaz; aquí se prueba lo que el backend aporta a cada uno.
 
 from __future__ import annotations
 
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.compartido.errores import RecursoNoEncontrado
 from app.compartido.eventos import BusEnProceso, obtener_bus
 from app.compartido.reloj import RelojFijo
+from app.compartido.unica import instancia_unica
 from app.main import crear_app
 from app.modulos import perfilamiento
 from app.modulos.auditoria.api import dependencias as auditoria_dependencias
@@ -425,3 +427,128 @@ def test_el_historico_de_un_consentimiento_ajeno_responde_404(cliente):
 )
 def test_sumar_meses_respeta_el_calendario(fecha, meses, esperada):
     assert sumar_meses(fecha, meses) == esperada
+
+
+# --- Concurrencia: solicitudes simultáneas del mismo cliente --------------------------------
+
+HILOS = 8
+
+
+class RepositorioLento(RepositorioEnMemoria):
+    """Pausa después de cada lectura: ensancha la ventana entre leer y guardar, para que una
+    carrera no dependa de la suerte."""
+
+    def obtener(self, id_consentimiento):
+        leido = super().obtener(id_consentimiento)
+        time.sleep(0.005)
+        return leido
+
+    def del_cliente(self, id_cliente):
+        leidos = super().del_cliente(id_cliente)
+        time.sleep(0.005)
+        return leidos
+
+
+@pytest.fixture
+def servicio_lento(reloj, almacen_auditoria, bus) -> ServicioDeConsentimiento:
+    return ServicioDeConsentimiento(
+        repositorio=RepositorioLento(),
+        auditoria=RegistroEnAuditoria(ServicioDeAuditoria(almacen_auditoria)),
+        bus=bus,
+        reloj=reloj,
+    )
+
+
+def a_la_vez(accion) -> list[object]:
+    """Ejecuta `accion` en varios hilos que arrancan juntos; devuelve resultados o errores."""
+    barrera = threading.Barrier(HILOS)
+    resultados: list[object] = []
+
+    def correr():
+        barrera.wait()
+        try:
+            resultados.append(accion())
+        except Exception as error:  # noqa: BLE001 - la prueba cuenta los errores
+            resultados.append(error)
+
+    hilos = [threading.Thread(target=correr) for _ in range(HILOS)]
+    for hilo in hilos:
+        hilo.start()
+    for hilo in hilos:
+        hilo.join()
+    return resultados
+
+
+def test_un_doble_otorgamiento_simultaneo_deja_un_solo_consentimiento_vigente(
+    servicio_lento, reloj
+):
+    resultados = a_la_vez(lambda: otorgar(servicio_lento))
+
+    otorgados = [r for r in resultados if not isinstance(r, Exception)]
+    assert len(otorgados) == 1
+    rechazados = [r for r in resultados if isinstance(r, Exception)]
+    assert all(isinstance(r, ConsentimientoYaVigenteError) for r in rechazados)
+    assert len(servicio_lento.listar(CLIENTE)) == 1
+
+    # Y por eso revocar corta el acceso: no queda otro vigente que cotización encuentre.
+    servicio_lento.revocar(CLIENTE, otorgados[0].id_consentimiento, canal="web")
+    assert not servicio_lento.consentimiento_vigente(CLIENTE, "cotizacion").vigente
+
+
+def test_una_revocacion_simultanea_queda_una_sola_vez_en_auditoria_y_en_el_bus(
+    servicio_lento, almacen_auditoria, bus
+):
+    id_consentimiento = otorgar(servicio_lento).id_consentimiento
+
+    resultados = a_la_vez(lambda: servicio_lento.revocar(CLIENTE, id_consentimiento, "web"))
+
+    assert sum(not isinstance(r, Exception) for r in resultados) == 1
+    assert all(
+        isinstance(r, ConsentimientoNoVigenteError) for r in resultados if isinstance(r, Exception)
+    )
+    tipos = [r.evento.tipo for r in almacen_auditoria.todos()]
+    assert tipos.count("consentimiento_revocado") == 1
+    assert len(bus.publicados(EVENTO_REVOCADO)) == 1
+
+
+def test_lecturas_simultaneas_registran_el_vencimiento_una_sola_vez(
+    servicio_lento, reloj, almacen_auditoria
+):
+    consentimiento = otorgar(servicio_lento)
+    reloj.avanzar(timedelta(days=400).total_seconds())
+
+    a_la_vez(lambda: servicio_lento.obtener(CLIENTE, consentimiento.id_consentimiento))
+
+    eventos = servicio_lento.eventos(CLIENTE, consentimiento.id_consentimiento)
+    assert [e.tipo for e in eventos] == [TipoEvento.OTORGADO, TipoEvento.VENCIDO]
+    tipos = [r.evento.tipo for r in almacen_auditoria.todos()]
+    assert tipos.count("consentimiento_vencido") == 1
+
+
+def test_no_se_renueva_un_vencido_si_ya_hay_otro_vigente_para_la_finalidad(servicio, reloj):
+    viejo = otorgar(servicio)
+    reloj.avanzar(timedelta(days=400).total_seconds())
+    nuevo = otorgar(servicio)
+
+    with pytest.raises(ConsentimientoYaVigenteError):
+        servicio.renovar(CLIENTE, viejo.id_consentimiento, canal="web")
+    assert servicio.consentimiento_vigente(CLIENTE, "cotizacion").id_consentimiento == (
+        nuevo.id_consentimiento
+    )
+
+
+def test_la_composicion_crea_un_solo_servicio_aunque_lleguen_solicitudes_a_la_vez():
+    creados: list[object] = []
+
+    @instancia_unica
+    def componentes() -> object:
+        time.sleep(0.01)
+        creados.append(object())
+        return creados[-1]
+
+    resultados = a_la_vez(componentes)
+
+    assert len(creados) == 1
+    assert all(r is creados[0] for r in resultados)
+    componentes.cache_clear()
+    assert componentes() is not creados[0]

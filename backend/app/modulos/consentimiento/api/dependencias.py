@@ -6,11 +6,10 @@ contexto. La auditoría y el bus ya son los reales.
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 from app.compartido.eventos import obtener_bus
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
+from app.compartido.unica import instancia_unica
 from app.modulos import auditoria
 
 from ..aplicacion.servicio import ServicioDeConsentimiento
@@ -18,7 +17,7 @@ from ..infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
 
 
-@lru_cache(maxsize=1)
+@instancia_unica
 def _componentes() -> tuple[ServicioDeConsentimiento, Reloj]:
     reloj = RelojDelSistema()
     servicio = ServicioDeConsentimiento(

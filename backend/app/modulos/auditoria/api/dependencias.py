@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import logging
 import os
-from functools import lru_cache
 
 from app.compartido.modulo import EstadoDeDependencia
+from app.compartido.unica import instancia_unica
 
 from ..aplicacion.servicio import ServicioDeAuditoria
 from ..dominio.puertos import AlmacenDeRegistros
@@ -40,7 +40,7 @@ def _crear_almacen() -> AlmacenDeRegistros:
     return almacen
 
 
-@lru_cache(maxsize=1)
+@instancia_unica
 def _componentes() -> tuple[ServicioDeAuditoria, ColaDeEscritura, AlmacenDeRegistros]:
     almacen = _crear_almacen()
     cola = ColaDeEscritura()

@@ -174,7 +174,7 @@ del repositorio y no de una copia: una revocación se ve en la siguiente consult
 | `POST` | `/v1/consentimiento/clientes/{id_cliente}/consentimientos` | Otorga (201). Exige la versión vigente del texto y al menos una entidad del catálogo |
 | `GET` | `.../consentimientos/{id}` | Detalle |
 | `POST` | `.../consentimientos/{id}/revocacion` | Revoca uno vigente. 409 si no lo está |
-| `POST` | `.../consentimientos/{id}/renovacion` | Renueva uno vigente o vencido sin repetir el flujo. 409 si está revocado |
+| `POST` | `.../consentimientos/{id}/renovacion` | Renueva uno vigente o vencido sin repetir el flujo. 409 si está revocado, o si está vencido y ya hay otro vigente para la finalidad |
 | `GET` | `.../consentimientos/{id}/eventos` | Histórico cronológico: otorgado, renovado, revocado, vencido |
 
 El núcleo no autentica: el BFF pone el cliente en la ruta y el canal en la cabecera
@@ -197,6 +197,20 @@ El vencimiento no lo provoca nadie: la primera vez que se consulta un consentimi
 después de su fecha, queda el evento `vencido` en el histórico y en auditoría, una sola
 vez. Con 30 días o menos de vigencia, `por_vencer` es `true` y la renovación extiende la
 fecha sin pedir el flujo completo.
+
+### Solicitudes simultáneas
+
+Cada transición del mismo cliente (otorgar, revocar, renovar y materializar un vencimiento)
+lee, decide y guarda bajo un cerrojo por cliente. Sin él, un doble clic en «Otorgar» dejaba
+dos consentimientos vigentes para la misma finalidad, y revocar uno no cortaba el acceso
+porque cotización encontraba el otro. El cerrojo es por proceso: cuando el repositorio pase
+a una base compartida entre procesos, hará falta además una restricción única (un índice
+parcial sobre cliente y finalidad vigentes).
+
+La composición de cada módulo (`_componentes()`, `obtener_bus()`, `obtener_cache()`) usa
+`app.compartido.unica.instancia_unica` en lugar de `lru_cache(maxsize=1)`: con el servidor
+recién levantado, `lru_cache` dejaba que dos solicitudes simultáneas armaran dos servicios,
+y lo guardado en el que no quedaba en caché se perdía.
 
 ## Módulo de auditoría (ARQ-03)
 

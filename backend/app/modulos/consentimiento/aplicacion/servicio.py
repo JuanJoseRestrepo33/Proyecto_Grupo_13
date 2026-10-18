@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 
 from app.compartido.errores import RecursoNoEncontrado
@@ -36,6 +39,16 @@ _NOMBRE_POR_TIPO = {
 
 
 class ServicioDeConsentimiento:
+    """Casos de uso del consentimiento.
+
+    Toda transición lee, decide y guarda bajo el cerrojo del cliente. Sin él, dos
+    solicitudes simultáneas (un doble clic en «Otorgar») pasaban las dos la verificación
+    de `consentimiento_ya_vigente` y dejaban dos consentimientos vigentes para la misma
+    finalidad: revocar uno dejaba el otro activo y la revocación no cortaba el acceso
+    (criterio 3, RC-04). El cerrojo es por proceso; con persistencia compartida entre
+    procesos hará falta además una restricción única en la base.
+    """
+
     def __init__(
         self,
         repositorio: RepositorioConsentimientos,
@@ -47,6 +60,8 @@ class ServicioDeConsentimiento:
         self._auditoria = auditoria
         self._bus = bus
         self._reloj = reloj
+        self._cerrojos: dict[str, threading.RLock] = {}
+        self._cerrojo_de_cerrojos = threading.Lock()
 
     # --- consulta -----------------------------------------------------------------------
 
@@ -54,18 +69,22 @@ class ServicioDeConsentimiento:
         return catalogo.FINALIDADES
 
     def listar(self, id_cliente: str) -> tuple[Consentimiento, ...]:
-        ahora = self._reloj.ahora()
-        return tuple(self._al_dia(c, ahora) for c in self._repositorio.del_cliente(id_cliente))
+        # Bajo cerrojo porque materializar un vencimiento escribe: dos lecturas a la vez
+        # registrarían el evento `vencido` dos veces.
+        with self._cerrojo(id_cliente):
+            ahora = self._reloj.ahora()
+            return tuple(self._al_dia(c, ahora) for c in self._repositorio.del_cliente(id_cliente))
 
     def obtener(self, id_cliente: str, id_consentimiento: str) -> Consentimiento:
-        consentimiento = self._repositorio.obtener(id_consentimiento)
-        if consentimiento is None or consentimiento.id_cliente != id_cliente:
-            # No se distingue "no existe" de "no es tuyo": sería revelar que existe.
-            raise RecursoNoEncontrado(
-                f"No existe el consentimiento {id_consentimiento}",
-                id_consentimiento=id_consentimiento,
-            )
-        return self._al_dia(consentimiento, self._reloj.ahora())
+        with self._cerrojo(id_cliente):
+            consentimiento = self._repositorio.obtener(id_consentimiento)
+            if consentimiento is None or consentimiento.id_cliente != id_cliente:
+                # No se distingue "no existe" de "no es tuyo": sería revelar que existe.
+                raise RecursoNoEncontrado(
+                    f"No existe el consentimiento {id_consentimiento}",
+                    id_consentimiento=id_consentimiento,
+                )
+            return self._al_dia(consentimiento, self._reloj.ahora())
 
     def eventos(self, id_cliente: str, id_consentimiento: str) -> tuple[EventoConsentimiento, ...]:
         return self.obtener(id_cliente, id_consentimiento).eventos
@@ -104,38 +123,57 @@ class ServicioDeConsentimiento:
                 version_aceptada=version_texto,
                 version_vigente=definicion.version_texto,
             )
-        vigente = self.consentimiento_vigente(id_cliente, definicion.codigo)
+        with self._cerrojo(id_cliente):
+            self._exigir_sin_vigente(id_cliente, definicion.codigo)
+            consentimiento = Consentimiento.otorgar(
+                id_consentimiento=f"CONSENT-{uuid.uuid4()}",
+                id_cliente=id_cliente,
+                finalidad=definicion.codigo,
+                entidades_origen=entidades,
+                canal=canal,
+                ahora=self._reloj.ahora(),
+                vigencia_meses=definicion.vigencia_meses,
+                version_texto=definicion.version_texto,
+            )
+            return self._guardar_y_propagar(consentimiento)
+
+    def revocar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
+        with self._cerrojo(id_cliente):
+            actual = self.obtener(id_cliente, id_consentimiento)
+            revocado = actual.revocar(self._reloj.ahora(), canal)
+            return self._guardar_y_propagar(revocado, desde=len(actual.eventos))
+
+    def renovar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
+        with self._cerrojo(id_cliente):
+            actual = self.obtener(id_cliente, id_consentimiento)
+            ahora = self._reloj.ahora()
+            if not actual.vigente(ahora):
+                # Renovar uno vencido lo vuelve vigente: no puede haber ya otro para la
+                # misma finalidad (el cliente pudo otorgar uno nuevo mientras tanto).
+                self._exigir_sin_vigente(id_cliente, actual.finalidad)
+            definicion = catalogo.finalidad(actual.finalidad)
+            renovado = actual.renovar(
+                ahora, canal, definicion.vigencia_meses, definicion.version_texto
+            )
+            return self._guardar_y_propagar(renovado, desde=len(actual.eventos))
+
+    # --- internos -----------------------------------------------------------------------
+
+    @contextmanager
+    def _cerrojo(self, id_cliente: str) -> Iterator[None]:
+        """Reentrante: `revocar` y `renovar` llaman a `obtener` con el cerrojo tomado."""
+        with self._cerrojo_de_cerrojos:
+            cerrojo = self._cerrojos.setdefault(id_cliente, threading.RLock())
+        with cerrojo:
+            yield
+
+    def _exigir_sin_vigente(self, id_cliente: str, finalidad: CodigoFinalidad) -> None:
+        vigente = self.consentimiento_vigente(id_cliente, finalidad)
         if vigente.vigente:
             raise ConsentimientoYaVigenteError(
                 "Ya existe un consentimiento vigente para esa finalidad",
                 id_consentimiento=vigente.id_consentimiento,
             )
-        consentimiento = Consentimiento.otorgar(
-            id_consentimiento=f"CONSENT-{uuid.uuid4()}",
-            id_cliente=id_cliente,
-            finalidad=definicion.codigo,
-            entidades_origen=entidades,
-            canal=canal,
-            ahora=self._reloj.ahora(),
-            vigencia_meses=definicion.vigencia_meses,
-            version_texto=definicion.version_texto,
-        )
-        return self._guardar_y_propagar(consentimiento)
-
-    def revocar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
-        actual = self.obtener(id_cliente, id_consentimiento)
-        revocado = actual.revocar(self._reloj.ahora(), canal)
-        return self._guardar_y_propagar(revocado, desde=len(actual.eventos))
-
-    def renovar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
-        actual = self.obtener(id_cliente, id_consentimiento)
-        definicion = catalogo.finalidad(actual.finalidad)
-        renovado = actual.renovar(
-            self._reloj.ahora(), canal, definicion.vigencia_meses, definicion.version_texto
-        )
-        return self._guardar_y_propagar(renovado, desde=len(actual.eventos))
-
-    # --- internos -----------------------------------------------------------------------
 
     def _al_dia(self, consentimiento: Consentimiento, ahora: datetime) -> Consentimiento:
         """Materializa el vencimiento si ocurrió desde la última vez que se miró."""

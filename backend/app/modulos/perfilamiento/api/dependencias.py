@@ -7,10 +7,10 @@ Finance con circuit breaker llega con ARQ-02 y se enchufa aquí.
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
 from app.compartido.eventos import Evento, obtener_bus
 from app.compartido.modulo import EstadoDeDependencia
+from app.compartido.unica import instancia_unica
 
 from ..infraestructura.cache_perfiles import CacheDePerfiles
 
@@ -21,7 +21,7 @@ EVENTO_CONSENTIMIENTO_REVOCADO = "consentimiento-revocado"
 log = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
+@instancia_unica
 def obtener_cache() -> CacheDePerfiles:
     return CacheDePerfiles()
 

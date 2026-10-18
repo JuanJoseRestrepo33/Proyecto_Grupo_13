@@ -17,8 +17,9 @@ from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from functools import lru_cache
 from typing import Protocol
+
+from .unica import instancia_unica
 
 log = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ class BusEnProceso:
             return len(self._suscriptores.get(nombre, ()))
 
 
-@lru_cache(maxsize=1)
+@instancia_unica
 def obtener_bus() -> BusEnProceso:
     """El bus del proceso. Los módulos lo obtienen en su composición, no lo crean."""
     return BusEnProceso()
