@@ -5,9 +5,10 @@ Monolito modular con fachada versionada. Una carpeta por capacidad de negocio ba
 los BFF y los socios embebidos.
 
 Estado: existe un módulo por cada capacidad de negocio del diseño (ARQ-01) más el módulo
-transversal de **auditoría** (ARQ-03). Publican rutas **cotización** (WEB-F01) y
-**auditoría**; los otros ocho son esqueletos con las cuatro capas creadas desde la
-plantilla, a la espera de su historia. `GET /v1/` dice cuáles publican y
+transversal de **auditoría** (ARQ-03). Publican rutas **cotización** (WEB-F01),
+**consentimiento** (WEB-F02) y **auditoría**; **perfilamiento** tiene su caché y escucha
+revocaciones; los demás son esqueletos con las cuatro capas creadas desde la plantilla, a
+la espera de su historia. `GET /v1/` dice cuáles publican y
 `GET /salud` en qué estado está cada uno.
 
 ## Arrancar
@@ -37,7 +38,7 @@ pytest --cov=app --cov-report=term-missing
 
 ```
 app/
-├── compartido/        Tipos sin reglas de negocio: dinero, reloj, errores, contrato de módulo
+├── compartido/        Tipos sin reglas de negocio: dinero, reloj, errores, contrato de módulo, bus de eventos
 ├── fachada/
 │   ├── registro.py    Descubre los módulos de app/modulos y toma su descriptor MODULO
 │   ├── salud.py       /salud: agrega el estado que reporta cada módulo
@@ -45,7 +46,8 @@ app/
 └── modulos/           Un paquete por capacidad de negocio, todos con la misma forma
     ├── cotizacion/    WEB-F01 · publica rutas
     ├── auditoria/     ARQ-03 · publica rutas; los demás módulos le escriben en proceso
-    ├── consentimiento/ WEB-F02 · esqueleto
+    ├── consentimiento/ WEB-F02 · publica rutas; publica eventos en el bus
+    ├── perfilamiento/ caché de perfiles que escucha `consentimiento-revocado`; ARQ-02 la llena
     ├── identidad/ perfilamiento/ suscripcion/ polizas/ siniestros/ pagos/ socios/
     └── <modulo>/
         ├── __init__.py        Interfaz pública del módulo y su descriptor MODULO
@@ -149,14 +151,66 @@ su tipo obliga a publicar `v2` y a mantener `v1` en pie (RC-05, RC-06).
 | Pieza | Hoy | Quién la reemplaza |
 |---|---|---|
 | Persistencia | Repositorio en memoria | Esquema relacional del módulo |
-| Consentimiento | `ConsentimientoSimulado` | Módulo de consentimiento (WEB-F02) |
-| Perfil de riesgo | `PerfilamientoSimulado` | Adaptador de Open Finance con circuit breaker (ARQ-02) |
+| Consentimiento | **Ya es el módulo real** (`app/modulos/consentimiento`, WEB-F02) | Persistencia propia del módulo |
+| Perfil de riesgo | `PerfilamientoSimulado` | Adaptador de Open Finance con circuit breaker (ARQ-02), sobre la caché de `app/modulos/perfilamiento` |
 | Log de auditoría | **Ya es el módulo real** (`app/modulos/auditoria`, ARQ-03) | En memoria sin `AUDITORIA_DATABASE_URL`; PostgreSQL con ella |
 
-Las tres primeras se cambian en un solo archivo: `app/modulos/cotizacion/api/dependencias.py`.
+Las dos primeras se cambian en un solo archivo: `app/modulos/cotizacion/api/dependencias.py`.
 Ni el dominio ni los casos de uso se enteran. Esa es la prueba de que RC-05 se sostiene.
-La cuarta ya se cambió ahí mismo, y fue el único archivo de cotización que tocó ARQ-03
-además de agregar `id_cliente` al puerto.
+Auditoría y consentimiento ya se cambiaron ahí mismo; ninguna de las dos historias tocó el
+dominio ni los casos de uso de cotización.
+
+## Módulo de consentimiento (WEB-F02)
+
+Otorgar, consultar, revocar y renovar el consentimiento Open Finance, por finalidad
+(RC-04, RC-05). Cotización y suscripción preguntan en proceso, por la interfaz pública
+(`obtener_servicio().consentimiento_vigente(id_cliente, finalidad)`), y la respuesta sale
+del repositorio y no de una copia: una revocación se ve en la siguiente consulta.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/v1/consentimiento/finalidades` | Catálogo: alcance, vigencia, entidades origen y versión del texto legal |
+| `GET` | `/v1/consentimiento/clientes/{id_cliente}/consentimientos` | Los del cliente, en cualquier estado, con `por_vencer` y `dias_para_vencer` |
+| `POST` | `/v1/consentimiento/clientes/{id_cliente}/consentimientos` | Otorga (201). Exige la versión vigente del texto y al menos una entidad del catálogo |
+| `GET` | `.../consentimientos/{id}` | Detalle |
+| `POST` | `.../consentimientos/{id}/revocacion` | Revoca uno vigente. 409 si no lo está |
+| `POST` | `.../consentimientos/{id}/renovacion` | Renueva uno vigente o vencido sin repetir el flujo. 409 si está revocado, o si está vencido y ya hay otro vigente para la finalidad |
+| `GET` | `.../consentimientos/{id}/eventos` | Histórico cronológico: otorgado, renovado, revocado, vencido |
+
+El núcleo no autentica: el BFF pone el cliente en la ruta y el canal en la cabecera
+`X-Canal` (`web` o `movil`). Un consentimiento de otro cliente responde 404, igual que si
+no existiera. Los códigos de error (`consentimiento_ya_vigente`, `consentimiento_no_vigente`,
+`consentimiento_revocado`, `version_texto_desactualizada`, `entidades_invalidas`) son los
+mismos que devuelven los mocks del BFF web, y el catálogo es el mismo de `apps/web/src/mocks/datos.ts`.
+
+### Qué pasa al revocar
+
+1. El repositorio queda actualizado primero: es la fuente que consulta cotización.
+2. El evento se escribe en el log de auditoría con actor, finalidad, canal, marca de tiempo
+   y versión del texto legal aceptado.
+3. Se publica `consentimiento-revocado` en el bus del proceso (`app/compartido/eventos.py`).
+   Perfilamiento está suscrito y vacía la caché de perfil de ese cliente. Sin este paso,
+   la revocación se vería en pantalla pero el perfil seguiría sirviéndose desde la caché
+   (corrección D-04 de EXP-04).
+
+El vencimiento no lo provoca nadie: la primera vez que se consulta un consentimiento
+después de su fecha, queda el evento `vencido` en el histórico y en auditoría, una sola
+vez. Con 30 días o menos de vigencia, `por_vencer` es `true` y la renovación extiende la
+fecha sin pedir el flujo completo.
+
+### Solicitudes simultáneas
+
+Cada transición del mismo cliente (otorgar, revocar, renovar y materializar un vencimiento)
+lee, decide y guarda bajo un cerrojo por cliente. Sin él, un doble clic en «Otorgar» dejaba
+dos consentimientos vigentes para la misma finalidad, y revocar uno no cortaba el acceso
+porque cotización encontraba el otro. El cerrojo es por proceso: cuando el repositorio pase
+a una base compartida entre procesos, hará falta además una restricción única (un índice
+parcial sobre cliente y finalidad vigentes).
+
+La composición de cada módulo (`_componentes()`, `obtener_bus()`, `obtener_cache()`) usa
+`app.compartido.unica.instancia_unica` en lugar de `lru_cache(maxsize=1)`: con el servidor
+recién levantado, `lru_cache` dejaba que dos solicitudes simultáneas armaran dos servicios,
+y lo guardado en el que no quedaba en caché se perdía.
 
 ## Módulo de auditoría (ARQ-03)
 
