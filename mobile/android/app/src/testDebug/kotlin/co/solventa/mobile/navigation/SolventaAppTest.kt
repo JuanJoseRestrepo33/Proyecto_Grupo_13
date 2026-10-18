@@ -46,6 +46,20 @@ class SolventaAppTest {
         assertDestination(1)
     }
 
+    @Test
+    fun `sin identidad verificada inicio avisa que algunas funciones esperan la verificacion`() {
+        compose.setContent { SolventaTheme { SolventaApp(identidadVerificada = false) } }
+        compose.onNodeWithTag("aviso-identidad").assertIsDisplayed()
+        compose.onNode(tab("Perfil")).performClick()
+        compose.onNodeWithTag("aviso-identidad").assertDoesNotExist()
+    }
+
+    @Test
+    fun `con identidad verificada no hay aviso`() {
+        compose.setContent { SolventaTheme { SolventaApp(identidadVerificada = true) } }
+        compose.onNodeWithTag("aviso-identidad").assertDoesNotExist()
+    }
+
     private fun tab(label: String): SemanticsMatcher = isSelectable() and hasText(label)
 
     private fun assertDestination(selectedIndex: Int) {

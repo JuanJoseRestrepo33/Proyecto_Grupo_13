@@ -29,8 +29,12 @@ import androidx.navigation.compose.rememberNavController
 import co.solventa.core.designsystem.SolventaSpacing
 import co.solventa.mobile.R
 
+/**
+ * @param identidadVerificada false mientras KYC no apruebe: Inicio lo avisa y las funciones que
+ * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
+ */
 @Composable
-fun SolventaApp() {
+fun SolventaApp(identidadVerificada: Boolean = true) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
@@ -60,7 +64,10 @@ fun SolventaApp() {
     ) { padding ->
         NavHost(navController, startDestination = TopLevelDestination.HOME.route, Modifier.padding(padding)) {
             TopLevelDestination.entries.forEach { destination ->
-                composable(destination.route) { PlaceholderScreen(destination) }
+                composable(destination.route) {
+                    val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
+                    PlaceholderScreen(destination, avisoIdentidad = aviso)
+                }
             }
         }
     }
@@ -74,12 +81,19 @@ private fun TopLevelDestination.icon() = when (this) {
 }
 
 @Composable
-private fun PlaceholderScreen(destination: TopLevelDestination) {
+private fun PlaceholderScreen(destination: TopLevelDestination, avisoIdentidad: Boolean) {
     Column(
         modifier = Modifier.fillMaxSize().padding(SolventaSpacing.md).testTag("screen-${destination.route}"),
         verticalArrangement = Arrangement.spacedBy(SolventaSpacing.sm),
     ) {
         Text(stringResource(destination.label), style = MaterialTheme.typography.headlineSmall)
+        if (avisoIdentidad) {
+            Text(
+                stringResource(R.string.aviso_identidad_pendiente),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.testTag("aviso-identidad"),
+            )
+        }
         Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
     }
 }

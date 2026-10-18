@@ -7,6 +7,9 @@ style:
   MaxLineLength:
     maxLineLength: 120
 complexity:
+  LongParameterList:
+    # Las pantallas Compose reciben estado y eventos como parámetros (state hoisting).
+    ignoreAnnotated: ['Composable']
   TooManyFunctions:
     # Las clases de prueba agrupan un caso por función; src/testDebug no entra en las exclusiones por defecto.
     excludes: ['**/test/**', '**/testDebug/**', '**/testRelease/**', '**/androidTest/**']

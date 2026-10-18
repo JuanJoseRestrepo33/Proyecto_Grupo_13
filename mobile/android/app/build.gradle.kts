@@ -71,6 +71,9 @@ dependencies {
     implementation(libs.compose.icons)
     implementation(libs.activity.compose)
     implementation(libs.navigation.compose)
+    implementation(libs.lifecycle.viewmodel.compose)
+    // BiometricPrompt usa diálogos AppCompat en API 26-27: el tema de la app hereda de AppCompat.
+    implementation(libs.appcompat)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.core)
