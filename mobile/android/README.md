@@ -1,4 +1,4 @@
-# Solventa Android · ARQ-01 · Base móvil y pipeline
+# Solventa Android · ARQ-01 · Base móvil y pipeline · MOB-F01 · Onboarding
 
 Aplicación nativa Kotlin/Jetpack Compose. Los mockups navegables del canal móvil están en `mobile-docs/`;
 la raíz del proyecto Gradle es exclusivamente `mobile/android/`.
@@ -16,7 +16,7 @@ Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :core:designsystem:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :koverXmlReport :koverVerify
 ./gradlew :koverHtmlReport
 ./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
@@ -24,7 +24,7 @@ Desde esta carpeta:
 ./gradlew :app:installDebug
 ```
 
-Kover 0.9.1 agrega `app`, `core/network` y `core/designsystem` en la raíz.
+Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y `feature/onboarding` en la raíz.
 `:koverVerify` falla si la cobertura total de líneas es menor al **70%**; XML:
 `build/reports/kover/report.xml`, HTML: `build/reports/kover/html/index.html`.
 El total incluye las variantes debug y release de Android y el módulo JVM; las tareas
@@ -41,15 +41,19 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 
 ## Estructura y decisiones
 
-- `app`: Activity, composición de dependencias, NavHost y cuatro placeholders.
+- `app`: Activity, composición de dependencias, navegación de entrada (`SolventaRaiz`: ingreso,
+  registro, OTP, identidad, oferta de biometría) y la navegación principal con cuatro placeholders.
+  `MainActivity` es una `FragmentActivity` porque `BiometricPrompt` la requiere; el tema hereda de
+  AppCompat porque el diálogo de huella de API 26–27 usa diálogos AppCompat.
 - `core/network`: módulo Kotlin/JVM; Retrofit, OkHttp y kotlinx.serialization,
   sin dependencia de Android. API suspend, timeouts explícitos y sin logging de cuerpos.
 - `core/designsystem`: biblioteca Compose con colores, escala tipográfica, radios y
   espaciado del **Design System v2 PDF**, que tiene prioridad sobre el JSON v1.
-- `feature/onboarding`: biblioteca vacía reservada para **MOB-F01**, sin biometría ni KYC.
-  Las próximas features se agregan como módulos `feature/<nombre>` en `settings.gradle.kts`.
+- `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
+  biometría; ver [su README](feature/onboarding/README.md). Las próximas features se agregan como
+  módulos `feature/<nombre>` en `settings.gradle.kts`.
 
-Dependencias: app → core y features. Core no depende de features ni de app.
+Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
 bytecode y toolchain JDK 17. Detekt analiza Kotlin y scripts Gradle; Android lint falla
 ante errores o advertencias, sin baseline ni supresiones generales.
@@ -145,6 +149,14 @@ durante la descarga de la distribución Gradle por su lentitud (el segundo con l
 **ninguna tarea Gradle llegó a ejecutarse**. La caché local de descarga está dentro del
 repositorio y se ignora mediante `.gitignore`.
 
-Pendientes: contratos OpenAPI de Harold, URL real por ambiente, MOB-F01, validación visual
-con TalkBack/tamaños de fuente y pruebas de navegación en dispositivo. El paquete y los
+**MOB-F01.** Se ejecutó la secuencia del workflow con JDK 17 y Android SDK 35 / Build Tools 34.0.0:
+`detekt lintDebug`, las pruebas de los cuatro módulos (6 + 3 + 77 + 30, sin fallos),
+`:koverXmlReport :koverVerify` con **94 %** de líneas cubiertas y `:app:assembleDebug`, todo en verde.
+La cobertura baja en `feature/onboarding/biometria` (55 %) porque `AlmacenTokenKeystore` y
+`BiometriaAndroid` usan el Keystore y el sensor reales, que Robolectric no simula.
+
+Pendientes: contratos OpenAPI de Harold, URL real por ambiente, validación visual
+con TalkBack/tamaños de fuente y pruebas de navegación en dispositivo. De MOB-F01 queda probar en
+dispositivo (API 26–27 y 30+) el ingreso biométrico real: creación de la llave, activación, fallos
+del sensor, invalidación al enrolar otra huella y rotación del token. El paquete y los
 SDK elegidos son una base del sprint; revisar los requisitos de distribución antes de publicar.

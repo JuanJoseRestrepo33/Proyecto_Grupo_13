@@ -58,7 +58,7 @@ jobs:
       - name: Test
         run: >-
           ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
-          :app:testDebugUnitTest :koverXmlReport :koverVerify
+          :feature:onboarding:testDebugUnitTest :app:testDebugUnitTest :koverXmlReport :koverVerify
       - name: Publicar cobertura en el resumen del pipeline
         if: always()
         run: |
