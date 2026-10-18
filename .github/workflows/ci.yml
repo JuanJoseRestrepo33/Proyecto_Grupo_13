@@ -27,7 +27,7 @@ jobs:
       backend: ${{ steps.componentes.outputs.backend }}
       web: ${{ steps.componentes.outputs.web }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: componentes
         run: |
           if [ -f backend/pyproject.toml ]; then echo "backend=true"; else echo "backend=false"; fi >> "$GITHUB_OUTPUT"
@@ -38,7 +38,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -63,7 +63,7 @@ jobs:
       run:
         working-directory: scripts
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -104,7 +104,7 @@ jobs:
     env:
       AUDITORIA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/solventa
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
@@ -156,7 +156,7 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
@@ -220,7 +220,7 @@ jobs:
     if: needs.detectar.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Construir imagen del núcleo
         uses: docker/build-push-action@v6
