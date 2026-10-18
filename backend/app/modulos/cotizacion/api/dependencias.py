@@ -10,13 +10,13 @@ from __future__ import annotations
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
 from app.compartido.unica import instancia_unica
-from app.modulos import auditoria, consentimiento
+from app.modulos import auditoria, consentimiento, perfilamiento
 from app.modulos.cotizacion.aplicacion.servicio import ServicioDeCotizacion
-from app.modulos.cotizacion.infraestructura.adaptadores_simulados import PerfilamientoSimulado
 from app.modulos.cotizacion.infraestructura.auditoria_nucleo import (
     RegistroDeDecisionesEnAuditoria,
 )
 from app.modulos.cotizacion.infraestructura.consentimiento_nucleo import ConsentimientoDelNucleo
+from app.modulos.cotizacion.infraestructura.perfilamiento_nucleo import PerfilamientoDelNucleo
 from app.modulos.cotizacion.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
 
@@ -26,7 +26,7 @@ def _componentes() -> tuple[ServicioDeCotizacion, Reloj]:
     servicio = ServicioDeCotizacion(
         repositorio=RepositorioEnMemoria(),
         consentimiento=ConsentimientoDelNucleo(consentimiento.obtener_servicio()),
-        perfilamiento=PerfilamientoSimulado(),
+        perfilamiento=PerfilamientoDelNucleo(perfilamiento.obtener_servicio()),
         auditoria=RegistroDeDecisionesEnAuditoria(auditoria.obtener_servicio()),
         reloj=reloj,
     )
@@ -55,6 +55,6 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
         EstadoDeDependencia(
             "consentimiento", "ok", "Módulo de consentimiento del núcleo (WEB-F02)"
         ),
-        EstadoDeDependencia("perfilamiento", "simulado", "Adaptador simulado hasta ARQ-02"),
+        EstadoDeDependencia("perfilamiento", "ok", "Módulo de perfilamiento del núcleo (ARQ-02)"),
         EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
     )

@@ -152,7 +152,7 @@ su tipo obliga a publicar `v2` y a mantener `v1` en pie (RC-05, RC-06).
 |---|---|---|
 | Persistencia | Repositorio en memoria | Esquema relacional del módulo |
 | Consentimiento | **Ya es el módulo real** (`app/modulos/consentimiento`, WEB-F02) | Persistencia propia del módulo |
-| Perfil de riesgo | `PerfilamientoSimulado` | Adaptador de Open Finance con circuit breaker (ARQ-02), sobre la caché de `app/modulos/perfilamiento` |
+| Perfil de riesgo | **Ya es el módulo real** (`app/modulos/perfilamiento`, ARQ-02): adaptador con presupuesto, circuit breaker y caché | Proveedor de Open Finance real detrás del mismo puerto |
 | Log de auditoría | **Ya es el módulo real** (`app/modulos/auditoria`, ARQ-03) | En memoria sin `AUDITORIA_DATABASE_URL`; PostgreSQL con ella |
 
 Las dos primeras se cambian en un solo archivo: `app/modulos/cotizacion/api/dependencias.py`.
@@ -211,6 +211,48 @@ La composición de cada módulo (`_componentes()`, `obtener_bus()`, `obtener_cac
 `app.compartido.unica.instancia_unica` en lugar de `lru_cache(maxsize=1)`: con el servidor
 recién levantado, `lru_cache` dejaba que dos solicitudes simultáneas armaran dos servicios,
 y lo guardado en el que no quedaba en caché se perdía.
+
+## Módulo de perfilamiento: adaptador de Open Finance (ARQ-02)
+
+Perfil de riesgo del cliente a partir de sus datos de Open Finance, detrás del puerto
+`ProveedorOpenFinance`. El núcleo solo conoce ese puerto; el proveedor simulado vive en
+`infraestructura/` y el real se enchufa en `api/dependencias.py`. El perfil no se expone
+por HTTP: cotización y suscripción lo piden en proceso, siempre después de verificar el
+consentimiento, por `obtener_servicio().perfil_de(id_cliente, id_consentimiento)`.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/v1/perfilamiento/metricas` | Estado del circuito, latencia p95 y tasa de error del adaptador |
+
+### Cómo resiste al proveedor (EXP-01 en el núcleo)
+
+El adaptador `AdaptadorOpenFinanceResiliente` aplica las tres correcciones que salieron
+del experimento:
+
+| Corrección | Qué hace aquí |
+|---|---|
+| D-01 · presupuesto efectivo | La llamada del camino del usuario tiene 120 ms. Si el proveedor no responde en ese tiempo, se abandona y se sirve de caché. Los 700 ms son solo para el sondeo |
+| D-02 · mínimo de llamadas | El circuito no se evalúa con menos de 5 llamadas en la ventana de 30 s; con ≥ 10 % de fallos se abre |
+| D-03 · sondeo en segundo plano | Con el circuito abierto, cada 10 s se lanza un sondeo en un hilo propio con el tiempo límite largo. El usuario nunca lo espera. Si responde, el circuito se cierra |
+
+Cuando el proveedor no responde, la respuesta dice de dónde salió el perfil: `proveedor`,
+`cache` (cotización lo marca como `open_finance_en_cache` en la explicación del precio) o
+`ninguno` (cotización tarifa a precio estándar en vez de dejar al cliente sin oferta,
+RC-03). La caché es la misma que WEB-F02 vacía al revocar el consentimiento: un perfil
+nunca sobrevive a su consentimiento.
+
+El núcleo nunca ve una excepción del cliente HTTP del proveedor: el adaptador la traduce a
+`ProveedorOpenFinanceNoDisponibleError`, que es `DependenciaNoDisponible` del dominio.
+
+### Configuración
+
+| Variable | Efecto |
+|---|---|
+| `PERFILAMIENTO_OPEN_FINANCE_MODO` | `sano` (por omisión), `degradado` (tarda más que el presupuesto) o `caido`. Son los tres escenarios de WireMock de EXP-01 |
+| `PERFILAMIENTO_PRESUPUESTO_MS` | Presupuesto del camino del usuario. 120 por omisión |
+
+`/salud` reporta `open_finance` como `simulado` con el estado del circuito, el p95 y la
+tasa de error, y como `degradado` mientras el circuito esté abierto y se sirva de caché.
 
 ## Módulo de identidad: hook de KYC/AML (MOB-F01)
 
