@@ -52,7 +52,10 @@ def cliente(entorno):
 
 
 def test_salud_responde(cliente):
-    assert cliente.get("/salud").json() == {"estado": "ok"}
+    cuerpo = cliente.get("/salud").json()
+
+    assert cuerpo["estado"] == "ok"
+    assert cuerpo["modulos"]["cotizacion"]["estado"] == "ok"
 
 
 def test_el_indice_de_la_fachada_declara_sus_capacidades(cliente):

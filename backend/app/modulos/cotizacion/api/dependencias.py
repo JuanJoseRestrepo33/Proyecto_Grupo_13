@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
 from app.modulos.cotizacion.aplicacion.servicio import ServicioDeCotizacion
 from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
@@ -38,3 +39,19 @@ def obtener_servicio() -> ServicioDeCotizacion:
 
 def obtener_reloj() -> Reloj:
     return _componentes()[1]
+
+
+def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
+    """Lo que `/salud` reporta de este módulo.
+
+    Hoy todo es simulado o en memoria, y se dice así: cada entrada nombra la historia que
+    la vuelve real para que el estado del núcleo no mienta sobre lo que ya está conectado.
+    """
+    return (
+        EstadoDeDependencia(
+            "repositorio_cotizaciones", "simulado", "En memoria; PostgreSQL con WEB-F01 cierre"
+        ),
+        EstadoDeDependencia("consentimiento", "simulado", "Adaptador simulado hasta WEB-F02"),
+        EstadoDeDependencia("perfilamiento", "simulado", "Adaptador simulado hasta ARQ-02"),
+        EstadoDeDependencia("auditoria", "simulado", "Registro en memoria hasta ARQ-03"),
+    )
