@@ -11,11 +11,14 @@ from functools import lru_cache
 
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
+from app.modulos import auditoria
 from app.modulos.cotizacion.aplicacion.servicio import ServicioDeCotizacion
 from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
     ConsentimientoSimulado,
     PerfilamientoSimulado,
-    RegistroDeDecisionesEnMemoria,
+)
+from app.modulos.cotizacion.infraestructura.auditoria_nucleo import (
+    RegistroDeDecisionesEnAuditoria,
 )
 from app.modulos.cotizacion.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
@@ -27,7 +30,7 @@ def _componentes() -> tuple[ServicioDeCotizacion, Reloj]:
         repositorio=RepositorioEnMemoria(),
         consentimiento=ConsentimientoSimulado(),
         perfilamiento=PerfilamientoSimulado(),
-        auditoria=RegistroDeDecisionesEnMemoria(),
+        auditoria=RegistroDeDecisionesEnAuditoria(auditoria.obtener_servicio()),
         reloj=reloj,
     )
     return servicio, reloj
@@ -44,8 +47,9 @@ def obtener_reloj() -> Reloj:
 def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
     """Lo que `/salud` reporta de este módulo.
 
-    Hoy todo es simulado o en memoria, y se dice así: cada entrada nombra la historia que
-    la vuelve real para que el estado del núcleo no mienta sobre lo que ya está conectado.
+    Lo simulado se dice así, nombrando la historia que lo vuelve real, para que el
+    estado del núcleo no mienta sobre lo que ya está conectado. El log de auditoría ya
+    es el módulo real (ARQ-03); su propio estado lo reporta ese módulo.
     """
     return (
         EstadoDeDependencia(
@@ -53,5 +57,5 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
         ),
         EstadoDeDependencia("consentimiento", "simulado", "Adaptador simulado hasta WEB-F02"),
         EstadoDeDependencia("perfilamiento", "simulado", "Adaptador simulado hasta ARQ-02"),
-        EstadoDeDependencia("auditoria", "simulado", "Registro en memoria hasta ARQ-03"),
+        EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
     )

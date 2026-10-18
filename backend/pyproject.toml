@@ -5,6 +5,7 @@ description = "Núcleo transaccional de Solventa: monolito modular con fachada v
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
+    "psycopg[binary]>=3.2",
     "pydantic>=2.9",
     "uvicorn[standard]>=0.32",
 ]

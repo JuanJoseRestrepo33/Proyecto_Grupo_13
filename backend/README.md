@@ -4,9 +4,10 @@ Monolito modular con fachada versionada. Una carpeta por capacidad de negocio ba
 `app/modulos/`, y una única interfaz pública en `app/fachada/v1/` que es lo que consumen
 los BFF y los socios embebidos.
 
-Estado: existe un módulo por cada capacidad de negocio del diseño (ARQ-01). Solo
-**cotización** (WEB-F01) publica rutas; los otros ocho son esqueletos con las cuatro capas
-creadas desde la plantilla, a la espera de su historia. `GET /v1/` dice cuáles publican y
+Estado: existe un módulo por cada capacidad de negocio del diseño (ARQ-01) más el módulo
+transversal de **auditoría** (ARQ-03). Publican rutas **cotización** (WEB-F01) y
+**auditoría**; los otros ocho son esqueletos con las cuatro capas creadas desde la
+plantilla, a la espera de su historia. `GET /v1/` dice cuáles publican y
 `GET /salud` en qué estado está cada uno.
 
 ## Arrancar
@@ -43,6 +44,7 @@ app/
 │   └── v1/            Interfaz pública versionada. Agrega los routers de los módulos
 └── modulos/           Un paquete por capacidad de negocio, todos con la misma forma
     ├── cotizacion/    WEB-F01 · publica rutas
+    ├── auditoria/     ARQ-03 · publica rutas; los demás módulos le escriben en proceso
     ├── consentimiento/ WEB-F02 · esqueleto
     ├── identidad/ perfilamiento/ suscripcion/ polizas/ siniestros/ pagos/ socios/
     └── <modulo>/
@@ -149,7 +151,58 @@ su tipo obliga a publicar `v2` y a mantener `v1` en pie (RC-05, RC-06).
 | Persistencia | Repositorio en memoria | Esquema relacional del módulo |
 | Consentimiento | `ConsentimientoSimulado` | Módulo de consentimiento (WEB-F02) |
 | Perfil de riesgo | `PerfilamientoSimulado` | Adaptador de Open Finance con circuit breaker (ARQ-02) |
-| Log de auditoría | En memoria, append-only | Tabla con cadena de hash en PostgreSQL (ARQ-03) |
+| Log de auditoría | **Ya es el módulo real** (`app/modulos/auditoria`, ARQ-03) | En memoria sin `AUDITORIA_DATABASE_URL`; PostgreSQL con ella |
 
-Las cuatro se cambian en un solo archivo: `app/modulos/cotizacion/api/dependencias.py`.
+Las tres primeras se cambian en un solo archivo: `app/modulos/cotizacion/api/dependencias.py`.
 Ni el dominio ni los casos de uso se enteran. Esa es la prueba de que RC-05 se sostiene.
+La cuarta ya se cambió ahí mismo, y fue el único archivo de cotización que tocó ARQ-03
+además de agregar `id_cliente` al puerto.
+
+## Módulo de auditoría (ARQ-03)
+
+Registro inmutable y verificable de decisiones de pricing y suscripción y de eventos de
+consentimiento (RC-05, RC-08). Los módulos escriben en proceso a través de la interfaz
+pública (`app.modulos.auditoria.obtener_servicio().registrar(evento)`); por HTTP solo se
+lee.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/v1/auditoria/registros/{id_decision}` | Reconstruye una decisión tal como quedó registrada |
+| `GET` | `/v1/auditoria/integridad` | Recorre la cadena completa y señala los eslabones rotos |
+
+### Cómo se protege
+
+Cada registro lleva el hash del anterior y su propio hash cubre el evento **y su número
+de secuencia**. Con PostgreSQL hay tres capas, y cada una tiene una prueba que intenta
+romperla:
+
+| Capa | Qué impide | Quién la salta |
+|---|---|---|
+| Permisos del rol `solventa_app` | `UPDATE`, `DELETE`, `TRUNCATE` desde la aplicación | Un administrador |
+| Triggers `BEFORE UPDATE/DELETE/TRUNCATE` | Lo mismo, con cualquier rol | Un administrador que los desactive |
+| Cadena de hash | Nada: no impide, **detecta**. La verificación señala exactamente el registro alterado | Nadie sin reescribir toda la cadena |
+
+La secuencia y el hash anterior se asignan dentro de un `pg_advisory_xact_lock`, en la
+misma transacción que el `INSERT`. Es la corrección que salió de EXP-04: asignarlos fuera
+del cerrojo producía falsos eslabones rotos con escritores concurrentes. Hay una prueba de
+veinte escrituras simultáneas contra la base real.
+
+### Configuración
+
+| Variable | Efecto |
+|---|---|
+| `AUDITORIA_DATABASE_URL` | DSN de PostgreSQL. El esquema `auditoria` y el rol se crean al arrancar (idempotente). Sin ella, el log vive en memoria y `/salud` lo reporta como `simulado` |
+
+La escritura se difiere a un hilo propio (`ColaDeEscritura`) para no cargar la latencia de
+la cotización: 0,81 ms síncrona frente a 0,01 ms encolada, medido en EXP-04. El costo es
+que un fallo de escritura no llega al llamador, solo al log de la aplicación; `/salud`
+muestra cuántas escrituras hay pendientes.
+
+Para correr las pruebas de la base en local:
+
+```bash
+docker run -d --name auditoria-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=solventa -p 5432:5432 postgres:15-alpine
+AUDITORIA_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/solventa pytest
+```
+
+Sin la variable, esas pruebas se saltan y el resto corre en memoria.

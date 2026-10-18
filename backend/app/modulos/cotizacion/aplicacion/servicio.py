@@ -112,6 +112,7 @@ class ServicioDeCotizacion:
         self._auditoria.registrar(
             id_cotizacion=cotizacion.id_cotizacion,
             id_consentimiento=id_consentimiento,
+            id_cliente=solicitud.id_cliente,
             version_regla=resultado.oferta.version_regla,
             variables_entrada=resultado.variables_entrada,
             resultado={
