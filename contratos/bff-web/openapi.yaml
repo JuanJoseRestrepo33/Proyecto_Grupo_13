@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.1.1
+  version: 0.2.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -10,7 +10,8 @@ info:
     (`apps/web/src/mocks`). Cubre el Sprint 1:
 
     - **WEB-F02** · Gestión del consentimiento Open Finance.
-    - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar.
+    - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar,
+      explicación del precio y vigencia de la oferta.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -171,8 +172,9 @@ paths:
       operationId: crearCotizacion
       summary: Cotiza un producto
       description: |
-        Con consentimiento vigente para la finalidad `cotizacion`, la prima es `personalizada`.
-        Sin él, la prima es `estandar` y `motivo_tarifa` explica por qué. No es un error.
+        Con consentimiento vigente para la finalidad `cotizacion` y `usar_open_finance` en `true`,
+        la prima es `personalizada`. En otro caso es `estandar` y `motivo_tarifa` explica por qué.
+        No es un error. La oferta vale 5 minutos (`vigente_hasta`); después hay que recotizar.
       requestBody:
         required: true
         content:
@@ -200,6 +202,26 @@ paths:
       responses:
         "200":
           description: Cotización, incluida su vigencia
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Cotizacion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /cotizaciones/{id}/recotizacion:
+    post:
+      tags: [cotizaciones]
+      operationId: recotizar
+      summary: Recotiza con los mismos datos de una cotización vencida
+      description: Crea una cotización nueva; la anterior no cambia.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Cotización nueva, vigente
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Cotizacion" }
@@ -349,21 +371,63 @@ components:
 
     Producto:
       type: object
-      required: [codigo, nombre, descripcion]
+      required: [codigo, nombre, nombre_corto, descripcion, prima_estandar, valor_asegurado, deducible, coberturas]
       properties:
         codigo: { $ref: "#/components/schemas/CodigoProducto" }
-        nombre: { type: string }
+        nombre:
+          type: string
+          examples: [Seguro de Auto — Plan Full]
+        nombre_corto:
+          type: string
+          examples: [Auto]
         descripcion: { type: string }
+        prima_estandar:
+          $ref: "#/components/schemas/Dinero"
+          description: Prima mensual sin datos de Open Finance ("desde")
+        valor_asegurado:
+          type: string
+          description: Valor asegurado del plan, ya formateado para mostrar
+        deducible: { type: string }
+        coberturas:
+          type: array
+          items: { $ref: "#/components/schemas/Cobertura" }
+
+    Cobertura:
+      type: object
+      required: [nombre, limite]
+      properties:
+        nombre: { type: string }
+        limite: { type: string }
 
     SolicitudCotizacion:
       type: object
-      required: [producto, datos]
+      required: [producto, asegurado, usar_open_finance]
       properties:
         producto: { $ref: "#/components/schemas/CodigoProducto" }
-        datos:
-          type: object
-          description: Datos del bien o del viaje a asegurar; dependen del producto
-          additionalProperties: true
+        asegurado: { $ref: "#/components/schemas/DatosAsegurado" }
+        usar_open_finance:
+          type: boolean
+          description: |
+            El cliente acepta que se use su perfil financiero en esta cotización. Aun en `true`,
+            solo se usa si hay consentimiento vigente para la finalidad `cotizacion`.
+
+    DatosAsegurado:
+      type: object
+      required: [edad, ciudad]
+      properties:
+        edad:
+          type: integer
+          minimum: 18
+          maximum: 100
+          description: Edad en años cumplidos
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 80
+        valor_asegurado:
+          type: [integer, "null"]
+          minimum: 0
+          description: Valor a asegurar en pesos, si el cliente lo indica
 
     Dinero:
       type: object
@@ -380,36 +444,76 @@ components:
 
     FactorPrecio:
       type: object
-      required: [codigo, nombre, peso, efecto]
+      required: [nombre, efecto]
       properties:
-        codigo: { type: string }
         nombre: { type: string }
-        peso:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: Participación del factor en la prima; los pesos suman 1
         efecto:
-          type: string
-          enum: [aumenta, disminuye, neutro]
+          type: number
+          description: |
+            Variación relativa sobre la prima estándar: `-0.06` la baja un 6 %. El cálculo es
+            aditivo: prima_mensual = prima_estandar × (1 + suma de efectos).
+          examples: [-0.06]
 
     Cotizacion:
       type: object
-      required: [id, producto, prima_mensual, tipo_tarifa, motivo_tarifa, factores, creada_en, vigente_hasta]
+      required:
+        - id
+        - producto
+        - nombre_producto
+        - estado
+        - prima_mensual
+        - prima_estandar
+        - ahorro_mensual
+        - tipo_tarifa
+        - base_perfilamiento
+        - motivo_tarifa
+        - factores
+        - version_regla
+        - valor_asegurado
+        - deducible
+        - coberturas
+        - creada_en
+        - vigente_hasta
       properties:
         id: { type: string }
         producto: { $ref: "#/components/schemas/CodigoProducto" }
+        nombre_producto: { type: string }
+        estado:
+          type: string
+          enum: [vigente, vencida]
+          description: Calculado por el servidor al responder
         prima_mensual: { $ref: "#/components/schemas/Dinero" }
+        prima_estandar: { $ref: "#/components/schemas/Dinero" }
+        ahorro_mensual:
+          $ref: "#/components/schemas/Dinero"
+          description: prima_estandar − prima_mensual. Nunca negativo; cero con tarifa estándar
         tipo_tarifa:
           type: string
           enum: [personalizada, estandar]
+        base_perfilamiento:
+          type: string
+          enum: [open_finance, open_finance_en_cache, estandar]
+          description: |
+            Con qué información se calculó la prima. `open_finance_en_cache`: el proveedor estaba
+            degradado y se usó el perfil en caché; el precio es igual de válido.
         motivo_tarifa:
           type: [string, "null"]
-          enum: [sin_consentimiento, perfil_no_disponible, null]
-          description: Por qué se usó tarifa estándar; `null` si la tarifa es personalizada
+          enum: [sin_consentimiento, open_finance_desactivado, null]
+          description: |
+            Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
+            el cliente pidió cotizar sin sus datos financieros.
         factores:
           type: array
-          description: Factores que componen la prima y su peso (explicabilidad)
+          description: Factores que componen la prima y su efecto ("¿Por qué este precio?")
           items: { $ref: "#/components/schemas/FactorPrecio" }
+        version_regla:
+          type: string
+          description: Versión del modelo de tarificación con que se calculó
+          examples: [rating-v3.2]
+        valor_asegurado: { type: string }
+        deducible: { type: string }
+        coberturas:
+          type: array
+          items: { $ref: "#/components/schemas/Cobertura" }
         creada_en: { type: string, format: date-time }
         vigente_hasta: { type: string, format: date-time }

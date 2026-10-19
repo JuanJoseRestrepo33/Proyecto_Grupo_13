@@ -1,4 +1,11 @@
-import { formatearFecha, formatearMoneda } from './formato'
+import {
+  formatearCuentaRegresiva,
+  formatearFecha,
+  formatearHora,
+  formatearMoneda,
+  formatearVariacion,
+  leerMonto,
+} from './formato'
 
 describe('formato', () => {
   it('formatea montos en pesos según el idioma, sin decimales', () => {
@@ -11,5 +18,29 @@ describe('formato', () => {
     const fecha = '2026-10-12T15:00:00Z'
     expect(formatearFecha(fecha, 'es')).toMatch(/octubre/)
     expect(formatearFecha(fecha, 'en')).toMatch(/October/)
+  })
+
+  it('formatea variaciones con signo y sin signo para cero', () => {
+    expect(formatearVariacion(-0.06, 'es')).toMatch(/-6\s?%/)
+    expect(formatearVariacion(0.01, 'en')).toBe('+1%')
+    expect(formatearVariacion(0, 'en')).toBe('0%')
+  })
+
+  it('formatea la cuenta regresiva como m:ss y nunca negativa', () => {
+    expect(formatearCuentaRegresiva(300)).toBe('5:00')
+    expect(formatearCuentaRegresiva(61)).toBe('1:01')
+    expect(formatearCuentaRegresiva(-5)).toBe('0:00')
+  })
+
+  it('formatea la hora según el idioma', () => {
+    expect(formatearHora('2026-10-12T15:30:00', 'en')).toMatch(/3:30/)
+  })
+
+  it('lee montos escritos con símbolos y separadores', () => {
+    expect(leerMonto('$ 60.000.000')).toBe(60000000)
+    expect(leerMonto('60,000,000')).toBe(60000000)
+    expect(leerMonto('1500000 COP')).toBe(1500000)
+    expect(leerMonto('sesenta')).toBeNull()
+    expect(leerMonto('')).toBeNull()
   })
 })

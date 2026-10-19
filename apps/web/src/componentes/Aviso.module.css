@@ -1,0 +1,36 @@
+.aviso {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md);
+  border: 1px solid;
+  border-radius: var(--radius-md);
+}
+
+.contenido {
+  flex: 1;
+}
+
+.contenido p {
+  margin: 0;
+}
+
+.info {
+  background: var(--primary-50);
+  border-color: var(--primary-100);
+}
+
+.exito {
+  background: var(--success-100);
+  border-color: var(--success-600);
+}
+
+.advertencia {
+  background: var(--warning-100);
+  border-color: var(--warning-600);
+}
+
+.error {
+  background: #fef2f2;
+  border-color: var(--error-600);
+}

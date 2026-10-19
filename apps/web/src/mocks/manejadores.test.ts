@@ -1,5 +1,6 @@
 import { bff } from '../api/cliente'
-import { FINALIDADES, PRIMA_ESTANDAR, PRODUCTOS } from './datos'
+import type { SolicitudCotizacion } from '../api/tipos'
+import { FINALIDADES, PRODUCTOS, VIGENCIA_COTIZACION_MS } from './datos'
 
 const finalidadCotizacion = FINALIDADES[0]!
 
@@ -15,8 +16,16 @@ async function otorgarCotizacion() {
   return data!
 }
 
-async function cotizarAuto() {
-  const { data, response } = await bff.POST('/cotizaciones', { body: { producto: 'auto', datos: {} } })
+const PRIMA_AUTO = PRODUCTOS[0]!.prima_estandar.valor
+
+const SOLICITUD_AUTO: SolicitudCotizacion = {
+  producto: 'auto',
+  asegurado: { edad: 35, ciudad: 'Bogotá', valor_asegurado: 60000000 },
+  usar_open_finance: true,
+}
+
+async function cotizarAuto(cambios: Partial<SolicitudCotizacion> = {}) {
+  const { data, response } = await bff.POST('/cotizaciones', { body: { ...SOLICITUD_AUTO, ...cambios } })
   expect(response.status).toBe(201)
   return data!
 }
@@ -36,7 +45,9 @@ describe('mocks del BFF web', () => {
     const sinConsentimiento = await cotizarAuto()
     expect(sinConsentimiento.tipo_tarifa).toBe('estandar')
     expect(sinConsentimiento.motivo_tarifa).toBe('sin_consentimiento')
-    expect(sinConsentimiento.prima_mensual).toEqual({ valor: PRIMA_ESTANDAR.auto, moneda: 'COP' })
+    expect(sinConsentimiento.prima_mensual).toEqual({ valor: PRIMA_AUTO, moneda: 'COP' })
+    expect(sinConsentimiento.ahorro_mensual.valor).toBe(0)
+    expect(sinConsentimiento.base_perfilamiento).toBe('estandar')
 
     const consentimiento = await otorgarCotizacion()
     expect(consentimiento.estado).toBe('vigente')
@@ -46,7 +57,9 @@ describe('mocks del BFF web', () => {
     const conConsentimiento = await cotizarAuto()
     expect(conConsentimiento.tipo_tarifa).toBe('personalizada')
     expect(conConsentimiento.motivo_tarifa).toBeNull()
-    expect(conConsentimiento.prima_mensual.valor).toBeLessThan(PRIMA_ESTANDAR.auto)
+    expect(conConsentimiento.base_perfilamiento).toBe('open_finance')
+    expect(conConsentimiento.prima_mensual.valor).toBeLessThan(PRIMA_AUTO)
+    expect(conConsentimiento.ahorro_mensual.valor).toBe(PRIMA_AUTO - conConsentimiento.prima_mensual.valor)
 
     const revocado = await bff.POST('/consentimientos/{id}/revocacion', {
       params: { path: { id: consentimiento.id } },
@@ -63,10 +76,40 @@ describe('mocks del BFF web', () => {
     expect(eventos.data?.every((e) => e.version_texto === finalidadCotizacion.version_texto)).toBe(true)
   })
 
-  it('los factores de la prima explican el precio y sus pesos suman 1', async () => {
-    for (const cotizacion of [await cotizarAuto(), (await otorgarCotizacion(), await cotizarAuto())]) {
-      const suma = cotizacion.factores.reduce((total, f) => total + f.peso, 0)
-      expect(suma).toBeCloseTo(1)
+  it('la prima es la estándar más la suma de los efectos de sus factores', async () => {
+    await otorgarCotizacion()
+    const cotizacion = await cotizarAuto()
+    const efectoTotal = cotizacion.factores.reduce((total, f) => total + f.efecto, 0)
+    expect(cotizacion.prima_mensual.valor).toBe(Math.round(PRIMA_AUTO * (1 + efectoTotal)))
+    expect(cotizacion.version_regla).toBe('rating-v3.2')
+    expect(cotizacion.coberturas.length).toBeGreaterThan(0)
+  })
+
+  it('cotiza a tarifa estándar si el cliente pide no usar Open Finance, aun con consentimiento', async () => {
+    await otorgarCotizacion()
+    const cotizacion = await cotizarAuto({ usar_open_finance: false })
+    expect(cotizacion.tipo_tarifa).toBe('estandar')
+    expect(cotizacion.motivo_tarifa).toBe('open_finance_desactivado')
+  })
+
+  it('la oferta vence a los 5 minutos y se recotiza con los mismos datos', async () => {
+    const original = await cotizarAuto()
+    const vigencia = new Date(original.vigente_hasta).getTime() - new Date(original.creada_en).getTime()
+    expect(vigencia).toBe(VIGENCIA_COTIZACION_MS)
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date(original.vigente_hasta))
+      const vencida = await bff.GET('/cotizaciones/{id}', { params: { path: { id: original.id } } })
+      expect(vencida.data?.estado).toBe('vencida')
+
+      const nueva = await bff.POST('/cotizaciones/{id}/recotizacion', { params: { path: { id: original.id } } })
+      expect(nueva.response.status).toBe(201)
+      expect(nueva.data?.id).not.toBe(original.id)
+      expect(nueva.data?.estado).toBe('vigente')
+      expect(nueva.data?.producto).toBe(original.producto)
+    } finally {
+      vi.useRealTimers()
     }
   })
 
@@ -116,8 +159,19 @@ describe('mocks del BFF web', () => {
 
     it('422 al cotizar un producto inexistente', async () => {
       // @ts-expect-error: producto fuera del contrato, a propósito.
-      const { response } = await bff.POST('/cotizaciones', { body: { producto: 'yate', datos: {} } })
+      const { response } = await bff.POST('/cotizaciones', { body: { ...SOLICITUD_AUTO, producto: 'yate' } })
       expect(response.status).toBe(422)
+    })
+
+    it.each([
+      { edad: 17, ciudad: 'Bogotá' },
+      { edad: 101, ciudad: 'Bogotá' },
+      { edad: 30, ciudad: '   ' },
+      { edad: 30, ciudad: 'Bogotá', valor_asegurado: -1 },
+    ])('422 si los datos del asegurado no son válidos: %o', async (asegurado) => {
+      const { response, error } = await bff.POST('/cotizaciones', { body: { ...SOLICITUD_AUTO, asegurado } })
+      expect(response.status).toBe(422)
+      expect(error?.codigo).toBe('asegurado_invalido')
     })
 
     it('404 para recursos que no existen', async () => {
@@ -126,6 +180,7 @@ describe('mocks del BFF web', () => {
       expect((await bff.POST('/consentimientos/{id}/renovacion', opciones)).response.status).toBe(404)
       expect((await bff.GET('/consentimientos/{id}/eventos', opciones)).response.status).toBe(404)
       expect((await bff.GET('/cotizaciones/{id}', opciones)).response.status).toBe(404)
+      expect((await bff.POST('/cotizaciones/{id}/recotizacion', opciones)).response.status).toBe(404)
     })
   })
 })

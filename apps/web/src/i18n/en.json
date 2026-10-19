@@ -22,7 +22,90 @@
   },
   "cotizacion": {
     "titulo": "Get an insurance quote",
-    "enConstruccion": "This screen is under construction."
+    "descripcion": "Get a personalized premium based on your risk profile.",
+    "pasos": {
+      "etiqueta": "Quote steps",
+      "producto": "Product",
+      "datos": "Your details",
+      "openFinance": "Open Finance",
+      "oferta": "Your offer",
+      "actual": "step {{actual}} of {{total}}"
+    },
+    "navegacion": {
+      "atras": "Back",
+      "continuar": "Continue",
+      "verOferta": "See my offer",
+      "cotizando": "Quoting…",
+      "otraCotizacion": "Quote another product"
+    },
+    "producto": {
+      "titulo": "1. Choose the product you want to quote",
+      "desde": "From {{prima}}/month"
+    },
+    "datos": {
+      "titulo": "2. Insured person's details",
+      "fechaNacimiento": "Date of birth",
+      "ciudad": "City",
+      "valorAsegurado": "Desired insured amount (optional)",
+      "valorAyuda": "Plan amount: {{valor}}. Fill it in only if you want a different one."
+    },
+    "openFinance": {
+      "titulo": "3. Personalize your offer with Open Finance",
+      "usar": "Use my financial data (Open Finance)",
+      "usarAyuda": "We can offer you a more accurate premium based on your financial behavior.",
+      "vigente": "You have an active consent for quotes until {{fecha}}.",
+      "sinConsentimiento": "You don't have an active consent.",
+      "sinConsentimientoDetalle": "We'll quote with the standard price.",
+      "otorgar": "Grant consent",
+      "openData": "We include Open Data sources depending on the product: demographics, location and aggregated industry claims."
+    },
+    "oferta": {
+      "titulo": "4. Your offer",
+      "numero": "Quote {{id}}",
+      "porMes": "/month",
+      "ahorro": "You save {{ahorro}} a month compared to the standard price of {{estandar}}.",
+      "valorAsegurado": "Insured amount",
+      "deducible": "Deductible",
+      "coberturas": "Coverages",
+      "vigencia": "Valid for",
+      "vigenciaHasta": "The offer is valid until {{hora}}.",
+      "base": {
+        "open_finance": "Price calculated with your Open Finance profile. The result is explainable and auditable.",
+        "open_finance_en_cache": "Your financial institution didn't respond in time, so we used your saved financial profile. The price is just as valid."
+      },
+      "estandar": {
+        "titulo": "Standard price",
+        "sin_consentimiento": "We didn't use financial data because you don't have an active consent for quotes.",
+        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it."
+      },
+      "vencida": "The quote has expired.",
+      "vencidaDetalle": "Prices are guaranteed for 5 minutes.",
+      "recotizar": "Quote again",
+      "recotizando": "Quoting again…"
+    },
+    "precio": {
+      "porQue": "Why this price?",
+      "titulo": "How your premium was calculated",
+      "factor": "Factor",
+      "efecto": "Effect",
+      "monto": "Monthly amount",
+      "estandar": "Standard premium",
+      "total": "Your monthly premium",
+      "version": "Calculated with rule {{version}}."
+    },
+    "errores": {
+      "productoRequerido": "Choose a product to continue.",
+      "fechaRequerida": "Enter your date of birth.",
+      "fechaInvalida": "The date of birth is not valid.",
+      "menorDeEdad": "You must be at least 18 years old to get a quote.",
+      "mayorDeEdad": "The maximum age for a quote is 100 years.",
+      "ciudadRequerida": "Enter your city.",
+      "ciudadLarga": "The city can't be longer than 80 characters.",
+      "valorInvalido": "Enter the amount using digits only, for example 60000000.",
+      "cargar": "We couldn't load the products. Please try again.",
+      "cotizar": "We couldn't calculate your offer. Please try again.",
+      "reintentar": "Try again"
+    }
   },
   "noEncontrada": {
     "titulo": "Page not found",

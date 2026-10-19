@@ -143,8 +143,9 @@ export interface paths {
         put?: never;
         /**
          * Cotiza un producto
-         * @description Con consentimiento vigente para la finalidad `cotizacion`, la prima es `personalizada`.
-         *     Sin él, la prima es `estandar` y `motivo_tarifa` explica por qué. No es un error.
+         * @description Con consentimiento vigente para la finalidad `cotizacion` y `usar_open_finance` en `true`,
+         *     la prima es `personalizada`. En otro caso es `estandar` y `motivo_tarifa` explica por qué.
+         *     No es un error. La oferta vale 5 minutos (`vigente_hasta`); después hay que recotizar.
          */
         post: operations["crearCotizacion"];
         delete?: never;
@@ -164,6 +165,26 @@ export interface paths {
         get: operations["obtenerCotizacion"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cotizaciones/{id}/recotizacion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recotiza con los mismos datos de una cotización vencida
+         * @description Crea una cotización nueva; la anterior no cambia.
+         */
+        post: operations["recotizar"];
         delete?: never;
         options?: never;
         head?: never;
@@ -247,15 +268,37 @@ export interface components {
         CodigoProducto: "auto" | "hogar" | "viaje" | "dispositivos";
         Producto: {
             codigo: components["schemas"]["CodigoProducto"];
+            /** @example Seguro de Auto — Plan Full */
             nombre: string;
+            /** @example Auto */
+            nombre_corto: string;
             descripcion: string;
+            /** @description Prima mensual sin datos de Open Finance ("desde") */
+            prima_estandar: components["schemas"]["Dinero"];
+            /** @description Valor asegurado del plan, ya formateado para mostrar */
+            valor_asegurado: string;
+            deducible: string;
+            coberturas: components["schemas"]["Cobertura"][];
+        };
+        Cobertura: {
+            nombre: string;
+            limite: string;
         };
         SolicitudCotizacion: {
             producto: components["schemas"]["CodigoProducto"];
-            /** @description Datos del bien o del viaje a asegurar; dependen del producto */
-            datos: {
-                [key: string]: unknown;
-            };
+            asegurado: components["schemas"]["DatosAsegurado"];
+            /**
+             * @description El cliente acepta que se use su perfil financiero en esta cotización. Aun en `true`,
+             *     solo se usa si hay consentimiento vigente para la finalidad `cotizacion`.
+             */
+            usar_open_finance: boolean;
+        };
+        DatosAsegurado: {
+            /** @description Edad en años cumplidos */
+            edad: number;
+            ciudad: string;
+            /** @description Valor a asegurar en pesos, si el cliente lo indica */
+            valor_asegurado?: number | null;
         };
         Dinero: {
             /**
@@ -270,26 +313,51 @@ export interface components {
             moneda: string;
         };
         FactorPrecio: {
-            codigo: string;
             nombre: string;
-            /** @description Participación del factor en la prima; los pesos suman 1 */
-            peso: number;
-            /** @enum {string} */
-            efecto: "aumenta" | "disminuye" | "neutro";
+            /**
+             * @description Variación relativa sobre la prima estándar: `-0.06` la baja un 6 %. El cálculo es
+             *     aditivo: prima_mensual = prima_estandar × (1 + suma de efectos).
+             * @example -0.06
+             */
+            efecto: number;
         };
         Cotizacion: {
             id: string;
             producto: components["schemas"]["CodigoProducto"];
+            nombre_producto: string;
+            /**
+             * @description Calculado por el servidor al responder
+             * @enum {string}
+             */
+            estado: "vigente" | "vencida";
             prima_mensual: components["schemas"]["Dinero"];
+            prima_estandar: components["schemas"]["Dinero"];
+            /** @description prima_estandar − prima_mensual. Nunca negativo; cero con tarifa estándar */
+            ahorro_mensual: components["schemas"]["Dinero"];
             /** @enum {string} */
             tipo_tarifa: "personalizada" | "estandar";
             /**
-             * @description Por qué se usó tarifa estándar; `null` si la tarifa es personalizada
+             * @description Con qué información se calculó la prima. `open_finance_en_cache`: el proveedor estaba
+             *     degradado y se usó el perfil en caché; el precio es igual de válido.
+             * @enum {string}
+             */
+            base_perfilamiento: "open_finance" | "open_finance_en_cache" | "estandar";
+            /**
+             * @description Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
+             *     el cliente pidió cotizar sin sus datos financieros.
              * @enum {string|null}
              */
-            motivo_tarifa: "sin_consentimiento" | "perfil_no_disponible" | null;
-            /** @description Factores que componen la prima y su peso (explicabilidad) */
+            motivo_tarifa: "sin_consentimiento" | "open_finance_desactivado" | null;
+            /** @description Factores que componen la prima y su efecto ("¿Por qué este precio?") */
             factores: components["schemas"]["FactorPrecio"][];
+            /**
+             * @description Versión del modelo de tarificación con que se calculó
+             * @example rating-v3.2
+             */
+            version_regla: string;
+            valor_asegurado: string;
+            deducible: string;
+            coberturas: components["schemas"]["Cobertura"][];
             /** Format: date-time */
             creada_en: string;
             /** Format: date-time */
@@ -567,6 +635,30 @@ export interface operations {
         responses: {
             /** @description Cotización, incluida su vigencia */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cotizacion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    recotizar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cotización nueva, vigente */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
