@@ -1,0 +1,49 @@
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: 0 var(--space-lg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.boton:disabled,
+.boton[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.primario {
+  background: var(--primary-900);
+  color: var(--neutral-0);
+}
+
+.primario:hover:not(:disabled) {
+  background: var(--primary-700);
+}
+
+.secundario {
+  background: var(--neutral-0);
+  border-color: var(--primary-700);
+  color: var(--primary-900);
+}
+
+.secundario:hover:not(:disabled) {
+  background: var(--primary-50);
+}
+
+.fantasma {
+  background: transparent;
+  color: var(--neutral-700);
+}
+
+.fantasma:hover:not(:disabled) {
+  background: var(--neutral-100);
+}

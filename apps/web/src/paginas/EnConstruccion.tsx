@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
-/** Pantalla provisional: se reemplaza en las tareas "UI cotizador" y "UI consentimiento". */
-export function EnConstruccion({ seccion }: { seccion: 'cotizacion' | 'consentimientos' }) {
+/** Pantalla provisional: se reemplaza en la tarea "UI consentimiento". */
+export function EnConstruccion({ seccion }: { seccion: 'consentimientos' }) {
   const { t } = useTranslation()
   return (
     <>

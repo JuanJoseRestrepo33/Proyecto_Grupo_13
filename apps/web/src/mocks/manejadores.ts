@@ -9,20 +9,22 @@ import { PREFIJO_BFF } from '../api/cliente'
 import type {
   Consentimiento,
   Cotizacion,
+  DatosAsegurado,
   ErrorApi,
   EventoConsentimiento,
-  FactorPrecio,
+  Producto,
   SolicitudConsentimiento,
   SolicitudCotizacion,
 } from '../api/tipos'
 import {
-  DESCUENTO_PERSONALIZADA,
   ENTIDADES,
+  FACTORES_ESTANDAR,
+  FACTORES_OPEN_FINANCE,
   FINALIDADES,
-  PRIMA_ESTANDAR,
   PRODUCTOS,
   SESION,
-  VIGENCIA_COTIZACION_DIAS,
+  VERSION_REGLA,
+  VIGENCIA_COTIZACION_MS,
 } from './datos'
 import { estado, siguienteId } from './estado'
 
@@ -56,18 +58,56 @@ function tieneConsentimientoVigente(finalidad: Consentimiento['finalidad']): boo
   return estado.consentimientos.some((c) => c.finalidad === finalidad && c.estado === 'vigente')
 }
 
-function factores(personalizada: boolean): FactorPrecio[] {
-  if (personalizada) {
-    return [
-      { codigo: 'comportamiento_financiero', nombre: 'Comportamiento financiero', peso: 0.4, efecto: 'disminuye' },
-      { codigo: 'siniestralidad_sector', nombre: 'Siniestralidad del sector', peso: 0.35, efecto: 'aumenta' },
-      { codigo: 'ubicacion', nombre: 'Ubicación', peso: 0.25, efecto: 'neutro' },
-    ]
+function aseguradoValido(asegurado: DatosAsegurado | undefined): boolean {
+  if (!asegurado) return false
+  const { edad, ciudad, valor_asegurado: valor } = asegurado
+  const edadValida = Number.isInteger(edad) && edad >= 18 && edad <= 100
+  const ciudadValida = typeof ciudad === 'string' && ciudad.trim().length > 0 && ciudad.length <= 80
+  const valorValido = valor === undefined || valor === null || (Number.isInteger(valor) && valor >= 0)
+  return edadValida && ciudadValida && valorValido
+}
+
+/** Cálculo aditivo: prima = estándar × (1 + suma de efectos de los factores). */
+function cotizar(producto: Producto, solicitud: SolicitudCotizacion): Cotizacion {
+  const conConsentimiento = tieneConsentimientoVigente('cotizacion')
+  const personalizada = solicitud.usar_open_finance && conConsentimiento
+  const factores = personalizada ? FACTORES_OPEN_FINANCE : FACTORES_ESTANDAR
+  const efectoTotal = factores.reduce((total, f) => total + f.efecto, 0)
+  const estandar = producto.prima_estandar
+  const prima = Math.round(estandar.valor * (1 + efectoTotal))
+  const ahora = new Date()
+
+  const cotizacion: Cotizacion = {
+    id: siguienteId('cot'),
+    producto: producto.codigo,
+    nombre_producto: producto.nombre,
+    estado: 'vigente',
+    prima_mensual: { valor: prima, moneda: estandar.moneda },
+    prima_estandar: estandar,
+    ahorro_mensual: { valor: Math.max(estandar.valor - prima, 0), moneda: estandar.moneda },
+    tipo_tarifa: personalizada ? 'personalizada' : 'estandar',
+    base_perfilamiento: personalizada ? 'open_finance' : 'estandar',
+    motivo_tarifa: personalizada
+      ? null
+      : solicitud.usar_open_finance
+        ? 'sin_consentimiento'
+        : 'open_finance_desactivado',
+    factores,
+    version_regla: VERSION_REGLA,
+    valor_asegurado: producto.valor_asegurado,
+    deducible: producto.deducible,
+    coberturas: producto.coberturas,
+    creada_en: ahora.toISOString(),
+    vigente_hasta: new Date(ahora.getTime() + VIGENCIA_COTIZACION_MS).toISOString(),
   }
-  return [
-    { codigo: 'siniestralidad_sector', nombre: 'Siniestralidad del sector', peso: 0.6, efecto: 'aumenta' },
-    { codigo: 'ubicacion', nombre: 'Ubicación', peso: 0.4, efecto: 'neutro' },
-  ]
+  estado.cotizaciones.set(cotizacion.id, { cotizacion, solicitud })
+  return cotizacion
+}
+
+/** El estado (vigente o vencida) se calcula al responder. */
+function conEstadoActual(cotizacion: Cotizacion): Cotizacion {
+  const vencida = Date.now() >= new Date(cotizacion.vigente_hasta).getTime()
+  return { ...cotizacion, estado: vencida ? 'vencida' : 'vigente' }
 }
 
 export const manejadores = [
@@ -145,34 +185,24 @@ export const manejadores = [
 
   http.post(ruta('/cotizaciones'), async ({ request }) => {
     const solicitud = (await request.json()) as SolicitudCotizacion
-    const base = PRIMA_ESTANDAR[solicitud.producto]
-    if (base === undefined) return error(422, 'producto_invalido', 'El producto no existe')
-
-    const personalizada = tieneConsentimientoVigente('cotizacion')
-    const ahora = new Date()
-    const vigenteHasta = new Date(ahora)
-    vigenteHasta.setDate(vigenteHasta.getDate() + VIGENCIA_COTIZACION_DIAS)
-
-    const cotizacion: Cotizacion = {
-      id: siguienteId('cot'),
-      producto: solicitud.producto,
-      prima_mensual: {
-        valor: personalizada ? Math.round(base * (1 - DESCUENTO_PERSONALIZADA)) : base,
-        moneda: 'COP',
-      },
-      tipo_tarifa: personalizada ? 'personalizada' : 'estandar',
-      motivo_tarifa: personalizada ? null : 'sin_consentimiento',
-      factores: factores(personalizada),
-      creada_en: ahora.toISOString(),
-      vigente_hasta: vigenteHasta.toISOString(),
+    const producto = PRODUCTOS.find((p) => p.codigo === solicitud.producto)
+    if (!producto) return error(422, 'producto_invalido', 'El producto no existe')
+    if (!aseguradoValido(solicitud.asegurado)) {
+      return error(422, 'asegurado_invalido', 'Edad entre 18 y 100 años y ciudad obligatoria')
     }
-    estado.cotizaciones.set(cotizacion.id, cotizacion)
-    return HttpResponse.json(cotizacion, { status: 201 })
+    return HttpResponse.json(cotizar(producto, solicitud), { status: 201 })
   }),
 
   http.get(ruta('/cotizaciones/:id'), ({ params }) => {
-    const cotizacion = estado.cotizaciones.get(String(params.id))
-    if (!cotizacion) return error(404, 'cotizacion_no_encontrada', 'No existe')
-    return HttpResponse.json(cotizacion)
+    const guardada = estado.cotizaciones.get(String(params.id))
+    if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
+    return HttpResponse.json(conEstadoActual(guardada.cotizacion))
+  }),
+
+  http.post(ruta('/cotizaciones/:id/recotizacion'), ({ params }) => {
+    const guardada = estado.cotizaciones.get(String(params.id))
+    if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
+    const producto = PRODUCTOS.find((p) => p.codigo === guardada.cotizacion.producto)!
+    return HttpResponse.json(cotizar(producto, guardada.solicitud), { status: 201 })
   }),
 ]

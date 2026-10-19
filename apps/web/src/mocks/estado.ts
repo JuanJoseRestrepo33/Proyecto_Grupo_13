@@ -1,10 +1,11 @@
 /** Estado en memoria de los mocks: simula lo que el BFF guardaría del cliente en sesión. */
-import type { Consentimiento, Cotizacion, EventoConsentimiento } from '../api/tipos'
+import type { Consentimiento, Cotizacion, EventoConsentimiento, SolicitudCotizacion } from '../api/tipos'
 
 interface EstadoMocks {
   consentimientos: Consentimiento[]
   eventos: Map<string, EventoConsentimiento[]>
-  cotizaciones: Map<string, Cotizacion>
+  /** Se guarda la solicitud para poder recotizar con los mismos datos. */
+  cotizaciones: Map<string, { cotizacion: Cotizacion; solicitud: SolicitudCotizacion }>
   secuencia: number
 }
 
