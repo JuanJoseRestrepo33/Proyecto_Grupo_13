@@ -18,7 +18,84 @@
   },
   "consentimientos": {
     "titulo": "Consentimientos de Open Finance",
-    "enConstruccion": "Esta pantalla está en construcción."
+    "descripcion": "Controla qué datos financieros puede usar Solventa, para qué y por cuánto tiempo.",
+    "queDatos": "¿Qué datos solicitamos?",
+    "queDatosDetalle": "Solo los que indica cada finalidad, reportados por las entidades que tú elijas bajo el estándar de Open Finance. Solo se usan mientras el consentimiento esté vigente y puedes revocarlo cuando quieras.",
+    "alcance": "Alcance",
+    "vigencia": "Vigencia",
+    "vigenciaMeses": "{{count}} meses",
+    "entidades": "Entidades origen",
+    "textoLegal": "Texto legal",
+    "estado": {
+      "sinOtorgar": "Sin otorgar",
+      "vigente": "Vigente",
+      "revocado": "Revocado",
+      "vencido": "Vencido"
+    },
+    "venceEl": "Vence el {{fecha}}.",
+    "revocadoEl": "Revocado el {{fecha}}.",
+    "vencioEl": "Venció el {{fecha}}.",
+    "porVencer": "Vence en {{count}} días. Renuévalo para seguir recibiendo ofertas personalizadas.",
+    "otorgar": {
+      "entidades": "Entidades de las que autorizas tus datos",
+      "autorizo": "Autorizo a Solventa a consultar mis datos financieros de las entidades seleccionadas para la finalidad «{{finalidad}}», con el alcance y la vigencia descritos (texto legal {{version}}).",
+      "boton": "Otorgar consentimiento",
+      "enviando": "Otorgando…",
+      "sinEntidades": "Selecciona al menos una entidad.",
+      "sinAutorizacion": "Debes marcar la autorización para continuar."
+    },
+    "acciones": {
+      "revocar": "Revocar",
+      "renovar": "Renovar",
+      "renovando": "Renovando…",
+      "verHistorial": "Ver historial",
+      "ocultarHistorial": "Ocultar historial"
+    },
+    "revocar": {
+      "titulo": "¿Revocar el consentimiento de {{finalidad}}?",
+      "consecuencia": {
+        "cotizacion": "Tus próximas cotizaciones usarán precio estándar, sin tus datos financieros.",
+        "suscripcion": "Dejaremos de usar tus datos financieros para evaluar tus solicitudes de póliza.",
+        "prevencion_fraude": "Dejaremos de usar tus datos financieros para verificar tus transacciones."
+      },
+      "propagacion": "La revocación se aplica en toda la plataforma en menos de 5 minutos.",
+      "confirmar": "Sí, revocar",
+      "revocando": "Revocando…",
+      "cancelar": "Cancelar"
+    },
+    "resultado": {
+      "otorgado": "Consentimiento otorgado. Vigente hasta el {{fecha}}.",
+      "revocado": "Consentimiento revocado.",
+      "renovado": "Consentimiento renovado. Vigente hasta el {{fecha}}."
+    },
+    "historial": {
+      "titulo": "Historial de {{finalidad}}",
+      "vacio": "Aún no hay eventos.",
+      "cargando": "Cargando historial…",
+      "error": "No pudimos cargar el historial.",
+      "canal": {
+        "web": "web",
+        "movil": "app móvil",
+        "sistema": "automático"
+      },
+      "evento": {
+        "otorgado": "Otorgado",
+        "renovado": "Renovado",
+        "revocado": "Revocado",
+        "vencido": "Vencido"
+      },
+      "detalle": "{{fecha}} · canal {{canal}} · texto legal {{version}}"
+    },
+    "errores": {
+      "cargar": "No pudimos cargar tus consentimientos. Intenta de nuevo.",
+      "reintentar": "Reintentar",
+      "consentimiento_ya_vigente": "Ya tienes un consentimiento vigente para esta finalidad.",
+      "consentimiento_no_vigente": "Este consentimiento ya no está vigente.",
+      "consentimiento_revocado": "Un consentimiento revocado no se renueva: otórgalo de nuevo.",
+      "version_texto_desactualizada": "El texto legal cambió. Recarga la página para leer la versión vigente.",
+      "entidades_invalidas": "Selecciona al menos una entidad válida.",
+      "general": "No pudimos completar la operación. Intenta de nuevo."
+    }
   },
   "cotizacion": {
     "titulo": "Cotizar un seguro",

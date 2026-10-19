@@ -1,8 +1,11 @@
 /** Estado en memoria de los mocks: simula lo que el BFF guardaría del cliente en sesión. */
 import type { Consentimiento, Cotizacion, EventoConsentimiento, SolicitudCotizacion } from '../api/tipos'
 
+/** Lo que se guarda; `por_vencer` y `dias_para_vencer` se calculan al responder. */
+export type ConsentimientoGuardado = Omit<Consentimiento, 'por_vencer' | 'dias_para_vencer'>
+
 interface EstadoMocks {
-  consentimientos: Consentimiento[]
+  consentimientos: ConsentimientoGuardado[]
   eventos: Map<string, EventoConsentimiento[]>
   /** Se guarda la solicitud para poder recotizar con los mismos datos. */
   cotizaciones: Map<string, { cotizacion: Cotizacion; solicitud: SolicitudCotizacion }>

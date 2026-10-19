@@ -90,7 +90,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Renueva un consentimiento vigente o vencido sin repetir el flujo completo */
+        /**
+         * Renueva un consentimiento vigente o vencido sin repetir el flujo completo
+         * @description La nueva vigencia se cuenta desde la renovación. 409 si está revocado, o si está vencido y ya
+         *     hay otro vigente para la misma finalidad.
+         */
         post: operations["renovarConsentimiento"];
         delete?: never;
         options?: never;
@@ -254,6 +258,10 @@ export interface components {
             /** Format: date-time */
             revocado_en?: string | null;
             version_texto: string;
+            /** @description Vigente y vence en 30 días o menos; la interfaz ofrece renovarlo (WEB-F02, criterio 7) */
+            por_vencer: boolean;
+            /** @description Días completos que faltan para vencer; `null` si no está vigente */
+            dias_para_vencer: number | null;
         };
         EventoConsentimiento: {
             /** @enum {string} */

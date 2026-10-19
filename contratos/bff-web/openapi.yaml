@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -121,6 +121,9 @@ paths:
       tags: [consentimientos]
       operationId: renovarConsentimiento
       summary: Renueva un consentimiento vigente o vencido sin repetir el flujo completo
+      description: |
+        La nueva vigencia se cuenta desde la renovación. 409 si está revocado, o si está vencido y ya
+        hay otro vigente para la misma finalidad.
       parameters:
         - $ref: "#/components/parameters/IdConsentimiento"
       responses:
@@ -340,7 +343,7 @@ components:
 
     Consentimiento:
       type: object
-      required: [id, finalidad, entidades_origen, estado, canal, otorgado_en, vence_en, version_texto]
+      required: [id, finalidad, entidades_origen, estado, canal, otorgado_en, vence_en, version_texto, por_vencer, dias_para_vencer]
       properties:
         id: { type: string }
         finalidad: { $ref: "#/components/schemas/CodigoFinalidad" }
@@ -355,6 +358,13 @@ components:
           type: [string, "null"]
           format: date-time
         version_texto: { type: string }
+        por_vencer:
+          type: boolean
+          description: Vigente y vence en 30 días o menos; la interfaz ofrece renovarlo (WEB-F02, criterio 7)
+        dias_para_vencer:
+          type: [integer, "null"]
+          minimum: 0
+          description: Días completos que faltan para vencer; `null` si no está vigente
 
     EventoConsentimiento:
       type: object

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, Ref } from 'react'
 
 import estilos from './Boton.module.css'
 
@@ -11,6 +11,7 @@ function clasesBoton(variante: VarianteBoton = 'primario'): string {
 
 interface PropiedadesBoton extends ButtonHTMLAttributes<HTMLButtonElement> {
   variante?: VarianteBoton
+  ref?: Ref<HTMLButtonElement>
 }
 
 export function Boton({ variante = 'primario', className, type = 'button', ...resto }: PropiedadesBoton) {

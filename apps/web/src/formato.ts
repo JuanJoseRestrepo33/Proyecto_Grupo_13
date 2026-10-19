@@ -38,3 +38,7 @@ export function leerMonto(texto: string): number | null {
   const digitos = texto.replace(/[\s$.,]/g, '').replace(/COP$/i, '')
   return /^\d+$/.test(digitos) ? Number(digitos) : null
 }
+
+export function formatearFechaHora(iso: string, idioma: Idioma): string {
+  return new Intl.DateTimeFormat(IDIOMAS[idioma], { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+}
