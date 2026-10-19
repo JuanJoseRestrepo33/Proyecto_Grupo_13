@@ -98,7 +98,7 @@ def nucleo(monkeypatch) -> TestClient:
         auditoria_dependencias.reiniciar()
         dependencias.reiniciar()
         cotizacion_dependencias._componentes.cache_clear()
-        perfilamiento_dependencias.obtener_cache.cache_clear()
+        perfilamiento_dependencias.reiniciar()
 
     reiniciar()
     yield TestClient(crear_app())

@@ -72,7 +72,13 @@ def test_cada_modulo_tiene_las_cuatro_capas():
 def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
     cuerpo = cliente.get("/v1/").json()
     assert cuerpo["version"] == "v1"
-    assert cuerpo["capacidades"] == ["auditoria", "consentimiento", "cotizacion", "identidad"]
+    assert cuerpo["capacidades"] == [
+        "auditoria",
+        "consentimiento",
+        "cotizacion",
+        "identidad",
+        "perfilamiento",
+    ]
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["consentimiento"]["historia"] == "WEB-F02"
 
@@ -93,7 +99,7 @@ def test_salud_reporta_cada_modulo_y_cada_dependencia(cliente):
     assert cuerpo["modulos"]["cotizacion"]["estado"] == "ok"
     assert cuerpo["modulos"]["pagos"]["estado"] == "esqueleto"
     dependencias = cuerpo["modulos"]["cotizacion"]["dependencias"]
-    assert dependencias["perfilamiento"]["estado"] == "simulado"
+    assert dependencias["repositorio_cotizaciones"]["estado"] == "simulado"
     assert cuerpo["dependencias"]["perfilamiento"]["usada_por"] == ["cotizacion"]
 
 
