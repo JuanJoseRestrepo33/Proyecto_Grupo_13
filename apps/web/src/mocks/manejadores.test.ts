@@ -132,6 +132,61 @@ describe('mocks del BFF web', () => {
     expect(new Date(consulta.data!.vigente_hasta).getTime()).toBeGreaterThan(Date.now())
   })
 
+  describe('vencimiento del consentimiento', () => {
+    const DIA = 24 * 60 * 60 * 1000
+
+    afterEach(() => vi.useRealTimers())
+
+    it('recién otorgado no está por vencer y dice cuántos días le quedan', async () => {
+      const consentimiento = await otorgarCotizacion()
+      expect(consentimiento.por_vencer).toBe(false)
+      expect(consentimiento.dias_para_vencer).toBeGreaterThan(300)
+    })
+
+    it('a 30 días o menos del vencimiento queda por vencer, y al renovarlo deja de estarlo', async () => {
+      const { id, vence_en } = await otorgarCotizacion()
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(vence_en).getTime() - 10 * DIA)
+
+      const [porVencer] = (await bff.GET('/consentimientos')).data!
+      expect(porVencer).toMatchObject({ estado: 'vigente', por_vencer: true, dias_para_vencer: 10 })
+
+      const renovado = await bff.POST('/consentimientos/{id}/renovacion', { params: { path: { id } } })
+      expect(renovado.data).toMatchObject({ estado: 'vigente', por_vencer: false })
+    })
+
+    it('al pasar la fecha queda vencido, con su evento, y se puede renovar', async () => {
+      const { id, vence_en } = await otorgarCotizacion()
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(vence_en).getTime() + DIA)
+
+      const [vencido] = (await bff.GET('/consentimientos')).data!
+      expect(vencido).toMatchObject({ estado: 'vencido', por_vencer: false, dias_para_vencer: null })
+      expect((await cotizarAuto()).tipo_tarifa).toBe('estandar')
+
+      const eventos = (await bff.GET('/consentimientos/{id}/eventos', { params: { path: { id } } })).data!
+      expect(eventos.map((e) => [e.tipo, e.canal])).toEqual([
+        ['otorgado', 'web'],
+        ['vencido', 'sistema'],
+      ])
+      expect(eventos[1]!.ocurrido_en).toBe(vence_en)
+
+      const renovado = await bff.POST('/consentimientos/{id}/renovacion', { params: { path: { id } } })
+      expect(renovado.data?.estado).toBe('vigente')
+    })
+
+    it('no renueva uno vencido si ya hay otro vigente para la misma finalidad', async () => {
+      const { id, vence_en } = await otorgarCotizacion()
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(vence_en).getTime() + DIA)
+      await otorgarCotizacion()
+
+      const renovado = await bff.POST('/consentimientos/{id}/renovacion', { params: { path: { id } } })
+      expect(renovado.response.status).toBe(409)
+      expect(renovado.error?.codigo).toBe('consentimiento_ya_vigente')
+    })
+  })
+
   describe('errores del contrato', () => {
     it('409 al otorgar dos veces la misma finalidad o revocar algo ya revocado', async () => {
       const { id } = await otorgarCotizacion()

@@ -26,7 +26,7 @@ import {
   VERSION_REGLA,
   VIGENCIA_COTIZACION_MS,
 } from './datos'
-import { estado, siguienteId } from './estado'
+import { type ConsentimientoGuardado, estado, siguienteId } from './estado'
 
 const ruta = (camino: string) => `*${PREFIJO_BFF}${camino}`
 
@@ -40,21 +40,53 @@ function sumarMeses(fecha: Date, meses: number): string {
   return resultado.toISOString()
 }
 
-function registrarEvento(id: string, tipo: EventoConsentimiento['tipo'], version: string) {
-  const evento: EventoConsentimiento = {
-    tipo,
-    ocurrido_en: new Date().toISOString(),
-    canal: 'web',
-    version_texto: version,
-  }
+const DIA_MS = 24 * 60 * 60 * 1000
+/** Días antes del vencimiento en que se avisa y se ofrece renovar (WEB-F02, criterio 7). */
+const DIAS_AVISO_VENCIMIENTO = 30
+
+function registrarEvento(
+  id: string,
+  tipo: EventoConsentimiento['tipo'],
+  version: string,
+  { canal = 'web', ocurridoEn = new Date().toISOString() }: { canal?: EventoConsentimiento['canal']; ocurridoEn?: string } = {},
+) {
+  const evento: EventoConsentimiento = { tipo, ocurrido_en: ocurridoEn, canal, version_texto: version }
   estado.eventos.set(id, [...(estado.eventos.get(id) ?? []), evento])
 }
 
-function buscarConsentimiento(id: string): Consentimiento | undefined {
+/** Los vigentes cuya fecha ya pasó quedan vencidos; el evento lleva la fecha en que vencieron. */
+function actualizarVencimientos(): void {
+  const ahora = Date.now()
+  for (const consentimiento of estado.consentimientos) {
+    if (consentimiento.estado === 'vigente' && ahora >= new Date(consentimiento.vence_en).getTime()) {
+      consentimiento.estado = 'vencido'
+      registrarEvento(consentimiento.id, 'vencido', consentimiento.version_texto, {
+        canal: 'sistema',
+        ocurridoEn: consentimiento.vence_en,
+      })
+    }
+  }
+}
+
+function respuesta(consentimiento: ConsentimientoGuardado): Consentimiento {
+  const vigente = consentimiento.estado === 'vigente'
+  const dias = vigente
+    ? Math.max(0, Math.ceil((new Date(consentimiento.vence_en).getTime() - Date.now()) / DIA_MS))
+    : null
+  return {
+    ...consentimiento,
+    dias_para_vencer: dias,
+    por_vencer: dias !== null && dias <= DIAS_AVISO_VENCIMIENTO,
+  }
+}
+
+function buscarConsentimiento(id: string): ConsentimientoGuardado | undefined {
+  actualizarVencimientos()
   return estado.consentimientos.find((c) => c.id === id)
 }
 
 function tieneConsentimientoVigente(finalidad: Consentimiento['finalidad']): boolean {
+  actualizarVencimientos()
   return estado.consentimientos.some((c) => c.finalidad === finalidad && c.estado === 'vigente')
 }
 
@@ -115,7 +147,10 @@ export const manejadores = [
 
   http.get(ruta('/consentimientos/finalidades'), () => HttpResponse.json(FINALIDADES)),
 
-  http.get(ruta('/consentimientos'), () => HttpResponse.json(estado.consentimientos)),
+  http.get(ruta('/consentimientos'), () => {
+    actualizarVencimientos()
+    return HttpResponse.json(estado.consentimientos.map(respuesta))
+  }),
 
   http.post(ruta('/consentimientos'), async ({ request }) => {
     const solicitud = (await request.json()) as SolicitudConsentimiento
@@ -134,7 +169,7 @@ export const manejadores = [
     }
 
     const ahora = new Date()
-    const consentimiento: Consentimiento = {
+    const consentimiento: ConsentimientoGuardado = {
       id: siguienteId('con'),
       finalidad: finalidad.codigo,
       entidades_origen: entidades,
@@ -147,7 +182,7 @@ export const manejadores = [
     }
     estado.consentimientos.push(consentimiento)
     registrarEvento(consentimiento.id, 'otorgado', consentimiento.version_texto)
-    return HttpResponse.json(consentimiento, { status: 201 })
+    return HttpResponse.json(respuesta(consentimiento), { status: 201 })
   }),
 
   http.post(ruta('/consentimientos/:id/revocacion'), ({ params }) => {
@@ -159,7 +194,7 @@ export const manejadores = [
     consentimiento.estado = 'revocado'
     consentimiento.revocado_en = new Date().toISOString()
     registrarEvento(consentimiento.id, 'revocado', consentimiento.version_texto)
-    return HttpResponse.json(consentimiento)
+    return HttpResponse.json(respuesta(consentimiento))
   }),
 
   http.post(ruta('/consentimientos/:id/renovacion'), ({ params }) => {
@@ -168,11 +203,14 @@ export const manejadores = [
     if (consentimiento.estado === 'revocado') {
       return error(409, 'consentimiento_revocado', 'Un consentimiento revocado se otorga de nuevo')
     }
+    if (consentimiento.estado === 'vencido' && tieneConsentimientoVigente(consentimiento.finalidad)) {
+      return error(409, 'consentimiento_ya_vigente', 'Ya hay otro consentimiento vigente para la finalidad')
+    }
     const finalidad = FINALIDADES.find((f) => f.codigo === consentimiento.finalidad)
     consentimiento.estado = 'vigente'
     consentimiento.vence_en = sumarMeses(new Date(), finalidad?.vigencia_meses ?? 12)
     registrarEvento(consentimiento.id, 'renovado', consentimiento.version_texto)
-    return HttpResponse.json(consentimiento)
+    return HttpResponse.json(respuesta(consentimiento))
   }),
 
   http.get(ruta('/consentimientos/:id/eventos'), ({ params }) => {
