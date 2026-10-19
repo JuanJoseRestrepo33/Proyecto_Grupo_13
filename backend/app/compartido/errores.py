@@ -24,3 +24,13 @@ class RecursoNoEncontrado(ErrorDeNegocio):
 
 class ReglaDeNegocioViolada(ErrorDeNegocio):
     codigo = "regla_de_negocio_violada"
+
+
+class DependenciaNoDisponible(ErrorDeNegocio):
+    """Un proveedor externo falló o no respondió a tiempo (ARQ-02, criterio 4).
+
+    Es lo que un adaptador lanza en vez de dejar pasar la excepción de su cliente HTTP.
+    El núcleo lo trata como un error del dominio y la fachada responde 503.
+    """
+
+    codigo = "dependencia_no_disponible"

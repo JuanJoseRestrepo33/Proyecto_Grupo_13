@@ -212,6 +212,37 @@ La composición de cada módulo (`_componentes()`, `obtener_bus()`, `obtener_cac
 recién levantado, `lru_cache` dejaba que dos solicitudes simultáneas armaran dos servicios,
 y lo guardado en el que no quedaba en caché se perdía.
 
+## Módulo de identidad: hook de KYC/AML (MOB-F01)
+
+Verificación de identidad del cliente contra el proveedor de KYC/AML, detrás del puerto
+`ProveedorKYC` (ARQ-02). El núcleo solo conoce ese puerto; el proveedor simulado vive en
+`infraestructura/` y el real se enchufa en `api/dependencias.py` sin tocar nada más.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `POST` | `/v1/identidad/clientes/{id_cliente}/verificaciones` | Envía los datos al proveedor (202). 409 si ya está verificada o hay una en curso; 503 si el proveedor no responde |
+| `GET` | `/v1/identidad/clientes/{id_cliente}/verificaciones/ultima` | Última verificación. Si estaba `en_proceso`, pregunta al proveedor antes de responder |
+| `GET` | `/v1/identidad/clientes/{id_cliente}/estado` | `pendiente_verificacion`, `en_revision`, `verificada` o `rechazada`: lo que el BFF pone en `/sesion` |
+
+El BFF móvil expone esto como `/identidad/verificacion`; la forma de la respuesta es la
+misma del contrato (`id`, `estado`, `motivo`, `reintento_permitido`, `actualizada_en`).
+
+**Proveedor simulado.** Determinista y con la misma regla que el mock del BFF móvil, para
+que la app se comporte igual contra el núcleo que contra sus mocks: el último dígito del
+documento decide. `7` rechazada (`datos_no_coinciden`, con reintento), `8` en revisión
+manual, `9` en proceso y aprobada en la siguiente consulta, cualquier otro aprobada.
+`IDENTIDAD_KYC_CAIDO=1` lo deja fuera de servicio: toda solicitud responde 503 con
+`proveedor_kyc_no_disponible` y `/salud` reporta `proveedor_kyc: caido`. El núcleo nunca ve
+una excepción del cliente HTTP del proveedor, solo `DependenciaNoDisponible` del dominio.
+
+**Auditoría.** Todo intento queda en el log de ARQ-03 con resultado, proveedor, canal y
+marca de tiempo, incluido el intento que falló porque el proveedor estaba caído. El
+número de documento no se escribe en el log.
+
+**Fuera del Sprint 1:** la cola para reintentar sin que el usuario espere cuando el
+proveedor está caído (MOB-F01, criterio 8), la captura de documento y selfie, y el
+registro de la cuenta en el núcleo.
+
 ## Módulo de auditoría (ARQ-03)
 
 Registro inmutable y verificable de decisiones de pricing y suscripción y de eventos de
