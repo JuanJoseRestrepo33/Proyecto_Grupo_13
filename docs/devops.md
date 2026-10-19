@@ -17,6 +17,7 @@
 - [Revisión automática de código](#revisión-automática-de-código)
 - [Sprint Backlog y asignación por integrante](#sprint-backlog-y-asignación-por-integrante)
 - [Configuración manual en GitHub](#configuración-manual-en-github)
+- [Configuración manual en GCP](#configuración-manual-en-gcp)
 
 ---
 
@@ -271,41 +272,63 @@ Workflow [`cd.yml`](../.github/workflows/cd.yml). Corre en cada push a `develop`
 cada merge. También se puede lanzar a mano desde **Actions → CD → Run workflow**.
 
 ```
-merge a develop ──▶ CI ──▶ imagen :develop ──▶ webhook del environment staging    ──▶ prueba de humo
-merge a main    ──▶ CI ──▶ imagen :main    ──▶ webhook del environment produccion ──▶ prueba de humo
+merge a develop ──▶ CI ──▶ imagen :develop ──▶ Artifact Registry ──▶ Cloud Run (staging)    ──▶ prueba de humo
+merge a main    ──▶ CI ──▶ imagen :main    ──▶ Artifact Registry ──▶ Cloud Run (produccion) ──▶ prueba de humo
                      └──▶ release.yml: tag vX.Y.Z, release, imagen :X.Y.Z, PR de back-merge
 ```
 
-| Etapa | Requisito para activarse |
-|---|---|
-| **Publicar imagen** `solventa-nucleo:<sha>` y `:<rama>` en el registro de paquetes de GitHub | Que exista `backend/Dockerfile`. No requiere secretos |
-| **Solicitar despliegue** | Que exista la imagen y que el environment (`staging` o `produccion`) tenga configurado el webhook |
-| **Prueba de humo** | Que el environment tenga configurada su URL |
+| Etapa | Qué hace | Requisito para activarse |
+|---|---|---|
+| **Publicar imagen** | Construye `solventa-nucleo:<sha>` y `:<rama>` y las publica en el registro de paquetes de GitHub | Que exista `backend/Dockerfile`. No requiere secretos |
+| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo |
+| **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
+| **Prueba de humo** | Pide `/v1/` a la URL que devuelve Cloud Run, sin imprimir la respuesta | Igual que la anterior |
 
-### Principio de seguridad: el repositorio no conoce la infraestructura
+### Principio de seguridad: el repositorio no guarda credenciales
 
-El repositorio y el pipeline **no nombran la plataforma de despliegue, la nube, las bases de datos
-gestionadas ni ningún proveedor**, y no guardan ninguna credencial de infraestructura:
+El pipeline nombra la plataforma (Google Cloud: Artifact Registry y Cloud Run), pero **no guarda
+ninguna credencial de infraestructura**:
 
-- El pipeline solo publica una imagen y avisa a la plataforma por un webhook autenticado. La
-  plataforma es la que descarga la imagen y la despliega.
-- Las cadenas de conexión, contraseñas y llaves de las bases de datos y servicios se configuran
-  **directamente en el gestor de secretos de la plataforma**. Nunca pasan por GitHub, ni como secreto
-  ni como variable.
-- En GitHub solo existen tres secretos por environment, con los mismos nombres en `staging` y en
-  `produccion`. Ninguno revela el proveedor y todos se enmascaran en los logs.
+- La autenticación ante Google Cloud es por **Workload Identity Federation**: GitHub emite un token
+  OIDC de corta vida para cada ejecución y Google Cloud lo cambia por un token de la cuenta de servicio
+  de despliegue. No existe ninguna llave JSON de cuenta de servicio, ni en GitHub ni en el código.
+- Las cadenas de conexión, contraseñas y llaves de las bases de datos y servicios viven en **Secret
+  Manager** y se montan como variables de entorno sobre el servicio de Cloud Run. El pipeline no las
+  ve: despliega la imagen y la plataforma conserva la configuración del servicio entre revisiones.
+- En GitHub solo existen **variables** (no secretos) por environment, con los mismos nombres en
+  `staging` y en `produccion`. Son identificadores, no credenciales: saber el nombre del proyecto o de
+  la cuenta de servicio no da acceso a nada sin el token OIDC de este repositorio.
 - La prueba de humo solo comprueba que el servicio responde. No imprime respuestas, porque podrían
   revelar detalles internos.
 
-| Secreto (en cada environment) | Descripción |
-|---|---|
-| `DEPLOY_HOOK_URL` | URL del webhook de despliegue de la plataforma para ese ambiente |
-| `DEPLOY_TOKEN` | Token con el que el pipeline se autentica ante el webhook. Se rota cada sprint |
-| `AMBIENTE_URL` | URL pública del ambiente para la prueba de humo |
+| Variable (en cada environment) | Ejemplo | Descripción |
+|---|---|---|
+| `GCP_PROJECT_ID` | `solventa-staging` | Proyecto de Google Cloud del ambiente |
+| `GCP_REGION` | `us-east1` | Región de Artifact Registry y de Cloud Run |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/1234/locations/global/workloadIdentityPools/github/providers/solventa` | Proveedor de identidad que confía en este repositorio |
+| `GCP_SERVICE_ACCOUNT` | `despliegue@solventa-staging.iam.gserviceaccount.com` | Cuenta de servicio que el pipeline suplanta para desplegar |
+| `GCP_ARTIFACT_REPOSITORY` | `solventa` | Repositorio Docker de Artifact Registry |
+| `CLOUD_RUN_SERVICE` | `solventa-nucleo` | Nombre del servicio de Cloud Run |
 
-Si no están configurados, el job de despliegue termina sin error y deja un aviso en la ejecución. La
-configuración de la plataforma (infraestructura como código, credenciales, red) se mantiene fuera de
-este repositorio, con acceso restringido a quien administra el ambiente.
+Si falta alguna, el job de despliegue termina sin error, deja un aviso con las que faltan y no toca
+la plataforma. El servicio se expone sin autenticación de Cloud Run porque el núcleo no autentica
+clientes: eso es responsabilidad de los BFF. Cuando exista un API Gateway (Sprint 4), el servicio
+pasa a aceptar solo tráfico interno y la prueba de humo se hace con un token de identidad.
+
+### Qué espera el núcleo de la plataforma
+
+- **Puerto.** Cloud Run inyecta `PORT`; el contenedor escucha ahí (sin ella, en 8000).
+- **Sondas.** `GET /salud` responde 503 cuando una dependencia está caída; sirve como sonda de
+  arranque y de vida.
+- **Apagado.** Cloud Run envía `SIGTERM` y da diez segundos. El núcleo aprovecha ese lapso para
+  escribir lo que quedó en la cola de auditoría.
+- **Secretos.** `AUDITORIA_DATABASE_URL` montada desde Secret Manager, apuntando a Cloud SQL. Sin
+  ella el log de auditoría vive en memoria y se pierde con cada revisión: válido para una demo, no
+  para *staging*.
+- **Instancias.** Cotización, consentimiento y perfilamiento guardan su estado en memoria hasta que
+  tengan persistencia propia. Mientras tanto el servicio corre con **una sola instancia**
+  (`--min-instances=1 --max-instances=1`); con más, una cotización creada en una instancia no existe
+  en la otra.
 
 ---
 
@@ -467,6 +490,87 @@ cerrarlo y reabrirlo a mano para que corra.
   | `staging` | Selected branches → solo `develop` | - |
   | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
 
-  En cada uno se cargan los tres secretos de la tabla de [despliegue continuo](#despliegue-continuo).
+  En cada uno se cargan, como **variables** del environment, las seis de la tabla de
+  [despliegue continuo](#despliegue-continuo).
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
+
+---
+
+## Configuración manual en GCP
+
+Una vez por ambiente, con `gcloud` autenticado como administrador del proyecto. Los valores entre
+`<>` son los que después se cargan como variables del environment en GitHub.
+
+### 1. APIs, registro y base de datos
+
+```bash
+gcloud config set project <GCP_PROJECT_ID>
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
+  iamcredentials.googleapis.com sqladmin.googleapis.com secretmanager.googleapis.com
+
+gcloud artifacts repositories create <GCP_ARTIFACT_REPOSITORY> \
+  --repository-format=docker --location=<GCP_REGION>
+
+gcloud sql instances create solventa-auditoria --database-version=POSTGRES_15 \
+  --tier=db-f1-micro --region=<GCP_REGION>
+gcloud sql databases create solventa --instance=solventa-auditoria
+gcloud sql users create auditoria --instance=solventa-auditoria --password='<contraseña>'
+```
+
+El esquema, el rol `solventa_app` y los triggers los crea el núcleo al arrancar, así que el usuario de
+la cadena de conexión necesita permiso para crear esquemas y roles la primera vez.
+
+### 2. Secreto de la cadena de conexión
+
+Cloud Run se conecta a Cloud SQL por un socket Unix bajo `/cloudsql/`:
+
+```bash
+printf 'postgresql://auditoria:<contraseña>@/solventa?host=/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria' \
+  | gcloud secrets create auditoria-database-url --data-file=-
+```
+
+### 3. Cuenta de servicio y Workload Identity Federation
+
+```bash
+gcloud iam service-accounts create despliegue --display-name="Despliegue desde GitHub Actions"
+CUENTA="despliegue@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$CUENTA" --role="$rol"
+done
+
+gcloud iam workload-identity-pools create github --location=global
+gcloud iam workload-identity-pools providers create-oidc solventa \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository == '<propietario>/<repositorio>'"
+
+NUMERO=$(gcloud projects describe <GCP_PROJECT_ID> --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding "$CUENTA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.repository/<propietario>/<repositorio>"
+```
+
+`GCP_WORKLOAD_IDENTITY_PROVIDER` es
+`projects/$NUMERO/locations/global/workloadIdentityPools/github/providers/solventa` y
+`GCP_SERVICE_ACCOUNT` es `$CUENTA`. La condición sobre `assertion.repository` hace que solo este
+repositorio pueda suplantar la cuenta.
+
+### 4. Primer despliegue del servicio
+
+El pipeline solo cambia la imagen; la configuración del servicio se fija una vez aquí y se conserva
+entre revisiones. La cuenta con la que corre el servicio necesita leer el secreto y conectarse a
+Cloud SQL (`roles/secretmanager.secretAccessor` y `roles/cloudsql.client`).
+
+```bash
+gcloud run deploy <CLOUD_RUN_SERVICE> --region=<GCP_REGION> \
+  --image=<GCP_REGION>-docker.pkg.dev/<GCP_PROJECT_ID>/<GCP_ARTIFACT_REPOSITORY>/solventa-nucleo:<sha> \
+  --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
+  --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest \
+  --min-instances=1 --max-instances=1 --allow-unauthenticated
+```
+
+Para ese primer despliegue la imagen se copia a mano desde el registro de GitHub
+(`docker buildx imagetools create --tag <imagen en Artifact Registry> ghcr.io/<propietario>/solventa-nucleo:develop`).
+Desde entonces cada merge a `develop` publica una revisión nueva sin intervención manual.

@@ -30,6 +30,11 @@ class InstanciaUnica[T]:
                     self._creada = True
         return self._valor  # type: ignore[return-value]
 
+    @property
+    def creada(self) -> bool:
+        """Si la fábrica ya corrió. Permite apagar sin armar lo que nunca se usó."""
+        return self._creada
+
     def cache_clear(self) -> None:
         """Descarta la instancia; la siguiente llamada crea otra. Solo para pruebas."""
         with self._cerrojo:
