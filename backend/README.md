@@ -26,6 +26,17 @@ uvicorn app.main:app --reload
 | http://127.0.0.1:8000/v1/ | Índice de la fachada: capacidades publicadas y mapa de módulos. El CD lo usa como prueba de humo |
 | http://127.0.0.1:8000/salud | Estado del núcleo, módulo por módulo y dependencia por dependencia. Responde 503 si alguna dependencia está caída |
 
+Toda la configuración entra por variables de entorno; no hay archivos de configuración por ambiente.
+
+| Variable | Sin ella | Con ella |
+|---|---|---|
+| `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
+| `AUDITORIA_DATABASE_URL` | Log de auditoría en memoria (desarrollo y pruebas unitarias) | Log en PostgreSQL con las tres capas de protección. El esquema se crea solo al arrancar |
+
+Al recibir la orden de apagado, la fachada llama a `detener()` en cada módulo en orden inverso al de
+arranque. Auditoría aprovecha ese momento para escribir lo que quedó en su cola; sin eso, una
+decisión tomada justo antes de que la plataforma reemplace la instancia se perdería.
+
 ## Verificar lo mismo que el CI
 
 ```bash

@@ -44,6 +44,10 @@ def sin_arranque() -> None:
     return None
 
 
+def sin_apagado() -> None:
+    return None
+
+
 @dataclass(frozen=True)
 class DescriptorDeModulo:
     """Lo único que un módulo publica hacia la fachada.
@@ -51,7 +55,9 @@ class DescriptorDeModulo:
     `nombre` debe coincidir con el nombre del paquete bajo `app.modulos`. `historia` es la
     historia de usuario que le da origen, para que el índice de la fachada y `/salud`
     digan de dónde sale cada capacidad. `iniciar` se invoca una vez al armar la aplicación:
-    es donde un módulo se suscribe a los eventos que le interesan.
+    es donde un módulo se suscribe a los eventos que le interesan. `detener` se invoca
+    cuando el servidor recibe la orden de apagarse: es donde un módulo termina lo que
+    dejó en segundo plano antes de que el proceso muera.
     """
 
     nombre: str
@@ -60,6 +66,7 @@ class DescriptorDeModulo:
     router: Enrutador
     dependencias: Callable[[], Sequence[EstadoDeDependencia]] = sin_dependencias
     iniciar: Callable[[], None] = sin_arranque
+    detener: Callable[[], None] = sin_apagado
 
     @property
     def publica_rutas(self) -> bool:

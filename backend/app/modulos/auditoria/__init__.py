@@ -21,6 +21,7 @@ MODULO = DescriptorDeModulo(
     historia="ARQ-03",
     router=router,
     dependencias=estado_dependencias,
+    detener=vaciar_escrituras_pendientes,
 )
 
 __all__ = [
