@@ -1,0 +1,21 @@
+/** Alias legibles de los esquemas del contrato (generados en esquema.ts). */
+import type { components } from './esquema'
+
+type Esquemas = components['schemas']
+
+export type Sesion = Esquemas['Sesion']
+export type Finalidad = Esquemas['Finalidad']
+export type CodigoFinalidad = Esquemas['CodigoFinalidad']
+export type Entidad = Esquemas['Entidad']
+export type Consentimiento = Esquemas['Consentimiento']
+export type SolicitudConsentimiento = Esquemas['SolicitudConsentimiento']
+export type EventoConsentimiento = Esquemas['EventoConsentimiento']
+export type Producto = Esquemas['Producto']
+export type CodigoProducto = Esquemas['CodigoProducto']
+export type SolicitudCotizacion = Esquemas['SolicitudCotizacion']
+export type Cotizacion = Esquemas['Cotizacion']
+export type FactorPrecio = Esquemas['FactorPrecio']
+export type Dinero = Esquemas['Dinero']
+export type ErrorApi = Esquemas['Error']
+export type DatosAsegurado = Esquemas['DatosAsegurado']
+export type Cobertura = Esquemas['Cobertura']

@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Solventa</string>
+    <string name="nav_home">Inicio</string>
+    <string name="nav_policies">Pólizas</string>
+    <string name="nav_notices">Avisos</string>
+    <string name="nav_profile">Perfil</string>
+    <string name="placeholder">Esta sección estará disponible próximamente.</string>
+    <string name="aviso_identidad_pendiente">Tu identidad aún no está verificada. Podrás cotizar y contratar pólizas cuando terminemos de validarla.</string>
+</resources>

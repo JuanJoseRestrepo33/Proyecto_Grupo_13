@@ -60,9 +60,9 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | Canal | Enlace |
 |---|---|
 | 🖥️ Web | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html) |
-| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html) |
+| 📱 Móvil | [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html) |
 
-Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile/login.html`.
+Se publican automáticamente desde `main` en cada cambio. Para abrirlos en local: `python3 -m http.server 8765` en la raíz y visitar `/web/login.html` o `/mobile-docs/login.html`.
 
 ## Atributos de calidad
 
@@ -84,7 +84,7 @@ Detalle completo de los escenarios de calidad en la Acta de Constitución y en e
 <!-- TODO: completar con el estilo arquitectónico elegido por el equipo -->
 
 - **Estilo arquitectónico:** _por definir / describir aquí (monolito modular, microservicios, EDA, etc.) y su justificación_
-- **Cliente web:** _framework y responsabilidades (gestión completa: venta asistida, back-office de socios, tableros)_
+- **Cliente web:** React + TypeScript ([`apps/web`](apps/web)), que habla solo con su BFF según el contrato [`contratos/bff-web`](contratos/bff-web). Gestión completa: venta asistida, consentimientos, back-office de socios y tableros.
 - **Cliente móvil:** _framework y responsabilidades (autoservicio: reporte de siniestros, biometría, modo offline)_
 - **Backend / servicios:** _tecnologías y capacidades de negocio implementadas (cotización, suscripción, siniestros, pagos, identidad, perfilamiento)_
 - **Integraciones externas (simuladas):** Open Finance / Open Data, KYC/AML, pasarelas de pago, reaseguradoras
@@ -95,16 +95,24 @@ Diagramas y vistas de arquitectura: _enlazar aquí (C4, diagramas de despliegue,
 
 ```
 Proyecto_Grupo_13/
-├── .github/
+├── .github/                  # CI/CD (workflows), plantillas de issues y PR, Dependabot
 │   └── ISSUE_TEMPLATE/       # Plantillas de issues (épicas y features)
-├── docs/                     # Acta de constitución, épicas y features, caso de estudio
-├── web/                      # Cliente web
+├── apps/
+│   └── web/                  # Cliente web (React + TypeScript)
+├── contratos/
+│   ├── bff-web/              # Contrato OpenAPI entre el cliente web y su BFF
+│   └── bff-movil/            # Contrato OpenAPI entre la app Android y su BFF
+├── docs/                     # Acta, épicas, features, caso de estudio, historias, backlog, patrones, guía de usuario y DevOps
+├── DesignSystem/             # Design System, sistema de navegación y diseño del sistema
+├── scripts/                  # Herramientas del repo (validadores de commits y de GitFlow)
+├── web/                      # Mockups navegables del canal web (HTML), publicados con GitHub Pages
 ├── mobile/                   # Cliente móvil
-├── backend/                  # Servicios / API / capacidades de negocio
+│   └── android/              # App nativa Kotlin / Jetpack Compose
+├── mobile-docs/              # Mockups navegables del canal móvil (HTML), publicados con GitHub Pages
+├── experimentos/             # Experimentos de arquitectura
+├── solventa-experiments/     # Experimentos de arquitectura
 └── README.md
 ```
-
-> Ajusta esta estructura a como esté organizado realmente el repositorio.
 
 ## Cómo ejecutar el proyecto
 
@@ -125,16 +133,21 @@ cd backend
 
 ### Cliente web
 
-Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
+Requiere Node.js 22. Corre contra un BFF simulado que implementa
+[`contratos/bff-web/openapi.yaml`](contratos/bff-web/openapi.yaml); detalle en
+[apps/web/README.md](apps/web/README.md).
 
 ```bash
-cd web
-# instrucciones de instalación y ejecución
+cd apps/web
+npm install
+npm run dev        # http://localhost:5173
 ```
+
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/web/login.html)
 
 ### Cliente móvil
 
-Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile/login.html)
+Mockups navegables: [https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html](https://juanjoserestrepo33.github.io/Proyecto_Grupo_13/mobile-docs/login.html)
 
 ```bash
 cd mobile

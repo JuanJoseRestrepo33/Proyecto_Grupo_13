@@ -1,0 +1,8 @@
+# Configuración de CodeQL: se excluyen archivos generados por herramientas, que no se editan a mano.
+name: Solventa
+
+paths-ignore:
+  # Service worker generado por MSW ("do NOT modify"); solo se usa en desarrollo y no se publica.
+  - apps/web/public/mockServiceWorker.js
+  # Tipos generados desde contratos/bff-web/openapi.yaml.
+  - apps/web/src/api/esquema.ts

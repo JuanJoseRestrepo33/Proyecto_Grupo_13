@@ -1,0 +1,191 @@
+{
+  "app": {
+    "nombre": "Solventa",
+    "saltarContenido": "Skip to main content",
+    "navegacionPrincipal": "Main navigation",
+    "idioma": "Language"
+  },
+  "nav": {
+    "inicio": "Home",
+    "cotizar": "Get a quote",
+    "consentimientos": "Consents"
+  },
+  "inicio": {
+    "saludo": "Hi, {{nombre}}",
+    "descripcion": "Get insurance quotes and manage your Open Finance consents.",
+    "cargando": "Loading your information…",
+    "error": "We couldn't load your information. Please try again later."
+  },
+  "consentimientos": {
+    "titulo": "Open Finance consents",
+    "descripcion": "Control which financial data Solventa can use, for what and for how long.",
+    "queDatos": "What data do we request?",
+    "queDatosDetalle": "Only what each purpose states, reported by the institutions you choose under the Open Finance standard. It's used only while the consent is active, and you can revoke it at any time.",
+    "alcance": "Scope",
+    "vigencia": "Validity",
+    "vigenciaMeses": "{{count}} months",
+    "entidades": "Source institutions",
+    "textoLegal": "Legal text",
+    "estado": {
+      "sinOtorgar": "Not granted",
+      "vigente": "Active",
+      "revocado": "Revoked",
+      "vencido": "Expired"
+    },
+    "venceEl": "Expires on {{fecha}}.",
+    "revocadoEl": "Revoked on {{fecha}}.",
+    "vencioEl": "Expired on {{fecha}}.",
+    "porVencer": "Expires in {{count}} days. Renew it to keep getting personalized offers.",
+    "otorgar": {
+      "entidades": "Institutions you authorize data from",
+      "autorizo": "I authorize Solventa to consult my financial data from the selected institutions for the purpose “{{finalidad}}”, with the scope and validity described (legal text {{version}}).",
+      "boton": "Grant consent",
+      "enviando": "Granting…",
+      "sinEntidades": "Select at least one institution.",
+      "sinAutorizacion": "You must check the authorization to continue."
+    },
+    "acciones": {
+      "revocar": "Revoke",
+      "renovar": "Renew",
+      "renovando": "Renewing…",
+      "verHistorial": "View history",
+      "ocultarHistorial": "Hide history"
+    },
+    "revocar": {
+      "titulo": "Revoke the {{finalidad}} consent?",
+      "consecuencia": {
+        "cotizacion": "Your next quotes will use the standard price, without your financial data.",
+        "suscripcion": "We'll stop using your financial data to evaluate your policy applications.",
+        "prevencion_fraude": "We'll stop using your financial data to verify your transactions."
+      },
+      "propagacion": "The revocation takes effect across the platform in less than 5 minutes.",
+      "confirmar": "Yes, revoke",
+      "revocando": "Revoking…",
+      "cancelar": "Cancel"
+    },
+    "resultado": {
+      "otorgado": "Consent granted. Active until {{fecha}}.",
+      "revocado": "Consent revoked.",
+      "renovado": "Consent renewed. Active until {{fecha}}."
+    },
+    "historial": {
+      "titulo": "{{finalidad}} history",
+      "vacio": "No events yet.",
+      "cargando": "Loading history…",
+      "error": "We couldn't load the history.",
+      "canal": {
+        "web": "web",
+        "movil": "mobile app",
+        "sistema": "automatic"
+      },
+      "evento": {
+        "otorgado": "Granted",
+        "renovado": "Renewed",
+        "revocado": "Revoked",
+        "vencido": "Expired"
+      },
+      "detalle": "{{fecha}} · {{canal}} channel · legal text {{version}}"
+    },
+    "errores": {
+      "cargar": "We couldn't load your consents. Please try again.",
+      "reintentar": "Try again",
+      "consentimiento_ya_vigente": "You already have an active consent for this purpose.",
+      "consentimiento_no_vigente": "This consent is no longer active.",
+      "consentimiento_revocado": "A revoked consent can't be renewed: grant it again.",
+      "version_texto_desactualizada": "The legal text changed. Reload the page to read the current version.",
+      "entidades_invalidas": "Select at least one valid institution.",
+      "general": "We couldn't complete the operation. Please try again."
+    }
+  },
+  "cotizacion": {
+    "titulo": "Get an insurance quote",
+    "descripcion": "Get a personalized premium based on your risk profile.",
+    "pasos": {
+      "etiqueta": "Quote steps",
+      "producto": "Product",
+      "datos": "Your details",
+      "openFinance": "Open Finance",
+      "oferta": "Your offer",
+      "actual": "step {{actual}} of {{total}}"
+    },
+    "navegacion": {
+      "atras": "Back",
+      "continuar": "Continue",
+      "verOferta": "See my offer",
+      "cotizando": "Quoting…",
+      "otraCotizacion": "Quote another product"
+    },
+    "producto": {
+      "titulo": "1. Choose the product you want to quote",
+      "desde": "From {{prima}}/month"
+    },
+    "datos": {
+      "titulo": "2. Insured person's details",
+      "fechaNacimiento": "Date of birth",
+      "ciudad": "City",
+      "valorAsegurado": "Desired insured amount (optional)",
+      "valorAyuda": "Plan amount: {{valor}}. Fill it in only if you want a different one."
+    },
+    "openFinance": {
+      "titulo": "3. Personalize your offer with Open Finance",
+      "usar": "Use my financial data (Open Finance)",
+      "usarAyuda": "We can offer you a more accurate premium based on your financial behavior.",
+      "vigente": "You have an active consent for quotes until {{fecha}}.",
+      "sinConsentimiento": "You don't have an active consent.",
+      "sinConsentimientoDetalle": "We'll quote with the standard price.",
+      "otorgar": "Grant consent",
+      "openData": "We include Open Data sources depending on the product: demographics, location and aggregated industry claims."
+    },
+    "oferta": {
+      "titulo": "4. Your offer",
+      "numero": "Quote {{id}}",
+      "porMes": "/month",
+      "ahorro": "You save {{ahorro}} a month compared to the standard price of {{estandar}}.",
+      "valorAsegurado": "Insured amount",
+      "deducible": "Deductible",
+      "coberturas": "Coverages",
+      "vigencia": "Valid for",
+      "vigenciaHasta": "The offer is valid until {{hora}}.",
+      "base": {
+        "open_finance": "Price calculated with your Open Finance profile. The result is explainable and auditable.",
+        "open_finance_en_cache": "Your financial institution didn't respond in time, so we used your saved financial profile. The price is just as valid."
+      },
+      "estandar": {
+        "titulo": "Standard price",
+        "sin_consentimiento": "We didn't use financial data because you don't have an active consent for quotes.",
+        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it."
+      },
+      "vencida": "The quote has expired.",
+      "vencidaDetalle": "Prices are guaranteed for 5 minutes.",
+      "recotizar": "Quote again",
+      "recotizando": "Quoting again…"
+    },
+    "precio": {
+      "porQue": "Why this price?",
+      "titulo": "How your premium was calculated",
+      "factor": "Factor",
+      "efecto": "Effect",
+      "monto": "Monthly amount",
+      "estandar": "Standard premium",
+      "total": "Your monthly premium",
+      "version": "Calculated with rule {{version}}."
+    },
+    "errores": {
+      "productoRequerido": "Choose a product to continue.",
+      "fechaRequerida": "Enter your date of birth.",
+      "fechaInvalida": "The date of birth is not valid.",
+      "menorDeEdad": "You must be at least 18 years old to get a quote.",
+      "mayorDeEdad": "The maximum age for a quote is 100 years.",
+      "ciudadRequerida": "Enter your city.",
+      "ciudadLarga": "The city can't be longer than 80 characters.",
+      "valorInvalido": "Enter the amount using digits only, for example 60000000.",
+      "cargar": "We couldn't load the products. Please try again.",
+      "cotizar": "We couldn't calculate your offer. Please try again.",
+      "reintentar": "Try again"
+    }
+  },
+  "noEncontrada": {
+    "titulo": "Page not found",
+    "volver": "Back to home"
+  }
+}

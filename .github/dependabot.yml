@@ -7,3 +7,12 @@ updates:
     target-branch: develop
     schedule: { interval: weekly }
     commit-message: { prefix: "ci" }
+  - package-ecosystem: npm
+    directory: /apps/web
+    target-branch: develop
+    schedule: { interval: weekly }
+    commit-message: { prefix: "build", include: scope }
+    groups:
+      dependencias-web:
+        patterns: ["*"]
+        update-types: [minor, patch]

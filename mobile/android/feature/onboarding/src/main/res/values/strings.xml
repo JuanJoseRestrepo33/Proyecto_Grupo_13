@@ -1,0 +1,109 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="es">
+    <!-- Comunes -->
+    <string name="volver">Volver</string>
+    <string name="cargando">Cargando</string>
+    <string name="error_sin_conexion">No pudimos conectarnos. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="error_generico">Algo salió mal de nuestro lado. Inténtalo de nuevo en unos minutos.</string>
+    <string name="campo_correo">Correo electrónico</string>
+    <string name="campo_contrasena">Contraseña</string>
+    <string name="boton_continuar">Continuar</string>
+    <string name="ir_al_inicio">Ir al inicio</string>
+
+    <!-- Registro (asistente de 3 pasos) -->
+    <string name="registro_titulo">Crea tu cuenta</string>
+    <string name="registro_paso">Paso %1$d de %2$d: %3$s</string>
+    <string name="paso_datos">Tus datos</string>
+    <string name="paso_documento">Tu documento</string>
+    <string name="paso_contrasena">Tu contraseña</string>
+    <string name="campo_nombre">Nombre completo</string>
+    <string name="campo_celular">Celular</string>
+    <string name="ayuda_celular">10 dígitos, empieza por 3</string>
+    <string name="campo_tipo_documento">Tipo de documento</string>
+    <string name="tipo_cedula_ciudadania">Cédula de ciudadanía</string>
+    <string name="tipo_cedula_extranjeria">Cédula de extranjería</string>
+    <string name="tipo_pasaporte">Pasaporte</string>
+    <string name="campo_numero_documento">Número de documento</string>
+    <string name="ayuda_documento">Sin puntos ni espacios</string>
+    <string name="ayuda_contrasena">Mínimo 8 caracteres, con letras y números</string>
+    <string name="campo_confirmacion">Confirma tu contraseña</string>
+    <string name="registro_terminos">Acepto los términos y la política de tratamiento de datos, que incluye la validación de identidad KYC/AML.</string>
+    <string name="boton_crear_cuenta">Crear cuenta</string>
+    <string name="registro_ya_tengo_cuenta">¿Ya tienes cuenta? Inicia sesión</string>
+
+    <string name="error_requerido">Este dato es obligatorio.</string>
+    <string name="error_nombre">Escribe tu nombre completo, entre 3 y 120 caracteres.</string>
+    <string name="error_correo">Escribe un correo válido, por ejemplo nombre@correo.com.</string>
+    <string name="error_celular">Escribe un celular de 10 dígitos que empiece por 3.</string>
+    <string name="error_cedula">La cédula tiene entre 6 y 10 dígitos, sin puntos.</string>
+    <string name="error_documento">Usa entre 5 y 15 letras o números, sin espacios ni guiones.</string>
+    <string name="error_contrasena">Usa mínimo 8 caracteres, con al menos una letra y un número.</string>
+    <string name="error_confirmacion">Las contraseñas no coinciden.</string>
+    <string name="error_terminos">Para crear la cuenta debes aceptar los términos y la política de datos.</string>
+    <string name="error_correo_registrado">Ya hay una cuenta con este correo. Inicia sesión o usa otro correo.</string>
+    <string name="error_documento_registrado">Ya hay una cuenta con este documento. Inicia sesión con el correo de esa cuenta.</string>
+
+    <!-- Verificación del correo (OTP) -->
+    <string name="otp_titulo">Verifica tu correo</string>
+    <string name="otp_pendiente">Tu cuenta quedó creada y está pendiente de verificación.</string>
+    <string name="otp_instruccion">Escribe el código de 6 dígitos que enviamos a tu correo.</string>
+    <string name="campo_otp">Código de verificación</string>
+    <string name="otp_intentos">Intentos restantes: %1$d</string>
+    <string name="otp_verificar">Verificar</string>
+    <string name="otp_reenviar">Reenviar código</string>
+    <string name="otp_reenviar_en">Reenviar código en %1$d s</string>
+    <string name="otp_pedir_nuevo">Pedir un código nuevo</string>
+    <string name="otp_reenviado">Te enviamos un código nuevo. El anterior ya no sirve.</string>
+    <string name="otp_espera_reenvio">Espera unos segundos antes de pedir otro código.</string>
+    <string name="otp_incorrecto">Código incorrecto. Intentos restantes: %1$d.</string>
+    <string name="otp_bloqueado">Usaste los 3 intentos y este código se bloqueó. Tu cuenta sigue activa: pide un código nuevo.</string>
+    <string name="otp_vencido">El código venció. Pide uno nuevo.</string>
+    <string name="otp_ya_verificado">Este correo ya está verificado. Inicia sesión con tu contraseña.</string>
+
+    <!-- Resultado de la verificación de identidad (KYC/AML) -->
+    <string name="kyc_cargando">Consultando tu verificación de identidad…</string>
+    <string name="kyc_en_proceso_titulo">Estamos validando tu identidad</string>
+    <string name="kyc_en_proceso_texto">Recibimos tus datos. La validación suele tomar unos segundos; puedes seguir y te avisaremos el resultado.</string>
+    <string name="kyc_consultar">Consultar de nuevo</string>
+    <string name="kyc_aprobada_titulo">¡Identidad verificada!</string>
+    <string name="kyc_aprobada_texto">Ya puedes cotizar, contratar y gestionar tus pólizas desde la app.</string>
+    <string name="kyc_rechazada_titulo">No pudimos verificar tu identidad</string>
+    <string name="kyc_motivo_datos">Los datos que ingresaste no coinciden con los de tu documento.</string>
+    <string name="kyc_motivo_documento">No pudimos validar tu documento. Puede estar vencido o el número tener un error.</string>
+    <string name="kyc_motivo_no_superada">No logramos confirmar tu identidad con la información disponible.</string>
+    <string name="kyc_rechazada_reintento">Puedes intentarlo de nuevo. Si el resultado se repite, escríbenos desde Ayuda y revisaremos tu caso.</string>
+    <string name="kyc_rechazada_sin_reintento">Escríbenos desde Ayuda y una persona del equipo revisará tu caso.</string>
+    <string name="kyc_reintentar">Intentar de nuevo</string>
+    <string name="kyc_revision_titulo">Tu verificación está en revisión</string>
+    <string name="kyc_revision_texto">Una persona de nuestro equipo está revisando tus datos. Te avisaremos por correo y en la app cuando termine; no tienes que hacer nada más.</string>
+    <string name="kyc_error">No pudimos consultar tu verificación. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="kyc_error_reintentar">Reintentar</string>
+
+    <!-- Ingreso -->
+    <string name="ingreso_titulo">Solventa</string>
+    <string name="ingreso_subtitulo">Aseguradora digital de finanzas abiertas, en tu bolsillo.</string>
+    <string name="ingreso_boton">Iniciar sesión</string>
+    <string name="ingreso_biometria">Ingresar con huella o rostro</string>
+    <string name="ingreso_nuevo">¿Nuevo en Solventa?</string>
+    <string name="ingreso_datos_incompletos">Ingresa un correo válido y tu contraseña.</string>
+    <string name="ingreso_credenciales_invalidas">Correo o contraseña incorrectos. Revisa los datos e inténtalo de nuevo.</string>
+    <string name="biometria_fallida">No reconocimos tu huella o rostro. Ingresa con tu contraseña; tu cuenta sigue activa.</string>
+    <string name="biometria_no_disponible">La biometría no está disponible en este momento. Ingresa con tu contraseña.</string>
+    <string name="biometria_invalidada">Cambiaron las huellas o rostros registrados en este teléfono. Por seguridad, ingresa con tu contraseña y vuelve a activar la biometría.</string>
+    <string name="biometria_vencida">Tu acceso con huella o rostro venció. Ingresa con tu contraseña para renovarlo.</string>
+
+    <!-- Oferta de biometría -->
+    <string name="oferta_titulo">Entra más rápido con tu huella o rostro</string>
+    <string name="oferta_explicacion_rapido">La próxima vez entrarás con tu huella o tu rostro, sin escribir la contraseña.</string>
+    <string name="oferta_explicacion_privacidad">Tu huella y tu rostro nunca salen de este teléfono: Solventa no los recibe ni los guarda. Solo desbloquean una llave segura del dispositivo.</string>
+    <string name="oferta_explicacion_respaldo">Si el sensor falla o no está disponible, siempre podrás entrar con tu contraseña.</string>
+    <string name="oferta_activar">Activar</string>
+    <string name="oferta_ahora_no">Ahora no</string>
+    <string name="oferta_activada">Listo. La próxima vez podrás entrar con tu huella o rostro.</string>
+    <string name="oferta_no_activada">No activamos el ingreso con huella o rostro. Podrás hacerlo la próxima vez que entres con tu contraseña.</string>
+
+    <!-- Diálogo del sistema (BiometricPrompt) -->
+    <string name="prompt_titulo">Ingresa a Solventa</string>
+    <string name="prompt_titulo_activar">Activa tu huella o rostro</string>
+    <string name="prompt_subtitulo">Usa la huella o el rostro registrados en este teléfono</string>
+    <string name="prompt_usar_contrasena">Usar contraseña</string>
+</resources>
