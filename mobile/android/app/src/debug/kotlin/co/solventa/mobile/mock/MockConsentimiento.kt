@@ -9,12 +9,8 @@ import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.SolicitudConsentimiento
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 
-private val VIGENCIA: Map<CodigoFinalidad, Duration> = mapOf(
-    CodigoFinalidad.COTIZACION to Duration.ofDays(180),
-    CodigoFinalidad.SUSCRIPCION to Duration.ofDays(365),
-    CodigoFinalidad.PREVENCION_FRAUDE to Duration.ofDays(365),
-)
 private val UMBRAL_POR_VENCER: Duration = Duration.ofDays(30)
 
 private val ENTIDADES: Map<CodigoFinalidad, List<EntidadConsentimiento>> = mapOf(
@@ -71,7 +67,7 @@ internal data class DatosConsentimiento(
     val entidades: List<EntidadConsentimiento>,
     val versionTexto: String,
     val otorgadoEn: Instant,
-    val vigencia: Duration,
+    val vigenciaMeses: Long,
 )
 
 internal class ConsentimientoMock(datos: DatosConsentimiento) {
@@ -81,14 +77,14 @@ internal class ConsentimientoMock(datos: DatosConsentimiento) {
     private val entidades = datos.entidades
     private val versionTexto = datos.versionTexto
     private val otorgadoEn = datos.otorgadoEn
-    private val vigencia = datos.vigencia
+    private val vigenciaMeses = datos.vigenciaMeses
 
-    var venceEn: Instant = datos.otorgadoEn + datos.vigencia
+    var venceEn: Instant = sumarMeses(datos.otorgadoEn, vigenciaMeses)
     var revocadoEn: Instant? = null
 
     fun estado(ahora: Instant): EstadoConsentimiento = when {
         revocadoEn != null -> EstadoConsentimiento.REVOCADO
-        ahora.isAfter(venceEn) -> EstadoConsentimiento.VENCIDO
+        !ahora.isBefore(venceEn) -> EstadoConsentimiento.VENCIDO
         else -> EstadoConsentimiento.VIGENTE
     }
 
@@ -121,7 +117,7 @@ internal class ConsentimientoMock(datos: DatosConsentimiento) {
 
     fun renovar(ahora: Instant) {
         revocadoEn = null
-        venceEn = ahora + vigencia
+        venceEn = sumarMeses(ahora, vigenciaMeses)
     }
 }
 
@@ -155,7 +151,7 @@ internal class MockConsentimiento(private val estado: EstadoMock) {
                 entidades = fin.entidadesOrigen.filter { it.id in solicitud.entidadesOrigen },
                 versionTexto = solicitud.versionTexto,
                 otorgadoEn = ahora,
-                vigencia = requireNotNull(VIGENCIA[solicitud.finalidad]),
+                vigenciaMeses = fin.vigenciaMeses.toLong(),
             ),
         )
         consentimientos += nuevo
@@ -186,7 +182,8 @@ internal class MockConsentimiento(private val estado: EstadoMock) {
         val validas = finalidad?.entidadesOrigen?.map { it.id }?.toSet().orEmpty()
         return when {
             solicitud.versionTexto != finalidad?.versionTexto -> fallo(422, "version_texto_desactualizada")
-            !validas.containsAll(solicitud.entidadesOrigen) -> fallo(422, "entidades_invalidas")
+            solicitud.entidadesOrigen.isEmpty() || !validas.containsAll(solicitud.entidadesOrigen) ->
+                fallo(422, "entidades_invalidas")
             else -> null
         }
     }
@@ -219,3 +216,7 @@ internal class MockConsentimiento(private val estado: EstadoMock) {
         return respuesta(200, con.dto(ahora))
     }
 }
+
+/** Meses calendario, como el backend: el vencimiento no se aproxima con días fijos. */
+private fun sumarMeses(desde: Instant, meses: Long): Instant =
+    desde.atOffset(ZoneOffset.UTC).plusMonths(meses).toInstant()

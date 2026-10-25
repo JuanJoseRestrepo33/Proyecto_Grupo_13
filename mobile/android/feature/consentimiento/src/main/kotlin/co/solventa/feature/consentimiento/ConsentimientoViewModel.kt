@@ -104,7 +104,12 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
         estado = estado.copy(cargando = true, mensajeCarga = null)
         carga = viewModelScope.launch {
             val rFinalidades = llamarBff { api.listarFinalidades() }
-            val rConsentimientos = llamarBff { api.listarConsentimientos() }
+            // Sin catálogo no hay lista que mostrar: un 401 o un fallo se atienden de inmediato.
+            val rConsentimientos = if (rFinalidades is Resultado.Exito) {
+                llamarBff { api.listarConsentimientos() }
+            } else {
+                null
+            }
             estado = when {
                 inicio != generacion -> estado.copy(cargando = false)
                 rFinalidades is Resultado.Exito && rConsentimientos is Resultado.Exito -> {
@@ -116,16 +121,22 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
                         requiereRefresco = false,
                     ).reconciliarDialogos(finalidades)
                 }
-                else -> estado.copy(
-                    cargando = false,
-                    errorCarga = estado.finalidades.isEmpty(),
-                    sesionVencida = rFinalidades.esNoAutenticado() || rConsentimientos.esNoAutenticado(),
-                    mensajeCarga = if (rFinalidades.esSinConexion() || rConsentimientos.esSinConexion()) {
-                        R.string.error_sin_conexion
-                    } else {
-                        R.string.error_generico
-                    },
-                )
+                else -> {
+                    val fallo = rConsentimientos ?: rFinalidades
+                    // Si el estado conocido ya es obsoleto, el formulario no puede reenviarse con él:
+                    // se cierra y la lista ofrece actualizar.
+                    val base = if (estado.requiereRefresco) estado.sinDialogos() else estado
+                    base.copy(
+                        cargando = false,
+                        errorCarga = estado.finalidades.isEmpty(),
+                        sesionVencida = fallo is Resultado.Falla && fallo.http == HTTP_NO_AUTENTICADO,
+                        mensajeCarga = if (fallo is Resultado.SinConexion) {
+                            R.string.error_sin_conexion
+                        } else {
+                            R.string.error_generico
+                        },
+                    )
+                }
             }
         }
     }
@@ -260,15 +271,13 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
                 is Resultado.Falla -> alFallar(resultado).copy(
                     mutando = false,
                     mensajeError = mensajeDe(resultado),
-                    requiereRefresco = resultado.esIncierta(),
+                    // Incierta o ya conocida como obsoleta: no se actúa hasta una consulta exitosa.
+                    requiereRefresco = resultado.esIncierta() || resultado.debeRefrescar(),
                     sesionVencida = resultado.http == HTTP_NO_AUTENTICADO,
                 )
-                Resultado.SinConexion -> estado.copy(
+                Resultado.SinConexion -> estado.sinDialogos().copy(
                     mutando = false,
                     renovando = null,
-                    otorgando = null,
-                    revocando = null,
-                    finalidadRevocando = null,
                     mensajeError = R.string.error_sin_conexion,
                     requiereRefresco = true,
                 )
@@ -278,6 +287,8 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
     }
 
     private fun EstadoConsentimientoUi.sinRevocacion() = copy(revocando = null, finalidadRevocando = null)
+
+    private fun EstadoConsentimientoUi.sinDialogos() = sinRevocacion().copy(otorgando = null)
 
     /** Aplica de inmediato la respuesta del servidor; la recarga posterior la confirma. */
     private fun EstadoConsentimientoUi.conConsentimiento(c: Consentimiento) = copy(
@@ -335,9 +346,6 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
         Resultado.SinConexion -> false
     }
 
-    private fun Resultado<*>.esSinConexion() = this is Resultado.SinConexion
-
-    private fun Resultado<*>.esNoAutenticado() = this is Resultado.Falla && http == HTTP_NO_AUTENTICADO
 
     private companion object {
         const val VERSION_DESACTUALIZADA = "version_texto_desactualizada"

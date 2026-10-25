@@ -311,4 +311,24 @@ class MockBffMovilTest {
         ingresarComoDemo()
         assertEquals(404 to "consentimiento_no_encontrado", falla { api.revocarConsentimiento("CON-X") }.clave())
     }
+
+    @Test
+    fun `otorgar sin entidades se rechaza como el backend`() {
+        ingresarComoDemo()
+        val f = runBlocking { api.listarFinalidades() }.first()
+        val solicitud = co.solventa.core.network.SolicitudConsentimiento(f.codigo, emptyList(), f.versionTexto)
+        assertEquals(422 to "entidades_invalidas", falla { api.otorgarConsentimiento(solicitud) }.clave())
+    }
+
+    @Test
+    fun `vence en meses calendario y en el instante exacto ya esta vencido`() = runBlocking {
+        ingresarComoDemo()
+        val f = api.listarFinalidades().first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        val creado = api.otorgarConsentimiento(
+            co.solventa.core.network.SolicitudConsentimiento(f.codigo, listOf("bancolombia"), f.versionTexto),
+        )
+        assertEquals("2027-04-17T10:00:00Z", creado.venceEn)
+        ahora = Instant.parse(creado.venceEn)
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.VENCIDO, api.listarConsentimientos()[0].estado)
+    }
 }

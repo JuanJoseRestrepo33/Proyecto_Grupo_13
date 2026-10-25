@@ -107,6 +107,15 @@ class ConsentimientoViewModelTest {
     }
 
     @Test
+    fun `401 en el catalogo delega de inmediato sin consultar consentimientos`() {
+        api.finalidades = { throw fallaBff(401, "no_autenticado") }
+        val viewModel = ConsentimientoViewModel(api)
+        viewModel.cargar()
+        assertTrue(viewModel.estado.sesionVencida)
+        assertEquals(0, api.llamadas.count { it == "consentimientos" })
+    }
+
+    @Test
     fun `fallo al refrescar conserva la lista y avisa`() {
         val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
         api.consentimientos = { throw IOException("sin red") }
@@ -262,6 +271,26 @@ class ConsentimientoViewModelTest {
     }
 
     @Test
+    fun `si falla la recarga tras un error conocido no se reenvia con datos obsoletos`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        api.otorgar = { throw fallaBff(422, "entidades_invalidas") }
+        api.finalidades = { throw IOException("sin red") }
+        viewModel.otorgar()
+
+        val estado = viewModel.estado
+        assertEquals(R.string.entidades_invalidas, estado.mensajeError)
+        assertTrue(estado.requiereRefresco)
+        assertNull("el formulario obsoleto se cierra", estado.otorgando)
+        assertFalse(estado.accionesHabilitadas)
+
+        api.finalidades = { listOf(finalidadCotizacion()) }
+        viewModel.cargar()
+        assertTrue(viewModel.estado.accionesHabilitadas)
+        assertEquals(1, mutaciones())
+    }
+
+    @Test
     fun `respuesta perdida obliga a consultar antes de repetir`() {
         val viewModel = cargado()
         viewModel.formularioListo()
@@ -393,7 +422,48 @@ class ConsentimientoViewModelTest {
         assertEquals(1, mutaciones())
     }
 
+    @Test
+    fun `revocar pendiente no admite doble envio y una consulta vieja no desbloquea`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
+        viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
+        val mutacion = CompletableDeferred<Consentimiento>()
+        api.revocar = { mutacion.await() }
+        viewModel.revocar()
+        viewModel.revocar()
+        assertEquals(1, mutaciones())
+
+        val consultaVieja = CompletableDeferred<List<Consentimiento>>()
+        api.consentimientos = { consultaVieja.await() }
+        viewModel.cargar()
+        mutacion.completeExceptionally(IOException("respuesta perdida"))
+        consultaVieja.complete(listOf(consentimientoVigente()))
+
+        assertTrue(viewModel.estado.requiereRefresco)
+        assertNull(viewModel.estado.mensajeExito)
+    }
+
     // ── Renovación ────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `renovar pendiente no admite doble envio ni confirma antes de la respuesta`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVencido()))
+        val mutacion = CompletableDeferred<Consentimiento>()
+        api.renovarC = { mutacion.await() }
+        viewModel.renovar("CON-3")
+        viewModel.renovar("CON-3")
+
+        assertEquals(1, mutaciones())
+        assertEquals("CON-3", viewModel.estado.renovando)
+        assertNull(viewModel.estado.nuevaVenceEn)
+        assertEquals(EstadoConsentimiento.VENCIDO, viewModel.estado.finalidades[0].consentimiento?.estado)
+
+        val consultaVieja = CompletableDeferred<List<Consentimiento>>()
+        api.consentimientos = { consultaVieja.await() }
+        viewModel.cargar()
+        mutacion.completeExceptionally(IOException("respuesta perdida"))
+        consultaVieja.complete(listOf(consentimientoVencido()))
+        assertTrue(viewModel.estado.requiereRefresco)
+    }
 
     @Test
     fun `renovar vigente por vencer muestra la nueva vence_en del servidor`() {
