@@ -1,6 +1,6 @@
 # Release (GitFlow): al fusionar en main un PR desde release/vX.Y.Z o hotfix/vX.Y.Z,
 #   1. crea el tag vX.Y.Z sobre el commit de merge y el release con notas generadas desde los PR,
-#   2. publica la imagen del núcleo etiquetada con la versión (si existe backend/),
+#   2. publica las imágenes del núcleo, el BFF y la web etiquetadas con la versión (las que existan),
 #   3. abre el PR de back-merge main → develop para que develop reciba los cambios del release.
 # Requiere: Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
 # Secreto opcional RELEASE_TOKEN (token de un integrante con permiso de PR): sin él, el PR de
@@ -38,20 +38,23 @@ jobs:
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: gh release create "$TAG" --target "$COMMIT" --title "$TAG" --generate-notes
-      - name: Publicar imagen versionada
-        if: hashFiles('backend/Dockerfile') != ''
-        uses: docker/login-action@v3
+      - name: Publicar imágenes versionadas
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: hashFiles('backend/Dockerfile') != ''
-        env:
+      - env:
           TAG: ${{ steps.version.outputs.tag }}
+        # Las mismas tres imágenes que despliega cd.yml; se omite la que aún no tiene Dockerfile.
         run: |
-          imagen="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/solventa-nucleo"
-          docker build -t "$imagen:${TAG#v}" backend
-          docker push "$imagen:${TAG#v}"
+          for par in solventa-nucleo:backend solventa-bff:bff solventa-web:apps/web; do
+            servicio="${par%%:*}" contexto="${par#*:}"
+            [ -f "$contexto/Dockerfile" ] || { echo "::notice::Sin $contexto/Dockerfile; se omite $servicio."; continue; }
+            imagen="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$servicio"
+            docker build -t "$imagen:${TAG#v}" "$contexto"
+            docker push "$imagen:${TAG#v}"
+          done
       - name: Abrir back-merge main → develop
         env:
           TAG: ${{ steps.version.outputs.tag }}
