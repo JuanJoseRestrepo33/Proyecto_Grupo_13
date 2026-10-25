@@ -26,6 +26,10 @@ con una llave del Android Keystore que solo se desbloquea con huella o rostro, y
 **Fuera del Sprint 1:** captura guiada de documento y selfie, cola ante caída del proveedor de
 KYC/AML, recuperación de contraseña.
 
+## Historial
+
+Cada versión del contrato, con su historia y sus cambios incompatibles: [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Reglas de cambio
 
 - Un cambio **compatible** (campo opcional nuevo, operación nueva) sube la versión MENOR de
