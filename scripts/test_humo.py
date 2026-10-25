@@ -38,6 +38,7 @@ BFF_SANO = {
     "/consentimientos": 401,
     "/revocacion": 401,
     "/renovacion": 401,
+    "/evidencias": 401,
 }
 
 
@@ -217,6 +218,33 @@ class TestConsentimientoMovil:
         assert humo.credenciales_del_ambiente({}) is None
 
 
+class TestEvidencias:
+    """MOB-F05 (#177): las rutas de evidencia de los dos routers exigen sesión."""
+
+    def test_pide_las_rutas_de_evidencia_de_los_dos_routers_sin_token(self):
+        pedir = _respondiendo(BFF_SANO)
+        humo.fallas("bff", "https://bff.run.app", pedir)
+        evidencias = [
+            (metodo, url.removeprefix("https://bff.run.app"))
+            for metodo, url, enc, _ in pedir.pedidas
+            if url.endswith("/evidencias")
+        ]
+        assert evidencias == [
+            ("GET", "/api/v1/web/siniestros/humo-no-existe/evidencias"),
+            ("POST", "/api/v1/web/siniestros/humo-no-existe/evidencias"),
+            ("GET", "/api/v1/movil/siniestros/humo-no-existe/evidencias"),
+            ("POST", "/api/v1/movil/siniestros/humo-no-existe/evidencias"),
+        ]
+
+    def test_mientras_no_existan_solo_avisan(self):
+        pedir = _respondiendo({**BFF_SANO, "/evidencias": 404})
+        resultado = humo.fallas("bff", "https://bff.run.app", pedir)
+        assert resultado.errores == []
+        evidencias = [a for a in resultado.avisos if "/evidencias" in a]
+        assert len(evidencias) == 4
+        assert all("[pendiente de #175]" in a for a in evidencias)
+
+
 def test_reintenta_hasta_que_la_revision_arranca():
     estados = iter([None, 503, 200])
     esperas = []
@@ -250,7 +278,9 @@ def test_agota_los_intentos_y_devuelve_el_ultimo_error():
 class _Manejador(http.server.BaseHTTPRequestHandler):
     def _responder(self):
         rutas = {"/salud": 200, "/api/v1/web/cotizaciones/productos": 401}
-        protegida = self.path.endswith("/sesion") or "/consentimientos" in self.path
+        protegida = (
+            self.path.endswith(("/sesion", "/evidencias")) or "/consentimientos" in self.path
+        )
         estado = 401 if protegida else rutas.get(self.path, 404)
         if self.path == "/eco" and self.headers.get("Authorization") == "Bearer x":
             estado = 204
@@ -301,7 +331,7 @@ def test_main_no_imprime_cuerpos(servidor, capsys, monkeypatch):
     salida = capsys.readouterr().out
     assert "detalle interno" not in salida
     assert "se omite, faltan HUMO_CORREO y HUMO_CLAVE" in salida
-    assert "12 rutas probadas, sin errores" in salida
+    assert "16 rutas probadas, sin errores" in salida
 
 
 def test_main_falla_con_anotacion_de_error(servidor, capsys):

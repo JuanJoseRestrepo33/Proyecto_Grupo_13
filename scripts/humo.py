@@ -152,6 +152,16 @@ RUTAS = (
         autenticada=True,
         validar=_tres_finalidades,
     ),
+    # MOB-F05 (#177): las rutas de evidencia de los dos routers exigen sesión. Las define #175;
+    # si su contrato elige otra ruta, se ajusta aquí al quitar la marca.
+    *(
+        _ruta("bff", metodo, f"{prefijo}/siniestros/{_INEXISTENTE}/evidencias", 401, **marca)
+        for prefijo, marca in (
+            ("/api/v1/web", {"pendiente": "#175", "caso": "sin cookie"}),
+            (_MOVIL, {"pendiente": "#175", "caso": "sin token"}),
+        )
+        for metodo in ("GET", "POST")
+    ),
     # A través del proxy de nginx: un 502 o 504 significa que la web no llega al BFF.
     _ruta("web", "GET", "/", 200),
     _ruta("web", "GET", "/api/v1/web/cotizaciones/productos", 200, 401),

@@ -10,7 +10,7 @@ WORKDIR /opt/solventa
 COPY pyproject.toml ./
 COPY app ./app
 
-RUN pip install --no-cache-dir . \
+RUN pip install --no-cache-dir ".[gcs]" \
     && useradd --create-home --uid 10001 solventa
 USER solventa
 

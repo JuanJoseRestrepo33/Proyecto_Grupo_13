@@ -397,6 +397,8 @@ lados.
 | Llave privada de firma de tokens (PEM, ES256) | `TOKENS_LLAVE_PRIVADA` ← secreto `tokens-llave-privada` | `solventa-nucleo` (emite) | WEB-F13 |
 | Llave pública de firma de tokens (PEM) | `TOKENS_LLAVE_PUBLICA` ← secreto `tokens-llave-publica` | `solventa-nucleo` y `solventa-bff` (validan) | WEB-F13 |
 | Llave pública anterior, solo durante una rotación | `TOKENS_LLAVE_PUBLICA_ANTERIOR` ← versión anterior de `tokens-llave-publica` | `solventa-bff` | WEB-F13 |
+| Almacén de evidencias | `ALMACENAMIENTO_EVIDENCIAS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | MOB-F05 |
+| Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
@@ -794,3 +796,40 @@ un token válido sea rechazado:
 4. Cuando venza el último token emitido con la llave anterior, retirar la variable del BFF
    (`--remove-secrets=TOKENS_LLAVE_PUBLICA_ANTERIOR`) y deshabilitar la versión anterior de cada
    secreto (`gcloud secrets versions disable <versión> --secret=...`).
+
+### 7. Bucket de evidencias de siniestros (MOB-F05)
+
+Fotos, videos y documentos de los siniestros. Privado: acceso uniforme a nivel de bucket, acceso
+público bloqueado y ningún objeto con URL pública; la lectura pasa por el núcleo y el BFF con la
+sesión del cliente.
+
+```bash
+BUCKET="gs://<GCP_PROJECT_ID>-solventa-evidencias"
+gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD   --uniform-bucket-level-access --public-access-prevention
+
+# Solo en staging: los archivos de prueba se borran a los 30 días. En produccion no se configura
+# hasta definir la política de retención.
+printf '%s' '{"rule":[{"action":{"type":"Delete"},"condition":{"age":30}}]}' > ciclo.json
+gcloud storage buckets update "$BUCKET" --lifecycle-file=ciclo.json --update-labels=historia=mob-f05
+
+# El núcleo crea y lee objetos, sobre este bucket y nada más. Sin permiso de borrar: la evidencia
+# de un siniestro no se elimina desde la aplicación (y sin borrar tampoco se puede sobrescribir).
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/storage.objectCreator roles/storage.objectViewer; do
+  gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="$NUCLEO" --role="$rol"
+done
+
+gcloud run services update solventa-nucleo --region=<GCP_REGION>   --update-env-vars=ALMACENAMIENTO_EVIDENCIAS=gcs,EVIDENCIAS_BUCKET=<GCP_PROJECT_ID>-solventa-evidencias
+```
+
+El BFF no tiene acceso al bucket. El adaptador (`siniestros/infraestructura/almacen_evidencias_gcs.py`)
+sube cada objeto con la precondición de que no exista, así que una evidencia nunca se reemplaza ni
+siquiera con permisos de más; el objeto se llama `siniestros/{siniestro_id}/{evidencia_id}`, sin
+datos del cliente, y el nombre original del archivo va en sus metadatos. La imagen del núcleo
+instala el extra `gcs` (`google-cloud-storage`).
+
+Los roles `legacyBucketOwner` y `legacyObjectOwner` que Cloud Storage asigna por defecto a los
+editores y dueños del proyecto se conservan: son los administradores. Ojo: la cuenta de Compute por
+defecto es editora del proyecto y por eso también los hereda; ningún servicio de Cloud Run corre con
+ella (cada uno usa su `run-*`), y conviene quitarle el rol de editor cuando nada la use.
+
