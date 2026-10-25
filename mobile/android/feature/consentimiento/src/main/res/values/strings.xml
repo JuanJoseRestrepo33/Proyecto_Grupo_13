@@ -1,0 +1,71 @@
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="es">
+    <!-- Comunes del módulo consentimiento -->
+    <string name="consentimiento_titulo">Consentimientos Open Finance</string>
+    <string name="consentimiento_sin_registro">Sin consentimiento</string>
+    <string name="consentimiento_reintentar">Reintentar</string>
+    <string name="consentimiento_error_carga">No pudimos cargar tus consentimientos. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="consentimiento_refrescando">Actualizando…</string>
+
+    <!-- Estados -->
+    <string name="estado_vigente">Vigente</string>
+    <string name="estado_revocado">Revocado</string>
+    <string name="estado_vencido">Vencido</string>
+
+    <!-- Por vencer -->
+    <string name="por_vencer_dias">Vence en %1$d días</string>
+    <string name="por_vencer_hoy">Vence hoy</string>
+
+    <!-- Fechas -->
+    <string name="otorgado_en">Otorgado: %1$s</string>
+    <string name="vence_en">Vence: %1$s</string>
+    <string name="revocado_en">Revocado: %1$s</string>
+    <string name="nueva_vence_en">Nueva fecha de vencimiento: %1$s</string>
+
+    <!-- Acciones principales -->
+    <string name="boton_otorgar">Autorizar</string>
+    <string name="boton_renovar">Renovar</string>
+    <string name="boton_revocar">Revocar</string>
+    <string name="boton_cancelar">Cancelar</string>
+    <string name="boton_confirmar">Confirmar</string>
+
+    <!-- Otorgar -->
+    <string name="otorgar_titulo">Autorizar acceso a datos</string>
+    <string name="otorgar_entidades_label">Entidades autorizadas</string>
+    <string name="otorgar_entidades_ayuda">Elige al menos una entidad.</string>
+    <string name="otorgar_version_label">He leído y acepto la versión %1$s del texto legal de autorización.</string>
+    <string name="otorgar_version_cd">Acepto la versión del texto legal</string>
+    <string name="otorgar_alcance_label">Datos que se consultarán</string>
+    <string name="otorgar_vigencia_label">Vigencia: %1$d meses</string>
+
+    <!-- Revocar -->
+    <string name="revocar_titulo">Revocar consentimiento</string>
+    <string name="revocar_pregunta">¿Estás seguro de que quieres revocar este consentimiento?</string>
+    <string name="revocar_advertencia_cotizacion">Atención: la siguiente cotización que realices desde cualquier canal usará la tarifa estándar, sin descuento por perfil financiero.</string>
+    <string name="revocar_confirmado">Consentimiento revocado.</string>
+
+    <!-- Renovar -->
+    <string name="renovar_titulo">Renovar consentimiento</string>
+    <string name="renovar_confirmado">Consentimiento renovado.</string>
+
+    <!-- Mensajes de error por código -->
+    <string name="consentimiento_ya_vigente">Ya tienes un consentimiento vigente para esta finalidad. La lista se actualizó.</string>
+    <string name="consentimiento_no_vigente">Este consentimiento ya no está vigente. La lista se actualizó para mostrarte el estado actual.</string>
+    <string name="consentimiento_revocado">Este consentimiento está revocado. Para activarlo de nuevo debes otorgarlo.</string>
+    <string name="version_texto_desactualizada">El texto legal se actualizó. Revisa la versión vigente y acepta de nuevo antes de continuar.</string>
+    <string name="entidades_invalidas">Algunas entidades ya no están disponibles. Revisa la selección antes de continuar.</string>
+    <string name="consentimiento_no_encontrado">Este consentimiento no está disponible. La lista se actualizó.</string>
+    <string name="consentimiento_requiere_refresco">Actualiza la lista antes de repetir esta acción para asegurarte del estado actual.</string>
+
+    <!-- Errores comunes reutilizados en este módulo -->
+    <string name="error_sin_conexion">No pudimos conectarnos. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="error_generico">Algo salió mal de nuestro lado. Inténtalo de nuevo en unos minutos.</string>
+    <string name="error_sesion">Tu sesión venció. Vuelve a iniciar sesión.</string>
+
+    <!-- contentDescription para íconos informativos -->
+    <string name="cd_por_vencer">Próximo a vencer</string>
+    <string name="cd_vigente">Estado vigente</string>
+    <string name="cd_revocado">Estado revocado</string>
+    <string name="cd_vencido">Estado vencido</string>
+    <string name="cd_entidad_seleccionada">%1$s seleccionada</string>
+    <string name="cd_entidad_no_seleccionada">%1$s no seleccionada</string>
+</resources>
