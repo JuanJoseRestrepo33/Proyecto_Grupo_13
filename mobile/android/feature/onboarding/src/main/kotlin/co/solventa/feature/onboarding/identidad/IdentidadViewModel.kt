@@ -9,8 +9,8 @@ import co.solventa.core.network.BffApi
 import co.solventa.core.network.EstadoIdentidad
 import co.solventa.core.network.EstadoVerificacion
 import co.solventa.core.network.VerificacionIdentidad
-import co.solventa.feature.onboarding.comun.Resultado
-import co.solventa.feature.onboarding.comun.llamarBff
+import co.solventa.core.network.Resultado
+import co.solventa.core.network.llamarBff
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import kotlinx.coroutines.launch
 
