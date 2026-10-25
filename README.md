@@ -89,7 +89,8 @@ Detalle completo de los escenarios de calidad en la Acta de Constitución y en e
 - **Backend / servicios:** _tecnologías y capacidades de negocio implementadas (cotización, suscripción, siniestros, pagos, identidad, perfilamiento)_
 - **Integraciones externas (simuladas):** Open Finance / Open Data, KYC/AML, pasarelas de pago, reaseguradoras
 
-Diagramas y vistas de arquitectura: _enlazar aquí (C4, diagramas de despliegue, ADRs, etc.)_
+Decisiones de arquitectura: [`docs/adr/`](docs/adr/README.md). Despliegue y servicios en Cloud Run:
+[`docs/devops.md`](docs/devops.md#despliegue-continuo).
 
 ## Estructura del repositorio
 
