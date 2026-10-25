@@ -1,13 +1,17 @@
-# Despliegue continuo (ARQ-04), según GitFlow:
-#   push a develop → imagen :develop → environment "staging"
-#   push a main    → imagen :main    → environment "produccion" (main solo recibe releases y hotfixes)
+# Despliegue continuo (ARQ-04, WEB-F01), según GitFlow:
+#   push a develop → imágenes :develop → environment "staging"
+#   push a main    → imágenes :main    → environment "produccion" (main solo recibe releases y hotfixes)
 #
-# El pipeline publica la imagen en el registro de GitHub, la copia a Artifact Registry y la despliega
-# en Cloud Run. Se autentica ante Google Cloud con Workload Identity Federation: no existe ninguna
-# llave de cuenta de servicio, ni en GitHub ni en el código. Las credenciales de bases de datos y
-# demás configuración de infraestructura viven en Secret Manager, montadas sobre el servicio de Cloud
-# Run, y el pipeline nunca las ve. Variables de cada environment: ver docs/devops.md, sección
-# "Despliegue continuo".
+# Despliega tres servicios de Cloud Run, uno por componente: el núcleo (backend/), el BFF (bff/) y la
+# web estática (apps/web/, nginx que reenvía /api/ al BFF). Cada servicio de Cloud Run se llama igual
+# que su imagen. El pipeline publica las imágenes en el registro de GitHub, las copia a Artifact
+# Registry y las despliega en orden: núcleo → BFF → web, porque cada uno depende del anterior.
+#
+# Se autentica ante Google Cloud con Workload Identity Federation: no existe ninguna llave de cuenta
+# de servicio, ni en GitHub ni en el código. Las credenciales de bases de datos, las URL entre
+# servicios y demás configuración viven en el servicio de Cloud Run (y los secretos en Secret
+# Manager), fijadas en su primer despliegue; el pipeline nunca las ve. Variables de cada environment:
+# ver docs/devops.md, sección "Despliegue continuo".
 name: CD
 
 on:
@@ -23,70 +27,92 @@ permissions:
   contents: read
   packages: write
 
-env:
-  SERVICIO: solventa-nucleo
-
 jobs:
   publicar:
-    name: Publicar imagen
+    name: Publicar ${{ matrix.servicio }}
     runs-on: ubuntu-latest
-    outputs:
-      imagen: ${{ steps.nombre.outputs.imagen }}
-      publicada: ${{ steps.nombre.outputs.publicada }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { servicio: solventa-nucleo, contexto: backend }
+          - { servicio: solventa-bff, contexto: bff }
+          - { servicio: solventa-web, contexto: apps/web }
     steps:
       - uses: actions/checkout@v4
       - id: nombre
+        env:
+          SERVICIO: ${{ matrix.servicio }}
+          CONTEXTO: ${{ matrix.contexto }}
         run: |
           echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${SERVICIO}" >> "$GITHUB_OUTPUT"
-          if [ -f backend/Dockerfile ]; then
+          if [ -f "$CONTEXTO/Dockerfile" ]; then
             echo "publicada=true" >> "$GITHUB_OUTPUT"
           else
             echo "publicada=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Aún no existe backend/Dockerfile; no hay imagen que publicar."
+            echo "::notice::Aún no existe $CONTEXTO/Dockerfile; no hay imagen de $SERVICIO que publicar."
           fi
       - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
       - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
-          context: backend
+          context: ${{ matrix.contexto }}
           push: true
           tags: |
             ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
             ${{ steps.nombre.outputs.imagen }}:${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.servicio }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
 
   desplegar:
-    name: Desplegar en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    name: Desplegar ${{ matrix.servicio }} en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
     needs: publicar
-    if: needs.publicar.outputs.publicada == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
     permissions:
       contents: read
       packages: read
       id-token: write # para obtener el token de Workload Identity Federation
+    strategy:
+      # Uno a la vez y en este orden: la web no se despliega si el BFF falló.
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        include:
+          - { servicio: solventa-nucleo, humo: nucleo, requiere: backend/Dockerfile }
+          - { servicio: solventa-bff, humo: bff, requiere: bff/Dockerfile }
+          # La web sin BFF no tiene a quién reenviar /api/.
+          - { servicio: solventa-web, humo: web, requiere: apps/web/Dockerfile bff/Dockerfile }
     env:
+      SERVICIO: ${{ matrix.servicio }}
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
       PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
       CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
       REPOSITORIO: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
-      SERVICIO_CLOUD_RUN: ${{ vars.CLOUD_RUN_SERVICE }}
-      IMAGEN_GITHUB: ${{ needs.publicar.outputs.imagen }}:${{ github.sha }}
     steps:
+      - uses: actions/checkout@v4
       - name: Verificar configuración
         id: config
+        env:
+          REQUIERE: ${{ matrix.requiere }}
         run: |
+          for archivo in $REQUIERE; do
+            if [ ! -f "$archivo" ]; then
+              echo "::notice::Aún no existe $archivo; no se despliega $SERVICIO."
+              echo "lista=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
           faltan=""
-          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO REPOSITORIO SERVICIO_CLOUD_RUN; do
+          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO REPOSITORIO; do
             [ -z "${!variable}" ] && faltan="$faltan $variable"
           done
           if [ -n "$faltan" ]; then
@@ -99,38 +125,55 @@ jobs:
       - name: Autenticar en Google Cloud
         if: steps.config.outputs.lista == 'true'
         id: gcp
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
         with:
           workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
           service_account: ${{ env.CUENTA_SERVICIO }}
           token_format: access_token
       - if: steps.config.outputs.lista == 'true'
-        uses: docker/setup-buildx-action@v3
-      - if: steps.config.outputs.lista == 'true'
-        uses: docker/login-action@v3
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Verificar que el servicio existe
+        if: steps.config.outputs.lista == 'true'
+        id: servicio
+        # El primer despliegue de cada servicio es manual (docs/devops.md, "Configuración manual en
+        # GCP"): ahí se fijan su cuenta de servicio, sus variables y sus secretos. Si el pipeline lo
+        # creara, quedaría con la cuenta por defecto y sin configuración.
+        run: |
+          if gcloud run services describe "$SERVICIO" --region="$REGION" --project="$PROYECTO" \
+               --format='value(metadata.name)' >/dev/null 2>&1; then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::El servicio $SERVICIO no existe en Cloud Run; haz su primer despliegue manual (docs/devops.md)."
+          fi
+      - if: steps.servicio.outputs.existe == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - if: steps.servicio.outputs.existe == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.config.outputs.lista == 'true'
-        uses: docker/login-action@v3
+      - if: steps.servicio.outputs.existe == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.gcp.outputs.access_token }}
       - name: Copiar la imagen a Artifact Registry
-        if: steps.config.outputs.lista == 'true'
+        if: steps.servicio.outputs.existe == 'true'
         env:
+          IMAGEN_GITHUB: ghcr.io/${{ github.repository_owner }}/${{ matrix.servicio }}:${{ github.sha }}
           IMAGEN_GCP: ${{ steps.config.outputs.imagen }}
         # Copia el manifiesto y las capas ya construidas; no vuelve a construir, así lo que se
         # despliega es exactamente lo que el CI probó.
-        run: docker buildx imagetools create --tag "$IMAGEN_GCP" "$IMAGEN_GITHUB"
+        run: docker buildx imagetools create --tag "$IMAGEN_GCP" "${IMAGEN_GITHUB,,}"
       - name: Desplegar en Cloud Run
-        if: steps.config.outputs.lista == 'true'
+        if: steps.servicio.outputs.existe == 'true'
         id: despliegue
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522  # v2.7.6
         with:
-          service: ${{ env.SERVICIO_CLOUD_RUN }}
+          service: ${{ env.SERVICIO }}
           region: ${{ env.REGION }}
           project_id: ${{ env.PROYECTO }}
           image: ${{ steps.config.outputs.imagen }}
@@ -138,13 +181,8 @@ jobs:
           # se configuran una vez en la plataforma (docs/devops.md, "Configuración manual en GCP").
           flags: --allow-unauthenticated
       - name: Prueba de humo
-        if: steps.config.outputs.lista == 'true'
+        if: steps.servicio.outputs.existe == 'true'
         env:
           URL_AMBIENTE: ${{ steps.despliegue.outputs.url }}
-        run: |
-          for _ in $(seq 1 10); do
-            if curl -sf -o /dev/null "$URL_AMBIENTE/v1/"; then echo "El ambiente responde"; exit 0; fi
-            sleep 6
-          done
-          echo "::error::El ambiente no respondió tras el despliegue"
-          exit 1
+          HUMO: ${{ matrix.humo }}
+        run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"

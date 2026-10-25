@@ -94,7 +94,7 @@ feature         ●─●   ●●
    **merge commit**, no con squash, para que `main` y `develop` compartan la historia.
 4. Al fusionarlo, [`release.yml`](../.github/workflows/release.yml) hace solo lo siguiente:
    - crea el tag `v0.1.0` y el release de GitHub con notas generadas desde los PR;
-   - publica la imagen etiquetada con la versión;
+   - publica las imágenes (núcleo, BFF y web) etiquetadas con la versión;
    - abre el PR de **back-merge** `main` → `develop`.
 5. Se aprueba y se fusiona el back-merge, también con **merge commit**. Así `develop` recibe las
    correcciones hechas en la release.
@@ -146,10 +146,10 @@ o de hotfix, y el tag se crea automáticamente en `main` al fusionarla. Nadie cr
 | Sprint 3 | `v0.3.0` |
 | Sprint 4 (entrega final) | `v1.0.0` |
 
-| Ambiente | Rama | Imagen |
+| Ambiente | Rama | Imágenes (`solventa-nucleo`, `solventa-bff`, `solventa-web`) |
 |---|---|---|
-| *staging* | `develop` | `solventa-nucleo:develop` y `:<sha>` |
-| producción | `main` | `solventa-nucleo:main`, `:<sha>` y `:X.Y.Z` |
+| *staging* | `develop` | `:develop` y `:<sha>` |
+| producción | `main` | `:main`, `:<sha>` y `:X.Y.Z` |
 
 La API pública se versiona aparte, en la ruta (`/v1`, `/v2`). Esto lo define ARQ-01.
 
@@ -237,10 +237,10 @@ y en cada push a `develop` o `main`.
 | Job | Cuándo | Qué valida |
 |---|---|---|
 | `convenciones` | Solo en PR | Flujo GitFlow (nombre de la rama y destino permitido), título del PR y todos sus commits contra la convención |
-| `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`) |
 | `backend` | Cuando existe `backend/pyproject.toml` | Lint y formato (ruff), frontera entre módulos (import-linter), pruebas unitarias con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
 | `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción sin los mocks del BFF |
-| `imagen` | Cuando existe `backend/pyproject.toml` | Que la imagen Docker del núcleo construya |
+| `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`), entre ellas la prueba de humo `humo.py` |
+| `imagen` | Por cada componente con `Dockerfile` (`backend/`, `bff/`, `apps/web/`) | Que su imagen Docker construya. La de la web, además, arranca y debe servir el SPA y reenviar `/api/` |
 | `ci-ok` | Siempre | Agrega los anteriores. **Es el único check requerido** en la protección de ramas |
 
 Los jobs de backend se activan solos cuando ARQ-01 cree `backend/`. Para que funcionen sin tocar el
@@ -272,17 +272,47 @@ Workflow [`cd.yml`](../.github/workflows/cd.yml). Corre en cada push a `develop`
 cada merge. También se puede lanzar a mano desde **Actions → CD → Run workflow**.
 
 ```
-merge a develop ──▶ CI ──▶ imagen :develop ──▶ Artifact Registry ──▶ Cloud Run (staging)    ──▶ prueba de humo
-merge a main    ──▶ CI ──▶ imagen :main    ──▶ Artifact Registry ──▶ Cloud Run (produccion) ──▶ prueba de humo
-                     └──▶ release.yml: tag vX.Y.Z, release, imagen :X.Y.Z, PR de back-merge
+merge a develop ──▶ CI ──▶ imágenes :develop ──▶ Artifact Registry ──▶ Cloud Run (staging)    ──▶ prueba de humo
+merge a main    ──▶ CI ──▶ imágenes :main    ──▶ Artifact Registry ──▶ Cloud Run (produccion) ──▶ prueba de humo
+                     └──▶ release.yml: tag vX.Y.Z, release, imágenes :X.Y.Z, PR de back-merge
 ```
+
+Se despliegan tres servicios de Cloud Run, uno por componente. Cada uno se llama igual que su imagen:
+
+| Servicio | Componente | Qué es | Conoce a |
+|---|---|---|---|
+| `solventa-nucleo` | `backend/` | Monolito modular, API `/v1` | Cloud SQL y Secret Manager |
+| `solventa-bff` | `bff/` | BFF único con los routers `/api/v1/web/` y `/api/v1/movil/` (WEB-F01) | El núcleo, por `NUCLEO_URL` |
+| `solventa-web` | `apps/web/` | nginx que sirve la web estática y reenvía `/api/` al BFF | El BFF, por `BFF_URL` |
+
+```
+navegador ──▶ solventa-web ──/api/──▶ solventa-bff ──▶ solventa-nucleo ──▶ Cloud SQL
+app móvil ───────────────/api/v1/movil/──▶ ┘
+```
+
+La web y el BFF comparten origen gracias al proxy de nginx: el contrato `bff-web` declara rutas
+relativas (`/api/v1/web`) y el cliente envía `credentials: 'include'`, así que la cookie de sesión
+funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
 
 | Etapa | Qué hace | Requisito para activarse |
 |---|---|---|
-| **Publicar imagen** | Construye `solventa-nucleo:<sha>` y `:<rama>` y las publica en el registro de paquetes de GitHub | Que exista `backend/Dockerfile`. No requiere secretos |
-| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo |
+| **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>` y `:<rama>` y las publica en el registro de paquetes de GitHub | Que exista el `Dockerfile` del componente. No requiere secretos |
+| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (primer despliegue manual) |
 | **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
-| **Prueba de humo** | Pide `/v1/` a la URL que devuelve Cloud Run, sin imprimir la respuesta | Igual que la anterior |
+| **Prueba de humo** | [`scripts/humo.py`](../scripts/humo.py) pide las rutas del servicio a la URL que devuelve Cloud Run y comprueba el estado HTTP, sin imprimir respuestas | Igual que la anterior |
+
+Los servicios se despliegan **uno a la vez, en orden núcleo → BFF → web**: si uno falla, los
+siguientes no se despliegan. La web solo se despliega cuando existe `bff/`, porque sin BFF no tiene a
+quién reenviar `/api/`.
+
+Si un servicio no existe todavía en Cloud Run, el pipeline no lo crea: deja un aviso y sigue. Creado
+por el pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
+
+**Prueba de humo.** Cada parte Cloud de una historia agrega sus filas a la tabla `RUTAS` de
+`scripts/humo.py` (servicio, método, ruta y estados aceptados); el pipeline no cambia. En las rutas
+protegidas, un 401 cuenta como éxito: prueba que la ruta existe y exige sesión. Un 5xx, un 404 o la
+falta de respuesta hacen fallar el despliegue. Se reintenta durante un minuto mientras la revisión
+arranca.
 
 ### Principio de seguridad: el repositorio no guarda credenciales
 
@@ -308,12 +338,28 @@ ninguna credencial de infraestructura**:
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/1234/locations/global/workloadIdentityPools/github/providers/solventa` | Proveedor de identidad que confía en este repositorio |
 | `GCP_SERVICE_ACCOUNT` | `despliegue@solventa-staging.iam.gserviceaccount.com` | Cuenta de servicio que el pipeline suplanta para desplegar |
 | `GCP_ARTIFACT_REPOSITORY` | `solventa` | Repositorio Docker de Artifact Registry |
-| `CLOUD_RUN_SERVICE` | `solventa-nucleo` | Nombre del servicio de Cloud Run |
 
 Si falta alguna, el job de despliegue termina sin error, deja un aviso con las que faltan y no toca
-la plataforma. El servicio se expone sin autenticación de Cloud Run porque el núcleo no autentica
-clientes: eso es responsabilidad de los BFF. Cuando exista un API Gateway (Sprint 4), el servicio
-pasa a aceptar solo tráfico interno y la prueba de humo se hace con un token de identidad.
+la plataforma. Los tres servicios se exponen sin autenticación de Cloud Run: la web y el BFF porque
+los usan el navegador y la app, y el núcleo porque no autentica clientes (eso es responsabilidad del
+BFF). Cuando exista un API Gateway (Sprint 4), el núcleo pasa a aceptar solo tráfico interno y su
+prueba de humo se hace con un token de identidad.
+
+### Nombres acordados entre componentes
+
+Los fija la infraestructura y los leen los componentes. Cambiar uno exige cambiarlo en los dos
+lados.
+
+| Qué | Nombre | Lo lee | Historia |
+|---|---|---|---|
+| URL del núcleo | `NUCLEO_URL` | `solventa-bff` | WEB-F01 |
+| URL del BFF | `BFF_URL` (origen, sin barra final) | `solventa-web` (nginx) | WEB-F01 |
+| Conexión del log de auditoría | `AUDITORIA_DATABASE_URL` ← secreto `auditoria-database-url` | `solventa-nucleo` | ARQ-03 |
+| Conexión de cotización | `COTIZACION_DATABASE_URL` ← secreto `cotizacion-database-url` | `solventa-nucleo` | WEB-F01 |
+
+Cada módulo con persistencia tiene **su esquema y su usuario de base de datos** en la misma instancia
+y la misma base (`solventa-auditoria` / `solventa`), con permisos solo sobre su esquema: un módulo no
+puede leer los datos de otro, igual que en el código (ARQ-01).
 
 ### Qué espera el núcleo de la plataforma
 
@@ -322,13 +368,21 @@ pasa a aceptar solo tráfico interno y la prueba de humo se hace con un token de
   arranque y de vida.
 - **Apagado.** Cloud Run envía `SIGTERM` y da diez segundos. El núcleo aprovecha ese lapso para
   escribir lo que quedó en la cola de auditoría.
-- **Secretos.** `AUDITORIA_DATABASE_URL` montada desde Secret Manager, apuntando a Cloud SQL. Sin
-  ella el log de auditoría vive en memoria y se pierde con cada revisión: válido para una demo, no
-  para *staging*.
-- **Instancias.** Cotización, consentimiento y perfilamiento guardan su estado en memoria hasta que
-  tengan persistencia propia. Mientras tanto el servicio corre con **una sola instancia**
-  (`--min-instances=1 --max-instances=1`); con más, una cotización creada en una instancia no existe
-  en la otra.
+- **Secretos.** `AUDITORIA_DATABASE_URL` y `COTIZACION_DATABASE_URL` montadas desde Secret Manager,
+  apuntando a Cloud SQL. Sin ellas el log de auditoría y las cotizaciones viven en memoria y se
+  pierden con cada revisión: válido para una demo, no para *staging*.
+- **Instancias.** Consentimiento y perfilamiento guardan su estado en memoria hasta que tengan
+  persistencia propia. Mientras tanto el núcleo corre con **una sola instancia**
+  (`--min-instances=1 --max-instances=1`); con más, un consentimiento otorgado en una instancia no
+  existe en la otra. El BFF y la web no guardan estado y pueden escalar.
+
+### Qué esperan el BFF y la web de la plataforma
+
+- **BFF.** Escucha en `PORT` (sin ella, 8000), responde `GET /salud` y lee `NUCLEO_URL`.
+- **Web.** nginx sin privilegios; escucha en `PORT` (sin ella, 8080). Requiere `BFF_URL` al arrancar:
+  sin ella nginx no inicia y Cloud Run no promueve la revisión. Las rutas del SPA que no son archivos
+  devuelven `index.html`; `/assets/` se cachea como inmutable. Acepta cuerpos de hasta 12 MB en `/api/`
+  (evidencias de 10 MB, MOB-F05).
 
 ---
 
@@ -481,8 +535,8 @@ cerrarlo y reabrirlo a mano para que corra.
 
 ### 5. Packages y environments
 
-- Tras la primera publicación, el paquete `solventa-nucleo` (perfil → Packages) se deja **privado** y
-  se enlaza al repositorio para heredar sus permisos.
+- Tras la primera publicación, los paquetes `solventa-nucleo`, `solventa-bff` y `solventa-web`
+  (perfil → Packages) se dejan **privados** y se enlazan al repositorio para heredar sus permisos.
 - Settings → Environments → **New environment**, uno por ambiente:
 
   | Environment | Deployment branches | Recomendado |
@@ -490,7 +544,7 @@ cerrarlo y reabrirlo a mano para que corra.
   | `staging` | Selected branches → solo `develop` | - |
   | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
 
-  En cada uno se cargan, como **variables** del environment, las seis de la tabla de
+  En cada uno se cargan, como **variables** del environment, las cinco de la tabla de
   [despliegue continuo](#despliegue-continuo).
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
@@ -521,21 +575,38 @@ gcloud sql users create auditoria --instance=solventa-auditoria --password='<con
 El esquema, el rol `solventa_app` y los triggers los crea el núcleo al arrancar, así que el usuario de
 la cadena de conexión necesita permiso para crear esquemas y roles la primera vez.
 
-### 2. Secreto de la cadena de conexión
+### 2. Esquemas y secretos de las cadenas de conexión
 
-Cloud Run se conecta a Cloud SQL por un socket Unix bajo `/cloudsql/`:
+Cloud Run se conecta a Cloud SQL por un socket Unix bajo `/cloudsql/`. Un secreto por módulo:
 
 ```bash
-printf 'postgresql://auditoria:<contraseña>@/solventa?host=/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria' \
+SOCKET="/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria"
+printf "postgresql://auditoria:<contraseña>@/solventa?host=$SOCKET" \
   | gcloud secrets create auditoria-database-url --data-file=-
+printf "postgresql://cotizacion:<contraseña de cotizacion>@/solventa?host=$SOCKET" \
+  | gcloud secrets create cotizacion-database-url --data-file=-
 ```
+
+**Usuario de cotización (WEB-F01).** Se crea con SQL y no con `gcloud sql users create`, porque este
+último lo agrega a `cloudsqlsuperuser`. Desde **Cloud SQL Studio** (consola de GCP → Cloud SQL →
+`solventa-auditoria` → Cloud SQL Studio), conectado a la base `solventa` como `auditoria`:
+
+```sql
+CREATE ROLE cotizacion LOGIN PASSWORD '<contraseña de cotizacion>';
+GRANT CONNECT ON DATABASE solventa TO cotizacion;
+-- Solo para que el núcleo cree su esquema al arrancar (CREATE SCHEMA IF NOT EXISTS cotizacion).
+GRANT CREATE ON DATABASE solventa TO cotizacion;
+```
+
+Comprobación: conectado como `cotizacion`, `SELECT 1 FROM auditoria.registros LIMIT 1;` debe
+responder *permission denied*.
 
 ### 3. Cuenta de servicio y Workload Identity Federation
 
 ```bash
 gcloud iam service-accounts create despliegue --display-name="Despliegue desde GitHub Actions"
 CUENTA="despliegue@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
-for rol in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser; do
+for rol in roles/run.admin roles/artifactregistry.writer; do
   gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$CUENTA" --role="$rol"
 done
 
@@ -557,20 +628,66 @@ gcloud iam service-accounts add-iam-policy-binding "$CUENTA" \
 `GCP_SERVICE_ACCOUNT` es `$CUENTA`. La condición sobre `assertion.repository` hace que solo este
 repositorio pueda suplantar la cuenta.
 
-### 4. Primer despliegue del servicio
+### 4. Cuentas de servicio de ejecución
 
-El pipeline solo cambia la imagen; la configuración del servicio se fija una vez aquí y se conserva
-entre revisiones. La cuenta con la que corre el servicio necesita leer el secreto y conectarse a
-Cloud SQL (`roles/secretmanager.secretAccessor` y `roles/cloudsql.client`).
+Cada servicio corre con su propia cuenta y solo los permisos que usa, nunca con la cuenta por defecto
+de Compute:
 
 ```bash
-gcloud run deploy <CLOUD_RUN_SERVICE> --region=<GCP_REGION> \
-  --image=<GCP_REGION>-docker.pkg.dev/<GCP_PROJECT_ID>/<GCP_ARTIFACT_REPOSITORY>/solventa-nucleo:<sha> \
-  --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
-  --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest \
-  --min-instances=1 --max-instances=1 --allow-unauthenticated
+for cuenta in nucleo bff web; do
+  gcloud iam service-accounts create "run-$cuenta" --display-name="Cloud Run · solventa-$cuenta"
+  # La cuenta de despliegue puede publicar revisiones que corren con esta cuenta, y solo con esta.
+  gcloud iam service-accounts add-iam-policy-binding "run-$cuenta@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --member="serviceAccount:$CUENTA" --role=roles/iam.serviceAccountUser
+done
+NUCLEO="run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> \
+  --member="serviceAccount:$NUCLEO" --role=roles/cloudsql.client
+for secreto in auditoria-database-url cotizacion-database-url; do
+  gcloud secrets add-iam-policy-binding "$secreto" \
+    --member="serviceAccount:$NUCLEO" --role=roles/secretmanager.secretAccessor
+done
 ```
 
-Para ese primer despliegue la imagen se copia a mano desde el registro de GitHub
-(`docker buildx imagetools create --tag <imagen en Artifact Registry> ghcr.io/<propietario>/solventa-nucleo:develop`).
-Desde entonces cada merge a `develop` publica una revisión nueva sin intervención manual.
+El acceso a los secretos se da sobre cada secreto, no sobre el proyecto. `run-bff` y `run-web` no
+reciben permisos en este sprint: solo hacen llamadas HTTP públicas.
+
+`roles/iam.serviceAccountUser` se da sobre cada cuenta `run-*` y no sobre el proyecto: a nivel de
+proyecto, el pipeline podría desplegar revisiones con cualquier cuenta, incluida la de Compute por
+defecto, que tiene rol de editor.
+
+### 5. Primer despliegue de cada servicio
+
+El pipeline solo cambia la imagen y **no crea servicios**: la configuración de cada uno se fija una vez
+aquí y se conserva entre revisiones. El primer despliegue usa la imagen pública de ejemplo de Cloud
+Run; el siguiente merge a `develop` la reemplaza por la real, ya con la configuración en su lugar.
+
+```bash
+EJEMPLO=us-docker.pkg.dev/cloudrun/container/hello
+```
+
+En orden, porque cada uno necesita la URL del anterior:
+
+```bash
+gcloud run deploy solventa-nucleo --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="$NUCLEO" \
+  --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
+  --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest,COTIZACION_DATABASE_URL=cotizacion-database-url:latest \
+  --min-instances=1 --max-instances=1 --allow-unauthenticated
+URL_NUCLEO=$(gcloud run services describe solventa-nucleo --region=<GCP_REGION> --format='value(status.url)')
+
+gcloud run deploy solventa-bff --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="run-bff@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --set-env-vars=NUCLEO_URL="$URL_NUCLEO" --allow-unauthenticated
+URL_BFF=$(gcloud run services describe solventa-bff --region=<GCP_REGION> --format='value(status.url)')
+
+gcloud run deploy solventa-web --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="run-web@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --set-env-vars=BFF_URL="$URL_BFF" --allow-unauthenticated
+```
+
+Si el núcleo ya existía con la configuración del Sprint 1, basta con agregarle lo nuevo:
+`gcloud run services update solventa-nucleo --region=<GCP_REGION> --update-secrets=COTIZACION_DATABASE_URL=cotizacion-database-url:latest`.
+
+Desde entonces cada merge a `develop` publica una revisión nueva de los tres sin intervención manual.
