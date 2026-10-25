@@ -470,7 +470,8 @@ asignados y una sub-issue por persona, para que el burndown refleje el avance de
 
 **Vistas sugeridas:** *Sprint Backlog* (tablero filtrado por la iteración actual), *Por integrante*
 (tabla agrupada por Assignees) y *Insights* (gráficos de burnup y de puntos por sprint, desde
-Project → Insights).
+Project → Insights). El velocity chart vigente está en
+[Project 4 → Insights](https://github.com/users/JuanJoseRestrepo33/projects/4/insights/2).
 
 **Automatizaciones del Project** (Project → Workflows): *Item added → Product Backlog*,
 *Pull request linked → In progress*, *Item closed → Done*, *Pull request merged → Done*.

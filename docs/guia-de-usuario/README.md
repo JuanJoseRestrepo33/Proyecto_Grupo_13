@@ -73,19 +73,20 @@ Solventa puede ofrecerte un precio más justo si autorizas el uso de tus datos f
 
 ## 4. Cotizar un seguro
 
-1. Pulsa **Cotizar** (menú o botón *Cotizar un seguro* del inicio).
-2. **Producto:** elige Auto, Hogar, Viaje o Dispositivos.
-3. **Tus datos:** revisa nombre, documento y valor asegurado. No podrás continuar si falta un dato obligatorio.
-4. **Open Finance:** deja el interruptor encendido para un precio personalizado. Si no tienes consentimiento vigente, el interruptor aparece desactivado y verás un enlace para otorgarlo; al terminar vuelves a la cotización.
-5. **Tu oferta:** revisa precio, coberturas y cuánto ahorras frente al precio estándar.
+1. Pulsa **Cotizar** en el menú.
+2. **Producto:** elige qué quieres asegurar (Auto, Hogar, Viaje o Dispositivos). Cada opción muestra su precio *desde*.
+3. **Tus datos:** escribe tu fecha de nacimiento y tu ciudad. El valor asegurado es opcional: si lo dejas vacío, usamos el del plan. No puedes continuar con un dato inválido; cada campo te dice qué corregir (por ejemplo, la edad para cotizar va de 18 a 100 años).
+4. **Open Finance:** deja encendido **Usar mis datos financieros (Open Finance)** para un precio personalizado. Si no tienes un consentimiento vigente para cotización, verás *Cotizaremos con precio estándar* y el enlace **Otorgar consentimiento**. Pulsa **Ver mi oferta**.
+5. **Tu oferta:** revisa la prima mensual, cuánto ahorras frente al precio estándar, el valor asegurado, el deducible y las coberturas.
 
 ![Oferta personalizada](img/web-cotizacion-oferta.png)
 
-- **¿Por qué este precio?** muestra los factores que influyeron en tu prima.
-- La oferta es válida por **5 minutos** (verás la cuenta regresiva). Si vence, pulsa **Recotizar**.
-- Si tu banco tarda en responder, cotizamos con tu perfil guardado más reciente y te lo indicamos con un aviso amarillo.
+- **¿Por qué este precio?** muestra cada factor que movió tu prima, cuánto la movió y con qué versión de la regla se calculó.
+- **Precio estándar no es un error.** Si no autorizaste tus datos o elegiste cotizar sin ellos, la oferta usa el precio estándar y te dice por qué.
+- **Si tu banco tarda en responder,** cotizamos con tu perfil financiero guardado y te lo indicamos con un aviso amarillo. El precio es igual de válido.
+- La oferta es válida por **5 minutos** (verás la cuenta regresiva). Si vence, pulsa **Recotizar**: usamos los mismos datos.
 
-Cuando estés conforme, pulsa **Aceptar oferta**.
+Cuando estés conforme, pulsa **Aceptar oferta**. Para empezar otra, pulsa **Cotizar otro producto**.
 
 ## 5. Comprar y recibir tu póliza
 
@@ -280,8 +281,10 @@ Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punt
 |---|---|---|
 | *Completa los campos obligatorios para continuar.* | Falta un dato en el paso actual. | Llena los campos vacíos; el botón **Continuar** se habilita solo. |
 | *No tienes un consentimiento vigente.* | No autorizaste el uso de tus datos financieros. | Cotiza con precio estándar u otorga el consentimiento desde el enlace. |
-| *Fuente externa degradada.* | Tu banco tardó en responder. | Nada: usamos tu perfil guardado y la cotización sigue normalmente. |
+| *Tu entidad financiera no respondió a tiempo, así que usamos tu perfil financiero guardado.* | Tu banco tardó en responder. | Nada: el precio es igual de válido y la cotización sigue normalmente. |
 | *La cotización venció.* | Pasaron los 5 minutos de garantía del precio. | Pulsa **Recotizar**. |
+| *Debes tener al menos 18 años para cotizar.* | La edad está fuera del rango asegurable (18 a 100 años). | Revisa la fecha de nacimiento. |
+| *No pudimos calcular tu oferta.* | Hubo un problema al cotizar. | Pulsa **Ver mi oferta** de nuevo en unos segundos. |
 | *En revisión asistida* | Tu solicitud necesita revisión de un analista. | Espera la notificación (máximo 4 horas). |
 | *Pago rechazado por el banco emisor.* | El banco no aprobó el cobro. No se cobró nada. | Verifica los datos o usa otro medio e intenta de nuevo. |
 | *Tu banco aún no confirma el pago.* | El pago está pendiente, normalmente con PSE. | No pagues de nuevo; pulsa **Consultar estado del pago** en unos minutos. |
