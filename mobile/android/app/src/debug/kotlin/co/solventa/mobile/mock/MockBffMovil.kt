@@ -8,12 +8,7 @@ private val RUTA_OTP = Regex("^registros/([^/]+)/otp/(verificacion|reenvio)$")
 
 // Rutas de consentimiento con segmentos variables (patrón análogo a RUTA_OTP).
 // Se ajustarán cuando #160 publique el contrato de bff-movil v0.2.
-// - POST  consentimiento/consentimientos
-// - GET   consentimiento/consentimientos
-// - GET   consentimiento/finalidades
-// - POST  consentimiento/consentimientos/{id}/revocacion
-// - POST  consentimiento/consentimientos/{id}/renovacion
-private val RUTA_CONSENTIMIENTO_ACCION = Regex(
+private val RUTA_CON_ACCION = Regex(
     "^consentimiento/consentimientos/([^/]+)/(revocacion|renovacion)$",
 )
 
@@ -35,40 +30,56 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         respuesta(422, ErrorBff("solicitud_invalida", invalida.message.orEmpty()))
     }
 
-    private fun enrutar(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock =
-        when ("$metodo $ruta") {
-            "POST registros" -> registro.crear(cuerpo)
-            "POST sesiones" -> sesiones.iniciar(cuerpo)
-            "POST sesiones/renovacion" -> sesiones.renovar(cuerpo)
-            "GET sesion" -> sesiones.sesion(autorizacion)
-            "GET identidad/verificacion" -> identidad.consultar(autorizacion)
-            "POST identidad/verificacion" -> identidad.solicitar(autorizacion)
-            "GET consentimiento/finalidades" -> consentimiento.finalidades()
-            "GET consentimiento/consentimientos" -> consentimiento.listar(autorizacion)
-            "POST consentimiento/consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
-            else -> enrutarConSegmentos(metodo, ruta, cuerpo, autorizacion)
-        }
+    @Suppress("ReturnCount")
+    private fun enrutar(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock {
+        val fija = enrutarFija(metodo, ruta, cuerpo, autorizacion)
+        if (fija != null) return fija
+        return enrutarConSegmentos(metodo, ruta, cuerpo, autorizacion)
+    }
 
-    private fun enrutarConSegmentos(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock {
+    private fun enrutarFija(
+        metodo: String,
+        ruta: String,
+        cuerpo: String,
+        autorizacion: String?,
+    ): RespuestaMock? = when ("$metodo $ruta") {
+        "POST registros" -> registro.crear(cuerpo)
+        "POST sesiones" -> sesiones.iniciar(cuerpo)
+        "POST sesiones/renovacion" -> sesiones.renovar(cuerpo)
+        "GET sesion" -> sesiones.sesion(autorizacion)
+        "GET identidad/verificacion" -> identidad.consultar(autorizacion)
+        "POST identidad/verificacion" -> identidad.solicitar(autorizacion)
+        "GET consentimiento/finalidades" -> consentimiento.finalidades()
+        "GET consentimiento/consentimientos" -> consentimiento.listar(autorizacion)
+        "POST consentimiento/consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
+        else -> null
+    }
+
+    @Suppress("ReturnCount")
+    private fun enrutarConSegmentos(
+        metodo: String,
+        ruta: String,
+        cuerpo: String,
+        autorizacion: String?,
+    ): RespuestaMock {
         val otpMatch = RUTA_OTP.matchEntire(ruta)?.destructured
-        if (otpMatch != null) {
-            return when {
-                metodo != "POST" -> fallo(404, "ruta_no_simulada")
-                otpMatch.component2() == "verificacion" -> registro.verificarOtp(otpMatch.component1(), cuerpo)
-                else -> registro.reenviar(otpMatch.component1())
-            }
+        if (otpMatch != null) return enrutarOtp(metodo, otpMatch.component1(), otpMatch.component2(), cuerpo)
+        val conMatch = RUTA_CON_ACCION.matchEntire(ruta)?.destructured
+        if (conMatch != null && metodo == "POST") {
+            return enrutarConAccion(conMatch.component1(), conMatch.component2(), autorizacion)
         }
-
-        val accionMatch = RUTA_CONSENTIMIENTO_ACCION.matchEntire(ruta)?.destructured
-        if (accionMatch != null && metodo == "POST") {
-            val idConsentimiento = accionMatch.component1()
-            return when (accionMatch.component2()) {
-                "revocacion" -> consentimiento.revocar(autorizacion, idConsentimiento)
-                "renovacion" -> consentimiento.renovar(autorizacion, idConsentimiento)
-                else -> fallo(404, "ruta_no_simulada")
-            }
-        }
-
         return fallo(404, "ruta_no_simulada")
     }
+
+    private fun enrutarOtp(metodo: String, id: String, accion: String, cuerpo: String): RespuestaMock {
+        if (metodo != "POST") return fallo(404, "ruta_no_simulada")
+        return if (accion == "verificacion") registro.verificarOtp(id, cuerpo) else registro.reenviar(id)
+    }
+
+    private fun enrutarConAccion(id: String, accion: String, autorizacion: String?): RespuestaMock =
+        when (accion) {
+            "revocacion" -> consentimiento.revocar(autorizacion, id)
+            "renovacion" -> consentimiento.renovar(autorizacion, id)
+            else -> fallo(404, "ruta_no_simulada")
+        }
 }

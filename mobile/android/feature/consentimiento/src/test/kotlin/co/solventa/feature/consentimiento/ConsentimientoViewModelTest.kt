@@ -1,10 +1,14 @@
 package co.solventa.feature.consentimiento
 
 import co.solventa.core.network.CodigoFinalidad
+import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.EstadoConsentimiento
+import co.solventa.core.network.FinalidadConsentimiento
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -16,387 +20,436 @@ class ConsentimientoViewModelTest {
     val main = ReglaMain()
 
     private val api = BffFalso()
-    private fun vm() = ConsentimientoViewModel(api)
+
+    private fun cargado(
+        finalidades: List<FinalidadConsentimiento> = listOf(finalidadCotizacion()),
+        consentimientos: List<Consentimiento> = emptyList(),
+    ): ConsentimientoViewModel {
+        api.finalidades = { finalidades }
+        api.consentimientos = { consentimientos }
+        return ConsentimientoViewModel(api).also { it.cargar() }
+    }
+
+    private fun ConsentimientoViewModel.formularioListo(finalidad: FinalidadConsentimiento = finalidadCotizacion()) {
+        abrirOtorgar(finalidad)
+        toggleEntidad(ENTIDAD_BANCO.id)
+        toggleVersionAceptada()
+    }
+
+    private fun mutaciones() = api.llamadas.count { llamada ->
+        listOf("otorgar", "revocar", "renovar").any { llamada.startsWith(it) }
+    }
 
     // ── Carga inicial ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `carga inicial combina finalidades y consentimientos`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(consentimientoVigente()) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `carga inicial asocia el vigente y si no hay el mas reciente`() {
+        val antiguo = consentimientoRevocado(id = "A").copy(otorgadoEn = "2024-01-01T00:00:00Z")
+        val reciente = consentimientoVencido(id = "B").copy(otorgadoEn = "2025-03-01T00:00:00Z")
+        val viewModel = cargado(
+            finalidades = listOf(finalidadCotizacion(), finalidadSuscripcion()),
+            consentimientos = listOf(
+                antiguo,
+                reciente,
+                consentimientoVigente(id = "C", finalidad = CodigoFinalidad.SUSCRIPCION),
+            ),
+        )
+
         val estado = viewModel.estado
         assertFalse(estado.cargando)
         assertFalse(estado.errorCarga)
-        assertEquals(1, estado.finalidades.size)
-        assertEquals(EstadoConsentimiento.VIGENTE, estado.finalidades[0].consentimiento?.estado)
+        assertEquals("B", estado.finalidades[0].consentimiento?.id)
+        assertEquals("C", estado.finalidades[1].consentimiento?.id)
     }
 
     @Test
-    fun `sin consentimientos la finalidad aparece sin registro`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `sin registros la finalidad queda sin consentimiento y no es error`() {
+        val viewModel = cargado()
         assertNull(viewModel.estado.finalidades[0].consentimiento)
-        assertFalse("lista vacía no es error de carga", viewModel.estado.errorCarga)
+        assertFalse(viewModel.estado.errorCarga)
     }
 
     @Test
-    fun `fallo de carga no se muestra como lista vacia`() {
+    fun `fallo de carga no se muestra como lista vacia y reintentar recupera`() {
         api.finalidades = { throw IOException("sin red") }
         api.consentimientos = { emptyList() }
-        val viewModel = vm()
+        val viewModel = ConsentimientoViewModel(api)
         viewModel.cargar()
-        val estado = viewModel.estado
-        assertFalse(estado.cargando)
-        assertTrue("error de carga debe marcarse", estado.errorCarga)
-        assertTrue("lista no debe llenarse con datos vacíos", estado.finalidades.isEmpty())
-        assertEquals(R.string.error_sin_conexion, estado.mensajeError)
+        assertTrue(viewModel.estado.errorCarga)
+        assertTrue(viewModel.estado.finalidades.isEmpty())
+        assertEquals(R.string.error_sin_conexion, viewModel.estado.mensajeCarga)
+
+        api.finalidades = { listOf(finalidadCotizacion()) }
+        viewModel.cargar()
+        assertFalse(viewModel.estado.errorCarga)
+        assertNull(viewModel.estado.mensajeCarga)
+        assertEquals(1, viewModel.estado.finalidades.size)
     }
 
     @Test
-    fun `fallo de carga de consentimientos no muestra lista vacia`() {
+    fun `fallo del servidor en consentimientos tambien es error de carga`() {
         api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { throw IOException("sin red") }
-        val viewModel = vm()
+        api.consentimientos = { throw fallaBff(503, "no_disponible") }
+        val viewModel = ConsentimientoViewModel(api)
         viewModel.cargar()
+        assertTrue(viewModel.estado.errorCarga)
+        assertEquals(R.string.error_generico, viewModel.estado.mensajeCarga)
+    }
+
+    @Test
+    fun `401 al consultar delega al flujo de sesion`() {
+        api.finalidades = { listOf(finalidadCotizacion()) }
+        api.consentimientos = { throw fallaBff(401, "no_autenticado") }
+        val viewModel = ConsentimientoViewModel(api)
+        viewModel.cargar()
+        assertTrue(viewModel.estado.sesionVencida)
         assertTrue(viewModel.estado.errorCarga)
     }
 
-    // ── Actualización al volver al primer plano y pull-to-refresh ─────────────────────────────
+    @Test
+    fun `fallo al refrescar conserva la lista y avisa`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
+        api.consentimientos = { throw IOException("sin red") }
+        viewModel.cargar()
+        assertFalse(viewModel.estado.errorCarga)
+        assertEquals(R.string.error_sin_conexion, viewModel.estado.mensajeCarga)
+        assertEquals("CON-1", viewModel.estado.finalidades[0].consentimiento?.id)
+    }
+
+    // ── Actualización al volver a primer plano / pull-to-refresh ──────────────────────────────
 
     @Test
-    fun `cargar de nuevo actualiza la lista`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        assertNull(viewModel.estado.finalidades[0].consentimiento)
-
+    fun `volver a consultar trae cambios hechos desde otro canal`() {
+        val viewModel = cargado()
         api.consentimientos = { listOf(consentimientoVigente()) }
         viewModel.cargar()
         assertEquals(EstadoConsentimiento.VIGENTE, viewModel.estado.finalidades[0].consentimiento?.estado)
     }
 
     @Test
-    fun `cargar en curso no lanza segunda carga`() {
-        var llamadas = 0
-        api.finalidades = { llamadas++; listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar() // primera carga normal
-        val llamadasTras1 = llamadas
-        // simula segunda llamada mientras se está cargando (cargando=false en test síncrono,
-        // así que simplemente verificamos que la bandera no se resetea incorrectamente)
+    fun `no hay acciones mientras la carga esta en curso`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
+        val pendiente = CompletableDeferred<List<Consentimiento>>()
+        api.consentimientos = { pendiente.await() }
         viewModel.cargar()
-        assertTrue(llamadasTras1 >= 1)
+
+        assertTrue(viewModel.estado.cargando)
+        assertFalse(viewModel.estado.accionesHabilitadas)
+        viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
+        assertNull(viewModel.estado.revocando)
+
+        pendiente.complete(listOf(consentimientoVigente()))
+        assertTrue(viewModel.estado.accionesHabilitadas)
     }
 
-    // ── Otorgamiento ─────────────────────────────────────────────────────────────────────────
+    // ── Otorgamiento ──────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `otorgar requiere al menos una entidad y version aceptada`() {
-        sesionesPorDefecto(api)
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-
-        assertFalse("sin selección ni versión no puede otorgar", viewModel.estado.puedeOtorgar)
-        viewModel.toggleEntidad("banco-1")
-        assertFalse("solo entidad, sin versión", viewModel.estado.puedeOtorgar)
-        viewModel.toggleVersionAceptada()
-        assertTrue("con entidad y versión puede otorgar", viewModel.estado.puedeOtorgar)
-    }
-
-    @Test
-    fun `ninguna entidad marcada al abrir otorgar`() {
-        sesionesPorDefecto(api)
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `otorgar exige entidad y aceptacion, ninguna marcada al abrir`() {
+        val viewModel = cargado()
         viewModel.abrirOtorgar(finalidadCotizacion())
         assertTrue(viewModel.estado.entidadesSeleccionadas.isEmpty())
         assertFalse(viewModel.estado.versionAceptada)
+        assertFalse(viewModel.estado.puedeOtorgar)
+
+        viewModel.toggleEntidad(ENTIDAD_BANCO.id)
+        assertFalse(viewModel.estado.puedeOtorgar)
+        viewModel.toggleVersionAceptada()
+        assertTrue(viewModel.estado.puedeOtorgar)
+        viewModel.toggleEntidad(ENTIDAD_BANCO.id)
+        assertFalse(viewModel.estado.puedeOtorgar)
     }
 
     @Test
-    fun `otorgar con exito cierra dialogo y recarga`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
+    fun `otorgar envia ids y version sin alterar y confirma solo tras la respuesta`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        viewModel.toggleEntidad(ENTIDAD_CAJA.id)
+        val respuesta = CompletableDeferred<Consentimiento>()
+        var enviada: co.solventa.core.network.SolicitudConsentimiento? = null
+        api.otorgar = { enviada = it; respuesta.await() }
+        api.consentimientos = { listOf(consentimientoVigente()) }
 
-        val nuevoConsentimiento = consentimientoVigente()
-        api.otorgar = { nuevoConsentimiento }
-        api.consentimientos = { listOf(nuevoConsentimiento) }
+        viewModel.otorgar()
+        assertTrue(viewModel.estado.mutando)
+        assertNull("sin éxito optimista", viewModel.estado.mensajeExito)
+        assertNull(viewModel.estado.finalidades[0].consentimiento)
+
+        respuesta.complete(consentimientoVigente())
+        assertEquals(CodigoFinalidad.COTIZACION, enviada?.finalidad)
+        assertEquals(setOf(ENTIDAD_BANCO.id, ENTIDAD_CAJA.id), enviada?.entidadesOrigen?.toSet())
+        assertEquals(finalidadCotizacion().versionTexto, enviada?.versionTexto)
+        assertNull(viewModel.estado.otorgando)
+        assertEquals(R.string.otorgar_confirmado, viewModel.estado.mensajeExito)
+        assertEquals(EstadoConsentimiento.VIGENTE, viewModel.estado.finalidades[0].consentimiento?.estado)
+        assertEquals(2, api.llamadas.count { it == "consentimientos" })
+    }
+
+    @Test
+    fun `revocado se vuelve a otorgar, no se renueva`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoRevocado()))
+        viewModel.formularioListo()
+        api.otorgar = { consentimientoVigente() }
+        api.consentimientos = { listOf(consentimientoRevocado(), consentimientoVigente()) }
         viewModel.otorgar()
 
-        assertNull("diálogo debe cerrarse", viewModel.estado.otorgando)
-        assertNull(viewModel.estado.mensajeError)
-        assertEquals(EstadoConsentimiento.VIGENTE, viewModel.estado.finalidades[0].consentimiento?.estado)
+        assertEquals(1, api.llamadas.count { it.startsWith("otorgar") })
+        assertEquals(0, api.llamadas.count { it.startsWith("renovar") })
+        assertEquals("CON-1", viewModel.estado.finalidades[0].consentimiento?.id)
     }
 
     @Test
-    fun `otorgar con consentimiento_ya_vigente muestra error y recarga`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
+    fun `prevenir doble envio mientras la mutacion esta en curso`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        val respuesta = CompletableDeferred<Consentimiento>()
+        api.otorgar = { respuesta.await() }
 
+        viewModel.otorgar()
+        viewModel.otorgar()
+        assertFalse(viewModel.estado.puedeOtorgar)
+        assertEquals(1, mutaciones())
+        respuesta.complete(consentimientoVigente())
+    }
+
+    @Test
+    fun `consentimiento_ya_vigente avisa, cierra el formulario y refresca`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
         api.otorgar = { throw fallaBff(409, "consentimiento_ya_vigente") }
         api.consentimientos = { listOf(consentimientoVigente()) }
         viewModel.otorgar()
 
         assertEquals(R.string.consentimiento_ya_vigente, viewModel.estado.mensajeError)
-        assertFalse(viewModel.estado.mutando)
+        assertNull(viewModel.estado.otorgando)
+        assertEquals(EstadoConsentimiento.VIGENTE, viewModel.estado.finalidades[0].consentimiento?.estado)
     }
 
     @Test
-    fun `otorgar con version_texto_desactualizada recarga catalogo`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
-
+    fun `version_texto_desactualizada trae la version vigente y exige aceptarla de nuevo`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        val nueva = finalidadCotizacion().copy(versionTexto = "cotizacion-2026.2")
         api.otorgar = { throw fallaBff(422, "version_texto_desactualizada") }
-        api.consentimientos = { emptyList() }
+        api.finalidades = { listOf(nueva) }
         viewModel.otorgar()
 
-        assertEquals(R.string.version_texto_desactualizada, viewModel.estado.mensajeError)
-        // El catálogo se recargó: llamadas incluyen listarFinalidades + listarConsentimientos de nuevo
-        assertTrue(api.llamadas.count { it == "finalidades" } >= 2)
+        val estado = viewModel.estado
+        assertEquals(R.string.version_texto_desactualizada, estado.mensajeError)
+        assertEquals("cotizacion-2026.2", estado.otorgando?.versionTexto)
+        assertFalse(estado.versionAceptada)
+        assertFalse(estado.puedeOtorgar)
+
+        var enviada: String? = null
+        api.otorgar = { enviada = it.versionTexto; consentimientoVigente() }
+        viewModel.toggleVersionAceptada()
+        viewModel.otorgar()
+        assertEquals("cotizacion-2026.2", enviada)
     }
 
     @Test
-    fun `otorgar con sin conexion marca requiere refresco`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
-
-        api.otorgar = { throw IOException("sin red") }
+    fun `entidades_invalidas recarga el catalogo y quita las entidades que ya no existen`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        viewModel.toggleEntidad(ENTIDAD_CAJA.id)
+        api.otorgar = { throw fallaBff(422, "entidades_invalidas") }
+        api.finalidades = { listOf(finalidadCotizacion().copy(entidadesOrigen = listOf(ENTIDAD_CAJA))) }
         viewModel.otorgar()
 
-        assertTrue(viewModel.estado.requiereRefresco)
-        assertEquals(R.string.error_sin_conexion, viewModel.estado.mensajeError)
+        assertEquals(R.string.entidades_invalidas, viewModel.estado.mensajeError)
+        assertEquals(setOf(ENTIDAD_CAJA.id), viewModel.estado.entidadesSeleccionadas)
+        assertNotNull(viewModel.estado.otorgando)
     }
 
     @Test
-    fun `respuesta perdida exige refrescar antes de repetir otorgar`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
-
+    fun `respuesta perdida obliga a consultar antes de repetir`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
         api.otorgar = { throw IOException("respuesta perdida") }
         viewModel.otorgar()
-        assertTrue(viewModel.estado.requiereRefresco)
 
-        // Intentar de nuevo sin refrescar muestra aviso
-        viewModel.toggleVersionAceptada() // desmarcar y volver a marcar
-        viewModel.toggleVersionAceptada()
-        viewModel.otorgar()
-        assertEquals(R.string.consentimiento_requiere_refresco, viewModel.estado.mensajeError)
-        // No se llamó al BFF nuevamente
-        assertEquals(1, api.llamadas.count { it.startsWith("otorgar") })
+        val estado = viewModel.estado
+        assertTrue(estado.requiereRefresco)
+        assertEquals(R.string.error_sin_conexion, estado.mensajeError)
+        assertNull("el formulario se cierra para consultar el estado", estado.otorgando)
+        viewModel.abrirOtorgar(finalidadCotizacion())
+        assertNull(viewModel.estado.otorgando)
+        assertEquals(1, mutaciones())
+
+        api.consentimientos = { listOf(consentimientoVigente()) }
+        viewModel.cargar()
+        assertFalse(viewModel.estado.requiereRefresco)
+        val actual = viewModel.estado.finalidades[0].consentimiento?.estado
+        assertEquals("el servidor sí lo aplicó", EstadoConsentimiento.VIGENTE, actual)
     }
 
     @Test
-    fun `prevenir doble envio durante mutacion`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
-        viewModel.cargar()
-        viewModel.abrirOtorgar(finalidadCotizacion())
-        viewModel.toggleEntidad("banco-1")
-        viewModel.toggleVersionAceptada()
-
-        // Con UnconfinedTestDispatcher la corutina termina antes de que podamos verificar
-        // el estado intermedio; verificamos que la llave puedeOtorgar sea false durante mutando
-        api.otorgar = { consentimientoVigente() }
-        api.consentimientos = { listOf(consentimientoVigente()) }
+    fun `una consulta iniciada antes de la respuesta perdida no levanta el bloqueo`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        val mutacion = CompletableDeferred<Consentimiento>()
+        api.otorgar = { mutacion.await() }
         viewModel.otorgar()
-        // Después del éxito, mutando vuelve a false
-        assertFalse(viewModel.estado.mutando)
+
+        val consultaVieja = CompletableDeferred<List<Consentimiento>>()
+        api.consentimientos = { consultaVieja.await() }
+        viewModel.cargar()
+        mutacion.completeExceptionally(IOException("respuesta perdida"))
+        consultaVieja.complete(emptyList())
+
+        assertTrue(viewModel.estado.requiereRefresco)
+        assertFalse(viewModel.estado.accionesHabilitadas)
+    }
+
+    @Test
+    fun `fallo del servidor sin codigo deja el resultado incierto`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        api.otorgar = { throw fallaSinCodigo(502) }
+        viewModel.otorgar()
+        assertTrue(viewModel.estado.requiereRefresco)
+        assertEquals(R.string.error_generico, viewModel.estado.mensajeError)
+    }
+
+    @Test
+    fun `401 delega al flujo de sesion sin reenviar`() {
+        val viewModel = cargado()
+        viewModel.formularioListo()
+        api.otorgar = { throw fallaBff(401, "no_autenticado") }
+        viewModel.otorgar()
+
+        assertTrue(viewModel.estado.sesionVencida)
+        assertEquals(R.string.error_sesion, viewModel.estado.mensajeError)
+        assertEquals(1, mutaciones())
+        viewModel.sesionAtendida()
+        assertFalse(viewModel.estado.sesionVencida)
     }
 
     // ── Revocación ────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `revocar con exito cierra dialogo y recarga`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(consentimientoVigente()) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `revocar con exito confirma tras la respuesta y refresca`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
         viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
-
-        val revocado = consentimientoRevocado()
+        val revocado = consentimientoRevocado(id = "CON-1")
         api.revocar = { revocado }
         api.consentimientos = { listOf(revocado) }
         viewModel.revocar()
 
         assertNull(viewModel.estado.revocando)
-        assertNull(viewModel.estado.mensajeError)
+        assertEquals(R.string.revocar_confirmado, viewModel.estado.mensajeExito)
         assertEquals(EstadoConsentimiento.REVOCADO, viewModel.estado.finalidades[0].consentimiento?.estado)
+        assertEquals(listOf("revocar:CON-1"), api.llamadas.filter { it.startsWith("revocar") })
     }
 
     @Test
-    fun `cancelar revocar cierra el dialogo sin llamar al BFF`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(consentimientoVigente()) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `cancelar revocar no llama al BFF`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
         viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
         viewModel.cerrarRevocar()
-
         assertNull(viewModel.estado.revocando)
-        assertTrue(api.llamadas.none { it.startsWith("revocar") })
+        assertEquals(0, mutaciones())
     }
 
     @Test
-    fun `revocar con consentimiento_no_vigente muestra error y recarga`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(consentimientoVigente()) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `revocar no vigente avisa, refresca y ofrece las acciones del estado actual`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
         viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
-
         api.revocar = { throw fallaBff(409, "consentimiento_no_vigente") }
-        api.consentimientos = { listOf(consentimientoRevocado()) }
+        api.consentimientos = { listOf(consentimientoVencido(id = "CON-1")) }
         viewModel.revocar()
 
-        assertEquals(R.string.consentimiento_no_vigente, viewModel.estado.mensajeError)
+        val mensaje = viewModel.estado.mensajeError
+        assertEquals("el mensaje sobrevive a la recarga", R.string.consentimiento_no_vigente, mensaje)
+        assertNull(viewModel.estado.revocando)
+        assertEquals(EstadoConsentimiento.VENCIDO, viewModel.estado.finalidades[0].consentimiento?.estado)
+        assertTrue(viewModel.estado.accionesHabilitadas)
     }
 
     @Test
-    fun `revocar con sin conexion marca requiere refresco`() {
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(consentimientoVigente()) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `revocar 404 avisa que no esta disponible y refresca`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
         viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
+        api.revocar = { throw fallaBff(404, "consentimiento_no_encontrado") }
+        api.consentimientos = { emptyList() }
+        viewModel.revocar()
 
+        assertEquals(R.string.consentimiento_no_encontrado, viewModel.estado.mensajeError)
+        assertNull(viewModel.estado.finalidades[0].consentimiento)
+        assertEquals(2, api.llamadas.count { it == "consentimientos" })
+    }
+
+    @Test
+    fun `revocar sin conexion exige consultar antes de repetir`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigente()))
+        viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
         api.revocar = { throw IOException("sin red") }
         viewModel.revocar()
 
         assertTrue(viewModel.estado.requiereRefresco)
-        assertEquals(R.string.error_sin_conexion, viewModel.estado.mensajeError)
+        assertNull(viewModel.estado.revocando)
+        viewModel.abrirRevocar("CON-1", CodigoFinalidad.COTIZACION)
+        viewModel.revocar()
+        assertEquals(1, mutaciones())
     }
 
-    // ── Renovación de vigente por vencer ─────────────────────────────────────────────────────
+    // ── Renovación ────────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `renovar vigente por vencer con exito muestra nueva fecha`() {
-        val porVencer = consentimientoVigenteRenovable(diasParaVencer = 5)
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(porVencer) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `renovar vigente por vencer muestra la nueva vence_en del servidor`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigenteRenovable(diasParaVencer = 0)))
+        val con = viewModel.estado.finalidades[0].consentimiento
+        assertEquals(true, con?.porVencer)
+        assertEquals(0, con?.diasParaVencer)
 
-        val renovado = consentimientoVigente(id = "CON-4", diasParaVencer = 180)
+        val renovado = consentimientoVigente(id = "CON-4", diasParaVencer = 180).copy(venceEn = "2027-01-01T10:00:00Z")
         api.renovarC = { renovado }
         api.consentimientos = { listOf(renovado) }
         viewModel.renovar("CON-4")
 
         assertNull(viewModel.estado.renovando)
-        assertNull(viewModel.estado.mensajeError)
+        assertEquals(R.string.renovar_confirmado, viewModel.estado.mensajeExito)
+        assertEquals("2027-01-01T10:00:00Z", viewModel.estado.nuevaVenceEn)
         assertEquals(180, viewModel.estado.finalidades[0].consentimiento?.diasParaVencer)
     }
 
     @Test
-    fun `renovar vigente por vencer con 0 dias funciona`() {
-        val porVencer = consentimientoVigenteRenovable(diasParaVencer = 0)
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(porVencer) }
-        val viewModel = vm()
-        viewModel.cargar()
-
-        assertTrue("diasParaVencer=0 debe marcar por_vencer", viewModel.estado.finalidades[0].consentimiento?.porVencer == true)
-        assertEquals(0, viewModel.estado.finalidades[0].consentimiento?.diasParaVencer)
-
-        val renovado = consentimientoVigente(diasParaVencer = 180)
-        api.renovarC = { renovado }
-        api.consentimientos = { listOf(renovado) }
-        viewModel.renovar("CON-4")
-        assertNull(viewModel.estado.mensajeError)
-    }
-
-    // ── Renovación de vencido ─────────────────────────────────────────────────────────────────
-
-    @Test
-    fun `renovar vencido con exito recarga la lista`() {
-        val vencido = consentimientoVencido()
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(vencido) }
-        val viewModel = vm()
-        viewModel.cargar()
-
-        val renovado = consentimientoVigente()
+    fun `renovar vencido conserva el consentimiento y lo deja vigente`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVencido()))
+        val renovado = consentimientoVigente(id = "CON-3")
         api.renovarC = { renovado }
         api.consentimientos = { listOf(renovado) }
         viewModel.renovar("CON-3")
 
-        assertNull(viewModel.estado.renovando)
+        assertEquals(listOf("renovar:CON-3"), api.llamadas.filter { it.startsWith("renovar") })
         assertEquals(EstadoConsentimiento.VIGENTE, viewModel.estado.finalidades[0].consentimiento?.estado)
+        assertEquals(renovado.venceEn, viewModel.estado.nuevaVenceEn)
     }
 
     @Test
-    fun `renovar vencido con error muestra mensaje`() {
-        val vencido = consentimientoVencido()
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(vencido) }
-        val viewModel = vm()
-        viewModel.cargar()
-
-        api.renovarC = { throw fallaBff(409, "consentimiento_ya_vigente") }
-        api.consentimientos = { listOf(consentimientoVigente()) }
+    fun `renovar revocado desde otro canal avisa y refresca`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVencido()))
+        api.renovarC = { throw fallaBff(409, "consentimiento_revocado") }
+        api.consentimientos = { listOf(consentimientoRevocado(id = "CON-3")) }
         viewModel.renovar("CON-3")
 
-        assertEquals(R.string.consentimiento_ya_vigente, viewModel.estado.mensajeError)
+        assertEquals(R.string.consentimiento_revocado, viewModel.estado.mensajeError)
+        assertNull(viewModel.estado.nuevaVenceEn)
+        assertEquals(EstadoConsentimiento.REVOCADO, viewModel.estado.finalidades[0].consentimiento?.estado)
     }
 
     @Test
-    fun `renovar con sin conexion marca requiere refresco`() {
-        val vencido = consentimientoVencido()
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { listOf(vencido) }
-        val viewModel = vm()
-        viewModel.cargar()
+    fun `renovar con error del servidor avisa y exige consultar`() {
+        val viewModel = cargado(consentimientos = listOf(consentimientoVigenteRenovable(diasParaVencer = 3)))
+        api.renovarC = { throw fallaBff(500, "error_interno") }
+        viewModel.renovar("CON-4")
 
-        api.renovarC = { throw IOException("sin red") }
-        viewModel.renovar("CON-3")
-
+        assertEquals(R.string.error_generico, viewModel.estado.mensajeError)
         assertTrue(viewModel.estado.requiereRefresco)
-    }
+        assertNull(viewModel.estado.renovando)
 
-    // ── Recuperación explícita ────────────────────────────────────────────────────────────────
-
-    @Test
-    fun `tras error de carga reintentar carga de nuevo`() {
-        api.finalidades = { throw IOException("sin red") }
-        api.consentimientos = { emptyList() }
-        val viewModel = vm()
         viewModel.cargar()
-        assertTrue(viewModel.estado.errorCarga)
-
-        api.finalidades = { listOf(finalidadCotizacion()) }
-        viewModel.cargar()
-        assertFalse(viewModel.estado.errorCarga)
+        assertFalse(viewModel.estado.requiereRefresco)
+        assertTrue(viewModel.estado.accionesHabilitadas)
     }
 }

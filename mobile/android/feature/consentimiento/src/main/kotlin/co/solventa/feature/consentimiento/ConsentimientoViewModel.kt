@@ -14,6 +14,7 @@ import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.Resultado
 import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.llamarBff
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // ── Estado de la pantalla ─────────────────────────────────────────────────────────────────────
@@ -34,7 +35,14 @@ data class EstadoConsentimientoUi(
     val finalidades: List<FinalidadUi> = emptyList(),
     /** true cuando la carga falló y todavía no se ha vuelto a cargar con éxito. */
     val errorCarga: Boolean = false,
+    /** Error de la última consulta; separado de [mensajeError] para que recargar no lo borre. */
+    @StringRes val mensajeCarga: Int? = null,
+    /** Error de la última mutación; se conserva mientras la lista se recupera. */
     @StringRes val mensajeError: Int? = null,
+    /** Confirmación tras una respuesta satisfactoria del servidor; nunca optimista. */
+    @StringRes val mensajeExito: Int? = null,
+    /** `vence_en` devuelta por el servidor al renovar. */
+    val nuevaVenceEn: String? = null,
     // ── Otorgar ───────────────────────────────────────────────────────────────────────────────
     /** Finalidad para la que se está otorgando. null = diálogo cerrado. */
     val otorgando: FinalidadConsentimiento? = null,
@@ -54,56 +62,70 @@ data class EstadoConsentimientoUi(
     /** Mutación en curso: deshabilita todas las acciones para evitar doble envío. */
     val mutando: Boolean = false,
     /**
-     * true cuando una mutación terminó con respuesta perdida o error de red: se exige
-     * refrescar la lista antes de permitir repetir la misma mutación.
+     * true cuando una mutación terminó sin saber si el servidor la aplicó: se exige una
+     * consulta iniciada después de ese resultado antes de permitir otra mutación.
      */
     val requiereRefresco: Boolean = false,
+    /** El BFF respondió 401: la pantalla delega al flujo de sesión, sin reenviar la mutación. */
+    val sesionVencida: Boolean = false,
 ) {
+    /** Sin acciones sobre datos que se están cargando, mutando o cuyo estado es incierto. */
+    val accionesHabilitadas: Boolean
+        get() = !mutando && !cargando && !requiereRefresco
+
     /** El botón de otorgar solo se habilita con al menos una entidad y la versión aceptada. */
     val puedeOtorgar: Boolean
-        get() = entidadesSeleccionadas.isNotEmpty() && versionAceptada && !mutando
+        get() = entidadesSeleccionadas.isNotEmpty() && versionAceptada && accionesHabilitadas
 }
 
 // ── ViewModel ────────────────────────────────────────────────────────────────────────────────
 
+@Suppress("TooManyFunctions")
 class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
 
     var estado by mutableStateOf(EstadoConsentimientoUi())
         private set
 
+    private var carga: Job? = null
+
+    /**
+     * Cambia al iniciar y al terminar cada mutación. Una consulta solo se aplica si la
+     * generación no cambió mientras estaba en vuelo; así una respuesta anterior a la mutación
+     * no puede presentarse como estado actual ni levantar [EstadoConsentimientoUi.requiereRefresco].
+     */
+    private var generacion = 0
+
     // ── Carga ─────────────────────────────────────────────────────────────────────────────────
 
-    /** Carga catálogo y consentimientos; usada en init, ON_RESUME y pull-to-refresh. */
+    /** Carga catálogo y consentimientos; usada al entrar, en ON_RESUME y pull-to-refresh. */
     fun cargar() {
-        if (estado.cargando) return
-        estado = estado.copy(cargando = true, mensajeError = null)
-        viewModelScope.launch {
+        carga?.cancel()
+        val inicio = generacion
+        estado = estado.copy(cargando = true, mensajeCarga = null)
+        carga = viewModelScope.launch {
             val rFinalidades = llamarBff { api.listarFinalidades() }
             val rConsentimientos = llamarBff { api.listarConsentimientos() }
-
-            when {
+            estado = when {
+                inicio != generacion -> estado.copy(cargando = false)
                 rFinalidades is Resultado.Exito && rConsentimientos is Resultado.Exito -> {
-                    estado = estado.copy(
+                    val finalidades = combinar(rFinalidades.valor, rConsentimientos.valor)
+                    estado.copy(
                         cargando = false,
                         errorCarga = false,
-                        finalidades = combinar(rFinalidades.valor, rConsentimientos.valor),
+                        finalidades = finalidades,
                         requiereRefresco = false,
-                    )
+                    ).reconciliarDialogos(finalidades)
                 }
-                rFinalidades is Resultado.SinConexion || rConsentimientos is Resultado.SinConexion -> {
-                    estado = estado.copy(
-                        cargando = false,
-                        errorCarga = estado.finalidades.isEmpty(),
-                        mensajeError = R.string.error_sin_conexion,
-                    )
-                }
-                else -> {
-                    estado = estado.copy(
-                        cargando = false,
-                        errorCarga = estado.finalidades.isEmpty(),
-                        mensajeError = R.string.error_generico,
-                    )
-                }
+                else -> estado.copy(
+                    cargando = false,
+                    errorCarga = estado.finalidades.isEmpty(),
+                    sesionVencida = rFinalidades.esNoAutenticado() || rConsentimientos.esNoAutenticado(),
+                    mensajeCarga = if (rFinalidades.esSinConexion() || rConsentimientos.esSinConexion()) {
+                        R.string.error_sin_conexion
+                    } else {
+                        R.string.error_generico
+                    },
+                )
             }
         }
     }
@@ -111,16 +133,19 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
     // ── Otorgar ───────────────────────────────────────────────────────────────────────────────
 
     fun abrirOtorgar(finalidad: FinalidadConsentimiento) {
+        if (!estado.accionesHabilitadas) return
         estado = estado.copy(
             otorgando = finalidad,
             entidadesSeleccionadas = emptySet(),
             versionAceptada = false,
             mensajeError = null,
+            mensajeExito = null,
         )
     }
 
     fun cerrarOtorgar() {
-        estado = estado.copy(otorgando = null)
+        if (estado.mutando) return
+        estado = estado.copy(otorgando = null, mensajeError = null)
     }
 
     fun toggleEntidad(id: String) {
@@ -139,168 +164,187 @@ class ConsentimientoViewModel(private val api: BffApi) : ViewModel() {
     fun otorgar() {
         val finalidad = estado.otorgando ?: return
         if (!estado.puedeOtorgar) return
-        if (estado.requiereRefresco) {
-            estado = estado.copy(mensajeError = R.string.consentimiento_requiere_refresco)
-            return
-        }
-        estado = estado.copy(mutando = true, mensajeError = null)
-        viewModelScope.launch {
-            val resultado = llamarBff {
-                api.otorgarConsentimiento(
-                    SolicitudConsentimiento(
-                        finalidad = finalidad.codigo,
-                        entidadesOrigen = estado.entidadesSeleccionadas.toList(),
-                        versionTexto = finalidad.versionTexto,
-                    ),
-                )
-            }
-            when (resultado) {
-                is Resultado.Exito -> {
-                    estado = estado.copy(mutando = false, otorgando = null)
-                    cargar()
+        val solicitud = SolicitudConsentimiento(
+            finalidad = finalidad.codigo,
+            entidadesOrigen = estado.entidadesSeleccionadas.toList(),
+            versionTexto = finalidad.versionTexto,
+        )
+        mutar(
+            llamada = { api.otorgarConsentimiento(solicitud) },
+            alExito = { otorgado ->
+                estado.conConsentimiento(otorgado)
+                    .copy(otorgando = null, mensajeExito = R.string.otorgar_confirmado)
+            },
+            alFallar = { falla ->
+                when (falla.codigo) {
+                    // El formulario sigue abierto: la recarga trae la versión y las entidades vigentes.
+                    VERSION_DESACTUALIZADA -> estado.copy(versionAceptada = false)
+                    ENTIDADES_INVALIDAS -> estado
+                    else -> estado.copy(otorgando = null)
                 }
-                is Resultado.Falla -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        mensajeError = errorOtorgar(resultado),
-                        requiereRefresco = resultado.requiereRefresco(),
-                    )
-                    if (resultado.debeRecargarCatalogo()) cargar()
-                }
-                Resultado.SinConexion -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        mensajeError = R.string.error_sin_conexion,
-                        requiereRefresco = true,
-                    )
-                }
-            }
-        }
+            },
+        )
     }
 
     // ── Revocar ───────────────────────────────────────────────────────────────────────────────
 
     fun abrirRevocar(idConsentimiento: String, finalidad: CodigoFinalidad) {
+        if (!estado.accionesHabilitadas) return
         estado = estado.copy(
             revocando = idConsentimiento,
             finalidadRevocando = finalidad,
             mensajeError = null,
+            mensajeExito = null,
         )
     }
 
     fun cerrarRevocar() {
+        if (estado.mutando) return
         estado = estado.copy(revocando = null, finalidadRevocando = null)
     }
 
     fun revocar() {
         val id = estado.revocando ?: return
-        if (estado.mutando) return
-        if (estado.requiereRefresco) {
-            estado = estado.copy(mensajeError = R.string.consentimiento_requiere_refresco)
-            return
-        }
-        estado = estado.copy(mutando = true, mensajeError = null)
-        viewModelScope.launch {
-            when (val resultado = llamarBff { api.revocarConsentimiento(id) }) {
-                is Resultado.Exito -> {
-                    estado = estado.copy(mutando = false, revocando = null, finalidadRevocando = null)
-                    cargar()
-                }
-                is Resultado.Falla -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        mensajeError = errorRevocar(resultado),
-                        requiereRefresco = resultado.requiereRefresco(),
-                    )
-                    if (resultado.debeRecargar()) cargar()
-                }
-                Resultado.SinConexion -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        mensajeError = R.string.error_sin_conexion,
-                        requiereRefresco = true,
-                    )
-                }
-            }
-        }
+        if (!estado.accionesHabilitadas) return
+        mutar(
+            llamada = { api.revocarConsentimiento(id) },
+            alExito = { revocado ->
+                estado.conConsentimiento(revocado).sinRevocacion().copy(mensajeExito = R.string.revocar_confirmado)
+            },
+            alFallar = { estado.sinRevocacion() },
+        )
     }
 
     // ── Renovar ───────────────────────────────────────────────────────────────────────────────
 
     fun renovar(idConsentimiento: String) {
-        if (estado.mutando) return
-        if (estado.requiereRefresco) {
-            estado = estado.copy(mensajeError = R.string.consentimiento_requiere_refresco)
-            return
-        }
-        estado = estado.copy(mutando = true, renovando = idConsentimiento, mensajeError = null)
-        viewModelScope.launch {
-            when (val resultado = llamarBff { api.renovarConsentimiento(idConsentimiento) }) {
-                is Resultado.Exito -> {
-                    estado = estado.copy(mutando = false, renovando = null)
-                    cargar()
-                }
-                is Resultado.Falla -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        renovando = null,
-                        mensajeError = errorRenovar(resultado),
-                        requiereRefresco = resultado.requiereRefresco(),
-                    )
-                    if (resultado.debeRecargar()) cargar()
-                }
-                Resultado.SinConexion -> {
-                    estado = estado.copy(
-                        mutando = false,
-                        renovando = null,
-                        mensajeError = R.string.error_sin_conexion,
-                        requiereRefresco = true,
-                    )
-                }
-            }
-        }
+        if (!estado.accionesHabilitadas) return
+        estado = estado.copy(renovando = idConsentimiento, mensajeError = null, mensajeExito = null)
+        mutar(
+            llamada = { api.renovarConsentimiento(idConsentimiento) },
+            alExito = { renovado ->
+                estado.conConsentimiento(renovado).copy(
+                    renovando = null,
+                    mensajeExito = R.string.renovar_confirmado,
+                    nuevaVenceEn = renovado.venceEn,
+                )
+            },
+            alFallar = { estado.copy(renovando = null) },
+        )
+    }
+
+    /** El flujo de sesión ya tomó el 401; la pantalla no vuelve a delegarlo. */
+    fun sesionAtendida() {
+        estado = estado.copy(sesionVencida = false)
     }
 
     // ── Auxiliares ────────────────────────────────────────────────────────────────────────────
 
-    @StringRes
-    private fun errorOtorgar(falla: Resultado.Falla): Int = when (falla.codigo) {
-        "consentimiento_ya_vigente" -> R.string.consentimiento_ya_vigente
-        "version_texto_desactualizada" -> R.string.version_texto_desactualizada
-        "entidades_invalidas" -> R.string.entidades_invalidas
-        else -> if (falla.http == HTTP_NO_AUTENTICADO) R.string.error_sesion else R.string.error_generico
+    /**
+     * Ejecuta una mutación sin cambios optimistas. Tras la respuesta del servidor, o un error
+     * con código, refresca la lista. Si el resultado es incierto (sin conexión, respuesta
+     * perdida o fallo del servidor) no repite ni encola: exige consultar antes de permitir otra.
+     */
+    private fun mutar(
+        llamada: suspend () -> Consentimiento,
+        alExito: (Consentimiento) -> EstadoConsentimientoUi,
+        alFallar: (Resultado.Falla) -> EstadoConsentimientoUi,
+    ) {
+        generacion++
+        estado = estado.copy(mutando = true, mensajeError = null, mensajeExito = null, nuevaVenceEn = null)
+        viewModelScope.launch {
+            val resultado = llamarBff(llamada)
+            generacion++
+            estado = when (resultado) {
+                is Resultado.Exito -> alExito(resultado.valor).copy(mutando = false)
+                is Resultado.Falla -> alFallar(resultado).copy(
+                    mutando = false,
+                    mensajeError = mensajeDe(resultado),
+                    requiereRefresco = resultado.esIncierta(),
+                    sesionVencida = resultado.http == HTTP_NO_AUTENTICADO,
+                )
+                Resultado.SinConexion -> estado.copy(
+                    mutando = false,
+                    renovando = null,
+                    otorgando = null,
+                    revocando = null,
+                    finalidadRevocando = null,
+                    mensajeError = R.string.error_sin_conexion,
+                    requiereRefresco = true,
+                )
+            }
+            if (resultado.debeRefrescar()) cargar()
+        }
+    }
+
+    private fun EstadoConsentimientoUi.sinRevocacion() = copy(revocando = null, finalidadRevocando = null)
+
+    /** Aplica de inmediato la respuesta del servidor; la recarga posterior la confirma. */
+    private fun EstadoConsentimientoUi.conConsentimiento(c: Consentimiento) = copy(
+        finalidades = finalidades.map { if (it.finalidad.codigo == c.finalidad) it.copy(consentimiento = c) else it },
+    )
+
+    /**
+     * Ajusta los diálogos abiertos al estado recién consultado: el formulario de otorgar toma
+     * la versión y entidades vigentes del catálogo (si la versión cambió, exige aceptar de nuevo)
+     * y se cierra cualquier diálogo cuya acción ya no aplica.
+     */
+    private fun EstadoConsentimientoUi.reconciliarDialogos(lista: List<FinalidadUi>): EstadoConsentimientoUi {
+        var nuevo = this
+        otorgando?.let { abierta ->
+            val actual = lista.firstOrNull { it.finalidad.codigo == abierta.codigo }
+            nuevo = if (actual == null || actual.consentimiento?.estado == EstadoConsentimiento.VIGENTE) {
+                nuevo.copy(otorgando = null)
+            } else {
+                val ids = actual.finalidad.entidadesOrigen.map { it.id }.toSet()
+                nuevo.copy(
+                    otorgando = actual.finalidad,
+                    entidadesSeleccionadas = entidadesSeleccionadas intersect ids,
+                    versionAceptada = versionAceptada && actual.finalidad.versionTexto == abierta.versionTexto,
+                )
+            }
+        }
+        revocando?.let { id ->
+            val sigueVigente = lista.any {
+                it.consentimiento?.id == id && it.consentimiento.estado == EstadoConsentimiento.VIGENTE
+            }
+            if (!sigueVigente) nuevo = nuevo.sinRevocacion()
+        }
+        return nuevo
     }
 
     @StringRes
-    private fun errorRevocar(falla: Resultado.Falla): Int = when (falla.codigo) {
-        "consentimiento_no_vigente", "consentimiento_revocado" -> R.string.consentimiento_no_vigente
-        else -> if (falla.http == HTTP_NO_AUTENTICADO) R.string.error_sesion
-        else if (falla.http == HTTP_NO_ENCONTRADO) R.string.consentimiento_no_encontrado
-        else R.string.error_generico
+    private fun mensajeDe(falla: Resultado.Falla): Int = when {
+        falla.codigo == "consentimiento_ya_vigente" -> R.string.consentimiento_ya_vigente
+        falla.codigo == "consentimiento_no_vigente" -> R.string.consentimiento_no_vigente
+        falla.codigo == "consentimiento_revocado" -> R.string.consentimiento_revocado
+        falla.codigo == VERSION_DESACTUALIZADA -> R.string.version_texto_desactualizada
+        falla.codigo == ENTIDADES_INVALIDAS -> R.string.entidades_invalidas
+        falla.http == HTTP_NO_AUTENTICADO -> R.string.error_sesion
+        falla.http == HTTP_NO_ENCONTRADO -> R.string.consentimiento_no_encontrado
+        else -> R.string.error_generico
     }
 
-    @StringRes
-    private fun errorRenovar(falla: Resultado.Falla): Int = when (falla.codigo) {
-        "consentimiento_ya_vigente" -> R.string.consentimiento_ya_vigente
-        "consentimiento_revocado" -> R.string.consentimiento_revocado
-        else -> if (falla.http == HTTP_NO_AUTENTICADO) R.string.error_sesion
-        else if (falla.http == HTTP_NO_ENCONTRADO) R.string.consentimiento_no_encontrado
-        else R.string.error_generico
+    /** Sin código estable o con fallo del servidor no se sabe si la mutación se aplicó. */
+    private fun Resultado.Falla.esIncierta(): Boolean =
+        http != HTTP_NO_AUTENTICADO && (codigo == null || http >= HTTP_ERROR_SERVIDOR)
+
+    private fun Resultado<*>.debeRefrescar(): Boolean = when (this) {
+        is Resultado.Exito -> true
+        is Resultado.Falla -> http != HTTP_NO_AUTENTICADO && !esIncierta()
+        Resultado.SinConexion -> false
     }
 
-    private fun Resultado.Falla.requiereRefresco(): Boolean =
-        http == HTTP_SIN_CONEXION_PROXY || codigo == null
+    private fun Resultado<*>.esSinConexion() = this is Resultado.SinConexion
 
-    private fun Resultado.Falla.debeRecargar(): Boolean =
-        codigo in setOf("consentimiento_no_vigente", "consentimiento_revocado", "consentimiento_ya_vigente")
-
-    private fun Resultado.Falla.debeRecargarCatalogo(): Boolean =
-        codigo in setOf("version_texto_desactualizada", "entidades_invalidas")
+    private fun Resultado<*>.esNoAutenticado() = this is Resultado.Falla && http == HTTP_NO_AUTENTICADO
 
     private companion object {
+        const val VERSION_DESACTUALIZADA = "version_texto_desactualizada"
+        const val ENTIDADES_INVALIDAS = "entidades_invalidas"
         const val HTTP_NO_AUTENTICADO = 401
         const val HTTP_NO_ENCONTRADO = 404
-        const val HTTP_SIN_CONEXION_PROXY = 0
+        const val HTTP_ERROR_SERVIDOR = 500
     }
 }
 

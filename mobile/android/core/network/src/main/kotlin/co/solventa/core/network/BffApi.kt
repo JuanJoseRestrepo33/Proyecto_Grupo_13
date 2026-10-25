@@ -8,6 +8,7 @@ import retrofit2.http.Path
 // Cliente del contrato contratos/bff-movil/openapi.yaml. Las rutas son relativas al prefijo
 // /api/v1/movil/ de BuildConfig.BASE_URL. Un error HTTP llega como retrofit2.HttpException;
 // ErrorBff.desde(...) recupera su código estable.
+@Suppress("TooManyFunctions")
 interface BffApi {
     @POST("registros")
     suspend fun crearRegistro(@Body solicitud: SolicitudRegistro): Registro

@@ -311,12 +311,4 @@ class MockBffMovilTest {
         ingresarComoDemo()
         assertEquals(404 to "consentimiento_no_encontrado", falla { api.revocarConsentimiento("CON-X") }.clave())
     }
-
-    @Test
-    fun `las rutas de consentimiento con id usan Regex`() {
-        ingresarComoDemo()
-        val mock = MockBffMovil { ahora }
-        // Ruta con ID variable
-        assertEquals(404, mock.responder("POST", "consentimiento/consentimientos/CON-X/revocacion", "", "Bearer test").codigo)
-    }
 }

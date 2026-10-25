@@ -70,6 +70,7 @@ fun SolventaRaiz(
             SolventaApp(
                 identidadVerificada = dependencias.sesion.identidadVerificada,
                 dependenciasConsentimiento = dependenciasConsentimiento,
+                onSesionVencida = { nav.reiniciarEn(RutasEntrada.INGRESO) },
             )
         }
     }

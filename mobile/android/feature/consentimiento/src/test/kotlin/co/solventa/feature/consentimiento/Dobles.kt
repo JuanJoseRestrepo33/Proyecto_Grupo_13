@@ -58,6 +58,17 @@ fun fallaBff(
     return HttpException(Response.error<Any>(cuerpo.toResponseBody("application/json".toMediaType()), crudo))
 }
 
+/** Respuesta de error sin cuerpo del contrato (p. ej., de un proxy): sin código estable. */
+fun fallaSinCodigo(http: Int): HttpException {
+    val crudo = okhttp3.Response.Builder()
+        .code(http)
+        .message("Prueba")
+        .protocol(Protocol.HTTP_1_1)
+        .request(Request.Builder().url("https://bff.prueba/api/v1/movil/").build())
+        .build()
+    return HttpException(Response.error<Any>("<html></html>".toResponseBody("text/html".toMediaType()), crudo))
+}
+
 // ── Datos de prueba ────────────────────────────────────────────────────────────────────────────
 
 val ENTIDAD_BANCO = EntidadConsentimiento("banco-1", "Banco Uno")
@@ -155,14 +166,35 @@ class BffFalso : BffApi {
     var renovarC: suspend (String) -> Consentimiento = { error("renovarConsentimiento no programado") }
     val llamadas = mutableListOf<String>()
 
-    override suspend fun crearRegistro(s: SolicitudRegistro): Registro { llamadas += "registro"; return registro(s) }
-    override suspend fun verificarOtp(id: String, s: SolicitudOtp): Sesion { llamadas += "otp"; return verificacionOtp(id, s) }
-    override suspend fun reenviarOtp(id: String): Otp { llamadas += "reenvio"; return reenvio(id) }
-    override suspend fun iniciarSesion(c: Credenciales): Sesion { llamadas += "ingreso"; return ingreso(c) }
-    override suspend fun renovarSesion(s: SolicitudRenovacion): Sesion { llamadas += "renovacion"; return renovacion(s) }
+    override suspend fun crearRegistro(s: SolicitudRegistro): Registro {
+        llamadas += "registro"; return registro(s)
+    }
+
+    override suspend fun verificarOtp(id: String, s: SolicitudOtp): Sesion {
+        llamadas += "otp"; return verificacionOtp(id, s)
+    }
+
+    override suspend fun reenviarOtp(id: String): Otp {
+        llamadas += "reenvio"; return reenvio(id)
+    }
+
+    override suspend fun iniciarSesion(c: Credenciales): Sesion {
+        llamadas += "ingreso"; return ingreso(c)
+    }
+
+    override suspend fun renovarSesion(s: SolicitudRenovacion): Sesion {
+        llamadas += "renovacion"; return renovacion(s)
+    }
+
     override suspend fun obtenerSesion(): Cliente = error("no se usa en consentimiento")
-    override suspend fun obtenerVerificacionIdentidad(): VerificacionIdentidad { llamadas += "consulta"; return consulta() }
-    override suspend fun solicitarVerificacionIdentidad(): VerificacionIdentidad { llamadas += "solicitud"; return solicitud() }
+
+    override suspend fun obtenerVerificacionIdentidad(): VerificacionIdentidad {
+        llamadas += "consulta"; return consulta()
+    }
+
+    override suspend fun solicitarVerificacionIdentidad(): VerificacionIdentidad {
+        llamadas += "solicitud"; return solicitud()
+    }
 
     override suspend fun listarFinalidades(): List<FinalidadConsentimiento> {
         llamadas += "finalidades"

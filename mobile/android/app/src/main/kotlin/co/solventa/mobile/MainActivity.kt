@@ -24,7 +24,6 @@ class MainActivity : FragmentActivity() {
         )
         val dependenciasConsentimiento = DependenciasConsentimiento(
             api = Proceso.bffApi,
-            sesion = Proceso.sesion,
         )
         setContent {
             SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento) }

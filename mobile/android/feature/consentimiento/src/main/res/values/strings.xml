@@ -5,6 +5,8 @@
     <string name="consentimiento_reintentar">Reintentar</string>
     <string name="consentimiento_error_carga">No pudimos cargar tus consentimientos. Revisa tu conexión e inténtalo de nuevo.</string>
     <string name="consentimiento_refrescando">Actualizando…</string>
+    <string name="consentimiento_actualizar">Actualizar lista</string>
+    <string name="consentimiento_volver">Volver a Perfil</string>
 
     <!-- Estados -->
     <string name="estado_vigente">Vigente</string>
@@ -36,6 +38,7 @@
     <string name="otorgar_version_cd">Acepto la versión del texto legal</string>
     <string name="otorgar_alcance_label">Datos que se consultarán</string>
     <string name="otorgar_vigencia_label">Vigencia: %1$d meses</string>
+    <string name="otorgar_confirmado">Consentimiento otorgado.</string>
 
     <!-- Revocar -->
     <string name="revocar_titulo">Revocar consentimiento</string>
@@ -44,7 +47,6 @@
     <string name="revocar_confirmado">Consentimiento revocado.</string>
 
     <!-- Renovar -->
-    <string name="renovar_titulo">Renovar consentimiento</string>
     <string name="renovar_confirmado">Consentimiento renovado.</string>
 
     <!-- Mensajes de error por código -->
@@ -54,7 +56,6 @@
     <string name="version_texto_desactualizada">El texto legal se actualizó. Revisa la versión vigente y acepta de nuevo antes de continuar.</string>
     <string name="entidades_invalidas">Algunas entidades ya no están disponibles. Revisa la selección antes de continuar.</string>
     <string name="consentimiento_no_encontrado">Este consentimiento no está disponible. La lista se actualizó.</string>
-    <string name="consentimiento_requiere_refresco">Actualiza la lista antes de repetir esta acción para asegurarte del estado actual.</string>
 
     <!-- Errores comunes reutilizados en este módulo -->
     <string name="error_sin_conexion">No pudimos conectarnos. Revisa tu conexión e inténtalo de nuevo.</string>

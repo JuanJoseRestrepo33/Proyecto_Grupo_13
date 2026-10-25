@@ -2,14 +2,17 @@ package co.solventa.feature.onboarding
 
 import co.solventa.core.network.BffApi
 import co.solventa.core.network.Cliente
+import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.Credenciales
 import co.solventa.core.network.ErrorBff
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoIdentidad
+import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Otp
 import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
+import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
@@ -117,6 +120,19 @@ class BffFalso : BffApi {
         llamadas += "solicitud"
         return solicitud()
     }
+
+    override suspend fun listarFinalidades(): List<FinalidadConsentimiento> = error("no se usa en MOB-F01")
+
+    override suspend fun listarConsentimientos(): List<Consentimiento> = error("no se usa en MOB-F01")
+
+    override suspend fun otorgarConsentimiento(solicitud: SolicitudConsentimiento): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun revocarConsentimiento(idConsentimiento: String): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
+        error("no se usa en MOB-F01")
 }
 
 /** Almacén en memoria; [cipher] es un objeto opaco que solo viaja entre el almacén y la biometría. */

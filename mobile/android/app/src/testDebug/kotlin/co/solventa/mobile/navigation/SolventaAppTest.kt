@@ -2,6 +2,7 @@ package co.solventa.mobile.navigation
 
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -10,9 +11,17 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import co.solventa.core.designsystem.SolventaTheme
+import co.solventa.core.network.NetworkClient
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.mobile.BuildConfig
+import co.solventa.mobile.DebugMockInterceptor
+import co.solventa.mobile.mock.MockBffMovil
+import java.time.Instant
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,6 +67,33 @@ class SolventaAppTest {
     fun `con identidad verificada no hay aviso`() {
         compose.setContent { SolventaTheme { SolventaApp(identidadVerificada = true) } }
         compose.onNodeWithTag("aviso-identidad").assertDoesNotExist()
+    }
+
+    @Test
+    fun `perfil abre consentimiento y volver regresa a perfil con perfil seleccionado`() {
+        val api = NetworkClient.create(
+            BuildConfig.BASE_URL,
+            listOf(DebugMockInterceptor(MockBffMovil { Instant.parse("2026-10-17T10:00:00Z") })),
+            tokenAcceso = { null },
+        )
+        val dependencias = DependenciasConsentimiento(api)
+        compose.setContent { SolventaTheme { SolventaApp(dependenciasConsentimiento = dependencias) } }
+        compose.onNode(tab("Perfil")).performClick()
+        compose.onNodeWithTag("ir-consentimiento").assertHeightIsAtLeast(48.dp).performClick()
+
+        compose.onNodeWithTag("pantalla-consentimiento").assertIsDisplayed()
+        compose.onNode(tab("Perfil")).assertIsSelected()
+
+        compose.onNodeWithContentDescription("Volver a Perfil").performClick()
+        compose.onNodeWithTag("screen-profile").assertIsDisplayed()
+        compose.onNodeWithTag("pantalla-consentimiento").assertDoesNotExist()
+    }
+
+    @Test
+    fun `sin dependencias de consentimiento perfil no ofrece el acceso`() {
+        compose.setContent { SolventaTheme { SolventaApp() } }
+        compose.onNode(tab("Perfil")).performClick()
+        compose.onNodeWithTag("ir-consentimiento").assertDoesNotExist()
     }
 
     private fun tab(label: String): SemanticsMatcher = isSelectable() and hasText(label)
