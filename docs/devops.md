@@ -314,6 +314,12 @@ protegidas, un 401 cuenta como éxito: prueba que la ruta existe y exige sesión
 falta de respuesta hacen fallar el despliegue. Se reintenta durante un minuto mientras la revisión
 arranca.
 
+Una fila se puede escribir antes que el código que la cumple, marcada `pendiente="#NNN"` con el
+issue que la entrega: se prueba en cada despliegue, pero su falla deja un *warning* en vez de
+detener el despliegue (y no provoca reintentos). Cuando ese issue se fusiona, se quita la marca en
+el mismo PR o en uno inmediato. Así, por ejemplo, el humo de `/sesion` (WEB-F13) no bloquea el
+despliegue del BFF mientras sus rutas no existen.
+
 ### Principio de seguridad: el repositorio no guarda credenciales
 
 El pipeline nombra la plataforma (Google Cloud: Artifact Registry y Cloud Run), pero **no guarda
@@ -356,6 +362,16 @@ lados.
 | URL del BFF | `BFF_URL` (origen, sin barra final) | `solventa-web` (nginx) | WEB-F01 |
 | Conexión del log de auditoría | `AUDITORIA_DATABASE_URL` ← secreto `auditoria-database-url` | `solventa-nucleo` | ARQ-03 |
 | Conexión de cotización | `COTIZACION_DATABASE_URL` ← secreto `cotizacion-database-url` | `solventa-nucleo` | WEB-F01 |
+| Llave privada de firma de tokens (PEM, ES256) | `TOKENS_LLAVE_PRIVADA` ← secreto `tokens-llave-privada` | `solventa-nucleo` (emite) | WEB-F13 |
+| Llave pública de firma de tokens (PEM) | `TOKENS_LLAVE_PUBLICA` ← secreto `tokens-llave-publica` | `solventa-nucleo` y `solventa-bff` (validan) | WEB-F13 |
+| Llave pública anterior, solo durante una rotación | `TOKENS_LLAVE_PUBLICA_ANTERIOR` ← versión anterior de `tokens-llave-publica` | `solventa-bff` | WEB-F13 |
+
+**Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
+valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
+la **huella JWK de la llave pública** (RFC 7638, SHA-256 en base64url): el núcleo y el BFF la
+calculan de la llave misma, sin depender de Secret Manager, y durante una rotación el BFF elige por
+`kid` entre la llave actual y la anterior. Sin la llave, en *staging* el servicio no debe arrancar
+(o `/salud` responde 503), para que Cloud Run no promueva la revisión.
 
 Cada módulo con persistencia tiene **su esquema y su usuario de base de datos** en la misma instancia
 y la misma base (`solventa-auditoria` / `solventa`), con permisos solo sobre su esquema: un módulo no
@@ -692,3 +708,57 @@ Si el núcleo ya existía con la configuración del Sprint 1, basta con agregarl
 `gcloud run services update solventa-nucleo --region=<GCP_REGION> --update-secrets=COTIZACION_DATABASE_URL=cotizacion-database-url:latest`.
 
 Desde entonces cada merge a `develop` publica una revisión nueva de los tres sin intervención manual.
+
+### 6. Llaves de firma de los tokens de sesión (WEB-F13)
+
+Un par por ambiente; `staging` y `produccion` nunca comparten llave. La privada se genera en
+memoria y va directo a Secret Manager por tubería: no se escribe en disco, no se imprime y no
+pasa por el repositorio ni por el pipeline. Desde Cloud Shell o una terminal con `gcloud`:
+
+```bash
+for s in tokens-llave-privada tokens-llave-publica; do
+  gcloud secrets create "$s" --replication-policy=automatic --labels=historia=web-f13
+done
+PRIV=$(openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256)
+printf '%s\n' "$PRIV" | gcloud secrets versions add tokens-llave-privada --data-file=-
+printf '%s\n' "$PRIV" | openssl pkey -pubout | gcloud secrets versions add tokens-llave-publica --data-file=-
+unset PRIV
+```
+
+Acceso por secreto, no por proyecto: el núcleo lee las dos y el BFF solo la pública.
+
+```bash
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+BFF="serviceAccount:run-bff@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding tokens-llave-privada --member="$NUCLEO" --role=roles/secretmanager.secretAccessor
+for m in "$NUCLEO" "$BFF"; do
+  gcloud secrets add-iam-policy-binding tokens-llave-publica --member="$m" --role=roles/secretmanager.secretAccessor
+done
+
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=TOKENS_LLAVE_PRIVADA=tokens-llave-privada:latest,TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest
+gcloud run services update solventa-bff --region=<GCP_REGION> \
+  --update-secrets=TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest
+```
+
+**Comprobar que las dos forman un par**, sin mostrar la privada: las dos líneas deben coincidir.
+
+```bash
+gcloud secrets versions access latest --secret=tokens-llave-privada | openssl pkey -pubout -outform DER | sha256sum
+gcloud secrets versions access latest --secret=tokens-llave-publica | openssl pkey -pubin -outform DER | sha256sum
+```
+
+**Rotación** (manual; cuando se sospeche una filtración o una vez por semestre). El orden evita que
+un token válido sea rechazado:
+
+1. Agregar una versión nueva a los dos secretos con el bloque de generación de arriba (sin
+   `secrets create`). Anotar el número de la versión **anterior** de la pública, `N`.
+2. Desplegar el BFF con la pública nueva y la anterior:
+   `gcloud run services update solventa-bff --region=<GCP_REGION> --update-secrets=TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest,TOKENS_LLAVE_PUBLICA_ANTERIOR=tokens-llave-publica:N`.
+   Desde aquí acepta tokens firmados con cualquiera de las dos (elige por `kid`).
+3. Publicar una revisión nueva del núcleo (`gcloud run services update solventa-nucleo
+   --region=<GCP_REGION> --update-secrets=TOKENS_LLAVE_PRIVADA=tokens-llave-privada:latest`): firma
+   con la llave nueva.
+4. Cuando venza el último token emitido con la llave anterior, retirar la variable del BFF
+   (`--remove-secrets=TOKENS_LLAVE_PUBLICA_ANTERIOR`) y deshabilitar la versión anterior de cada
+   secreto (`gcloud secrets versions disable <versión> --secret=...`).
