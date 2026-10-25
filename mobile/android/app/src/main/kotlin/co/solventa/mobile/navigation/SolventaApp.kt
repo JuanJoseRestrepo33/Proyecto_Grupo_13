@@ -27,14 +27,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import co.solventa.core.designsystem.SolventaSpacing
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.consentimiento.RutaConsentimiento
 import co.solventa.mobile.R
 
 /**
  * @param identidadVerificada false mientras KYC no apruebe: Inicio lo avisa y las funciones que
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
+ * @param dependenciasConsentimiento dependencias para el flujo MOB-F02.
  */
 @Composable
-fun SolventaApp(identidadVerificada: Boolean = true) {
+fun SolventaApp(
+    identidadVerificada: Boolean = true,
+    dependenciasConsentimiento: DependenciasConsentimiento? = null,
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
@@ -65,8 +71,24 @@ fun SolventaApp(identidadVerificada: Boolean = true) {
         NavHost(navController, startDestination = TopLevelDestination.HOME.route, Modifier.padding(padding)) {
             TopLevelDestination.entries.forEach { destination ->
                 composable(destination.route) {
-                    val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
-                    PlaceholderScreen(destination, avisoIdentidad = aviso)
+                    when {
+                        destination == TopLevelDestination.PROFILE && dependenciasConsentimiento != null -> {
+                            RutaConsentimiento(
+                                api = dependenciasConsentimiento.api,
+                                onVolver = {
+                                    navController.navigate(TopLevelDestination.PROFILE.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                            )
+                        }
+                        else -> {
+                            val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
+                            PlaceholderScreen(destination, avisoIdentidad = aviso)
+                        }
+                    }
                 }
             }
         }

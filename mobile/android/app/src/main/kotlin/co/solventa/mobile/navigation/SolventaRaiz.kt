@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import co.solventa.core.network.Cliente
 import co.solventa.core.network.EstadoIdentidad
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.RutaOfertaBiometria
 import co.solventa.feature.onboarding.biometria.debeOfrecerBiometria
@@ -20,7 +21,10 @@ import java.time.Instant
 import java.time.OffsetDateTime
 
 @Composable
-fun SolventaRaiz(dependencias: DependenciasOnboarding) {
+fun SolventaRaiz(
+    dependencias: DependenciasOnboarding,
+    dependenciasConsentimiento: DependenciasConsentimiento? = null,
+) {
     val nav = rememberNavController()
     val alIngresar = { cliente: Cliente -> nav.reiniciarEn(destinoTrasIngreso(cliente, dependencias)) }
     val alAprobar = { nav.reiniciarEn(destinoTrasAprobacion(dependencias)) }
@@ -62,7 +66,12 @@ fun SolventaRaiz(dependencias: DependenciasOnboarding) {
             RutaIdentidad(dependencias.api, dependencias.sesion, onAprobada = alAprobar, onIrAlInicio = alInicio)
         }
         composable(RutasEntrada.BIOMETRIA) { RutaOfertaBiometria(dependencias, onTerminar = alInicio) }
-        composable(RutasEntrada.INICIO) { SolventaApp(identidadVerificada = dependencias.sesion.identidadVerificada) }
+        composable(RutasEntrada.INICIO) {
+            SolventaApp(
+                identidadVerificada = dependencias.sesion.identidadVerificada,
+                dependenciasConsentimiento = dependenciasConsentimiento,
+            )
+        }
     }
 }
 
