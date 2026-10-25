@@ -325,10 +325,25 @@ Una fila `autenticada=True` se pide con la sesión de la cuenta de prueba: el hu
 Puede validar además el cuerpo (por ejemplo, que el catálogo de consentimiento traiga sus tres
 finalidades), pero nunca lo imprime, como tampoco imprime las credenciales ni el token.
 
-**Cuenta de prueba del humo.** Se crea una vez por ambiente con el flujo de registro real de la app
-(WEB-F13), con un correo del equipo y sin datos personales, y se cargan sus credenciales como
-secretos del environment (Settings → Environments → `staging` → *Environment secrets*). No se usa
-para nada más; si se sospecha que se filtró, se cambia su contraseña y se actualiza el secreto.
+**Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Sus
+credenciales viven en dos lugares, con los mismos valores:
+
+- Secret Manager, secreto `humo-cuenta-staging` (JSON con `correo` y `clave`), sin acceso para
+  ninguna cuenta de servicio: solo lo leen los administradores del proyecto, para registrar la
+  cuenta.
+- Secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment, para el pipeline.
+
+La cuenta se registra **una vez**, con el flujo real de la app (WEB-F13): el correo es un alias del
+equipo, así el OTP llega a un buzón real.
+
+```bash
+# Leer las credenciales para registrarse desde la app de staging (no se imprimen en logs compartidos)
+gcloud secrets versions access latest --secret=humo-cuenta-staging
+```
+
+Si se sospecha que se filtró, se cambia su contraseña desde la app y se actualizan los dos lugares
+(`gcloud secrets versions add humo-cuenta-staging --data-file=-` y `gh secret set HUMO_CLAVE --env
+staging`).
 
 ### Principio de seguridad: el repositorio no guarda credenciales
 
