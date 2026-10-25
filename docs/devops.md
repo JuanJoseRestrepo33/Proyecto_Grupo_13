@@ -320,6 +320,16 @@ detener el despliegue (y no provoca reintentos). Cuando ese issue se fusiona, se
 el mismo PR o en uno inmediato. Así, por ejemplo, el humo de `/sesion` (WEB-F13) no bloquea el
 despliegue del BFF mientras sus rutas no existen.
 
+Una fila `autenticada=True` se pide con la sesión de la cuenta de prueba: el humo inicia sesión por
+`POST /api/v1/movil/sesiones` con `HUMO_CORREO` y `HUMO_CLAVE` y usa el token en `Authorization`.
+Puede validar además el cuerpo (por ejemplo, que el catálogo de consentimiento traiga sus tres
+finalidades), pero nunca lo imprime, como tampoco imprime las credenciales ni el token.
+
+**Cuenta de prueba del humo.** Se crea una vez por ambiente con el flujo de registro real de la app
+(WEB-F13), con un correo del equipo y sin datos personales, y se cargan sus credenciales como
+secretos del environment (Settings → Environments → `staging` → *Environment secrets*). No se usa
+para nada más; si se sospecha que se filtró, se cambia su contraseña y se actualiza el secreto.
+
 ### Principio de seguridad: el repositorio no guarda credenciales
 
 El pipeline nombra la plataforma (Google Cloud: Artifact Registry y Cloud Run), pero **no guarda
@@ -344,6 +354,13 @@ ninguna credencial de infraestructura**:
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/1234/locations/global/workloadIdentityPools/github/providers/solventa` | Proveedor de identidad que confía en este repositorio |
 | `GCP_SERVICE_ACCOUNT` | `despliegue@solventa-staging.iam.gserviceaccount.com` | Cuenta de servicio que el pipeline suplanta para desplegar |
 | `GCP_ARTIFACT_REPOSITORY` | `solventa` | Repositorio Docker de Artifact Registry |
+
+Además, sin que el despliegue dependa de ellas:
+
+| En cada environment | Tipo | Para qué |
+|---|---|---|
+| `BFF_BASE_URL` | Variable | URL del router móvil del BFF del ambiente (`<URL de solventa-bff>/api/v1/movil/`). La app la recibe en el build con `-PBFF_BASE_URL=...`; la usan las E2E móviles contra el ambiente (MOB-F02, #162) |
+| `HUMO_CORREO`, `HUMO_CLAVE` | **Secretos** | Cuenta de prueba con la que el humo inicia sesión en el router móvil (MOB-F02). Es la única credencial que ve el pipeline y solo da acceso a esa cuenta, sin datos reales. Sin ellos, las filas con sesión se omiten con un aviso |
 
 Si falta alguna, el job de despliegue termina sin error, deja un aviso con las que faltan y no toca
 la plataforma. Los tres servicios se exponen sin autenticación de Cloud Run: la web y el BFF porque

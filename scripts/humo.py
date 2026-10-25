@@ -3,11 +3,15 @@
 
 Pide las rutas de RUTAS que corresponden al servicio y comprueba el estado HTTP de cada una.
 Reintenta mientras la revisión nueva termina de arrancar. Nunca imprime cuerpos de respuesta,
-porque podrían revelar detalles internos: solo método, ruta y estado.
+credenciales ni tokens, porque podrían revelar detalles internos: solo método, ruta y estado.
 
 Cada parte Cloud del sprint agrega aquí sus filas; el pipeline no cambia. Una fila `pendiente`
 se escribió antes que el código que la cumple: se prueba igual, pero su falla solo avisa
 (::warning::) y no detiene el despliegue. Al fusionarse la historia que nombra, se le quita.
+
+Una fila `autenticada` se pide con la sesión de la cuenta de prueba de *staging*, cuyas
+credenciales llegan en HUMO_CORREO y HUMO_CLAVE (secretos del environment). Sin ellas, la fila
+se omite con un aviso.
 
 Uso: humo.py --servicio <nucleo|bff|web> --url <URL del servicio>
 """
@@ -17,6 +21,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sys
 import time
@@ -24,6 +29,15 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+
+# Máximo que se lee de un cuerpo de respuesta; las rutas de humo responden poco.
+LIMITE_CUERPO = 64 * 1024
+
+
+@dataclass(frozen=True)
+class Respuesta:
+    estado: int | None
+    cuerpo: bytes = b""
 
 
 @dataclass(frozen=True)
@@ -37,6 +51,10 @@ class Ruta:
     pendiente: str | None = None
     # Para distinguir dos filas sobre la misma ruta en los mensajes.
     caso: str = ""
+    # Se pide con el token de la cuenta de prueba (router móvil).
+    autenticada: bool = False
+    # Comprueba el cuerpo de una respuesta esperada; devuelve el problema o None.
+    validar: Callable[[bytes], str | None] | None = None
 
 
 def _ruta(
@@ -45,17 +63,10 @@ def _ruta(
     ruta: str,
     *esperados: int,
     encabezados: dict[str, str] | None = None,
-    pendiente: str | None = None,
-    caso: str = "",
+    **opciones,
 ) -> Ruta:
     return Ruta(
-        servicio,
-        metodo,
-        ruta,
-        frozenset(esperados),
-        tuple((encabezados or {}).items()),
-        pendiente,
-        caso,
+        servicio, metodo, ruta, frozenset(esperados), tuple((encabezados or {}).items()), **opciones
     )
 
 
@@ -77,6 +88,21 @@ def token_ajeno() -> str:
 
 
 _AJENO = token_ajeno()
+FINALIDADES = {"cotizacion", "suscripcion", "prevencion_fraude"}
+
+
+def _tres_finalidades(cuerpo: bytes) -> str | None:
+    try:
+        codigos = {f["codigo"] for f in json.loads(cuerpo)}
+    except (ValueError, TypeError, KeyError):
+        return "el catálogo no es una lista de finalidades"
+    faltan = FINALIDADES - codigos
+    return f"faltan finalidades: {', '.join(sorted(faltan))}" if faltan else None
+
+
+# ID que no existe, para probar que las rutas con segmento variable piden sesión antes de buscar.
+_INEXISTENTE = "humo-no-existe"
+_MOVIL = "/api/v1/movil"
 
 # 401 cuenta como éxito en las rutas protegidas: prueba que la ruta existe y que exige sesión.
 RUTAS = (
@@ -94,15 +120,37 @@ RUTAS = (
         pendiente="#152",
         caso="token ajeno",
     ),
-    _ruta("bff", "GET", "/api/v1/movil/sesion", 401, pendiente="#152", caso="sin token"),
+    _ruta("bff", "GET", f"{_MOVIL}/sesion", 401, pendiente="#152", caso="sin token"),
     _ruta(
         "bff",
         "GET",
-        "/api/v1/movil/sesion",
+        f"{_MOVIL}/sesion",
         401,
         encabezados={"Authorization": f"Bearer {_AJENO}"},
         pendiente="#152",
         caso="token ajeno",
+    ),
+    # MOB-F02 (#161): las rutas de consentimiento del router móvil existen y exigen sesión.
+    *(
+        _ruta("bff", metodo, f"{_MOVIL}{ruta}", 401, pendiente="#160", caso="sin token")
+        for metodo, ruta in (
+            ("GET", "/consentimientos/finalidades"),
+            ("GET", "/consentimientos"),
+            ("POST", "/consentimientos"),
+            ("POST", f"/consentimientos/{_INEXISTENTE}/revocacion"),
+            ("POST", f"/consentimientos/{_INEXISTENTE}/renovacion"),
+        )
+    ),
+    # Con la sesión de la cuenta de prueba, el catálogo llega del núcleo con sus tres finalidades.
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/consentimientos/finalidades",
+        200,
+        pendiente="#160",
+        caso="con sesión",
+        autenticada=True,
+        validar=_tres_finalidades,
     ),
     # A través del proxy de nginx: un 502 o 504 significa que la web no llega al BFF.
     _ruta("web", "GET", "/", 200),
@@ -111,18 +159,49 @@ RUTAS = (
 
 SERVICIOS = sorted({r.servicio for r in RUTAS})
 
-Pedir = Callable[[str, str, dict[str, str]], int | None]
+Pedir = Callable[[str, str, dict[str, str], bytes | None], Respuesta]
 
 
-def pedir(metodo: str, url: str, encabezados: dict[str, str]) -> int | None:
-    """Devuelve el estado HTTP, o None si no hubo respuesta. Descarta el cuerpo sin leerlo."""
-    solicitud = urllib.request.Request(url, method=metodo, headers=encabezados)
+def pedir(
+    metodo: str, url: str, encabezados: dict[str, str], datos: bytes | None = None
+) -> Respuesta:
+    """Hace la solicitud y devuelve el estado y un cuerpo acotado; sin respuesta, estado None."""
+    solicitud = urllib.request.Request(url, data=datos, method=metodo, headers=encabezados)
     try:
         with urllib.request.urlopen(solicitud, timeout=10) as respuesta:
-            return respuesta.status
+            return Respuesta(respuesta.status, respuesta.read(LIMITE_CUERPO))
     except urllib.error.HTTPError as error:
-        return error.code
+        return Respuesta(error.code)
     except (urllib.error.URLError, TimeoutError):
+        return Respuesta(None)
+
+
+@dataclass(frozen=True)
+class Credenciales:
+    correo: str
+    clave: str
+
+    def __repr__(self) -> str:  # nunca se imprimen, ni por accidente
+        return "Credenciales(***)"
+
+
+def credenciales_del_ambiente(entorno: dict[str, str] | None = None) -> Credenciales | None:
+    entorno = os.environ if entorno is None else entorno
+    correo, clave = entorno.get("HUMO_CORREO", ""), entorno.get("HUMO_CLAVE", "")
+    return Credenciales(correo, clave) if correo and clave else None
+
+
+def iniciar_sesion(base: str, credenciales: Credenciales, pedir: Pedir) -> str | None:
+    """Token de acceso de la cuenta de prueba por el router móvil; None si no se pudo."""
+    datos = json.dumps({"correo": credenciales.correo, "contrasena": credenciales.clave}).encode()
+    respuesta = pedir(
+        "POST", f"{base}{_MOVIL}/sesiones", {"Content-Type": "application/json"}, datos
+    )
+    if respuesta.estado != 200:
+        return None
+    try:
+        return json.loads(respuesta.cuerpo)["token_acceso"]
+    except (ValueError, KeyError, TypeError):
         return None
 
 
@@ -132,23 +211,41 @@ class Resultado:
     avisos: list[str]
 
 
-def fallas(servicio: str, url: str, pedir: Pedir = pedir) -> Resultado:
+def fallas(
+    servicio: str,
+    url: str,
+    pedir: Pedir = pedir,
+    credenciales: Credenciales | None = None,
+) -> Resultado:
     base = url.rstrip("/")
     errores, avisos = [], []
-    for r in RUTAS:
-        if r.servicio != servicio:
-            continue
-        estado = pedir(r.metodo, base + r.ruta, dict(r.encabezados))
-        if estado in r.esperados:
-            continue
-        esperado = " o ".join(str(e) for e in sorted(r.esperados))
-        obtenido = "sin respuesta" if estado is None else str(estado)
+    rutas = [r for r in RUTAS if r.servicio == servicio]
+    token = None
+    if credenciales and any(r.autenticada for r in rutas):
+        token = iniciar_sesion(base, credenciales, pedir)
+
+    for r in rutas:
         caso = f" ({r.caso})" if r.caso else ""
-        mensaje = f"{r.metodo} {r.ruta}{caso}: se esperaba {esperado}, llegó {obtenido}"
-        if r.pendiente:
-            avisos.append(f"{mensaje} [pendiente de {r.pendiente}]")
-        else:
-            errores.append(mensaje)
+        etiqueta = f"{r.metodo} {r.ruta}{caso}"
+        destino = errores if not r.pendiente else avisos
+        sufijo = f" [pendiente de {r.pendiente}]" if r.pendiente else ""
+        encabezados = dict(r.encabezados)
+        if r.autenticada:
+            if not credenciales:
+                avisos.append(f"{etiqueta}: se omite, faltan HUMO_CORREO y HUMO_CLAVE")
+                continue
+            if not token:
+                destino.append(f"{etiqueta}: no se pudo iniciar sesión{sufijo}")
+                continue
+            encabezados["Authorization"] = f"Bearer {token}"
+
+        respuesta = pedir(r.metodo, base + r.ruta, encabezados, None)
+        if respuesta.estado not in r.esperados:
+            esperado = " o ".join(str(e) for e in sorted(r.esperados))
+            obtenido = "sin respuesta" if respuesta.estado is None else str(respuesta.estado)
+            destino.append(f"{etiqueta}: se esperaba {esperado}, llegó {obtenido}{sufijo}")
+        elif r.validar and (problema := r.validar(respuesta.cuerpo)):
+            destino.append(f"{etiqueta}: {problema}{sufijo}")
     return Resultado(errores, avisos)
 
 
@@ -159,11 +256,12 @@ def ejecutar(
     espera: float = 6,
     pedir: Pedir = pedir,
     dormir: Callable[[float], None] = time.sleep,
+    credenciales: Credenciales | None = None,
 ) -> Resultado:
     """Repite la ronda completa hasta que las rutas no pendientes respondan lo esperado."""
     resultado = Resultado([], [])
     for intento in range(intentos):
-        resultado = fallas(servicio, url, pedir)
+        resultado = fallas(servicio, url, pedir, credenciales)
         if not resultado.errores:
             return resultado
         if intento < intentos - 1:
@@ -179,7 +277,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--espera", type=float, default=6)
     args = parser.parse_args(argv)
 
-    resultado = ejecutar(args.servicio, args.url, args.intentos, args.espera, pedir)
+    resultado = ejecutar(
+        args.servicio,
+        args.url,
+        args.intentos,
+        args.espera,
+        pedir,
+        credenciales=credenciales_del_ambiente(),
+    )
     for aviso in resultado.avisos:
         print(f"::warning::Humo de {args.servicio}: {aviso}")
     for error in resultado.errores:

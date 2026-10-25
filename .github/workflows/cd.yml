@@ -185,4 +185,7 @@ jobs:
         env:
           URL_AMBIENTE: ${{ steps.despliegue.outputs.url }}
           HUMO: ${{ matrix.humo }}
+          # Cuenta de prueba del environment (MOB-F02); sin ella, las filas con sesión solo avisan.
+          HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
+          HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
         run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"
