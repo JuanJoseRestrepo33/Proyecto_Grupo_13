@@ -1,17 +1,19 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
     El cliente web solo habla con este BFF; el BFF orquesta el núcleo. Mientras el BFF no exista,
     el cliente web trabaja contra mocks que implementan este mismo contrato
-    (`apps/web/src/mocks`). Cubre el Sprint 1:
+    (`apps/web/src/mocks`). Cubre:
 
     - **WEB-F02** · Gestión del consentimiento Open Finance.
-    - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar,
+    - **WEB-F01** · Asistente de cotización con tarifa personalizada o estándar,
       explicación del precio y vigencia de la oferta.
+    - **WEB-F03** (rebanada) · Checkout: aceptar la oferta y pagarla contra la pasarela
+      simulada, sin cobro doble. La firma y la emisión llegan con el resto de WEB-F03.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -30,6 +32,8 @@ tags:
     description: Consentimiento de Open Finance (WEB-F02)
   - name: cotizaciones
     description: Asistente de cotización (WEB-F01)
+  - name: suscripciones
+    description: Checkout de la oferta aceptada (WEB-F03)
 
 paths:
   /sesion:
@@ -231,6 +235,125 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /suscripciones:
+    post:
+      tags: [suscripciones]
+      operationId: crearSuscripcion
+      summary: Acepta una cotización vigente
+      description: |
+        Crea la suscripción en estado `aceptada` con las condiciones de la cotización. Es
+        idempotente por cotización: aceptar de nuevo la misma devuelve la suscripción existente
+        con 200, no crea otra. Una cotización vencida se rechaza con `cotizacion_vencida`; la
+        interfaz ofrece recotizar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudSuscripcion" }
+      responses:
+        "200":
+          description: La cotización ya estaba aceptada; es la misma suscripción
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "201":
+          description: Suscripción creada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`cotizacion_vencida`: pasó la vigencia de la oferta"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /suscripciones/{id}:
+    get:
+      tags: [suscripciones]
+      operationId: obtenerSuscripcion
+      summary: Consulta una suscripción y su último pago
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+      responses:
+        "200":
+          description: Suscripción
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /suscripciones/{id}/pagos:
+    post:
+      tags: [suscripciones]
+      operationId: pagarSuscripcion
+      summary: Paga la suscripción contra la pasarela simulada
+      description: |
+        Cada intento de pago lleva su `Idempotency-Key`, generada por el cliente. Repetir la
+        solicitud con la **misma** clave nunca cobra dos veces (P18):
+
+        - Si el primer intento ya terminó, responde 200 con el mismo pago y `reintento: true`.
+        - Si el primer intento sigue en curso, responde 409 `pago_en_curso`.
+
+        Un intento nuevo (otra clave) solo procede si no hay un pago aprobado ni pendiente; si lo
+        hay, responde 409 `pago_ya_registrado`. Tras un pago rechazado, el cliente usa una clave
+        nueva para intentar otra vez.
+
+        El cliente no envía datos de la tarjeta ni de la cuenta: los toma la pasarela.
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Identificador único del intento de pago (UUID v4)
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudPago" }
+      responses:
+        "200":
+          description: Reintento de un pago ya procesado con la misma clave; no hubo otro cobro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "201":
+          description: Pago procesado por la pasarela (aprobado, rechazado o pendiente)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`pago_en_curso` o `pago_ya_registrado`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /suscripciones/{id}/pagos/{id_pago}:
+    get:
+      tags: [suscripciones]
+      operationId: obtenerPago
+      summary: Consulta el estado de un pago, por ejemplo uno pendiente
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+        - name: id_pago
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pago con su estado actual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
 components:
   securitySchemes:
     sesion:
@@ -241,6 +364,11 @@ components:
 
   parameters:
     IdConsentimiento:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    IdSuscripcion:
       name: id
       in: path
       required: true
@@ -527,3 +655,60 @@ components:
           items: { $ref: "#/components/schemas/Cobertura" }
         creada_en: { type: string, format: date-time }
         vigente_hasta: { type: string, format: date-time }
+
+    SolicitudSuscripcion:
+      type: object
+      required: [cotizacion_id]
+      properties:
+        cotizacion_id: { type: string }
+
+    Suscripcion:
+      type: object
+      required: [id, cotizacion_id, nombre_producto, prima_mensual, estado, aceptada_en, pago]
+      properties:
+        id: { type: string }
+        cotizacion_id: { type: string }
+        nombre_producto: { type: string }
+        prima_mensual: { $ref: "#/components/schemas/Dinero" }
+        estado:
+          type: string
+          enum: [aceptada, pagada]
+          description: "`pagada` cuando la pasarela aprobó el pago"
+        aceptada_en: { type: string, format: date-time }
+        pago:
+          description: Último intento de pago; `null` si aún no se ha pagado
+          oneOf:
+            - $ref: "#/components/schemas/Pago"
+            - type: "null"
+
+    MedioPago:
+      type: string
+      enum: [tarjeta_credito, pse]
+
+    SolicitudPago:
+      type: object
+      required: [medio]
+      properties:
+        medio: { $ref: "#/components/schemas/MedioPago" }
+
+    Pago:
+      type: object
+      required: [id, estado, medio, monto, referencia, creado_en, reintento]
+      properties:
+        id: { type: string }
+        estado:
+          type: string
+          enum: [aprobado, rechazado, pendiente]
+          description: |
+            Respuesta de la pasarela. `rechazado`: no se cobró nada. `pendiente`: el banco aún no
+            confirma (típico de PSE); se consulta en `/suscripciones/{id}/pagos/{id_pago}`.
+        medio: { $ref: "#/components/schemas/MedioPago" }
+        monto: { $ref: "#/components/schemas/Dinero" }
+        referencia:
+          type: string
+          description: Referencia de la transacción en la pasarela
+          examples: [TX-2026-77120418]
+        creado_en: { type: string, format: date-time }
+        reintento:
+          type: boolean
+          description: "`true` si esta respuesta repite un pago ya procesado con la misma clave"

@@ -195,6 +195,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/suscripciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acepta una cotización vigente
+         * @description Crea la suscripción en estado `aceptada` con las condiciones de la cotización. Es
+         *     idempotente por cotización: aceptar de nuevo la misma devuelve la suscripción existente
+         *     con 200, no crea otra. Una cotización vencida se rechaza con `cotizacion_vencida`; la
+         *     interfaz ofrece recotizar.
+         */
+        post: operations["crearSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consulta una suscripción y su último pago */
+        get: operations["obtenerSuscripcion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}/pagos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paga la suscripción contra la pasarela simulada
+         * @description Cada intento de pago lleva su `Idempotency-Key`, generada por el cliente. Repetir la
+         *     solicitud con la **misma** clave nunca cobra dos veces (P18):
+         *
+         *     - Si el primer intento ya terminó, responde 200 con el mismo pago y `reintento: true`.
+         *     - Si el primer intento sigue en curso, responde 409 `pago_en_curso`.
+         *
+         *     Un intento nuevo (otra clave) solo procede si no hay un pago aprobado ni pendiente; si lo
+         *     hay, responde 409 `pago_ya_registrado`. Tras un pago rechazado, el cliente usa una clave
+         *     nueva para intentar otra vez.
+         *
+         *     El cliente no envía datos de la tarjeta ni de la cuenta: los toma la pasarela.
+         */
+        post: operations["pagarSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}/pagos/{id_pago}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consulta el estado de un pago, por ejemplo uno pendiente */
+        get: operations["obtenerPago"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -371,6 +458,49 @@ export interface components {
             /** Format: date-time */
             vigente_hasta: string;
         };
+        SolicitudSuscripcion: {
+            cotizacion_id: string;
+        };
+        Suscripcion: {
+            id: string;
+            cotizacion_id: string;
+            nombre_producto: string;
+            prima_mensual: components["schemas"]["Dinero"];
+            /**
+             * @description `pagada` cuando la pasarela aprobó el pago
+             * @enum {string}
+             */
+            estado: "aceptada" | "pagada";
+            /** Format: date-time */
+            aceptada_en: string;
+            /** @description Último intento de pago; `null` si aún no se ha pagado */
+            pago: components["schemas"]["Pago"] | null;
+        };
+        /** @enum {string} */
+        MedioPago: "tarjeta_credito" | "pse";
+        SolicitudPago: {
+            medio: components["schemas"]["MedioPago"];
+        };
+        Pago: {
+            id: string;
+            /**
+             * @description Respuesta de la pasarela. `rechazado`: no se cobró nada. `pendiente`: el banco aún no
+             *     confirma (típico de PSE); se consulta en `/suscripciones/{id}/pagos/{id_pago}`.
+             * @enum {string}
+             */
+            estado: "aprobado" | "rechazado" | "pendiente";
+            medio: components["schemas"]["MedioPago"];
+            monto: components["schemas"]["Dinero"];
+            /**
+             * @description Referencia de la transacción en la pasarela
+             * @example TX-2026-77120418
+             */
+            referencia: string;
+            /** Format: date-time */
+            creado_en: string;
+            /** @description `true` si esta respuesta repite un pago ya procesado con la misma clave */
+            reintento: boolean;
+        };
     };
     responses: {
         /** @description No hay una sesión vigente */
@@ -412,6 +542,7 @@ export interface components {
     };
     parameters: {
         IdConsentimiento: string;
+        IdSuscripcion: string;
     };
     requestBodies: never;
     headers: never;
@@ -672,6 +803,149 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Cotizacion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    crearSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSuscripcion"];
+            };
+        };
+        responses: {
+            /** @description La cotización ya estaba aceptada; es la misma suscripción */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            /** @description Suscripción creada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `cotizacion_vencida`: pasó la vigencia de la oferta */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suscripción */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    pagarSuscripcion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Identificador único del intento de pago (UUID v4) */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPago"];
+            };
+        };
+        responses: {
+            /** @description Reintento de un pago ya procesado con la misma clave; no hubo otro cobro */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
+                };
+            };
+            /** @description Pago procesado por la pasarela (aprobado, rechazado o pendiente) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `pago_en_curso` o `pago_ya_registrado` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+        };
+    };
+    obtenerPago: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+                id_pago: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pago con su estado actual */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
                 };
             };
             401: components["responses"]["NoAutenticado"];

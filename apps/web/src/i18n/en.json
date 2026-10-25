@@ -3,12 +3,14 @@
     "nombre": "Solventa",
     "saltarContenido": "Skip to main content",
     "navegacionPrincipal": "Main navigation",
-    "idioma": "Language"
+    "idioma": "Language",
+    "migasDePan": "Breadcrumb"
   },
   "nav": {
     "inicio": "Home",
     "cotizar": "Get a quote",
-    "consentimientos": "Consents"
+    "consentimientos": "Consents",
+    "suscripcion": "Purchase"
   },
   "inicio": {
     "saludo": "Hi, {{nombre}}",
@@ -158,7 +160,8 @@
       "vencida": "The quote has expired.",
       "vencidaDetalle": "Prices are guaranteed for 5 minutes.",
       "recotizar": "Quote again",
-      "recotizando": "Quoting again…"
+      "recotizando": "Quoting again…",
+      "aceptar": "Accept offer"
     },
     "precio": {
       "porQue": "Why this price?",
@@ -187,5 +190,62 @@
   "noEncontrada": {
     "titulo": "Page not found",
     "volver": "Back to home"
+  },
+  "suscripcion": {
+    "titulo": "Your policy purchase",
+    "descripcion": "Review the offer and pay for it to continue with the issuance of your policy.",
+    "pasos": {
+      "etiqueta": "Purchase steps",
+      "actual": "step {{actual}} of {{total}}",
+      "revisar": "Review offer",
+      "pago": "Payment",
+      "resultado": "Confirmation"
+    },
+    "revisar": {
+      "titulo": "1. Review the terms of your offer",
+      "numero": "Quote {{id}}",
+      "aceptar": "Accept and continue to payment",
+      "aceptando": "Accepting…"
+    },
+    "pago": {
+      "titulo": "2. Payment method",
+      "medios": "Choose how you want to pay",
+      "tarjeta_credito": "Credit card",
+      "tarjeta_creditoAyuda": "You will enter your card details on the payment gateway.",
+      "pse": "PSE (bank debit)",
+      "pseAyuda": "Your bank may take a while to confirm the payment.",
+      "pagar": "Pay {{monto}}",
+      "procesando": "Processing payment…",
+      "procesandoDetalle": "We are processing your payment. Do not close this window or press again.",
+      "seguridad": "Solventa does not store your card or account details: the payment gateway receives them.",
+      "consultar": "Check payment status"
+    },
+    "resultado": {
+      "titulo": "3. Payment confirmation",
+      "referencia": "Transaction reference",
+      "aprobado": "Payment approved.",
+      "aprobadoDetalle": "Next step: sign your policy. This part of the process will be available soon.",
+      "rechazado": "Payment declined by the issuing bank.",
+      "rechazadoDetalle": "You were not charged. Check your details or use another method and try again.",
+      "pendiente": "Your bank has not confirmed the payment yet.",
+      "pendienteDetalle": "Do not make another payment. Check the status in a few minutes.",
+      "intentarDeNuevo": "Try again",
+      "volverInicio": "Back to home"
+    },
+    "avisos": {
+      "reintento": "This payment had already been processed. You were not charged twice.",
+      "pagoEnCurso": "Your payment is already in progress. You will not be charged twice; check the status in a moment.",
+      "pagoYaRegistrado": "This purchase already has a registered payment. You were not charged twice.",
+      "sinConfirmacion": "We could not confirm your payment. You can safely retry: if you were already charged, you will not be charged again.",
+      "cotizacionVencida": "The quote has expired.",
+      "cotizacionVencidaDetalle": "Prices are guaranteed for 5 minutes. Get a new quote to continue.",
+      "medioRequerido": "Choose a payment method to continue.",
+      "error": "We could not complete the operation. Please try again.",
+      "noEncontrada": "We could not find this quote.",
+      "cargar": "We could not load your quote. Please try again."
+    },
+    "recotizar": "Get a new quote",
+    "reintentar": "Retry",
+    "atras": "Back"
   }
 }

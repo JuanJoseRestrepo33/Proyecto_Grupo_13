@@ -89,13 +89,17 @@ Cuando estés conforme, pulsa **Aceptar oferta**.
 
 ## 5. Comprar y recibir tu póliza
 
-La suscripción tiene cuatro pasos:
+Desde tu oferta, pulsa **Aceptar oferta**. Arriba verás las migas de pan (*Inicio / Cotizar / Suscripción*) para saber dónde estás y volver al cotizador cuando quieras. La suscripción tiene cuatro pasos:
 
-1. **Revisar oferta.** Confirma las condiciones. Verás la *Decisión de suscripción*: normalmente **Aprobada automáticamente**. Si dice **En revisión asistida**, un analista revisará tu caso (máximo 4 horas) y te avisaremos.
+1. **Revisar oferta.** Confirma el producto, la prima, las coberturas y cuánto tiempo le queda a la oferta. Pulsa **Aceptar y continuar al pago**. Si la oferta venció, pulsa **Volver a cotizar**. Verás la *Decisión de suscripción*: normalmente **Aprobada automáticamente**. Si dice **En revisión asistida**, un analista revisará tu caso (máximo 4 horas) y te avisaremos.
 
    ![Decisión de suscripción](img/web-suscripcion-decision.png)
 
-2. **Pago.** Revisa la tarjeta y pulsa **Pagar**. Si el banco rechaza el pago, verás el motivo y la confirmación de que **no se hizo ningún cobro**; puedes intentar de nuevo sin riesgo de doble cobro.
+2. **Pago.** Elige **Tarjeta de crédito** o **PSE** y pulsa **Pagar**. Los datos de tu tarjeta o de tu cuenta los escribes en la pasarela de pagos; Solventa no los guarda. Mientras se procesa, el botón dice *Procesando pago…*: no cierres la ventana ni pulses de nuevo.
+   - **Pago aprobado:** verás la referencia de la transacción y seguirás con la firma.
+   - **Pago rechazado:** te confirmamos que **no se hizo ningún cobro**. Pulsa **Intentar de nuevo**.
+   - **Pago pendiente** (común con PSE): tu banco aún no confirma. No pagues otra vez; pulsa **Consultar estado del pago** en unos minutos.
+   - Si se cae la conexión o pulsas dos veces, **nunca se te cobra dos veces**: al reintentar, te mostramos el pago que ya se había hecho.
 3. **Firma.** Pulsa **Firmar electrónicamente**, lee el resumen, acepta los términos y pulsa **Aceptar y firmar**.
 4. **Emisión.** Recibes el número de póliza, la vigencia y el documento en PDF.
 
@@ -280,6 +284,9 @@ Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punt
 | *La cotización venció.* | Pasaron los 5 minutos de garantía del precio. | Pulsa **Recotizar**. |
 | *En revisión asistida* | Tu solicitud necesita revisión de un analista. | Espera la notificación (máximo 4 horas). |
 | *Pago rechazado por el banco emisor.* | El banco no aprobó el cobro. No se cobró nada. | Verifica los datos o usa otro medio e intenta de nuevo. |
+| *Tu banco aún no confirma el pago.* | El pago está pendiente, normalmente con PSE. | No pagues de nuevo; pulsa **Consultar estado del pago** en unos minutos. |
+| *Tu pago ya está en curso.* / *Este pago ya se había procesado.* | Reintentaste un pago que ya estaba en marcha o hecho. No hubo un segundo cobro. | Nada: espera el resultado o revisa la referencia del pago. |
+| *No pudimos confirmar tu pago.* | Se perdió la conexión mientras pagabas. | Pulsa **Consultar estado del pago**; reintentar es seguro. |
 | *Requiere conexión* | Estás sin internet. | Vuelve a intentarlo cuando tengas conexión. |
 | *403 · Acceso denegado* (socios) | La póliza no pertenece a tu organización. | Verifica el número; solo ves pólizas de tu canal. |
 | *No tienes permisos para ver esta sección.* | Tu usuario no tiene ese rol. | Ingresa con el usuario correspondiente. |

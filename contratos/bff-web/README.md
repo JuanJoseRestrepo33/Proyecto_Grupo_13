@@ -19,6 +19,18 @@ Lo consumen:
 | `/cotizaciones` · `/cotizaciones/{id}` | Cotizar y consultar: prima personalizada o estándar con su motivo, ahorro, coberturas, factores del precio y vigencia de 5 minutos | WEB-F01 |
 | `/cotizaciones/{id}/recotizacion` | Nueva cotización con los mismos datos cuando la anterior venció | WEB-F01 |
 
+## Checkout (WEB-F03, rebanada)
+
+Rebanada del Sprint 1 que se entregó después (0.4.0). La firma y la emisión llegan con el resto de
+WEB-F03.
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/suscripciones` | Aceptar una cotización vigente; idempotente por cotización | WEB-F03 |
+| `/suscripciones/{id}` | Suscripción y su último pago | WEB-F03 |
+| `/suscripciones/{id}/pagos` | Pagar contra la pasarela simulada con `Idempotency-Key`: aprobado, rechazado o pendiente, sin cobro doble | WEB-F03 |
+| `/suscripciones/{id}/pagos/{id_pago}` | Consultar un pago, por ejemplo uno pendiente | WEB-F03 |
+
 ## Reglas de cambio
 
 - Mientras `info.version` sea **0.x** (sin BFF ni consumidores en producción), un cambio incompatible

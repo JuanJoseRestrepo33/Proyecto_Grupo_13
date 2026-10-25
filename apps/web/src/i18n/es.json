@@ -3,12 +3,14 @@
     "nombre": "Solventa",
     "saltarContenido": "Saltar al contenido principal",
     "navegacionPrincipal": "Navegación principal",
-    "idioma": "Idioma"
+    "idioma": "Idioma",
+    "migasDePan": "Miga de pan"
   },
   "nav": {
     "inicio": "Inicio",
     "cotizar": "Cotizar",
-    "consentimientos": "Consentimientos"
+    "consentimientos": "Consentimientos",
+    "suscripcion": "Suscripción"
   },
   "inicio": {
     "saludo": "Hola, {{nombre}}",
@@ -158,7 +160,8 @@
       "vencida": "La cotización venció.",
       "vencidaDetalle": "Los precios se garantizan por 5 minutos.",
       "recotizar": "Recotizar",
-      "recotizando": "Recotizando…"
+      "recotizando": "Recotizando…",
+      "aceptar": "Aceptar oferta"
     },
     "precio": {
       "porQue": "¿Por qué este precio?",
@@ -187,5 +190,62 @@
   "noEncontrada": {
     "titulo": "Página no encontrada",
     "volver": "Volver al inicio"
+  },
+  "suscripcion": {
+    "titulo": "Suscripción de tu póliza",
+    "descripcion": "Revisa la oferta y págala para continuar con la emisión de tu póliza.",
+    "pasos": {
+      "etiqueta": "Pasos de la suscripción",
+      "actual": "paso {{actual}} de {{total}}",
+      "revisar": "Revisar oferta",
+      "pago": "Pago",
+      "resultado": "Confirmación"
+    },
+    "revisar": {
+      "titulo": "1. Revisa las condiciones de tu oferta",
+      "numero": "Cotización {{id}}",
+      "aceptar": "Aceptar y continuar al pago",
+      "aceptando": "Aceptando…"
+    },
+    "pago": {
+      "titulo": "2. Medio de pago",
+      "medios": "Elige cómo quieres pagar",
+      "tarjeta_credito": "Tarjeta de crédito",
+      "tarjeta_creditoAyuda": "Escribirás los datos de tu tarjeta en la pasarela de pagos.",
+      "pse": "PSE (débito a tu cuenta)",
+      "pseAyuda": "Tu banco puede tardar en confirmar el pago.",
+      "pagar": "Pagar {{monto}}",
+      "procesando": "Procesando pago…",
+      "procesandoDetalle": "Estamos procesando tu pago. No cierres esta ventana ni pulses de nuevo.",
+      "seguridad": "Solventa no guarda los datos de tu tarjeta ni de tu cuenta: los recibe la pasarela de pagos.",
+      "consultar": "Consultar estado del pago"
+    },
+    "resultado": {
+      "titulo": "3. Confirmación del pago",
+      "referencia": "Referencia de la transacción",
+      "aprobado": "Pago aprobado.",
+      "aprobadoDetalle": "Siguiente paso: firmar tu póliza. Esta parte del proceso estará disponible próximamente.",
+      "rechazado": "Pago rechazado por el banco emisor.",
+      "rechazadoDetalle": "No se realizó ningún cobro. Verifica los datos o usa otro medio e intenta de nuevo.",
+      "pendiente": "Tu banco aún no confirma el pago.",
+      "pendienteDetalle": "No hagas otro pago. Consulta el estado en unos minutos.",
+      "intentarDeNuevo": "Intentar de nuevo",
+      "volverInicio": "Volver al inicio"
+    },
+    "avisos": {
+      "reintento": "Este pago ya se había procesado. No se hizo un segundo cobro.",
+      "pagoEnCurso": "Tu pago ya está en curso. No se hará un segundo cobro; consulta el estado en un momento.",
+      "pagoYaRegistrado": "Esta suscripción ya tiene un pago registrado. No se hizo un segundo cobro.",
+      "sinConfirmacion": "No pudimos confirmar tu pago. Puedes reintentar con seguridad: si ya se cobró, no se cobrará de nuevo.",
+      "cotizacionVencida": "La cotización venció.",
+      "cotizacionVencidaDetalle": "Los precios se garantizan por 5 minutos. Vuelve a cotizar para continuar.",
+      "medioRequerido": "Elige un medio de pago para continuar.",
+      "error": "No pudimos completar la operación. Intenta de nuevo.",
+      "noEncontrada": "No encontramos esta cotización.",
+      "cargar": "No pudimos cargar tu cotización. Intenta de nuevo."
+    },
+    "recotizar": "Volver a cotizar",
+    "reintentar": "Reintentar",
+    "atras": "Atrás"
   }
 }
