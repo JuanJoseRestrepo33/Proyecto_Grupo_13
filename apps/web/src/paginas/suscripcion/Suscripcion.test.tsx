@@ -34,7 +34,7 @@ const botonPagar = () => screen.getByRole('button', { name: /^Pagar \$/ })
 async function aceptarYElegir(medio: 'Tarjeta de crédito' | 'PSE (débito a tu cuenta)' = 'Tarjeta de crédito') {
   await userEvent.click(screen.getByRole('button', { name: 'Aceptar y continuar al pago' }))
   await screen.findByRole('heading', { level: 2, name: /Medio de pago/ })
-  await userEvent.click(screen.getByRole('radio', { name: new RegExp(medio.replace(/[()]/g, '\\$&')) }))
+  await userEvent.click(screen.getByRole('radio', { name: (nombre) => nombre.startsWith(medio) }))
 }
 
 /** Solicitudes de pago que llegaron al BFF, con su clave de idempotencia. */
