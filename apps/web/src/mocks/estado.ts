@@ -1,24 +1,55 @@
 /** Estado en memoria de los mocks: simula lo que el BFF guardaría del cliente en sesión. */
-import type { Consentimiento, Cotizacion, EventoConsentimiento, SolicitudCotizacion } from '../api/tipos'
+import type {
+  Consentimiento,
+  Cotizacion,
+  EventoConsentimiento,
+  MedioPago,
+  Pago,
+  SolicitudCotizacion,
+  Suscripcion,
+} from '../api/tipos'
 
 /** Lo que se guarda; `por_vencer` y `dias_para_vencer` se calculan al responder. */
 export type ConsentimientoGuardado = Omit<Consentimiento, 'por_vencer' | 'dias_para_vencer'>
+
+/** Lo que se guarda; `reintento` depende de cada respuesta. */
+export type PagoGuardado = Omit<Pago, 'reintento'>
+
+/** Pagos por `Idempotency-Key`: `'procesando'` mientras la pasarela responde. */
+export interface IntentoPago {
+  suscripcionId: string
+  pago: PagoGuardado | 'procesando'
+}
 
 interface EstadoMocks {
   consentimientos: ConsentimientoGuardado[]
   eventos: Map<string, EventoConsentimiento[]>
   /** Se guarda la solicitud para poder recotizar con los mismos datos. */
   cotizaciones: Map<string, { cotizacion: Cotizacion; solicitud: SolicitudCotizacion }>
+  suscripciones: Map<string, Omit<Suscripcion, 'pago'> & { pagoId: string | null }>
+  pagos: Map<string, PagoGuardado>
+  intentos: Map<string, IntentoPago>
+  /** Respuesta de la pasarela simulada por medio de pago; las pruebas la cambian. */
+  pasarela: Record<MedioPago, Pago['estado']>
   secuencia: number
 }
 
 function nuevo(): EstadoMocks {
-  return { consentimientos: [], eventos: new Map(), cotizaciones: new Map(), secuencia: 0 }
+  return {
+    consentimientos: [],
+    eventos: new Map(),
+    cotizaciones: new Map(),
+    suscripciones: new Map(),
+    pagos: new Map(),
+    intentos: new Map(),
+    pasarela: { tarjeta_credito: 'aprobado', pse: 'pendiente' },
+    secuencia: 0,
+  }
 }
 
 export const estado: EstadoMocks = nuevo()
 
-/** Vuelve al estado inicial: cliente sin consentimientos ni cotizaciones. */
+/** Vuelve al estado inicial: cliente sin consentimientos, cotizaciones ni suscripciones. */
 export function reiniciarEstado(): void {
   Object.assign(estado, nuevo())
 }

@@ -1,0 +1,28 @@
+.migas {
+  margin-bottom: var(--space-md);
+  font-size: 0.9375rem;
+}
+
+.migas ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.migas li + li::before {
+  content: '/';
+  margin-right: var(--space-sm);
+  color: var(--neutral-500);
+}
+
+.migas a {
+  color: var(--primary-700);
+}
+
+.migas [aria-current='page'] {
+  color: var(--neutral-700);
+  font-weight: 600;
+}

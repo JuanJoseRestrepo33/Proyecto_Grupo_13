@@ -1,9 +1,10 @@
 /**
  * Mocks del BFF web (MSW). Implementan contratos/bff-web/openapi.yaml con un estado en memoria
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
- * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar.
+ * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
+ * paga contra una pasarela simulada que responde según `estado.pasarela`.
  */
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 
 import { PREFIJO_BFF } from '../api/cliente'
 import type {
@@ -12,9 +13,13 @@ import type {
   DatosAsegurado,
   ErrorApi,
   EventoConsentimiento,
+  Pago,
   Producto,
   SolicitudConsentimiento,
   SolicitudCotizacion,
+  SolicitudPago,
+  SolicitudSuscripcion,
+  Suscripcion,
 } from '../api/tipos'
 import {
   ENTIDADES,
@@ -26,7 +31,7 @@ import {
   VERSION_REGLA,
   VIGENCIA_COTIZACION_MS,
 } from './datos'
-import { type ConsentimientoGuardado, estado, siguienteId } from './estado'
+import { type ConsentimientoGuardado, estado, type PagoGuardado, siguienteId } from './estado'
 
 const ruta = (camino: string) => `*${PREFIJO_BFF}${camino}`
 
@@ -142,6 +147,27 @@ function conEstadoActual(cotizacion: Cotizacion): Cotizacion {
   return { ...cotizacion, estado: vencida ? 'vencida' : 'vigente' }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const MEDIOS: SolicitudPago['medio'][] = ['tarjeta_credito', 'pse']
+/** Lo que tarda la pasarela simulada; visible en el navegador, corto en las pruebas. */
+const LATENCIA_PASARELA_MS = import.meta.env.MODE === 'test' ? 20 : 1200
+
+function suscripcionConPago(id: string): Suscripcion | undefined {
+  const guardada = estado.suscripciones.get(id)
+  if (!guardada) return undefined
+  const { pagoId, ...suscripcion } = guardada
+  const pago = pagoId ? estado.pagos.get(pagoId) : undefined
+  return { ...suscripcion, pago: pago ? { ...pago, reintento: false } : null }
+}
+
+/** Registra el resultado de la pasarela; con el pago aprobado la suscripción queda pagada. */
+function guardarPago(suscripcionId: string, pago: PagoGuardado): void {
+  estado.pagos.set(pago.id, pago)
+  const suscripcion = estado.suscripciones.get(suscripcionId)!
+  suscripcion.pagoId = pago.id
+  if (pago.estado === 'aprobado') suscripcion.estado = 'pagada'
+}
+
 export const manejadores = [
   http.get(ruta('/sesion'), () => HttpResponse.json(SESION)),
 
@@ -242,5 +268,86 @@ export const manejadores = [
     if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
     const producto = PRODUCTOS.find((p) => p.codigo === guardada.cotizacion.producto)!
     return HttpResponse.json(cotizar(producto, guardada.solicitud), { status: 201 })
+  }),
+
+  http.post(ruta('/suscripciones'), async ({ request }) => {
+    const { cotizacion_id: cotizacionId } = (await request.json()) as SolicitudSuscripcion
+    const guardada = estado.cotizaciones.get(cotizacionId)
+    if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
+    const existente = [...estado.suscripciones.values()].find((s) => s.cotizacion_id === cotizacionId)
+    if (existente) return HttpResponse.json(suscripcionConPago(existente.id))
+    const cotizacion = conEstadoActual(guardada.cotizacion)
+    if (cotizacion.estado === 'vencida') {
+      return error(409, 'cotizacion_vencida', 'La oferta venció; hay que recotizar')
+    }
+    const id = siguienteId('sus')
+    estado.suscripciones.set(id, {
+      id,
+      cotizacion_id: cotizacion.id,
+      nombre_producto: cotizacion.nombre_producto,
+      prima_mensual: cotizacion.prima_mensual,
+      estado: 'aceptada',
+      aceptada_en: new Date().toISOString(),
+      pagoId: null,
+    })
+    return HttpResponse.json(suscripcionConPago(id), { status: 201 })
+  }),
+
+  http.get(ruta('/suscripciones/:id'), ({ params }) => {
+    const suscripcion = suscripcionConPago(String(params.id))
+    if (!suscripcion) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    return HttpResponse.json(suscripcion)
+  }),
+
+  http.post(ruta('/suscripciones/:id/pagos'), async ({ params, request }) => {
+    const suscripcionId = String(params.id)
+    const suscripcion = suscripcionConPago(suscripcionId)
+    if (!suscripcion) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    const clave = request.headers.get('Idempotency-Key') ?? ''
+    if (!UUID.test(clave)) return error(422, 'clave_idempotencia_invalida', 'Falta la clave del intento')
+    const { medio } = (await request.json()) as SolicitudPago
+    if (!MEDIOS.includes(medio)) return error(422, 'medio_invalido', 'Medio de pago no admitido')
+
+    // Misma clave: es el mismo intento. Nunca se cobra dos veces.
+    const intento = estado.intentos.get(clave)
+    if (intento) {
+      if (intento.suscripcionId !== suscripcionId) {
+        return error(422, 'clave_idempotencia_invalida', 'La clave pertenece a otra suscripción')
+      }
+      if (intento.pago === 'procesando') return error(409, 'pago_en_curso', 'El pago sigue en curso')
+      const repetido: Pago = { ...estado.pagos.get(intento.pago.id)!, reintento: true }
+      return HttpResponse.json(repetido)
+    }
+    // Otra clave: solo si no hay ya un pago aprobado o pendiente.
+    if (suscripcion.pago && suscripcion.pago.estado !== 'rechazado') {
+      return error(409, 'pago_ya_registrado', 'La suscripción ya tiene un pago')
+    }
+
+    estado.intentos.set(clave, { suscripcionId, pago: 'procesando' })
+    await delay(LATENCIA_PASARELA_MS)
+    const pago: PagoGuardado = {
+      id: siguienteId('pag'),
+      estado: estado.pasarela[medio],
+      medio,
+      monto: suscripcion.prima_mensual,
+      referencia: `TX-${String(estado.secuencia).padStart(8, '0')}`,
+      creado_en: new Date().toISOString(),
+    }
+    guardarPago(suscripcionId, pago)
+    estado.intentos.set(clave, { suscripcionId, pago })
+    const nuevo: Pago = { ...pago, reintento: false }
+    return HttpResponse.json(nuevo, { status: 201 })
+  }),
+
+  http.get(ruta('/suscripciones/:id/pagos/:idPago'), ({ params }) => {
+    const suscripcionId = String(params.id)
+    const pago = estado.pagos.get(String(params.idPago))
+    if (!estado.suscripciones.has(suscripcionId) || !pago) {
+      return error(404, 'pago_no_encontrado', 'No existe')
+    }
+    // Simulación: el banco confirma un pago pendiente en cuanto se consulta.
+    if (pago.estado === 'pendiente') guardarPago(suscripcionId, { ...pago, estado: 'aprobado' })
+    const actual: Pago = { ...estado.pagos.get(pago.id)!, reintento: false }
+    return HttpResponse.json(actual)
   }),
 ]

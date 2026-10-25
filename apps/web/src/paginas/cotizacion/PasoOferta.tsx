@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { Cotizacion } from '../../api/tipos'
 import { Aviso } from '../../componentes/Aviso'
 import { Boton } from '../../componentes/Boton'
+import { clasesBoton } from '../../componentes/clasesBoton'
 import { formatearCuentaRegresiva, formatearHora, formatearMoneda } from '../../formato'
 import type { Idioma } from '../../i18n'
 import estilos from './Cotizacion.module.css'
@@ -114,6 +115,11 @@ export function PasoOferta({ cotizacion, recotizando, onRecotizar }: Propiedades
       </button>
       {verDetalle && <DetallePrecio cotizacion={cotizacion} id={idDetalle} />}
 
+      {!vencida && (
+        <Link className={clasesBoton('primario')} to={`/suscripcion/${cotizacion.id}`}>
+          {t('cotizacion.oferta.aceptar')}
+        </Link>
+      )}
     </div>
   )
 }
