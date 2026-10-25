@@ -8,24 +8,41 @@ import pytest
 import humo
 
 RUTAS_BFF_SESION = ("/api/v1/web/sesion", "/api/v1/movil/sesion")
+CATALOGO = json.dumps(
+    [{"codigo": c} for c in ("cotizacion", "suscripcion", "prevencion_fraude")]
+).encode()
+CREDENCIALES = humo.Credenciales("humo@solventa.test", "clave-de-prueba")
 
 
-def _respondiendo(estados: dict[str, int | None]):
-    """Doble de `pedir` que responde según la ruta; registra lo que se pidió."""
+def _respondiendo(estados: dict[str, int | None | humo.Respuesta]):
+    """Doble de `pedir` que responde según el final de la ruta; registra lo que se pidió."""
     pedidas = []
 
-    def pedir(metodo, url, encabezados):
-        pedidas.append((metodo, url, encabezados))
+    def pedir(metodo, url, encabezados, datos=None):
+        pedidas.append((metodo, url, encabezados, datos))
         for ruta, estado in estados.items():
             if url.endswith(ruta):
-                return estado
-        return 404
+                return estado if isinstance(estado, humo.Respuesta) else humo.Respuesta(estado)
+        return humo.Respuesta(404)
 
     pedir.pedidas = pedidas
     return pedir
 
 
-BFF_SANO = {"/salud": 200, "/productos": 401, "/web/sesion": 401, "/movil/sesion": 401}
+BFF_SANO = {
+    "/salud": 200,
+    "/productos": 401,
+    "/web/sesion": 401,
+    "/movil/sesion": 401,
+    "/consentimientos/finalidades": 401,
+    "/consentimientos": 401,
+    "/revocacion": 401,
+    "/renovacion": 401,
+}
+
+
+def _urls(pedir):
+    return [url for _, url, _, _ in pedir.pedidas]
 
 
 def test_cada_servicio_tiene_rutas():
@@ -40,12 +57,11 @@ def test_sin_fallas_cuando_todo_responde_lo_esperado():
 def test_solo_pide_las_rutas_del_servicio():
     pedir = _respondiendo(BFF_SANO)
     humo.fallas("bff", "https://bff.run.app/", pedir)
-    urls = [url for _, url, _ in pedir.pedidas]
-    assert urls[:2] == [
+    assert _urls(pedir)[:2] == [
         "https://bff.run.app/salud",
         "https://bff.run.app/api/v1/web/cotizaciones/productos",
     ]
-    assert all(url.startswith("https://bff.run.app/") for url in urls)
+    assert all(url.startswith("https://bff.run.app/") for url in _urls(pedir))
 
 
 @pytest.mark.parametrize("estado", [200, 401])
@@ -70,11 +86,11 @@ class TestSesion:
     def test_prueba_los_dos_routers_sin_token_y_con_token_ajeno(self):
         pedir = _respondiendo(BFF_SANO)
         humo.fallas("bff", "https://bff.run.app", pedir)
-        sesion = [(url, enc) for _, url, enc in pedir.pedidas if url.endswith(RUTAS_BFF_SESION)]
+        sesion = [enc for _, url, enc, _ in pedir.pedidas if url.endswith(RUTAS_BFF_SESION)]
         assert len(sesion) == 4
-        assert {"Cookie": f"sesion={humo._AJENO}"} in [enc for _, enc in sesion]
-        assert {"Authorization": f"Bearer {humo._AJENO}"} in [enc for _, enc in sesion]
-        assert sum(1 for _, enc in sesion if enc == {}) == 2
+        assert {"Cookie": f"sesion={humo._AJENO}"} in sesion
+        assert {"Authorization": f"Bearer {humo._AJENO}"} in sesion
+        assert sesion.count({}) == 2
 
     def test_el_token_ajeno_es_un_jwt_hs256_que_el_bff_no_puede_validar(self):
         encabezado, carga, firma = humo.token_ajeno().split(".")
@@ -89,14 +105,16 @@ class TestSesion:
         pedir = _respondiendo({**BFF_SANO, "/web/sesion": estado})
         resultado = humo.fallas("bff", "https://bff.run.app", pedir)
         assert resultado.errores == []
-        assert len(resultado.avisos) == 2
-        assert all("[pendiente de #152]" in aviso for aviso in resultado.avisos)
-        assert "(token ajeno)" in resultado.avisos[1]
+        sesion = [a for a in resultado.avisos if "/web/sesion" in a]
+        assert len(sesion) == 2
+        assert all("[pendiente de #152]" in aviso for aviso in sesion)
+        assert "(token ajeno)" in sesion[1]
 
     def test_al_quitar_la_marca_la_falla_detiene_el_despliegue(self, monkeypatch):
         sin_pendientes = tuple(
             humo.Ruta(r.servicio, r.metodo, r.ruta, r.esperados, r.encabezados, None, r.caso)
             for r in humo.RUTAS
+            if not r.autenticada
         )
         monkeypatch.setattr(humo, "RUTAS", sin_pendientes)
         pedir = _respondiendo({**BFF_SANO, "/movil/sesion": 200})
@@ -107,12 +125,104 @@ class TestSesion:
         ]
 
 
+class TestConsentimientoMovil:
+    """MOB-F02 (#161): rutas de consentimiento del router móvil en staging."""
+
+    def test_prueba_las_cinco_operaciones_sin_token(self):
+        pedir = _respondiendo(BFF_SANO)
+        humo.fallas("bff", "https://bff.run.app", pedir)
+        consentimiento = [
+            (metodo, url.removeprefix("https://bff.run.app"), enc)
+            for metodo, url, enc, _ in pedir.pedidas
+            if "/movil/consentimientos" in url
+        ]
+        assert consentimiento == [
+            ("GET", "/api/v1/movil/consentimientos/finalidades", {}),
+            ("GET", "/api/v1/movil/consentimientos", {}),
+            ("POST", "/api/v1/movil/consentimientos", {}),
+            ("POST", "/api/v1/movil/consentimientos/humo-no-existe/revocacion", {}),
+            ("POST", "/api/v1/movil/consentimientos/humo-no-existe/renovacion", {}),
+        ]
+
+    def test_sin_credenciales_omite_la_fila_autenticada_con_aviso(self):
+        resultado = humo.fallas("bff", "https://bff.run.app", _respondiendo(BFF_SANO))
+        assert resultado.errores == []
+        assert resultado.avisos == [
+            "GET /api/v1/movil/consentimientos/finalidades (con sesión): "
+            "se omite, faltan HUMO_CORREO y HUMO_CLAVE"
+        ]
+
+    def test_con_sesion_el_catalogo_trae_las_tres_finalidades(self):
+        sesion = humo.Respuesta(200, json.dumps({"token_acceso": "tok-123"}).encode())
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": sesion})
+        catalogo_ok = humo.Respuesta(200, CATALOGO)
+
+        def pedir_con_catalogo(metodo, url, encabezados, datos=None):
+            autenticado = encabezados.get("Authorization") == "Bearer tok-123"
+            if url.endswith("/finalidades") and autenticado:
+                pedir.pedidas.append((metodo, url, encabezados, datos))
+                return catalogo_ok
+            return pedir(metodo, url, encabezados, datos)
+
+        resultado = humo.fallas("bff", "https://bff.run.app", pedir_con_catalogo, CREDENCIALES)
+        assert resultado == humo.Resultado([], [])
+
+        (ingreso,) = [p for p in pedir.pedidas if p[1].endswith("/movil/sesiones")]
+        assert ingreso[0] == "POST"
+        assert json.loads(ingreso[3]) == {
+            "correo": "humo@solventa.test",
+            "contrasena": "clave-de-prueba",
+        }
+
+    def test_un_catalogo_incompleto_es_una_falla(self):
+        sesion = humo.Respuesta(200, json.dumps({"token_acceso": "tok"}).encode())
+        incompleto = humo.Respuesta(200, json.dumps([{"codigo": "cotizacion"}]).encode())
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": sesion})
+
+        def pedir_incompleto(metodo, url, encabezados, datos=None):
+            if url.endswith("/finalidades") and "Authorization" in encabezados:
+                return incompleto
+            return pedir(metodo, url, encabezados, datos)
+
+        avisos = humo.fallas("bff", "https://x", pedir_incompleto, CREDENCIALES).avisos
+        assert avisos == [
+            "GET /api/v1/movil/consentimientos/finalidades (con sesión): "
+            "faltan finalidades: prevencion_fraude, suscripcion [pendiente de #160]"
+        ]
+
+    @pytest.mark.parametrize(
+        "respuesta",
+        [humo.Respuesta(401), humo.Respuesta(200, b"no es json"), humo.Respuesta(None)],
+    )
+    def test_si_no_puede_iniciar_sesion_lo_informa_sin_credenciales(self, respuesta):
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": respuesta})
+        avisos = humo.fallas("bff", "https://x", pedir, CREDENCIALES).avisos
+        assert avisos == [
+            "GET /api/v1/movil/consentimientos/finalidades (con sesión): "
+            "no se pudo iniciar sesión [pendiente de #160]"
+        ]
+        assert "clave-de-prueba" not in " ".join(avisos)
+
+    @pytest.mark.parametrize("cuerpo", [b"[]", b'{"codigo": 1}', b"nada"])
+    def test_validar_catalogo(self, cuerpo):
+        assert humo._tres_finalidades(cuerpo)
+        assert humo._tres_finalidades(CATALOGO) is None
+
+    def test_las_credenciales_salen_del_ambiente_y_no_se_imprimen(self):
+        entorno = {"HUMO_CORREO": "a@b.co", "HUMO_CLAVE": "secreta"}
+        credenciales = humo.credenciales_del_ambiente(entorno)
+        assert credenciales == humo.Credenciales("a@b.co", "secreta")
+        assert "secreta" not in repr(credenciales)
+        assert humo.credenciales_del_ambiente({"HUMO_CORREO": "a@b.co"}) is None
+        assert humo.credenciales_del_ambiente({}) is None
+
+
 def test_reintenta_hasta_que_la_revision_arranca():
     estados = iter([None, 503, 200])
     esperas = []
 
-    def pedir(metodo, url, encabezados):
-        return next(estados)
+    def pedir(metodo, url, encabezados, datos=None):
+        return humo.Respuesta(next(estados))
 
     assert humo.ejecutar("nucleo", "https://x", 5, 2, pedir, esperas.append).errores == []
     assert esperas == [2, 2]
@@ -123,26 +233,39 @@ def test_no_reintenta_por_rutas_pendientes():
     pedir = _respondiendo({**BFF_SANO, "/web/sesion": 404})
     resultado = humo.ejecutar("bff", "https://x", 5, 2, pedir, esperas.append)
     assert resultado.errores == []
-    assert len(resultado.avisos) == 2
     assert esperas == []
 
 
 def test_agota_los_intentos_y_devuelve_el_ultimo_error():
     esperas = []
-    resultado = humo.ejecutar("nucleo", "https://x", 3, 1, lambda m, u, e: 500, esperas.append)
+
+    def falla(metodo, url, encabezados, datos=None):
+        return humo.Respuesta(500)
+
+    resultado = humo.ejecutar("nucleo", "https://x", 3, 1, falla, esperas.append)
     assert resultado.errores == ["GET /v1/: se esperaba 200, llegó 500"]
     assert esperas == [1, 1]
 
 
 class _Manejador(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):  # noqa: N802 (nombre fijado por http.server)
+    def _responder(self):
         rutas = {"/salud": 200, "/api/v1/web/cotizaciones/productos": 401}
-        estado = 401 if self.path.endswith("/sesion") else rutas.get(self.path, 404)
+        protegida = self.path.endswith("/sesion") or "/consentimientos" in self.path
+        estado = 401 if protegida else rutas.get(self.path, 404)
         if self.path == "/eco" and self.headers.get("Authorization") == "Bearer x":
             estado = 204
+        if self.path == "/eco-cuerpo":
+            largo = int(self.headers.get("Content-Length", 0))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(self.rfile.read(largo))
+            return
         self.send_response(estado)
         self.end_headers()
         self.wfile.write(b"detalle interno que no se debe imprimir")
+
+    do_GET = _responder  # noqa: N815 (nombre fijado por http.server)
+    do_POST = _responder  # noqa: N815
 
     def log_message(self, *args):
         pass
@@ -158,24 +281,27 @@ def servidor():
 
 
 def test_pedir_devuelve_el_estado_incluso_en_errores_http(servidor):
-    assert humo.pedir("GET", servidor + "/salud", {}) == 200
-    assert humo.pedir("GET", servidor + "/no-existe", {}) == 404
+    assert humo.pedir("GET", servidor + "/salud", {}).estado == 200
+    assert humo.pedir("GET", servidor + "/no-existe", {}).estado == 404
 
 
-def test_pedir_envia_los_encabezados(servidor):
-    assert humo.pedir("GET", servidor + "/eco", {"Authorization": "Bearer x"}) == 204
+def test_pedir_envia_encabezados_y_cuerpo(servidor):
+    assert humo.pedir("GET", servidor + "/eco", {"Authorization": "Bearer x"}).estado == 204
+    respuesta = humo.pedir("POST", servidor + "/eco-cuerpo", {}, b'{"a": 1}')
+    assert respuesta == humo.Respuesta(200, b'{"a": 1}')
 
 
 def test_pedir_sin_respuesta_devuelve_none():
-    assert humo.pedir("GET", "http://127.0.0.1:9/", {}) is None
+    assert humo.pedir("GET", "http://127.0.0.1:9/", {}).estado is None
 
 
-def test_main_no_imprime_cuerpos(servidor, capsys):
+def test_main_no_imprime_cuerpos(servidor, capsys, monkeypatch):
+    monkeypatch.delenv("HUMO_CORREO", raising=False)
     assert humo.main(["--servicio", "bff", "--url", servidor, "--intentos", "1"]) == 0
     salida = capsys.readouterr().out
     assert "detalle interno" not in salida
-    assert "::warning::" not in salida
-    assert "6 rutas probadas, sin errores" in salida
+    assert "se omite, faltan HUMO_CORREO y HUMO_CLAVE" in salida
+    assert "12 rutas probadas, sin errores" in salida
 
 
 def test_main_falla_con_anotacion_de_error(servidor, capsys):
@@ -189,3 +315,14 @@ def test_main_avisa_las_pendientes_sin_fallar(capsys, monkeypatch):
     assert humo.main(["--servicio", "bff", "--url", "https://x", "--intentos", "1"]) == 0
     salida = capsys.readouterr().out
     assert salida.count("::warning::Humo de bff: GET /api/v1/movil/sesion") == 2
+
+
+def test_main_usa_las_credenciales_del_ambiente_sin_imprimirlas(capsys, monkeypatch):
+    monkeypatch.setenv("HUMO_CORREO", "humo@solventa.test")
+    monkeypatch.setenv("HUMO_CLAVE", "clave-muy-secreta")
+    monkeypatch.setattr(humo, "pedir", _respondiendo({**BFF_SANO, "/sesiones": 401}))
+    assert humo.main(["--servicio", "bff", "--url", "https://x", "--intentos", "1"]) == 0
+    salida = capsys.readouterr().out
+    assert "no se pudo iniciar sesión" in salida
+    assert "clave-muy-secreta" not in salida
+    assert "humo@solventa.test" not in salida
