@@ -11,6 +11,9 @@ from fastapi.testclient import TestClient
 
 from app.compartido.reloj import RelojFijo
 from app.main import crear_app
+from app.modulos.auditoria import vaciar_escrituras_pendientes
+from app.modulos.auditoria.api import dependencias as auditoria_dependencias
+from app.modulos.cotizacion.api import dependencias
 from app.modulos.cotizacion.api.dependencias import obtener_reloj, obtener_servicio
 from app.modulos.cotizacion.aplicacion.servicio import ServicioDeCotizacion
 from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
@@ -176,3 +179,84 @@ def test_el_contrato_no_acepta_campos_desconocidos(cliente):
     )
 
     assert respuesta.status_code == 422
+
+
+def test_la_cotizacion_dice_su_dueno_y_su_motivo(entorno):
+    cliente, _, _ = entorno
+
+    cuerpo = cliente.post(
+        "/v1/cotizacion/cotizaciones", json={**SOLICITUD, "id_cliente": CLIENTE}
+    ).json()
+
+    assert cuerpo["id_cliente"] == CLIENTE
+    assert cuerpo["motivo_tarifa"] == "sin_consentimiento"
+
+
+def test_cotizar_sin_open_finance_responde_el_motivo(entorno):
+    cliente, _, consentimiento = entorno
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+
+    cuerpo = cliente.post(
+        "/v1/cotizacion/cotizaciones",
+        json={**SOLICITUD, "id_cliente": CLIENTE, "usar_open_finance": False},
+        headers={"X-Canal": "web"},
+    ).json()
+
+    assert cuerpo["oferta"]["uso_open_finance"] is False
+    assert cuerpo["motivo_tarifa"] == "open_finance_desactivado"
+
+
+def test_un_canal_desconocido_se_rechaza(cliente):
+    respuesta = cliente.post(
+        "/v1/cotizacion/cotizaciones", json=SOLICITUD, headers={"X-Canal": "fax"}
+    )
+
+    assert respuesta.status_code == 422
+
+
+def test_sin_base_la_salud_reporta_el_repositorio_caido(monkeypatch):
+    """Con la variable definida y la base inalcanzable no se cae a memoria en silencio."""
+    monkeypatch.setenv(dependencias.VARIABLE_DSN, "postgresql://nadie@127.0.0.1:9/solventa")
+    dependencias.reiniciar()
+    try:
+        estado = {d.nombre: d for d in dependencias.estado_dependencias()}
+    finally:
+        monkeypatch.delenv(dependencias.VARIABLE_DSN)
+        dependencias.reiniciar()
+
+    assert estado["repositorio_cotizaciones"].estado == "caido"
+
+
+def test_el_recalculo_lee_la_decision_del_log_real():
+    """De punta a punta con el módulo de auditoría del núcleo, no con el simulado."""
+    auditoria_dependencias.reiniciar()
+    dependencias.reiniciar()
+    try:
+        cliente = TestClient(crear_app())
+        id_cotizacion = cliente.post("/v1/cotizacion/cotizaciones", json=SOLICITUD).json()[
+            "id_cotizacion"
+        ]
+        vaciar_escrituras_pendientes()
+
+        cuerpo = cliente.get(f"/v1/cotizacion/cotizaciones/{id_cotizacion}/recalculo").json()
+    finally:
+        dependencias.reiniciar()
+        auditoria_dependencias.reiniciar()
+
+    assert cuerpo["coincide"] is True
+    assert cuerpo["prima_recalculada"] == cuerpo["prima_emitida"] == 148000
+    assert cuerpo["id_decision"].startswith("DEC-")
+
+
+def test_recalcular_una_cotizacion_inexistente_responde_404(cliente):
+    assert cliente.get("/v1/cotizacion/cotizaciones/QT-2026-99999/recalculo").status_code == 404
+
+
+def test_la_oferta_trae_los_factores_de_la_explicacion(cliente):
+    cuerpo = cliente.post("/v1/cotizacion/cotizaciones", json=SOLICITUD).json()
+    explicacion = cliente.get(
+        f"/v1/cotizacion/cotizaciones/{cuerpo['id_cotizacion']}/explicacion"
+    ).json()
+
+    assert cuerpo["oferta"]["factores"] == explicacion["factores"]
+    assert len(cuerpo["oferta"]["factores"]) == 3

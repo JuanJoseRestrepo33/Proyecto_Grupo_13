@@ -19,6 +19,7 @@ distinta versión son comparables porque cada una dice con qué reglas se calcul
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from app.compartido.dinero import Dinero
@@ -76,6 +77,18 @@ def _factores(base: BasePerfilamiento) -> tuple[FactorAplicado, ...]:
 def _prima(prima_estandar: Dinero, factores: tuple[FactorAplicado, ...]) -> Dinero:
     efecto_total = sum(factor.efecto for factor in factores)
     return prima_estandar.escalar(1 + efecto_total)
+
+
+def recalcular_prima(variables_entrada: Mapping[str, object]) -> Dinero:
+    """Vuelve a calcular la prima mensual a partir de una decisión registrada (RC-08).
+
+    Usa solo lo que quedó en el log: la prima estándar y el efecto de cada factor. No mira
+    el catálogo ni la versión de regla activa, así que una decisión vieja se reconstruye
+    con sus propios números aunque el tarifario haya cambiado después.
+    """
+    prima_estandar = Dinero.cop(int(variables_entrada["prima_estandar"]))  # type: ignore[call-overload]
+    factores: Mapping[str, float] = variables_entrada["factores"]  # type: ignore[assignment]
+    return prima_estandar.escalar(1 + sum(factores.values()))
 
 
 def tarificar(
