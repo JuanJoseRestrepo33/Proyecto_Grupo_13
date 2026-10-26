@@ -31,6 +31,12 @@ WEB-F03.
 | `/suscripciones/{id}/pagos` | Pagar contra la pasarela simulada con `Idempotency-Key`: aprobado, rechazado o pendiente, sin cobro doble | WEB-F03 |
 | `/suscripciones/{id}/pagos/{id_pago}` | Consultar un pago, por ejemplo uno pendiente | WEB-F03 |
 
+## Sesión (WEB-F13)
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/sesion` | Iniciar sesión con correo y contraseña (cookie `sesion`) y cerrarla | WEB-F13 |
+
 ## Historial
 
 Cada versión del contrato, con su historia y sus cambios incompatibles: [`CHANGELOG.md`](CHANGELOG.md).
