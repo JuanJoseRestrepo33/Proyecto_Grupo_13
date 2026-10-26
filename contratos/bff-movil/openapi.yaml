@@ -246,7 +246,14 @@ components:
 
   responses:
     NoAutenticado:
-      description: No hay una sesión vigente
+      description: |
+        No hay una sesión vigente (`sesion_no_vigente`): falta el token, venció o su firma no es
+        válida. Lleva `WWW-Authenticate: Bearer`. La app renueva la sesión con el token de refresco
+        o, si no puede, vuelve al inicio de sesión (WEB-F13, criterio 4).
+      headers:
+        WWW-Authenticate:
+          description: Siempre `Bearer`
+          schema: { type: string }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }

@@ -7,8 +7,10 @@ que rompen a un cliente existente van marcados como **incompatible**.
 
 ## [Sin publicar]
 
-- Sprint 2: se esperan las rutas de sesión reales (WEB-F13, #152) y las de consentimiento en
-  v0.2 (MOB-F02, #160). Cada una agrega aquí su entrada al fusionarse.
+- WEB-F13 (#152): el BFF real implementa registro, OTP, `/sesiones`, `/sesiones/renovacion` y
+  `/sesion` tal como están. Se documenta que el 401 de toda ruta protegida lleva el código
+  `sesion_no_vigente` y `WWW-Authenticate: Bearer`; no cambia ningún esquema.
+- Sprint 2: se esperan las rutas de consentimiento en v0.2 (MOB-F02, #160).
 
 ## [0.1.0] · 2026-10-17 · MOB-F01
 
