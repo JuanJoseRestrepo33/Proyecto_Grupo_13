@@ -250,3 +250,13 @@ def test_el_recalculo_lee_la_decision_del_log_real():
 
 def test_recalcular_una_cotizacion_inexistente_responde_404(cliente):
     assert cliente.get("/v1/cotizacion/cotizaciones/QT-2026-99999/recalculo").status_code == 404
+
+
+def test_la_oferta_trae_los_factores_de_la_explicacion(cliente):
+    cuerpo = cliente.post("/v1/cotizacion/cotizaciones", json=SOLICITUD).json()
+    explicacion = cliente.get(
+        f"/v1/cotizacion/cotizaciones/{cuerpo['id_cotizacion']}/explicacion"
+    ).json()
+
+    assert cuerpo["oferta"]["factores"] == explicacion["factores"]
+    assert len(cuerpo["oferta"]["factores"]) == 3
