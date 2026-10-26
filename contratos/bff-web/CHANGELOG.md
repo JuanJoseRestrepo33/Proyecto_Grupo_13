@@ -10,6 +10,19 @@ que rompen a un cliente existente van marcados como **incompatible**.
 - WEB-F01 (Sprint 2): sin cambios en el contrato todavía. El BFF real (#164) implementa las rutas de
   cotización tal como están.
 
+## [0.5.0] · 2026-10-26 · WEB-F13
+
+### Agregado
+
+- `POST /sesion`: inicia sesión con correo y contraseña (esquema `Credenciales`, el mismo del
+  contrato móvil). Responde el mismo `Sesion` de `GET /sesion` y pone la cookie `sesion`
+  (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`). Con credenciales inválidas responde
+  401 `credenciales_invalidas`, igual exista o no el correo.
+- `DELETE /sesion`: cierra la sesión y borra la cookie. Responde 204 aunque la sesión ya no sea
+  válida.
+- Código `sesion_no_vigente` en el 401 de toda ruta protegida: falta la cookie, venció o su firma
+  no es válida.
+
 ## [0.4.0] · 2026-10-25 · WEB-F03 (rebanada)
 
 ### Agregado

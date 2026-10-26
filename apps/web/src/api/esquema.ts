@@ -14,8 +14,21 @@ export interface paths {
         /** Cliente autenticado */
         get: operations["obtenerSesion"];
         put?: never;
-        post?: never;
-        delete?: never;
+        /**
+         * Inicia sesión con correo y contraseña
+         * @description Es la misma cuenta del registro en la app (WEB-F13, criterio 1). La respuesta pone la
+         *     cookie `sesion` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`); la web nunca
+         *     ve el token. La cookie dura lo mismo que la sesión: al vencer, las rutas protegidas
+         *     responden 401 `sesion_no_vigente` y la web vuelve al inicio de sesión. En la web no hay
+         *     renovación.
+         */
+        post: operations["iniciarSesion"];
+        /**
+         * Cierra la sesión
+         * @description Borra la cookie `sesion`. No exige sesión: responde 204 aunque la cookie esté vencida, no
+         *     sea válida o no exista, para que la web siempre pueda cerrarla.
+         */
+        delete: operations["cerrarSesion"];
         options?: never;
         head?: never;
         patch?: never;
@@ -295,6 +308,12 @@ export interface components {
             /** @description Descripción para diagnóstico; la interfaz no la muestra tal cual */
             mensaje: string;
         };
+        Credenciales: {
+            /** Format: email */
+            correo: string;
+            /** Format: password */
+            contrasena: string;
+        };
         Sesion: {
             cliente: {
                 id: string;
@@ -503,7 +522,10 @@ export interface components {
         };
     };
     responses: {
-        /** @description No hay una sesión vigente */
+        /**
+         * @description No hay una sesión vigente (`sesion_no_vigente`): falta la cookie, venció o su firma no es
+         *     válida. La web lleva al cliente a iniciar sesión de nuevo (WEB-F13, criterio 4).
+         */
         NoAutenticado: {
             headers: {
                 [name: string]: unknown;
@@ -569,6 +591,65 @@ export interface operations {
                 };
             };
             401: components["responses"]["NoAutenticado"];
+        };
+    };
+    iniciarSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credenciales"];
+            };
+        };
+        responses: {
+            /** @description Sesión abierta */
+            200: {
+                headers: {
+                    /** @description Cookie `sesion` con el token de la sesión */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sesion"];
+                };
+            };
+            /**
+             * @description Correo o contraseña incorrectos (`credenciales_invalidas`). La respuesta es la misma
+             *     exista o no el correo, para no revelar qué cuentas existen (WEB-F13, criterio 3).
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+        };
+    };
+    cerrarSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sesión cerrada */
+            204: {
+                headers: {
+                    /** @description Cookie `sesion` vencida, para que el navegador la borre */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listarFinalidades: {

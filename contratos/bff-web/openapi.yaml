@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -14,6 +14,7 @@ info:
       explicación del precio y vigencia de la oferta.
     - **WEB-F03** (rebanada) · Checkout: aceptar la oferta y pagarla contra la pasarela
       simulada, sin cobro doble. La firma y la emisión llegan con el resto de WEB-F03.
+    - **WEB-F13** · Inicio y cierre de sesión con la misma cuenta del registro en la app.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -48,6 +49,55 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Sesion" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [sesion]
+      operationId: iniciarSesion
+      summary: Inicia sesión con correo y contraseña
+      description: |
+        Es la misma cuenta del registro en la app (WEB-F13, criterio 1). La respuesta pone la
+        cookie `sesion` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`); la web nunca
+        ve el token. La cookie dura lo mismo que la sesión: al vencer, las rutas protegidas
+        responden 401 `sesion_no_vigente` y la web vuelve al inicio de sesión. En la web no hay
+        renovación.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credenciales" }
+      responses:
+        "200":
+          description: Sesión abierta
+          headers:
+            Set-Cookie:
+              description: Cookie `sesion` con el token de la sesión
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "401":
+          description: |
+            Correo o contraseña incorrectos (`credenciales_invalidas`). La respuesta es la misma
+            exista o no el correo, para no revelar qué cuentas existen (WEB-F13, criterio 3).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+    delete:
+      tags: [sesion]
+      operationId: cerrarSesion
+      summary: Cierra la sesión
+      description: |
+        Borra la cookie `sesion`. No exige sesión: responde 204 aunque la cookie esté vencida, no
+        sea válida o no exista, para que la web siempre pueda cerrarla.
+      security: []
+      responses:
+        "204":
+          description: Sesión cerrada
+          headers:
+            Set-Cookie:
+              description: Cookie `sesion` vencida, para que el navegador la borre
+              schema: { type: string }
 
   /consentimientos/finalidades:
     get:
@@ -376,7 +426,9 @@ components:
 
   responses:
     NoAutenticado:
-      description: No hay una sesión vigente
+      description: |
+        No hay una sesión vigente (`sesion_no_vigente`): falta la cookie, venció o su firma no es
+        válida. La web lleva al cliente a iniciar sesión de nuevo (WEB-F13, criterio 4).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -408,6 +460,13 @@ components:
         mensaje:
           type: string
           description: Descripción para diagnóstico; la interfaz no la muestra tal cual
+
+    Credenciales:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email }
+        contrasena: { type: string, format: password, writeOnly: true }
 
     Sesion:
       type: object
