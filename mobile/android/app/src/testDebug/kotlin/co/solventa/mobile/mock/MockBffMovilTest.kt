@@ -8,6 +8,7 @@ import co.solventa.core.network.EstadoVerificacion
 import co.solventa.core.network.MotivoRechazo
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Sesion
+import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
@@ -189,4 +190,147 @@ class MockBffMovilTest {
 
     private fun Pair<Int, ErrorBff?>.clave() = first to second?.codigo
     private fun Pair<Int, ErrorBff?>.intentos() = first to second?.intentosRestantes
+
+    // ── Consentimiento ────────────────────────────────────────────────────────────────────────
+
+    private fun ingresarComoDemo(): Unit = runBlocking {
+        val sesion = api.iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO))
+        token = sesion.tokenAcceso
+    }
+
+    @Test
+    fun `el catalogo de finalidades exige sesion, como el router movil`() = runBlocking {
+        assertEquals(401 to "no_autenticado", falla { api.listarFinalidades() }.clave())
+        ingresarComoDemo()
+        val finalidades = api.listarFinalidades()
+        assertEquals(3, finalidades.size)
+        assertEquals(co.solventa.core.network.CodigoFinalidad.COTIZACION, finalidades[0].codigo)
+        assertEquals("cotizacion-2026.1", finalidades[0].versionTexto)
+    }
+
+    @Test
+    fun `listar consentimientos requiere sesion`() {
+        assertEquals(401 to "no_autenticado", falla { api.listarConsentimientos() }.clave())
+        ingresarComoDemo()
+        val lista = runBlocking { api.listarConsentimientos() }
+        assertEquals(0, lista.size)
+    }
+
+    @Test
+    fun `otorgar consentimiento con version correcta crea uno vigente`() = runBlocking {
+        ingresarComoDemo()
+        val finalidades = api.listarFinalidades()
+        val f = finalidades.first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        val consentimiento = api.otorgarConsentimiento(
+            co.solventa.core.network.SolicitudConsentimiento(
+                finalidad = f.codigo,
+                entidadesOrigen = listOf("bancolombia"),
+                versionTexto = f.versionTexto,
+            ),
+        )
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.VIGENTE, consentimiento.estado)
+        assertEquals("bancolombia", consentimiento.entidadesOrigen[0].id)
+        // Aparece en la lista
+        assertEquals(1, api.listarConsentimientos().size)
+    }
+
+    @Test
+    fun `otorgar con version desactualizada falla`() {
+        ingresarComoDemo()
+        assertEquals(
+            422 to "version_texto_desactualizada",
+            falla {
+                api.otorgarConsentimiento(
+                    co.solventa.core.network.SolicitudConsentimiento(
+                        finalidad = co.solventa.core.network.CodigoFinalidad.COTIZACION,
+                        entidadesOrigen = listOf("bancolombia"),
+                        versionTexto = "cotizacion-2020.1",
+                    ),
+                )
+            }.clave(),
+        )
+    }
+
+    @Test
+    fun `otorgar con entidades invalidas falla`() {
+        ingresarComoDemo()
+        val finalidades = runBlocking { api.listarFinalidades() }
+        val f = finalidades.first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        assertEquals(
+            422 to "entidades_invalidas",
+            falla {
+                api.otorgarConsentimiento(
+                    co.solventa.core.network.SolicitudConsentimiento(
+                        finalidad = f.codigo,
+                        entidadesOrigen = listOf("entidad-inexistente"),
+                        versionTexto = f.versionTexto,
+                    ),
+                )
+            }.clave(),
+        )
+    }
+
+    @Test
+    fun `revocar vigente cambia el estado a revocado`() = runBlocking {
+        ingresarComoDemo()
+        val finalidades = api.listarFinalidades()
+        val f = finalidades.first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        val creado = api.otorgarConsentimiento(
+            co.solventa.core.network.SolicitudConsentimiento(
+                finalidad = f.codigo,
+                entidadesOrigen = listOf("bancolombia"),
+                versionTexto = f.versionTexto,
+            ),
+        )
+        val revocado = api.revocarConsentimiento(creado.id)
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.REVOCADO, revocado.estado)
+        assertEquals(409 to "consentimiento_revocado", falla { api.revocarConsentimiento(creado.id) }.clave())
+    }
+
+    @Test
+    fun `renovar vencido extiende la vigencia`() = runBlocking {
+        ingresarComoDemo()
+        val finalidades = api.listarFinalidades()
+        val f = finalidades.first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        val creado = api.otorgarConsentimiento(
+            co.solventa.core.network.SolicitudConsentimiento(
+                finalidad = f.codigo,
+                entidadesOrigen = listOf("bancolombia"),
+                versionTexto = f.versionTexto,
+            ),
+        )
+        // Avanzar el reloj 200 días para que venza
+        ahora = ahora.plus(java.time.Duration.ofDays(200))
+        val listaTras = api.listarConsentimientos()
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.VENCIDO, listaTras[0].estado)
+
+        val renovado = api.renovarConsentimiento(creado.id)
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.VIGENTE, renovado.estado)
+    }
+
+    @Test
+    fun `revocar consentimiento inexistente devuelve 404`() {
+        ingresarComoDemo()
+        assertEquals(404 to "consentimiento_no_encontrado", falla { api.revocarConsentimiento("CON-X") }.clave())
+    }
+
+    @Test
+    fun `otorgar sin entidades se rechaza como el backend`() {
+        ingresarComoDemo()
+        val f = runBlocking { api.listarFinalidades() }.first()
+        val solicitud = co.solventa.core.network.SolicitudConsentimiento(f.codigo, emptyList(), f.versionTexto)
+        assertEquals(422 to "entidades_invalidas", falla { api.otorgarConsentimiento(solicitud) }.clave())
+    }
+
+    @Test
+    fun `vence en meses calendario y en el instante exacto ya esta vencido`() = runBlocking {
+        ingresarComoDemo()
+        val f = api.listarFinalidades().first { it.codigo == co.solventa.core.network.CodigoFinalidad.COTIZACION }
+        val creado = api.otorgarConsentimiento(
+            co.solventa.core.network.SolicitudConsentimiento(f.codigo, listOf("bancolombia"), f.versionTexto),
+        )
+        assertEquals("2027-04-17T10:00:00Z", creado.venceEn)
+        ahora = Instant.parse(creado.venceEn)
+        assertEquals(co.solventa.core.network.EstadoConsentimiento.VENCIDO, api.listarConsentimientos()[0].estado)
+    }
 }

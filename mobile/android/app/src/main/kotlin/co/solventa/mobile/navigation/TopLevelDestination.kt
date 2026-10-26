@@ -12,6 +12,6 @@ enum class TopLevelDestination(val route: String, @StringRes val label: Int) {
 
     companion object {
         fun fromRoute(route: String?): TopLevelDestination =
-            entries.firstOrNull { it.route == route } ?: HOME
+            entries.firstOrNull { route == it.route || route?.startsWith("${it.route}/") == true } ?: HOME
     }
 }

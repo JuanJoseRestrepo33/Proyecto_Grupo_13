@@ -3,6 +3,8 @@ package co.solventa.mobile.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
@@ -14,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,14 +30,22 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import co.solventa.core.designsystem.SolventaSpacing
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.consentimiento.RutaConsentimiento
 import co.solventa.mobile.R
 
 /**
  * @param identidadVerificada false mientras KYC no apruebe: Inicio lo avisa y las funciones que
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
+ * @param dependenciasConsentimiento con ellas, Perfil da acceso al consentimiento (MOB-F02).
+ * @param onSesionVencida flujo de sesión al que se delega un 401 del BFF.
  */
 @Composable
-fun SolventaApp(identidadVerificada: Boolean = true) {
+fun SolventaApp(
+    identidadVerificada: Boolean = true,
+    dependenciasConsentimiento: DependenciasConsentimiento? = null,
+    onSesionVencida: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
@@ -66,12 +77,27 @@ fun SolventaApp(identidadVerificada: Boolean = true) {
             TopLevelDestination.entries.forEach { destination ->
                 composable(destination.route) {
                     val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
-                    PlaceholderScreen(destination, avisoIdentidad = aviso)
+                    val conConsentimiento = destination == TopLevelDestination.PROFILE &&
+                        dependenciasConsentimiento != null
+                    val alConsentimiento = { navController.navigate(RUTA_CONSENTIMIENTO) }.takeIf { conConsentimiento }
+                    PlaceholderScreen(destination, avisoIdentidad = aviso, onConsentimiento = alConsentimiento)
+                }
+            }
+            if (dependenciasConsentimiento != null) {
+                composable(RUTA_CONSENTIMIENTO) {
+                    RutaConsentimiento(
+                        api = dependenciasConsentimiento.api,
+                        onVolver = { navController.popBackStack() },
+                        onSesionVencida = onSesionVencida,
+                    )
                 }
             }
         }
     }
 }
+
+/** Anidada bajo Perfil: la barra inferior sigue marcando Perfil. */
+internal const val RUTA_CONSENTIMIENTO = "profile/consentimiento"
 
 private fun TopLevelDestination.icon() = when (this) {
     TopLevelDestination.HOME -> Icons.Default.Home
@@ -81,7 +107,11 @@ private fun TopLevelDestination.icon() = when (this) {
 }
 
 @Composable
-private fun PlaceholderScreen(destination: TopLevelDestination, avisoIdentidad: Boolean) {
+private fun PlaceholderScreen(
+    destination: TopLevelDestination,
+    avisoIdentidad: Boolean,
+    onConsentimiento: (() -> Unit)? = null,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(SolventaSpacing.md).testTag("screen-${destination.route}"),
         verticalArrangement = Arrangement.spacedBy(SolventaSpacing.sm),
@@ -94,6 +124,19 @@ private fun PlaceholderScreen(destination: TopLevelDestination, avisoIdentidad: 
                 modifier = Modifier.testTag("aviso-identidad"),
             )
         }
-        Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
+        // Con contenido real, el aviso de "próximamente" parecería referirse a él.
+        if (onConsentimiento != null) {
+            OutlinedButton(
+                onClick = onConsentimiento,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = SolventaSpacing.touchTarget)
+                    .testTag("ir-consentimiento"),
+            ) {
+                Text(stringResource(R.string.perfil_consentimiento))
+            }
+        } else {
+            Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }

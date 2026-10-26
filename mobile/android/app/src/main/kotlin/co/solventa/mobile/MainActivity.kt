@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.BffApi
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
@@ -21,8 +22,11 @@ class MainActivity : FragmentActivity() {
             almacen = AlmacenTokenKeystore(applicationContext),
             biometria = BiometriaAndroid(this),
         )
+        val dependenciasConsentimiento = DependenciasConsentimiento(
+            api = Proceso.bffApi,
+        )
         setContent {
-            SolventaTheme { SolventaRaiz(dependencias) }
+            SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento) }
         }
     }
 }

@@ -1,6 +1,5 @@
-package co.solventa.feature.onboarding.comun
+package co.solventa.core.network
 
-import co.solventa.core.network.ErrorBff
 import java.io.IOException
 import retrofit2.HttpException
 

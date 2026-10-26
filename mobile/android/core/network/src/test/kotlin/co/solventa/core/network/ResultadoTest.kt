@@ -1,20 +1,34 @@
-package co.solventa.feature.onboarding.comun
+package co.solventa.core.network
 
-import co.solventa.core.network.EstadoIdentidad
-import co.solventa.feature.onboarding.fallaBff
-import co.solventa.feature.onboarding.sesion.GestorSesion
-import co.solventa.feature.onboarding.sesionPrueba
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
+import okhttp3.Request
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
+
+private fun fallaBff(
+    http: Int,
+    codigo: String,
+    intentosRestantes: Int? = null,
+    encabezados: Map<String, String> = emptyMap(),
+): HttpException {
+    val error = ErrorBff(codigo, "prueba", emptyList(), intentosRestantes)
+    val cuerpo = NetworkClient.json.encodeToString(ErrorBff.serializer(), error)
+    val crudo = okhttp3.Response.Builder()
+        .code(http)
+        .message("Prueba")
+        .protocol(Protocol.HTTP_1_1)
+        .request(Request.Builder().url("https://bff.prueba/api/v1/movil/").build())
+        .apply { encabezados.forEach { (nombre, valor) -> header(nombre, valor) } }
+        .build()
+    return HttpException(Response.error<Any>(cuerpo.toResponseBody("application/json".toMediaType()), crudo))
+}
 
 class ResultadoTest {
     @Test
@@ -45,17 +59,5 @@ class ResultadoTest {
     @Test
     fun `un fallo de red se reporta como sin conexion`() = runBlocking {
         assertEquals(Resultado.SinConexion, llamarBff<Int> { throw IOException("sin red") })
-    }
-
-    @Test
-    fun `la sesion actualiza la identidad del cliente en memoria`() {
-        val gestor = GestorSesion()
-        gestor.actualizarIdentidad(EstadoIdentidad.VERIFICADA)
-        assertNull("sin sesión no hay nada que actualizar", gestor.sesion)
-        assertFalse(gestor.identidadVerificada)
-        gestor.sesion = sesionPrueba()
-        gestor.actualizarIdentidad(EstadoIdentidad.VERIFICADA)
-        assertTrue(gestor.identidadVerificada)
-        assertEquals("ACC-1", gestor.tokenAcceso)
     }
 }

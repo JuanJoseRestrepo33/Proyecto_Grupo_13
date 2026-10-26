@@ -121,3 +121,76 @@ data class ErrorBff(
         }.getOrNull()
     }
 }
+
+// ── Modelos de consentimiento (MOB-F02) ───────────────────────────────────────────────────────
+// Las rutas provisionales espejean el contrato del BFF web y el backend Python.
+// Se ajustarán cuando #160 publique el contrato de bff-movil v0.2.
+
+@Serializable
+enum class CodigoFinalidad {
+    @SerialName("cotizacion") COTIZACION,
+    @SerialName("suscripcion") SUSCRIPCION,
+    @SerialName("prevencion_fraude") PREVENCION_FRAUDE,
+}
+
+@Serializable
+enum class EstadoConsentimiento {
+    @SerialName("vigente") VIGENTE,
+    @SerialName("revocado") REVOCADO,
+    @SerialName("vencido") VENCIDO,
+}
+
+@Serializable
+enum class TipoEventoConsentimiento {
+    @SerialName("otorgado") OTORGADO,
+    @SerialName("renovado") RENOVADO,
+    @SerialName("revocado") REVOCADO,
+    @SerialName("vencido") VENCIDO,
+}
+
+@Serializable
+data class EntidadConsentimiento(
+    val id: String,
+    val nombre: String,
+)
+
+@Serializable
+data class FinalidadConsentimiento(
+    val codigo: CodigoFinalidad,
+    val nombre: String,
+    val descripcion: String,
+    val alcance: List<String>,
+    @SerialName("vigencia_meses") val vigenciaMeses: Int,
+    @SerialName("entidades_origen") val entidadesOrigen: List<EntidadConsentimiento>,
+    @SerialName("version_texto") val versionTexto: String,
+)
+
+@Serializable
+data class Consentimiento(
+    val id: String,
+    val finalidad: CodigoFinalidad,
+    @SerialName("entidades_origen") val entidadesOrigen: List<EntidadConsentimiento>,
+    val estado: EstadoConsentimiento,
+    val canal: String,
+    @SerialName("otorgado_en") val otorgadoEn: String,
+    @SerialName("vence_en") val venceEn: String,
+    @SerialName("revocado_en") val revocadoEn: String? = null,
+    @SerialName("version_texto") val versionTexto: String,
+    @SerialName("por_vencer") val porVencer: Boolean,
+    @SerialName("dias_para_vencer") val diasParaVencer: Int? = null,
+)
+
+@Serializable
+data class SolicitudConsentimiento(
+    val finalidad: CodigoFinalidad,
+    @SerialName("entidades_origen") val entidadesOrigen: List<String>,
+    @SerialName("version_texto") val versionTexto: String,
+)
+
+@Serializable
+data class EventoConsentimiento(
+    val tipo: TipoEventoConsentimiento,
+    @SerialName("ocurrido_en") val ocurridoEn: String,
+    val canal: String,
+    @SerialName("version_texto") val versionTexto: String,
+)

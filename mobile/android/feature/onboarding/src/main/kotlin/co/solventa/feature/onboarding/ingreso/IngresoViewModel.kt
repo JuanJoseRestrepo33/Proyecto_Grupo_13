@@ -15,8 +15,8 @@ import co.solventa.feature.onboarding.R
 import co.solventa.feature.onboarding.biometria.AlmacenToken
 import co.solventa.feature.onboarding.biometria.DisponibilidadBiometrica
 import co.solventa.feature.onboarding.biometria.ResultadoBiometrico
-import co.solventa.feature.onboarding.comun.Resultado
-import co.solventa.feature.onboarding.comun.llamarBff
+import co.solventa.core.network.Resultado
+import co.solventa.core.network.llamarBff
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import javax.crypto.Cipher
 import kotlinx.coroutines.launch
