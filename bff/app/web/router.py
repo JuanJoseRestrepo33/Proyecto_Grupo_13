@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from . import cotizaciones
+
 PREFIJO = "/api/v1/web"
 
 router = APIRouter(prefix=PREFIJO)
+router.include_router(cotizaciones.router)
