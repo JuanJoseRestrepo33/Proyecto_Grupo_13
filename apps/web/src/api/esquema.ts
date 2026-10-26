@@ -363,6 +363,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/siniestros/{id}/evidencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evidencias del siniestro, cargadas desde cualquier canal */
+        get: operations["listarEvidencias"];
+        put?: never;
+        /**
+         * Adjunta una foto, un video o un documento al siniestro
+         * @description Se puede agregar en el reporte o después; queda asociada al mismo siniestro y se ve en los
+         *     dos canales (MOB-F05, criterio 5). Hasta 10 MB, y solo JPEG, PNG, HEIC, MP4 o PDF: el
+         *     formato se comprueba con el contenido del archivo, no solo con su extensión.
+         *
+         *     La fecha y hora de la cámara y la ubicación son opcionales. Si el cliente negó el permiso
+         *     de ubicación puede escribir el `lugar`; el reporte nunca queda bloqueado por un permiso
+         *     (criterios 1 y 2, P20).
+         */
+        post: operations["adjuntarEvidencia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros/{id}/evidencias/{id_evidencia}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contenido de una evidencia, con su tipo */
+        get: operations["descargarEvidencia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -664,6 +708,40 @@ export interface components {
              * @description Solo con `evento_fuera_de_vigencia`
              */
             vigente_hasta?: string;
+        };
+        SolicitudEvidencia: {
+            /**
+             * Format: binary
+             * @description Foto, video o documento, hasta 10 MB
+             */
+            archivo: string;
+            /**
+             * Format: date-time
+             * @description Fecha y hora de la cámara; no puede ser futura
+             */
+            tomada_en?: string;
+            latitud?: number;
+            longitud?: number;
+            /** @description El lugar escrito por el cliente cuando no hay ubicación */
+            lugar?: string;
+        };
+        Evidencia: {
+            /** @example EVI-6f1c2a */
+            id: string;
+            /** @enum {string} */
+            tipo_contenido: "image/jpeg" | "image/png" | "image/heic" | "video/mp4" | "application/pdf";
+            /** @description Bytes */
+            tamano: number;
+            nombre_original: string | null;
+            /** @enum {string} */
+            canal: "web" | "movil";
+            /** Format: date-time */
+            cargada_en: string;
+            /** Format: date-time */
+            tomada_en?: string | null;
+            latitud?: number | null;
+            longitud?: number | null;
+            lugar?: string | null;
         };
     };
     responses: {
@@ -1309,6 +1387,122 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Siniestro"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    listarEvidencias: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evidencias en el orden en que se cargaron */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evidencia"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    adjuntarEvidencia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["SolicitudEvidencia"];
+            };
+        };
+        responses: {
+            /** @description Evidencia guardada y asociada al siniestro */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evidencia"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description El siniestro está cerrado y ya no recibe evidencia (`siniestro_cerrado`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El archivo supera los 10 MB (`archivo_demasiado_grande`) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description `formato_no_admitido` o `archivo_vacio` sobre `archivo`; `ubicacion_invalida` o
+             *     `fecha_de_captura_invalida`. Un error por campo en `campos`.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El almacén de evidencias no respondió (`almacenamiento_no_disponible`) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    descargarEvidencia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+                id_evidencia: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo; `Content-Disposition` trae el nombre original si lo hay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             401: components["responses"]["NoAutenticado"];

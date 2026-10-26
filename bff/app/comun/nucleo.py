@@ -88,20 +88,28 @@ class ClienteNucleo:
         params: Mapping[str, Any] | None = None,
         encabezados: Mapping[str, str] | None = None,
         archivos: Mapping[str, Any] | None = None,
+        contenido: bytes | None = None,
         si_no_existe: str | None = None,
     ) -> httpx.Response:
         """Hace la solicitud y devuelve la respuesta si fue exitosa; si no, lanza `ErrorBff`.
 
         `canal` va en la cabecera `X-Canal`, que el núcleo deja en la auditoría.
-        `si_no_existe` reemplaza el código genérico de un 404 por el del contrato del canal
-        (por ejemplo, `cotizacion_no_encontrada`).
+        `contenido` es un cuerpo crudo, como el archivo de una evidencia, con su tipo en
+        `encabezados`. `si_no_existe` reemplaza el código genérico de un 404 por el del
+        contrato del canal (por ejemplo, `cotizacion_no_encontrada`).
         """
         cabeceras = dict(encabezados or {})
         if canal:
             cabeceras["X-Canal"] = canal
         try:
             respuesta = self._http.request(
-                metodo, ruta, json=json, params=params, headers=cabeceras, files=archivos
+                metodo,
+                ruta,
+                json=json,
+                params=params,
+                headers=cabeceras,
+                files=archivos,
+                content=contenido,
             )
         except httpx.TransportError as error:
             raise ErrorBff(

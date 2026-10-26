@@ -41,6 +41,16 @@ def test_el_canal_viaja_en_la_cabecera_x_canal(nucleo, cliente_nucleo):
     assert nucleo.cuerpo_de(nucleo.ultima) == {"a": 1}
 
 
+def test_un_cuerpo_crudo_viaja_tal_cual_con_su_tipo(nucleo, cliente_nucleo):
+    nucleo.responder("POST", "/v1/archivo", 201, {"id": "EVI-1"})
+    foto = bytes([0xFF, 0xD8, 0xFF]) + b"bytes"
+
+    cliente_nucleo.post("/v1/archivo", contenido=foto, encabezados={"Content-Type": "image/jpeg"})
+
+    assert nucleo.ultima.content == foto
+    assert nucleo.ultima.headers["Content-Type"] == "image/jpeg"
+
+
 def test_sin_canal_no_se_envia_la_cabecera(nucleo, cliente_nucleo):
     nucleo.responder("GET", "/v1/cosa", 200, {})
 
