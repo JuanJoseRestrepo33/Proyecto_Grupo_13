@@ -11,15 +11,22 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 from app.compartido.errores import (
+    DatoInvalido,
+    DemasiadasSolicitudes,
     DependenciaNoDisponible,
     ErrorDeNegocio,
+    NoAutenticado,
     RecursoNoEncontrado,
     ReglaDeNegocioViolada,
 )
 
 ESTADOS: dict[type[ErrorDeNegocio], int] = {
+    NoAutenticado: status.HTTP_401_UNAUTHORIZED,
     RecursoNoEncontrado: status.HTTP_404_NOT_FOUND,
     ReglaDeNegocioViolada: status.HTTP_409_CONFLICT,
+    # 422 y 429 por número: Starlette renombró la constante del 422 entre versiones.
+    DatoInvalido: 422,
+    DemasiadasSolicitudes: 429,
     DependenciaNoDisponible: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
@@ -43,4 +50,12 @@ async def manejar_error_de_negocio(request: Request, error: Exception) -> JSONRe
     }
     if error.detalles:
         cuerpo["detalles"] = error.detalles
-    return JSONResponse(status_code=estado, content=cuerpo, media_type="application/problem+json")
+    encabezados = {}
+    if isinstance(error, DemasiadasSolicitudes) and "reintentar_en_segundos" in error.detalles:
+        encabezados["Retry-After"] = str(error.detalles["reintentar_en_segundos"])
+    return JSONResponse(
+        status_code=estado,
+        content=cuerpo,
+        media_type="application/problem+json",
+        headers=encabezados,
+    )
