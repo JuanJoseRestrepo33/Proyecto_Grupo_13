@@ -21,7 +21,9 @@ from app.compartido.reloj import Reloj
 from ..dominio import credenciales
 from ..dominio.cuenta import Cuenta, DatosDeRegistro, Registro, normalizar_correo
 from ..dominio.errores import (
+    ClienteNoEncontradoError,
     CorreoYaRegistradoError,
+    CredencialesInvalidasError,
     DocumentoYaRegistradoError,
     OtpBloqueadoError,
     OtpInvalidoError,
@@ -29,6 +31,7 @@ from ..dominio.errores import (
     OtpVencidoError,
     RegistroNoEncontradoError,
     RegistroYaVerificadoError,
+    TokenRefrescoInvalidoError,
 )
 from ..dominio.modelo import EstadoIdentidad
 from ..dominio.puertos import (
@@ -199,6 +202,62 @@ class ServicioDeCuentas:
         assert cuenta is not None, "un registro siempre tiene su cuenta"
         self._codigos.enviar(cuenta.correo, codigo)
         return registro
+
+    # -- sesión -----------------------------------------------------------------------
+
+    def iniciar_sesion(self, correo: str, contrasena: str, canal: str) -> SesionAbierta:
+        """Abre la sesión con correo y contraseña, en cualquiera de los dos canales.
+
+        Si el correo no existe se verifica igual contra una credencial señuelo y se responde
+        el mismo error: ni el mensaje ni el tiempo revelan qué cuentas existen (criterio 3).
+        """
+        cuenta = self._cuentas.por_correo(normalizar_correo(correo))
+        credencial = cuenta.credencial if cuenta else credenciales.credencial_senuelo()
+        valida = credenciales.verificar(contrasena, credencial)
+        id_cliente = cuenta.id_cliente if cuenta else None
+        self._accesos.registrar(
+            "ingreso",
+            id_cliente=id_cliente,
+            canal=canal,
+            ocurrido_en=self._reloj.ahora(),
+            resultado={"acierto": cuenta is not None and valida},
+        )
+        if cuenta is None or not valida:
+            raise CredencialesInvalidasError("Correo o contraseña incorrectos")
+        return self._abrir_sesion(cuenta, canal)
+
+    def renovar_sesion(self, token_refresco: str) -> SesionAbierta:
+        """Renueva con el token de refresco (ingreso biométrico en la app).
+
+        El token es de un solo uso: renovar entrega uno nuevo y el anterior deja de servir,
+        aunque alguien lo haya copiado (rotación).
+        """
+        refresco = self._refrescos.tomar(resumen_de_refresco(token_refresco))
+        ahora = self._reloj.ahora()
+        if refresco is None or not refresco.vigente(ahora):
+            raise TokenRefrescoInvalidoError("El token de refresco no es válido")
+        cuenta = self._cuentas.por_id(refresco.id_cliente)
+        if cuenta is None:
+            raise TokenRefrescoInvalidoError("El token de refresco no es válido")
+        self._accesos.registrar(
+            "renovacion",
+            id_cliente=cuenta.id_cliente,
+            canal=refresco.canal,
+            ocurrido_en=ahora,
+            resultado={"acierto": True},
+        )
+        return self._abrir_sesion(cuenta, refresco.canal)
+
+    def cliente(self, id_cliente: str) -> Cuenta:
+        cuenta = self._cuentas.por_id(id_cliente)
+        if cuenta is None:
+            raise ClienteNoEncontradoError("El cliente no existe", id_cliente=id_cliente)
+        return cuenta
+
+    def cliente_de_sesion(self, token_acceso: str) -> Cuenta:
+        """El cliente de un token de acceso vigente, o `SesionNoVigenteError`."""
+        reclamos = self._emisor.validar_acceso(token_acceso, self._reloj.ahora())
+        return self.cliente(reclamos.id_cliente)
 
     # -- interno ----------------------------------------------------------------------
 

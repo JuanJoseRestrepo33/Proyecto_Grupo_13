@@ -129,3 +129,87 @@ def test_la_salud_reporta_tokens_y_envio_de_codigos(nucleo):
 
     assert dependencias_identidad["tokens"]["estado"] == "simulado"
     assert dependencias_identidad["envio_codigos"]["estado"] == "simulado"
+
+
+# -- sesión (WEB-F13) -------------------------------------------------------------------
+
+
+def _verificada(nucleo) -> dict:
+    registro = _registrar(nucleo)
+    nucleo.post(f"{RUTA}/registros/{registro['id']}/otp/verificacion", json={"codigo": CODIGO})
+    return registro
+
+
+def test_iniciar_sesion_desde_la_web_con_la_cuenta_de_la_app(nucleo):
+    registro = _verificada(nucleo)
+
+    respuesta = nucleo.post(
+        f"{RUTA}/sesiones",
+        json={"correo": "ana@ejemplo.co", "contrasena": "Solventa2026"},
+        headers={"X-Canal": "web"},
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["cliente"]["id"] == registro["id_cliente"]
+
+
+@pytest.mark.parametrize(
+    "credenciales",
+    [
+        {"correo": "ana@ejemplo.co", "contrasena": "Equivocada1"},
+        {"correo": "nadie@ejemplo.co", "contrasena": "Solventa2026"},
+    ],
+)
+def test_credenciales_invalidas_son_401_iguales(nucleo, credenciales):
+    _verificada(nucleo)
+
+    respuesta = nucleo.post(f"{RUTA}/sesiones", json=credenciales)
+
+    assert respuesta.status_code == 401
+    assert respuesta.json()["title"] == "credenciales_invalidas"
+    assert respuesta.json()["detail"] == "Correo o contraseña incorrectos"
+
+
+def test_renovar_por_http_rota_el_refresco(nucleo):
+    _verificada(nucleo)
+    sesion = nucleo.post(
+        f"{RUTA}/sesiones", json={"correo": "ana@ejemplo.co", "contrasena": "Solventa2026"}
+    ).json()
+
+    renovada = nucleo.post(
+        f"{RUTA}/sesiones/renovacion", json={"token_refresco": sesion["token_refresco"]}
+    )
+    repetida = nucleo.post(
+        f"{RUTA}/sesiones/renovacion", json={"token_refresco": sesion["token_refresco"]}
+    )
+
+    assert renovada.status_code == 200
+    assert repetida.status_code == 401
+    assert repetida.json()["title"] == "token_refresco_invalido"
+
+
+def test_el_cliente_y_su_sesion_por_http(nucleo):
+    registro = _verificada(nucleo)
+    token = nucleo.post(
+        f"{RUTA}/sesiones", json={"correo": "ana@ejemplo.co", "contrasena": "Solventa2026"}
+    ).json()["token_acceso"]
+
+    por_id = nucleo.get(f"{RUTA}/clientes/{registro['id_cliente']}")
+    por_token = nucleo.get(f"{RUTA}/sesion", headers={"Authorization": f"Bearer {token}"})
+
+    assert por_id.status_code == 200
+    assert por_token.json() == por_id.json()
+    assert por_id.json()["correo"] == "ana@ejemplo.co"
+
+
+def test_sin_token_o_con_uno_invalido_la_sesion_es_401(nucleo):
+    assert nucleo.get(f"{RUTA}/sesion").json()["title"] == "sesion_no_vigente"
+    respuesta = nucleo.get(f"{RUTA}/sesion", headers={"Authorization": "Bearer basura"})
+    assert respuesta.status_code == 401
+
+
+def test_un_cliente_inexistente_es_404_por_http(nucleo):
+    respuesta = nucleo.get(f"{RUTA}/clientes/CLI-2026-999999")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["title"] == "cliente_no_encontrado"

@@ -15,7 +15,9 @@ from app.modulos.identidad.dominio import credenciales
 from app.modulos.identidad.dominio.credenciales import ContrasenaDebilError
 from app.modulos.identidad.dominio.cuenta import DatosDeRegistro
 from app.modulos.identidad.dominio.errores import (
+    ClienteNoEncontradoError,
     CorreoYaRegistradoError,
+    CredencialesInvalidasError,
     DocumentoYaRegistradoError,
     OtpBloqueadoError,
     OtpInvalidoError,
@@ -23,8 +25,10 @@ from app.modulos.identidad.dominio.errores import (
     OtpVencidoError,
     RegistroNoEncontradoError,
     RegistroYaVerificadoError,
+    TokenRefrescoInvalidoError,
 )
 from app.modulos.identidad.dominio.modelo import EstadoIdentidad, TipoDocumento
+from app.modulos.identidad.dominio.sesion import SesionNoVigenteError
 from app.modulos.identidad.infraestructura.codigos_simulados import (
     CanalDeCodigosSimulado,
     enmascarar,
@@ -297,3 +301,90 @@ def test_el_canal_de_codigos_enmascara_el_correo_y_valida_el_codigo_fijo():
     assert CanalDeCodigosSimulado("123456").nuevo_codigo() == "123456"
     with pytest.raises(ValueError):
         CanalDeCodigosSimulado("12ab")
+
+
+# -- sesión (WEB-F13) -------------------------------------------------------------------
+
+
+def _cuenta_verificada(entorno):
+    registro, cuenta = entorno.servicio.registrar(DATOS, "movil")
+    entorno.servicio.verificar_correo(registro.id_registro, _codigo(entorno), "movil")
+    return cuenta
+
+
+def test_la_cuenta_de_la_app_entra_en_la_web_con_el_mismo_correo(entorno):
+    """Criterio 1: registrado en la app, entra a la web sin otro registro."""
+    cuenta = _cuenta_verificada(entorno)
+
+    sesion = entorno.servicio.iniciar_sesion(" ANA@ejemplo.co", CLAVE, "web")
+
+    reclamos = entorno.emisor.validar_acceso(sesion.acceso.token, INSTANTE)
+    assert (reclamos.id_cliente, reclamos.canal) == (cuenta.id_cliente, "web")
+    assert sesion.acceso.expira_en == INSTANTE + timedelta(minutes=60)
+
+
+def test_credenciales_invalidas_dan_el_mismo_error_exista_o_no_el_correo(entorno):
+    """Criterio 3: el mensaje no revela si el correo existe."""
+    _cuenta_verificada(entorno)
+
+    with pytest.raises(CredencialesInvalidasError) as clave_mala:
+        entorno.servicio.iniciar_sesion("ana@ejemplo.co", "OtraClave1", "web")
+    with pytest.raises(CredencialesInvalidasError) as correo_desconocido:
+        entorno.servicio.iniciar_sesion("nadie@ejemplo.co", CLAVE, "web")
+
+    assert clave_mala.value.mensaje == correo_desconocido.value.mensaje
+    assert clave_mala.value.detalles == correo_desconocido.value.detalles == {}
+
+
+def test_cada_ingreso_queda_auditado_sin_el_correo_desconocido(entorno):
+    cuenta = _cuenta_verificada(entorno)
+    entorno.servicio.iniciar_sesion("ana@ejemplo.co", CLAVE, "web")
+    with pytest.raises(CredencialesInvalidasError):
+        entorno.servicio.iniciar_sesion("nadie@ejemplo.co", CLAVE, "movil")
+
+    ingresos = [s for s in entorno.accesos.sucesos if s["suceso"] == "ingreso"]
+    assert [(s["id_cliente"], s["resultado"]["acierto"]) for s in ingresos] == [
+        (cuenta.id_cliente, True),
+        (None, False),
+    ]
+    assert "nadie@ejemplo.co" not in str(ingresos)
+
+
+def test_renovar_entrega_un_refresco_nuevo_y_el_anterior_deja_de_servir(entorno):
+    _cuenta_verificada(entorno)
+    primera = entorno.servicio.iniciar_sesion("ana@ejemplo.co", CLAVE, "movil")
+
+    renovada = entorno.servicio.renovar_sesion(primera.refresco)
+
+    assert renovada.refresco != primera.refresco
+    assert entorno.emisor.validar_acceso(renovada.acceso.token, INSTANTE).canal == "movil"
+    with pytest.raises(TokenRefrescoInvalidoError):
+        entorno.servicio.renovar_sesion(primera.refresco)
+
+
+def test_un_refresco_vencido_o_inventado_no_renueva(entorno):
+    _cuenta_verificada(entorno)
+    sesion = entorno.servicio.iniciar_sesion("ana@ejemplo.co", CLAVE, "movil")
+    entorno.reloj.avanzar(timedelta(days=30).total_seconds())
+
+    with pytest.raises(TokenRefrescoInvalidoError):
+        entorno.servicio.renovar_sesion(sesion.refresco)
+    with pytest.raises(TokenRefrescoInvalidoError):
+        entorno.servicio.renovar_sesion("inventado")
+
+
+def test_el_cliente_de_un_token_vigente(entorno):
+    cuenta = _cuenta_verificada(entorno)
+    sesion = entorno.servicio.iniciar_sesion("ana@ejemplo.co", CLAVE, "web")
+
+    assert entorno.servicio.cliente_de_sesion(sesion.acceso.token) == entorno.servicio.cliente(
+        cuenta.id_cliente
+    )
+    entorno.reloj.avanzar(timedelta(minutes=61).total_seconds())
+    with pytest.raises(SesionNoVigenteError):
+        entorno.servicio.cliente_de_sesion(sesion.acceso.token)
+
+
+def test_un_cliente_inexistente_es_404(entorno):
+    with pytest.raises(ClienteNoEncontradoError):
+        entorno.servicio.cliente("CLI-2026-999999")

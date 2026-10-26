@@ -163,3 +163,12 @@ def a_sesion_dto(sesion: SesionAbierta) -> SesionDto:
         expira_en=sesion.acceso.expira_en,
         cliente=a_cliente_dto(sesion.cuenta, sesion.estado_identidad),
     )
+
+
+class SolicitudSesionDto(_Dto):
+    correo: str = Field(min_length=1, max_length=254)
+    contrasena: str = Field(min_length=1, max_length=128, repr=False)
+
+
+class SolicitudRenovacionDto(_Dto):
+    token_refresco: str = Field(min_length=1, max_length=256, repr=False)
