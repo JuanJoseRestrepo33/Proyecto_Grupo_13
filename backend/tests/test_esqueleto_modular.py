@@ -79,6 +79,7 @@ def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
         "identidad",
         "perfilamiento",
         "polizas",
+        "siniestros",
     ]
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["consentimiento"]["historia"] == "WEB-F02"
