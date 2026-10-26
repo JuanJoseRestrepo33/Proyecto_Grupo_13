@@ -14,8 +14,13 @@ from app.compartido.reloj import Reloj
 
 from ..dominio import catalogo
 from ..dominio.catalogo import CodigoFinalidad, Finalidad
-from ..dominio.errores import ConsentimientoYaVigenteError, VersionDeTextoDesactualizadaError
+from ..dominio.errores import (
+    CanalInvalidoError,
+    ConsentimientoYaVigenteError,
+    VersionDeTextoDesactualizadaError,
+)
 from ..dominio.modelo import (
+    CANALES_DEL_CLIENTE,
     Consentimiento,
     EstadoDeConsentimiento,
     EventoConsentimiento,
@@ -36,6 +41,12 @@ _NOMBRE_POR_TIPO = {
     TipoEvento.RENOVADO: EVENTO_RENOVADO,
     TipoEvento.VENCIDO: EVENTO_VENCIDO,
 }
+
+
+def _exigir_canal_del_cliente(canal: str) -> None:
+    """Otorgar, revocar y renovar los hace el cliente desde la web o la app, nunca otro."""
+    if canal not in CANALES_DEL_CLIENTE:
+        raise CanalInvalidoError("El cambio debe llegar por la web o por la app", canal=canal)
 
 
 class ServicioDeConsentimiento:
@@ -115,6 +126,7 @@ class ServicioDeConsentimiento:
         version_texto: str,
         canal: str,
     ) -> Consentimiento:
+        _exigir_canal_del_cliente(canal)
         definicion = catalogo.finalidad(finalidad)
         entidades = catalogo.validar_entidades(entidades_origen)
         if version_texto != definicion.version_texto:
@@ -138,12 +150,14 @@ class ServicioDeConsentimiento:
             return self._guardar_y_propagar(consentimiento)
 
     def revocar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
+        _exigir_canal_del_cliente(canal)
         with self._cerrojo(id_cliente):
             actual = self.obtener(id_cliente, id_consentimiento)
             revocado = actual.revocar(self._reloj.ahora(), canal)
             return self._guardar_y_propagar(revocado, desde=len(actual.eventos))
 
     def renovar(self, id_cliente: str, id_consentimiento: str, canal: str) -> Consentimiento:
+        _exigir_canal_del_cliente(canal)
         with self._cerrojo(id_cliente):
             actual = self.obtener(id_cliente, id_consentimiento)
             ahora = self._reloj.ahora()
