@@ -5,6 +5,20 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
+## [0.3.0] · 2026-10-26 · WEB-F05
+
+### Agregado
+
+- `GET /polizas`: pólizas del cliente con su vigencia y estado, para elegir la afectada en el
+  reporte. WEB-F04 amplía esta misma respuesta con coberturas, deducibles y documento.
+- `GET /siniestros`, `POST /siniestros` y `GET /siniestros/{id}`: reportar y consultar
+  siniestros. El reporte exige `Idempotency-Key` (UUID): la misma clave responde 200 con el mismo
+  siniestro. Errores: 404 `poliza_no_encontrada`; 409 `evento_fuera_de_vigencia` (con
+  `vigente_desde` y `vigente_hasta`) y `clave_idempotencia_en_uso`; 422 `fecha_futura` y
+  `clave_idempotencia_invalida`.
+- Esquemas `PolizaResumen`, `EstadoPoliza`, `TipoEventoSiniestro`, `EstadoSiniestro`,
+  `SiguientePaso`, `SolicitudSiniestro`, `Siniestro` y `ErrorVigencia`. El esquema `Dinero` es el mismo del contrato web.
+
 ## [0.2.0] · 2026-10-26 · MOB-F02 y WEB-F13
 
 ### Agregado

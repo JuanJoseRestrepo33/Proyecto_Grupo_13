@@ -37,6 +37,16 @@ WEB-F03.
 |---|---|---|
 | `/sesion` | Iniciar sesión con correo y contraseña (cookie `sesion`) y cerrarla | WEB-F13 |
 
+## Siniestros (WEB-F05)
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/polizas` | Pólizas del cliente con vigencia y estado, para elegir la afectada | WEB-F05 |
+| `/siniestros` | Listar y reportar, con `Idempotency-Key`: la misma clave devuelve el mismo siniestro | WEB-F05 |
+| `/siniestros/{id}` | Detalle con estado y siguiente paso | WEB-F05 |
+
+El reporte es el mismo en los dos canales: mismas rutas, misma referencia y mismos códigos.
+
 ## Historial
 
 Cada versión del contrato, con su historia y sus cambios incompatibles: [`CHANGELOG.md`](CHANGELOG.md).

@@ -295,6 +295,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/polizas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pólizas del cliente, para elegir la afectada en el reporte de siniestro
+         * @description Resumen de cada póliza con su vigencia y estado. La consulta completa, con coberturas,
+         *     deducibles y documento, llega con WEB-F04 y amplía esta misma respuesta.
+         */
+        get: operations["listarPolizas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Siniestros del cliente, reportados desde cualquier canal */
+        get: operations["listarSiniestros"];
+        put?: never;
+        /**
+         * Reporta un siniestro sobre una póliza del cliente
+         * @description El siniestro queda `reportado`, con un número de referencia y el siguiente paso del caso,
+         *     y se ve igual desde la web y desde la app (WEB-F05, criterio 1).
+         *
+         *     Cada envío del asistente lleva su `Idempotency-Key`, generada por el cliente. Repetirlo con
+         *     la **misma** clave (doble clic, reintento por red lenta) responde 200 con el mismo
+         *     siniestro y la misma referencia: no se crea otro (criterio 4, P10, P18).
+         *
+         *     Una póliza vencida admite el reporte si el evento ocurrió dentro de su vigencia; si no,
+         *     responde 409 `evento_fuera_de_vigencia` con las fechas de la póliza y no queda registro
+         *     (criterio 3).
+         */
+        post: operations["reportarSiniestro"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detalle de un siniestro */
+        get: operations["obtenerSiniestro"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -522,6 +590,81 @@ export interface components {
             /** @description `true` si esta respuesta repite un pago ya procesado con la misma clave */
             reintento: boolean;
         };
+        /** @enum {string} */
+        EstadoPoliza: "vigente" | "vencida" | "por_iniciar";
+        PolizaResumen: {
+            /** @example POL-2026-000101 */
+            numero: string;
+            /** @example auto */
+            producto: string;
+            /**
+             * Format: date
+             * @description Primer día de cobertura
+             */
+            inicio: string;
+            /**
+             * Format: date
+             * @description Último día de cobertura, incluido
+             */
+            fin: string;
+            estado: components["schemas"]["EstadoPoliza"];
+        };
+        /** @enum {string} */
+        TipoEventoSiniestro: "accidente_vehiculo" | "hurto" | "dano_hogar" | "retraso_vuelo" | "equipo_danado_o_perdido" | "cancelacion_viaje" | "otro";
+        /**
+         * @description En el Sprint 2 todo siniestro está `reportado`; el seguimiento llega con WEB-F06.
+         * @enum {string}
+         */
+        EstadoSiniestro: "reportado" | "en_evaluacion" | "requiere_informacion" | "aprobado" | "rechazado" | "pagado";
+        /**
+         * @description Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+         * @enum {string}
+         */
+        SiguientePaso: "adjuntar_evidencia" | "esperar_evaluacion";
+        SolicitudSiniestro: {
+            numero_poliza: string;
+            tipo_evento: components["schemas"]["TipoEventoSiniestro"];
+            /**
+             * Format: date
+             * @description Día del evento; no puede ser futuro
+             */
+            ocurrido_el: string;
+            descripcion: string;
+            /** @description Opcional; lo que el cliente estima que costó */
+            monto_estimado?: components["schemas"]["Dinero"] | null;
+        };
+        Siniestro: {
+            id: string;
+            /**
+             * @description Número que ve el cliente, el mismo en los dos canales
+             * @example SIN-2026-000123
+             */
+            referencia: string;
+            numero_poliza: string;
+            tipo_evento: components["schemas"]["TipoEventoSiniestro"];
+            /** Format: date */
+            ocurrido_el: string;
+            descripcion: string;
+            monto_estimado: components["schemas"]["Dinero"] | null;
+            estado: components["schemas"]["EstadoSiniestro"];
+            siguiente_paso: components["schemas"]["SiguientePaso"];
+            /** @enum {string} */
+            canal: "web" | "movil";
+            /** Format: date-time */
+            reportado_en: string;
+        };
+        ErrorVigencia: components["schemas"]["Error"] & {
+            /**
+             * Format: date
+             * @description Solo con `evento_fuera_de_vigencia`
+             */
+            vigente_desde?: string;
+            /**
+             * Format: date
+             * @description Solo con `evento_fuera_de_vigencia`
+             */
+            vigente_hasta?: string;
+        };
     };
     responses: {
         /**
@@ -565,6 +708,7 @@ export interface components {
         };
     };
     parameters: {
+        IdSiniestro: string;
         IdConsentimiento: string;
         IdSuscripcion: string;
     };
@@ -1029,6 +1173,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Pago"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    listarPolizas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pólizas del cliente, de la más reciente a la más antigua */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolizaResumen"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+        };
+    };
+    listarSiniestros: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Siniestros del cliente, del más reciente al más antiguo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+        };
+    };
+    reportarSiniestro: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Identificador único del envío del reporte (UUID v4) */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSiniestro"];
+            };
+        };
+        responses: {
+            /** @description Reintento de un reporte ya hecho con la misma clave; no se creó otro */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"];
+                };
+            };
+            /** @description Siniestro reportado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            /** @description La póliza no existe o no es del cliente (`poliza_no_encontrada`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description `evento_fuera_de_vigencia` (trae `vigente_desde` y `vigente_hasta`) o
+             *     `clave_idempotencia_en_uso` (la clave ya se usó para un reporte con otros datos).
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorVigencia"];
+                };
+            };
+            /**
+             * @description Datos inválidos, `fecha_futura` sobre `ocurrido_el` o `clave_idempotencia_invalida`
+             *     (falta la clave o no es un UUID). Un error por campo en `campos`.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerSiniestro: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Siniestro con su estado y siguiente paso */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"];
                 };
             };
             401: components["responses"]["NoAutenticado"];
