@@ -242,3 +242,17 @@ def test_el_nucleo_caido_es_503_para_la_web(web, nucleo):
 
     assert respuesta.status_code == 503
     assert respuesta.json()["codigo"] == "dependencia_no_disponible"
+
+
+@pytest.mark.parametrize("identificador", ["QT..2026", "QT.2026", "QT 2026", "a" * 129])
+def test_un_identificador_que_no_es_un_segmento_seguro_no_llega_al_nucleo(
+    web, nucleo, identificador
+):
+    """Un `..` no puede llevar la solicitud a otra ruta del núcleo."""
+    for respuesta in (
+        web.get(f"{RUTA}/{identificador}"),
+        web.post(f"{RUTA}/{identificador}/recotizacion"),
+    ):
+        assert respuesta.status_code == 404
+        assert respuesta.json()["codigo"] == "cotizacion_no_encontrada"
+    assert _al_nucleo(nucleo) == []
