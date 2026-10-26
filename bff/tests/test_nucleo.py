@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from app.comun.errores import ErrorBff, manejar_error_bff, manejar_validacion
-from app.comun.nucleo import ClienteNucleo
+from app.comun.nucleo import ClienteNucleo, segmento
 
 from .conftest import NucleoFalso, problema
 
@@ -230,3 +230,16 @@ def test_el_nucleo_falso_responde_404_a_lo_no_programado():
     falso = NucleoFalso()
 
     assert falso(httpx.Request("GET", "http://nucleo.prueba/v1/nada")).status_code == 404
+
+
+@pytest.mark.parametrize("valor", ["QT-2026-08831", "CONSENT-1f2e", "EVI_abc"])
+def test_un_identificador_seguro_pasa_tal_cual(valor):
+    assert segmento(valor, "x_no_encontrado") == valor
+
+
+@pytest.mark.parametrize("valor", ["..", ".", "a/b", "a%2Fb", "", "a b", "ñ"])
+def test_un_identificador_inseguro_es_el_404_del_contrato(valor):
+    with pytest.raises(ErrorBff) as error:
+        segmento(valor, "x_no_encontrado")
+
+    assert (error.value.estado, error.value.codigo) == (404, "x_no_encontrado")

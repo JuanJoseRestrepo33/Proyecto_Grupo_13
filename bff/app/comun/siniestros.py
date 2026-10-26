@@ -15,7 +15,7 @@ from fastapi import status
 from pydantic import BaseModel, Field
 
 from .errores import ErrorBff
-from .nucleo import ClienteNucleo
+from .nucleo import ClienteNucleo, segmento
 
 RUTA_NUCLEO = "/v1/siniestros"
 RUTA_POLIZAS = "/v1/polizas"
@@ -90,6 +90,11 @@ def _ruta_cliente(id_cliente: str) -> str:
     return f"{RUTA_NUCLEO}/clientes/{id_cliente}/siniestros"
 
 
+def ruta_siniestro(id_cliente: str, id_siniestro: str) -> str:
+    """La ruta de un siniestro en el núcleo; el identificador llega del canal y se valida."""
+    return f"{_ruta_cliente(id_cliente)}/{segmento(id_siniestro, NO_ENCONTRADO)}"
+
+
 def polizas(nucleo: ClienteNucleo, id_cliente: str) -> list[dict[str, object]]:
     """Las pólizas del cliente, para elegir la afectada en el asistente."""
     return [a_poliza(p) for p in nucleo.get(f"{RUTA_POLIZAS}/clientes/{id_cliente}/polizas")]
@@ -100,9 +105,7 @@ def listar(nucleo: ClienteNucleo, id_cliente: str) -> list[dict[str, object]]:
 
 
 def obtener(nucleo: ClienteNucleo, id_cliente: str, id_siniestro: str) -> dict[str, object]:
-    siniestro = nucleo.get(
-        f"{_ruta_cliente(id_cliente)}/{id_siniestro}", si_no_existe=NO_ENCONTRADO
-    )
+    siniestro = nucleo.get(ruta_siniestro(id_cliente, id_siniestro), si_no_existe=NO_ENCONTRADO)
     return a_siniestro(siniestro)
 
 

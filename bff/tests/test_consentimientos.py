@@ -206,3 +206,12 @@ def test_el_historico_de_uno_inexistente_es_404(con_sesion, canal):
     respuesta = con_sesion.get(f"{canal.prefijo}/consentimientos/CONSENT-OTRO/eventos")
 
     assert respuesta.json()["codigo"] == "consentimiento_no_encontrado"
+
+
+@pytest.mark.parametrize("accion", ["revocacion", "renovacion"])
+def test_un_identificador_inseguro_es_404_sin_tocar_el_nucleo(con_sesion, nucleo, canal, accion):
+    respuesta = con_sesion.post(f"{canal.prefijo}/consentimientos/CONSENT..1/{accion}")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "consentimiento_no_encontrado"
+    assert _al_nucleo(nucleo) == []

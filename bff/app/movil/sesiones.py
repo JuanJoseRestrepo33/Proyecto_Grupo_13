@@ -13,6 +13,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from app.comun.errores import ErrorBff
+from app.comun.nucleo import segmento
 from app.comun.sesion import sesion_no_vigente
 
 from .dependencias import CANAL, DESAFIO, ClienteMovil, Nucleo
@@ -20,6 +21,7 @@ from .dependencias import CANAL, DESAFIO, ClienteMovil, Nucleo
 router = APIRouter()
 
 RUTA_NUCLEO = "/v1/identidad"
+REGISTRO_NO_ENCONTRADO = "registro_no_encontrado"
 _CORREO = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
@@ -104,6 +106,7 @@ def registrar(solicitud: SolicitudRegistro, nucleo: Nucleo) -> dict[str, object]
 )
 def verificar_otp(id_registro: str, solicitud: SolicitudOtp, nucleo: Nucleo) -> dict[str, object]:
     """422 `otp_invalido` trae `intentos_restantes`, como pide `ErrorOtp`."""
+    id_registro = segmento(id_registro, REGISTRO_NO_ENCONTRADO)
     try:
         sesion = nucleo.post(
             f"{RUTA_NUCLEO}/registros/{id_registro}/otp/verificacion",
@@ -125,6 +128,7 @@ def verificar_otp(id_registro: str, solicitud: SolicitudOtp, nucleo: Nucleo) -> 
 )
 def reenviar_otp(id_registro: str, nucleo: Nucleo) -> dict[str, object]:
     """429 `otp_reenvio_prematuro` con `Retry-After`, que llega del núcleo tal cual."""
+    id_registro = segmento(id_registro, REGISTRO_NO_ENCONTRADO)
     return a_otp(nucleo.post(f"{RUTA_NUCLEO}/registros/{id_registro}/otp/reenvio"))
 
 
