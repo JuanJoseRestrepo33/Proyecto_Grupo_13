@@ -13,6 +13,7 @@ import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import co.solventa.core.designsystem.SolventaTheme
@@ -79,6 +80,7 @@ class SolventaAppTest {
         val dependencias = DependenciasConsentimiento(api)
         compose.setContent { SolventaTheme { SolventaApp(dependenciasConsentimiento = dependencias) } }
         compose.onNode(tab("Perfil")).performClick()
+        compose.onNodeWithText("Esta sección estará disponible próximamente.").assertDoesNotExist()
         compose.onNodeWithTag("ir-consentimiento").assertHeightIsAtLeast(48.dp).performClick()
 
         compose.onNodeWithTag("pantalla-consentimiento").assertIsDisplayed()

@@ -124,6 +124,7 @@ private fun PlaceholderScreen(
                 modifier = Modifier.testTag("aviso-identidad"),
             )
         }
+        // Con contenido real, el aviso de "próximamente" parecería referirse a él.
         if (onConsentimiento != null) {
             OutlinedButton(
                 onClick = onConsentimiento,
@@ -134,7 +135,8 @@ private fun PlaceholderScreen(
             ) {
                 Text(stringResource(R.string.perfil_consentimiento))
             }
+        } else {
+            Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
         }
-        Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
     }
 }
