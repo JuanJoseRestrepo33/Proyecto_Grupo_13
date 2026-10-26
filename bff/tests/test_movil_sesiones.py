@@ -230,3 +230,12 @@ def test_un_error_del_nucleo_en_la_sesion_de_la_app_no_se_disfraza(cliente, nucl
     respuesta = cliente.get(f"{RUTA}/sesion", headers={"Authorization": f"Bearer {token}"})
 
     assert respuesta.status_code == 503
+
+
+@pytest.mark.parametrize("sufijo", ["otp/verificacion", "otp/reenvio"])
+def test_un_registro_con_forma_insegura_es_404_sin_tocar_el_nucleo(cliente, nucleo, sufijo):
+    respuesta = cliente.post(f"{RUTA}/registros/REG..1/{sufijo}", json={"codigo": "123456"})
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "registro_no_encontrado"
+    assert [s for s in nucleo.solicitudes if s.url.path != "/salud"] == []
