@@ -5,9 +5,11 @@ import type {
   EventoConsentimiento,
   MedioPago,
   Pago,
+  Sesion,
   SolicitudCotizacion,
   Suscripcion,
 } from '../api/tipos'
+import { SESION } from './datos'
 
 /** Lo que se guarda; `por_vencer` y `dias_para_vencer` se calculan al responder. */
 export type ConsentimientoGuardado = Omit<Consentimiento, 'por_vencer' | 'dias_para_vencer'>
@@ -22,6 +24,8 @@ export interface IntentoPago {
 }
 
 interface EstadoMocks {
+  /** Cliente de la cookie `sesion`; `null` sin sesión vigente. */
+  sesion: Sesion | null
   consentimientos: ConsentimientoGuardado[]
   eventos: Map<string, EventoConsentimiento[]>
   /** Se guarda la solicitud para poder recotizar con los mismos datos. */
@@ -36,6 +40,7 @@ interface EstadoMocks {
 
 function nuevo(): EstadoMocks {
   return {
+    sesion: SESION,
     consentimientos: [],
     eventos: new Map(),
     cotizaciones: new Map(),
@@ -49,7 +54,7 @@ function nuevo(): EstadoMocks {
 
 export const estado: EstadoMocks = nuevo()
 
-/** Vuelve al estado inicial: cliente sin consentimientos, cotizaciones ni suscripciones. */
+/** Vuelve al estado inicial: cliente con sesión, sin consentimientos, cotizaciones ni suscripciones. */
 export function reiniciarEstado(): void {
   Object.assign(estado, nuevo())
 }

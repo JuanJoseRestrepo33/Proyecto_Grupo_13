@@ -40,6 +40,8 @@ npm run dev          # http://localhost:5173, con el BFF simulado (VITE_MOCKS=tr
 
 Variables de entorno: ver [`.env.example`](.env.example).
 
+Contra el BFF real: con el núcleo y el BFF corriendo en local (ver [`bff/README.md`](../../bff/README.md)), `VITE_MOCKS=false npm run dev`. El servidor de desarrollo reenvía `/api` al BFF (`BFF_URL`, por defecto `http://127.0.0.1:8001`), igual que nginx en *staging*. Para tener cuenta con qué entrar, el núcleo crea una al arrancar con `HUMO_CORREO` y `HUMO_CLAVE`.
+
 ## Estructura
 
 ```
@@ -49,7 +51,8 @@ src/
 │   ├── tipos.ts          # Alias legibles de los esquemas
 │   └── cliente.ts        # Cliente tipado del BFF (bff.GET / bff.POST)
 ├── mocks/                # BFF simulado con MSW, con estado en memoria
-├── componentes/          # Componentes reutilizables (Plantilla: encabezado, navegación, idioma)
+├── sesion/               # Sesión del cliente: proveedor, useSesion y rutas protegidas (WEB-F13)
+├── componentes/          # Componentes reutilizables (Plantilla: encabezado, navegación, idioma, cuenta)
 ├── paginas/              # Una por ruta
 ├── i18n/                 # es.json, en.json y configuración
 ├── estilos/              # tokens.css y global.css
@@ -66,3 +69,9 @@ src/
 
 Los mocks reproducen el guion del Sprint 1: sin consentimiento la cotización es de tarifa estándar,
 al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar.
+
+## Sesión (WEB-F13)
+
+Todas las pantallas, salvo el inicio de sesión (`/ingresar`) y la de página no encontrada, exigen sesión. Sin ella, la web lleva al inicio de sesión y, al entrar, vuelve a la página pedida. Si cualquier llamada al BFF responde 401 `sesion_no_vigente` (la sesión dura 60 minutos y no se renueva), la web pide iniciar sesión de nuevo. La web nunca ve el token: la cookie `sesion` es `HttpOnly` y la maneja el navegador.
+
+Los mocks arrancan con la sesión abierta. Después de cerrarla se entra con la cuenta de prueba `ana@solventa.test` / `Solventa-2026` (`CREDENCIALES_PRUEBA` en `src/mocks/datos.ts`); cualquier otra combinación responde 401 `credenciales_invalidas`, igual exista o no el correo.

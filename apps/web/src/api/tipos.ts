@@ -4,6 +4,7 @@ import type { components } from './esquema'
 type Esquemas = components['schemas']
 
 export type Sesion = Esquemas['Sesion']
+export type Credenciales = Esquemas['Credenciales']
 export type Finalidad = Esquemas['Finalidad']
 export type CodigoFinalidad = Esquemas['CodigoFinalidad']
 export type Entidad = Esquemas['Entidad']

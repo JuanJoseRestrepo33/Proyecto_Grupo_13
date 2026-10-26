@@ -1,0 +1,49 @@
+.contenedor {
+  display: grid;
+  gap: var(--space-md);
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.descripcion {
+  margin: 0;
+  color: var(--neutral-700);
+}
+
+.tarjeta {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  background: var(--neutral-0);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.campo {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.campo label {
+  font-weight: 600;
+}
+
+.campo input {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--neutral-500);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.campo input[aria-invalid='true'] {
+  border-color: var(--error-600);
+}
+
+.error {
+  margin: 0;
+  color: var(--error-600);
+  font-size: 14px;
+  font-weight: 600;
+}

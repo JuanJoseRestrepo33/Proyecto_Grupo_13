@@ -87,6 +87,23 @@
   color: var(--neutral-0);
 }
 
+.cuenta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--neutral-700);
+  font-weight: 600;
+}
+
+.errorCuenta {
+  flex-basis: 100%;
+  margin: 0 0 var(--space-sm);
+  color: var(--error-600);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
 .contenido {
   max-width: 1120px;
   margin: 0 auto;
