@@ -13,6 +13,7 @@ from fastapi import Depends, Request
 from app.comun.nucleo import ClienteNucleo, obtener_nucleo
 from app.comun.sesion import ClienteAutenticado, autenticar
 
+PREFIJO = "/api/v1/web"
 CANAL = "web"
 COOKIE_SESION = "sesion"
 
