@@ -3,6 +3,7 @@
     ProveedorKYC               → adaptador del proveedor de KYC/AML (ARQ-02). Simulado hoy
     RepositorioVerificaciones  → persistencia del propio módulo
     RegistroDeAuditoria        → módulo de auditoría (ARQ-03), por su interfaz pública
+    EmisorDeTokens             → firma y validación de los tokens de acceso (ES256, WEB-F13)
 
 El núcleo solo conoce `ProveedorKYC`; ninguna referencia a un proveedor concreto sale de
 `infraestructura/` (ARQ-02, criterio 1).
@@ -10,9 +11,11 @@ El núcleo solo conoce `ProveedorKYC`; ninguna referencia a un proveedor concret
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from .modelo import DatosDeIdentidad, ResultadoKYC, VerificacionIdentidad
+from .sesion import ReclamosDeAcceso, TokenEmitido
 
 
 class ProveedorKYC(Protocol):
@@ -40,4 +43,15 @@ class RepositorioVerificaciones(Protocol):
 class RegistroDeAuditoria(Protocol):
     def registrar(self, verificacion: VerificacionIdentidad, suceso: str) -> str:
         """Deja el intento en el log con resultado, proveedor, canal y marca de tiempo."""
+        raise NotImplementedError
+
+
+class EmisorDeTokens(Protocol):
+    def emitir_acceso(
+        self, id_cliente: str, canal: str, ahora: datetime, vigencia: timedelta
+    ) -> TokenEmitido:
+        raise NotImplementedError
+
+    def validar_acceso(self, token: str, ahora: datetime) -> ReclamosDeAcceso:
+        """Los reclamos de un token vigente; si no lo es, `SesionNoVigenteError`."""
         raise NotImplementedError

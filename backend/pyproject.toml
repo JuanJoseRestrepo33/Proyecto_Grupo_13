@@ -7,6 +7,8 @@ dependencies = [
     "fastapi>=0.115",
     "psycopg[binary]>=3.2",
     "pydantic>=2.9",
+    # Tokens de sesión firmados con ES256 (WEB-F13); [crypto] trae cryptography.
+    "pyjwt[crypto]>=2.9",
     "uvicorn[standard]>=0.32",
 ]
 
