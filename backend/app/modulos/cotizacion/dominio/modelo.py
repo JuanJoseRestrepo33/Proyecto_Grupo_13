@@ -153,6 +153,8 @@ class Cotizacion:
     motivo_tarifa: MotivoTarifa | None = None
     usar_open_finance: bool = True
     canal: str = CANAL_API
+    #: Huella de la solicitud que la originó; la tienen solo las de un cliente identificado.
+    huella: str | None = None
 
     @property
     def expira_en(self) -> datetime:

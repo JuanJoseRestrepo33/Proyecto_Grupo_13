@@ -7,6 +7,7 @@ cotización y con la revocación del consentimiento.
 
 from __future__ import annotations
 
+import itertools
 import time
 
 import pytest
@@ -298,12 +299,16 @@ def test_cotizacion_tarifa_con_el_perfil_real_y_degrada_a_cache_y_a_estandar(nuc
         },
     ).json()["id"]
 
+    # Cada llamada cambia la edad: la misma solicitud, con la oferta vigente, devolvería la
+    # misma cotización (WEB-F01, criterio 4) y no volvería a pasar por el proveedor.
+    edades = itertools.count(30)
+
     def cotizar() -> str:
         respuesta = nucleo.post(
             "/v1/cotizacion/cotizaciones",
             json={
                 "producto": "auto",
-                "asegurado": {"edad": 34, "ciudad": "Bogotá"},
+                "asegurado": {"edad": next(edades), "ciudad": "Bogotá"},
                 "id_cliente": CLIENTE,
             },
         )

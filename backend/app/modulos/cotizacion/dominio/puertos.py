@@ -85,6 +85,12 @@ class RepositorioCotizaciones(Protocol):
     def obtener(self, id_cotizacion: str) -> Cotizacion | None:
         pass
 
+    def vigente_por_huella(
+        self, id_cliente: str, huella: str, ahora: datetime
+    ) -> Cotizacion | None:
+        """La cotización del cliente con esa huella que siga vigente en `ahora`, si la hay."""
+        raise NotImplementedError
+
     def siguiente_id(self, anio: int) -> str:
         """Identificador legible por humanos, con el formato QT-AAAA-NNNNN."""
         raise NotImplementedError

@@ -10,6 +10,9 @@ produciendo una consulta de datos financieros, que es justo lo que RC-04 prohíb
 
 from __future__ import annotations
 
+import hashlib
+import json
+import threading
 from dataclasses import dataclass
 
 from app.compartido.errores import RecursoNoEncontrado
@@ -27,6 +30,7 @@ from app.modulos.cotizacion.dominio.modelo import (
 from app.modulos.cotizacion.dominio.puertos import (
     ConsultaConsentimiento,
     ConsultaPerfilDeRiesgo,
+    EstadoConsentimiento,
     RegistroDeDecisiones,
     RepositorioCotizaciones,
 )
@@ -34,6 +38,10 @@ from app.modulos.cotizacion.dominio.puertos import (
 #: Finalidad declarada al cliente al pedirle el consentimiento. Tiene que coincidir con
 #: la que registra WEB-F02: un consentimiento vale para la finalidad que autoriza.
 FINALIDAD = "cotizacion"
+
+#: Cerrojos que serializan solicitudes con la misma huella. Son un número fijo, repartidos
+#: por huella, para que la memoria no crezca con cada solicitud distinta.
+_CERROJOS = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +55,26 @@ class SolicitudDeCotizacion:
     id_cliente: str | None = None
     usar_open_finance: bool = True
     canal: str = CANAL_API
+
+
+def huella_de_solicitud(solicitud: SolicitudDeCotizacion, id_consentimiento: str | None) -> str:
+    """Qué hace que dos solicitudes sean "la misma" (WEB-F01, criterio 4).
+
+    Entra el consentimiento con que se tarifaría: si el cliente lo revoca o lo otorga entre
+    una solicitud y otra, ya no es la misma y la siguiente cotización refleja el cambio
+    (RC-04). El canal no entra: la misma solicitud desde la web o desde la app es la misma.
+    """
+    datos = {
+        "id_cliente": solicitud.id_cliente,
+        "producto": str(solicitud.producto),
+        "edad": solicitud.asegurado.edad,
+        "ciudad": solicitud.asegurado.ciudad.strip().casefold(),
+        "valor_asegurado": solicitud.asegurado.valor_asegurado,
+        "usar_open_finance": solicitud.usar_open_finance,
+        "id_consentimiento": id_consentimiento,
+    }
+    canonico = json.dumps(datos, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonico.encode()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,12 +101,30 @@ class ServicioDeCotizacion:
         self._perfilamiento = perfilamiento
         self._auditoria = auditoria
         self._reloj = reloj
+        self._cerrojos = tuple(threading.Lock() for _ in range(_CERROJOS))
 
     # -- casos de uso ------------------------------------------------------
 
     def cotizar(self, solicitud: SolicitudDeCotizacion) -> Cotizacion:
-        """Crea una cotización nueva con su oferta."""
-        return self._crear(solicitud, id_origen=None)
+        """Crea una cotización nueva con su oferta.
+
+        Para un cliente identificado es idempotente: la misma solicitud, mientras su oferta
+        siga vigente, devuelve la misma cotización sin tarifar ni auditar otra vez. Un doble
+        clic o un reintento por la red no deja dos ofertas distintas.
+        """
+        consentimiento = self._consultar_consentimiento(solicitud)
+        if solicitud.id_cliente is None:
+            return self._crear(solicitud, consentimiento, id_origen=None)
+
+        id_consentimiento = consentimiento.id_consentimiento if consentimiento else None
+        huella = huella_de_solicitud(solicitud, id_consentimiento)
+        with self._cerrojos[int(huella[:8], 16) % _CERROJOS]:
+            existente = self._repositorio.vigente_por_huella(
+                solicitud.id_cliente, huella, self._reloj.ahora()
+            )
+            if existente is not None:
+                return existente
+            return self._crear(solicitud, consentimiento, id_origen=None, huella=huella)
 
     def obtener(self, id_cotizacion: str) -> Cotizacion:
         """Devuelve la cotización. No falla si venció: el estado lo dice el recurso."""
@@ -104,14 +150,21 @@ class ServicioDeCotizacion:
             usar_open_finance=anterior.usar_open_finance,
             canal=anterior.canal,
         )
-        return self._crear(solicitud, id_origen=anterior.id_cotizacion)
+        consentimiento = self._consultar_consentimiento(solicitud)
+        return self._crear(solicitud, consentimiento, id_origen=anterior.id_cotizacion)
 
     # -- interno -----------------------------------------------------------
 
-    def _crear(self, solicitud: SolicitudDeCotizacion, id_origen: str | None) -> Cotizacion:
+    def _crear(
+        self,
+        solicitud: SolicitudDeCotizacion,
+        consentimiento: EstadoConsentimiento | None,
+        id_origen: str | None,
+        huella: str | None = None,
+    ) -> Cotizacion:
         ahora = self._reloj.ahora()
         producto = catalogo.obtener(solicitud.producto)
-        resuelta = self._resolver_base(solicitud)
+        resuelta = self._resolver_base(solicitud, consentimiento)
 
         resultado = tarificador.tarificar(
             producto, solicitud.asegurado, resuelta.base, resuelta.perfil
@@ -131,6 +184,7 @@ class ServicioDeCotizacion:
             motivo_tarifa=resuelta.motivo,
             usar_open_finance=solicitud.usar_open_finance,
             canal=solicitud.canal,
+            huella=huella,
         )
         self._repositorio.guardar(cotizacion)
 
@@ -152,23 +206,39 @@ class ServicioDeCotizacion:
         )
         return cotizacion
 
-    def _resolver_base(self, solicitud: SolicitudDeCotizacion) -> _Base:
+    def _consultar_consentimiento(
+        self, solicitud: SolicitudDeCotizacion
+    ) -> EstadoConsentimiento | None:
+        """El consentimiento del cliente, o None si no corresponde preguntar.
+
+        No se pregunta por un cliente anónimo ni por uno que pidió cotizar sin sus datos.
+        """
+        if not solicitud.usar_open_finance or solicitud.id_cliente is None:
+            return None
+        return self._consentimiento.consentimiento_vigente(solicitud.id_cliente, FINALIDAD)
+
+    def _resolver_base(
+        self, solicitud: SolicitudDeCotizacion, consentimiento: EstadoConsentimiento | None
+    ) -> _Base:
         """Decide con qué información se tarifa.
 
         Un cliente anónimo cotiza a precio estándar: sin identidad no hay consentimiento
         que verificar, y sin consentimiento verificado no se tocan datos financieros. Si el
-        cliente pidió no usar sus datos, tampoco se consulta su consentimiento.
+        cliente pidió no usar sus datos, tampoco se consultó su consentimiento.
         """
         if not solicitud.usar_open_finance:
             return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.OPEN_FINANCE_DESACTIVADO)
-        if solicitud.id_cliente is None:
+        if (
+            solicitud.id_cliente is None
+            or consentimiento is None
+            or not consentimiento.vigente
+            or consentimiento.id_consentimiento is None
+        ):
             return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.SIN_CONSENTIMIENTO)
 
-        estado = self._consentimiento.consentimiento_vigente(solicitud.id_cliente, FINALIDAD)
-        if not estado.vigente or estado.id_consentimiento is None:
-            return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.SIN_CONSENTIMIENTO)
-
-        respuesta = self._perfilamiento.perfil_de(solicitud.id_cliente, estado.id_consentimiento)
+        respuesta = self._perfilamiento.perfil_de(
+            solicitud.id_cliente, consentimiento.id_consentimiento
+        )
         if respuesta.perfil is None:
             # El proveedor falló y no había nada en caché: se cotiza a precio estándar
             # en vez de dejar al cliente sin oferta (RC-03).
@@ -179,4 +249,4 @@ class ServicioDeCotizacion:
             if respuesta.degradado
             else BasePerfilamiento.OPEN_FINANCE
         )
-        return _Base(base, estado.id_consentimiento, respuesta.perfil)
+        return _Base(base, consentimiento.id_consentimiento, respuesta.perfil)
