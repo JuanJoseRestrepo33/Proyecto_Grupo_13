@@ -7,6 +7,7 @@ código propio, para que ningún canal vea una excepción de `httpx`.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -19,6 +20,8 @@ from .errores import ErrorBff
 _SOLICITUD_INVALIDA = 422
 #: Estados del núcleo que llegan al canal tal cual, con su código.
 _ESTADOS_QUE_PASAN = frozenset({400, 401, 404, 409, 422, 429, 503})
+#: Forma de todo identificador que llega del canal y entra en una ruta del núcleo.
+_SEGMENTO = re.compile(r"[A-Za-z0-9_-]{1,128}")
 #: Tiempo máximo de la consulta de `/salud` del núcleo desde la sonda del BFF.
 _ESPERA_SALUD = 1.0
 
@@ -51,6 +54,18 @@ def _traducir(respuesta: httpx.Response) -> ErrorBff:
         detalles=cuerpo.get("detalles") or {},
         encabezados=encabezados,
     )
+
+
+def segmento(valor: str, si_no_existe: str) -> str:
+    """Un identificador del canal, apto para ir dentro de una ruta del núcleo.
+
+    Sin `/`, `.`, `%` ni espacios: un valor como `..` no puede llevar la solicitud a otra ruta
+    del núcleo. Lo que no tiene la forma de un identificador no existe, y responde el mismo
+    404 del contrato que un identificador ajeno.
+    """
+    if _SEGMENTO.fullmatch(valor):
+        return valor
+    raise ErrorBff(status.HTTP_404_NOT_FOUND, si_no_existe, "El recurso no existe")
 
 
 class ClienteNucleo:
