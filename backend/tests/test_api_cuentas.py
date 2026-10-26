@@ -213,3 +213,22 @@ def test_un_cliente_inexistente_es_404_por_http(nucleo):
 
     assert respuesta.status_code == 404
     assert respuesta.json()["title"] == "cliente_no_encontrado"
+
+
+def test_con_humo_correo_y_clave_la_cuenta_de_prueba_existe_al_arrancar(monkeypatch):
+    monkeypatch.setenv(dependencias.VARIABLE_CORREO_PRUEBA, "humo@solventa.co")
+    monkeypatch.setenv(dependencias.VARIABLE_CLAVE_PRUEBA, "Humo2026x")
+    auditoria_dependencias.reiniciar()
+    dependencias.reiniciar()
+    try:
+        respuesta = TestClient(crear_app()).post(
+            f"{RUTA}/sesiones",
+            json={"correo": "humo@solventa.co", "contrasena": "Humo2026x"},
+            headers={"X-Canal": "movil"},
+        )
+    finally:
+        dependencias.reiniciar()
+        auditoria_dependencias.reiniciar()
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["cliente"]["nombre_completo"] == "Cuenta de prueba"

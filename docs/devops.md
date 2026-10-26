@@ -397,6 +397,8 @@ lados.
 | Llave privada de firma de tokens (PEM, ES256) | `TOKENS_LLAVE_PRIVADA` ← secreto `tokens-llave-privada` | `solventa-nucleo` (emite) | WEB-F13 |
 | Llave pública de firma de tokens (PEM) | `TOKENS_LLAVE_PUBLICA` ← secreto `tokens-llave-publica` | `solventa-nucleo` y `solventa-bff` (validan) | WEB-F13 |
 | Llave pública anterior, solo durante una rotación | `TOKENS_LLAVE_PUBLICA_ANTERIOR` ← versión anterior de `tokens-llave-publica` | `solventa-bff` | WEB-F13 |
+| Credenciales de la cuenta de prueba, sembrada al arrancar | `HUMO_CORREO` y `HUMO_CLAVE` | `solventa-nucleo` (y el humo de `cd.yml`) | WEB-F13 |
+| Código fijo de verificación del correo, solo en *staging* | `IDENTIDAD_OTP_FIJO` (6 dígitos) | `solventa-nucleo` | WEB-F13 |
 | Almacén de evidencias | `ALMACENAMIENTO_EVIDENCIAS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | MOB-F05 |
 | Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
 

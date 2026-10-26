@@ -4,6 +4,10 @@ El proveedor de KYC/AML es el simulado; `IDENTIDAD_KYC_CAIDO=1` lo deja fuera de
 para ensayar el camino de falla sin tocar código. El proveedor real entra aquí, detrás del
 mismo puerto, cuando exista.
 
+Con `HUMO_CORREO` y `HUMO_CLAVE` se siembra al arrancar la cuenta de prueba de *staging*
+(las cuentas viven en memoria y se pierden con cada revisión). Con `IDENTIDAD_OTP_FIJO`
+todos los códigos de verificación del correo son ese, para las E2E del registro.
+
 Los tokens se firman con `TOKENS_LLAVE_PRIVADA`. Sin ella, en local se genera una llave
 efímera al arrancar; en Cloud Run (`K_SERVICE` definida) eso no sirve, porque ningún BFF la
 conoce, así que `/salud` reporta los tokens caídos y la revisión no recibe tráfico.
@@ -39,6 +43,9 @@ VARIABLE_LLAVE_PRIVADA = "TOKENS_LLAVE_PRIVADA"
 VARIABLE_LLAVE_PUBLICA = "TOKENS_LLAVE_PUBLICA"
 VARIABLE_CLOUD_RUN = "K_SERVICE"
 VARIABLE_OTP_FIJO = "IDENTIDAD_OTP_FIJO"
+#: Credenciales de la cuenta de prueba de *staging*, las mismas que usa el humo de `cd.yml`.
+VARIABLE_CORREO_PRUEBA = "HUMO_CORREO"
+VARIABLE_CLAVE_PRUEBA = "HUMO_CLAVE"
 
 log = logging.getLogger(__name__)
 
@@ -108,6 +115,11 @@ def _cuentas() -> tuple[ServicioDeCuentas, CanalDeCodigosSimulado]:
         reloj=obtener_reloj(),
         estado_identidad=obtener_servicio().estado_identidad,
     )
+    correo = os.environ.get(VARIABLE_CORREO_PRUEBA, "").strip()
+    clave = os.environ.get(VARIABLE_CLAVE_PRUEBA, "")
+    if correo and clave:
+        servicio.sembrar_cuenta_de_prueba(correo, clave)
+        log.info("Cuenta de prueba sembrada")
     return servicio, codigos
 
 

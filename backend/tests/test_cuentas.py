@@ -388,3 +388,18 @@ def test_el_cliente_de_un_token_vigente(entorno):
 def test_un_cliente_inexistente_es_404(entorno):
     with pytest.raises(ClienteNoEncontradoError):
         entorno.servicio.cliente("CLI-2026-999999")
+
+
+# -- cuenta de prueba de staging ----------------------------------------------------------
+
+
+def test_la_cuenta_de_prueba_entra_sin_registrarse_y_no_se_duplica(entorno):
+    primera = entorno.servicio.sembrar_cuenta_de_prueba("Humo@Solventa.co", "Humo2026x")
+    segunda = entorno.servicio.sembrar_cuenta_de_prueba("humo@solventa.co", "Humo2026x")
+
+    sesion = entorno.servicio.iniciar_sesion("humo@solventa.co", "Humo2026x", "web")
+
+    assert segunda == primera
+    assert primera.correo_verificado is True
+    assert sesion.cuenta.id_cliente == primera.id_cliente
+    assert entorno.bus.publicados(EVENTO_CLIENTE_REGISTRADO) == ()

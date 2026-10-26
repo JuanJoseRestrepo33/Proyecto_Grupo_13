@@ -33,7 +33,7 @@ from ..dominio.errores import (
     RegistroYaVerificadoError,
     TokenRefrescoInvalidoError,
 )
-from ..dominio.modelo import EstadoIdentidad
+from ..dominio.modelo import EstadoIdentidad, TipoDocumento
 from ..dominio.puertos import (
     CanalDeCodigos,
     EmisorDeTokens,
@@ -46,6 +46,10 @@ from ..dominio.sesion import VIGENCIA_ACCESO, VIGENCIA_REFRESCO, Refresco, Token
 
 #: Nombre del evento que se publica al crear una cuenta (criterio 2 de WEB-F13).
 EVENTO_CLIENTE_REGISTRADO = "ClientRegistered"
+
+#: Datos fijos de la cuenta de prueba de *staging*. Solo cambian correo y contraseña.
+NOMBRE_CUENTA_PRUEBA = "Cuenta de prueba"
+DOCUMENTO_CUENTA_PRUEBA = "PRUEBA0001"
 
 
 def resumen_de_refresco(token: str) -> str:
@@ -202,6 +206,34 @@ class ServicioDeCuentas:
         assert cuenta is not None, "un registro siempre tiene su cuenta"
         self._codigos.enviar(cuenta.correo, codigo)
         return registro
+
+    def sembrar_cuenta_de_prueba(self, correo: str, contrasena: str) -> Cuenta:
+        """Crea, si no existe, la cuenta con correo verificado que usan el humo y las E2E.
+
+        Las cuentas viven en memoria y se pierden con cada revisión del núcleo; sembrarla
+        al arrancar la mantiene disponible sin registrarla a mano. No publica
+        `ClientRegistered`: no es un cliente que se registró.
+        """
+        normalizado = normalizar_correo(correo)
+        with self._cerrojo_altas:
+            existente = self._cuentas.por_correo(normalizado)
+            if existente is not None:
+                return existente
+            ahora = self._reloj.ahora()
+            cuenta = Cuenta(
+                id_cliente=self._cuentas.siguiente_id(ahora.year),
+                nombre_completo=NOMBRE_CUENTA_PRUEBA,
+                tipo_documento=TipoDocumento.PASAPORTE,
+                numero_documento=DOCUMENTO_CUENTA_PRUEBA,
+                correo=normalizado,
+                celular="3000000000",
+                credencial=credenciales.derivar(contrasena),
+                version_terminos="prueba",
+                creada_en=ahora,
+                correo_verificado=True,
+            )
+            self._cuentas.guardar(cuenta)
+        return cuenta
 
     # -- sesión -----------------------------------------------------------------------
 
