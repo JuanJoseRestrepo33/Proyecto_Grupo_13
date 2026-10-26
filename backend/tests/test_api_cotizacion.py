@@ -209,3 +209,18 @@ def test_un_canal_desconocido_se_rechaza(cliente):
     )
 
     assert respuesta.status_code == 422
+
+
+def test_sin_base_la_salud_reporta_el_repositorio_caido(monkeypatch):
+    """Con la variable definida y la base inalcanzable no se cae a memoria en silencio."""
+    from app.modulos.cotizacion.api import dependencias
+
+    monkeypatch.setenv(dependencias.VARIABLE_DSN, "postgresql://nadie@127.0.0.1:9/solventa")
+    dependencias.reiniciar()
+    try:
+        estado = {d.nombre: d for d in dependencias.estado_dependencias()}
+    finally:
+        monkeypatch.delenv(dependencias.VARIABLE_DSN)
+        dependencias.reiniciar()
+
+    assert estado["repositorio_cotizaciones"].estado == "caido"
