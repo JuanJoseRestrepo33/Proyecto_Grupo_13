@@ -112,6 +112,41 @@ sin interceptor y requiere configurar la URL del ambiente.
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.
 
+### Demo en emulador
+
+`scripts/demo-emulador.sh` (Linux o WSL) y `scripts/demo-emulador.ps1` (Windows) dejan la app lista
+para probar: arrancan el emulador si no hay uno encendido, compilan e instalan la app debug con datos
+limpios, crean una cuenta por el flujo de registro (OTP `123456`) y activan la huella. Ubican cada
+control por su texto visible con `uiautomator`, no por coordenadas.
+
+```bash
+mobile/android/scripts/demo-emulador.sh                 # opciones: --sin-compilar --sin-huella
+```
+
+```powershell
+mobile\android\scripts\demo-emulador.ps1                # opciones: -SinCompilar -SinHuella -Correo ...
+```
+
+- Requiere un AVD (API 26+) y JDK 17+. En Windows, si `JAVA_HOME` es anterior a 17, el script busca
+  un JDK instalado; en WSL usa el SDK y el emulador de Windows y firma con su llave debug para que
+  `install -r` no falle frente a una app instalada desde Android Studio.
+- La cuenta por defecto es `hernan@ejemplo.co` / `Solventa2026`; se cambia con variables
+  (`CORREO=…`) o parámetros (`-Correo …`). El documento debe terminar en 0–6 (KYC aprobada).
+- Para activar la huella, el emulador debe tener una registrada (Settings → Security →
+  Fingerprint); si no la tiene, el script elige «Ahora no». Para entrar luego con la huella:
+  `adb -e emu finger touch 1`.
+- Registrar una huella obliga a tener PIN. Con la pantalla bloqueada, el script la desbloquea con la
+  huella; justo después de arrancar el emulador Android exige el PIN, que se pasa con
+  `PIN_EMULADOR=…` o `-PinEmulador …`.
+
+`scripts/prueba-consentimiento.sh` y `.ps1` prueban MOB-F02 de punta a punta sobre esa demo (la
+ejecutan primero, salvo `--sin-preparar`/`-SinPreparar`). Con las tres finalidades: otorgar (no se
+envía sin entidad ni aceptación de la versión), revocar con y sin advertencia de tarifa, cancelar,
+otorgar de nuevo un revocado y volver a Perfil. Para renovar uno por vencer y uno vencido adelantan
+el reloj del emulador con `adb root` (imágenes Google APIs) y lo restauran al terminar;
+`--sin-reloj`/`-SinReloj` omite esa parte. Las funciones comunes están en `scripts/emulador-comun.sh`
+y `scripts/EmuladorComun.ps1`.
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
