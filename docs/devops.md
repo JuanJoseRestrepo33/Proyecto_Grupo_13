@@ -29,7 +29,7 @@
 | Sprint Backlog y asignación | [Sección de este documento](#sprint-backlog-y-asignación-por-integrante) · **GitHub Project** (vista *Sprint Backlog*) |
 | Commits / pull requests | Hook [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) + [`scripts/validar_commit.py`](../scripts/validar_commit.py) · plantilla [`pull_request_template.md`](../.github/pull_request_template.md) · historial de PR |
 | Flujo de trabajo y versionamiento | GitFlow: [flujo de trabajo](#flujo-de-trabajo) y [versionamiento](#estrategia-de-versionamiento) · validador [`scripts/validar_rama.py`](../scripts/validar_rama.py) · rulesets de `main`, `develop` y `release/*` · tags `vX.Y.Z` y **Releases** automáticos |
-| Ejecución de pruebas | Jobs `herramientas` y `backend` del CI · artefactos de reporte y resumen de cobertura en cada ejecución |
+| Ejecución de pruebas | Jobs `herramientas`, `backend`, `bff` y `web` del CI · artefactos de reporte y resumen de cobertura en cada ejecución |
 | Peer review (opcional) | Aprobación obligatoria de otro integrante en cada PR |
 | Revisión automática (opcional) | [`codeql.yml`](../.github/workflows/codeql.yml) · [`dependabot.yml`](../.github/dependabot.yml) · pestaña **Security** |
 
@@ -238,6 +238,7 @@ y en cada push a `develop` o `main`.
 |---|---|---|
 | `convenciones` | Solo en PR | Flujo GitFlow (nombre de la rama y destino permitido), título del PR y todos sus commits contra la convención |
 | `backend` | Cuando existe `backend/pyproject.toml` | Lint y formato (ruff), frontera entre módulos (import-linter), pruebas unitarias con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
+| `bff` | Cuando existe `bff/pyproject.toml` | Lint y formato (ruff), frontera entre los routers web y móvil (import-linter), pruebas con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
 | `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción sin los mocks del BFF |
 | `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`), entre ellas la prueba de humo `humo.py` |
 | `imagen` | Por cada componente con `Dockerfile` (`backend/`, `bff/`, `apps/web/`) | Que su imagen Docker construya. La de la web, además, arranca y debe servir el SPA y reenviar `/api/` |
