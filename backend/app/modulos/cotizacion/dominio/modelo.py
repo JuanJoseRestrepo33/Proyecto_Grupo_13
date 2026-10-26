@@ -26,6 +26,9 @@ from app.compartido.errores import ReglaDeNegocioViolada
 #: Vigencia de una oferta. Pasado este tiempo hay que recotizar (regla de WEB-F01).
 VIGENCIA_OFERTA = timedelta(minutes=5)
 
+#: Canal de una cotización pedida directo a la API, sin pasar por un BFF.
+CANAL_API = "api-v1"
+
 
 class ProductoId(StrEnum):
     AUTO = "auto"
@@ -48,6 +51,17 @@ class BasePerfilamiento(StrEnum):
     @property
     def uso_open_finance(self) -> bool:
         return self is not BasePerfilamiento.ESTANDAR
+
+
+class MotivoTarifa(StrEnum):
+    """Por qué una oferta salió a tarifa estándar. Se le explica al cliente; no es un error."""
+
+    #: Sin consentimiento vigente para la finalidad de cotización, o cliente anónimo.
+    SIN_CONSENTIMIENTO = "sin_consentimiento"
+    #: El cliente pidió cotizar sin sus datos financieros.
+    OPEN_FINANCE_DESACTIVADO = "open_finance_desactivado"
+    #: Había consentimiento, pero el proveedor no respondió y no había perfil en caché.
+    PROVEEDOR_NO_DISPONIBLE = "proveedor_no_disponible"
 
 
 class EstadoCotizacion(StrEnum):
@@ -136,6 +150,9 @@ class Cotizacion:
     perfil: PerfilDeRiesgo | None = None
     id_cotizacion_origen: str | None = None
     vigencia: timedelta = field(default=VIGENCIA_OFERTA)
+    motivo_tarifa: MotivoTarifa | None = None
+    usar_open_finance: bool = True
+    canal: str = CANAL_API
 
     @property
     def expira_en(self) -> datetime:

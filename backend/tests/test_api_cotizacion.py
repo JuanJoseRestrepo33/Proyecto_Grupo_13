@@ -176,3 +176,36 @@ def test_el_contrato_no_acepta_campos_desconocidos(cliente):
     )
 
     assert respuesta.status_code == 422
+
+
+def test_la_cotizacion_dice_su_dueno_y_su_motivo(entorno):
+    cliente, _, _ = entorno
+
+    cuerpo = cliente.post(
+        "/v1/cotizacion/cotizaciones", json={**SOLICITUD, "id_cliente": CLIENTE}
+    ).json()
+
+    assert cuerpo["id_cliente"] == CLIENTE
+    assert cuerpo["motivo_tarifa"] == "sin_consentimiento"
+
+
+def test_cotizar_sin_open_finance_responde_el_motivo(entorno):
+    cliente, _, consentimiento = entorno
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+
+    cuerpo = cliente.post(
+        "/v1/cotizacion/cotizaciones",
+        json={**SOLICITUD, "id_cliente": CLIENTE, "usar_open_finance": False},
+        headers={"X-Canal": "web"},
+    ).json()
+
+    assert cuerpo["oferta"]["uso_open_finance"] is False
+    assert cuerpo["motivo_tarifa"] == "open_finance_desactivado"
+
+
+def test_un_canal_desconocido_se_rechaza(cliente):
+    respuesta = cliente.post(
+        "/v1/cotizacion/cotizaciones", json=SOLICITUD, headers={"X-Canal": "fax"}
+    )
+
+    assert respuesta.status_code == 422

@@ -16,9 +16,11 @@ from app.compartido.errores import RecursoNoEncontrado
 from app.compartido.reloj import Reloj
 from app.modulos.cotizacion.dominio import catalogo, tarificador
 from app.modulos.cotizacion.dominio.modelo import (
+    CANAL_API,
     BasePerfilamiento,
     Cotizacion,
     DatosAsegurado,
+    MotivoTarifa,
     PerfilDeRiesgo,
     ProductoId,
 )
@@ -36,9 +38,25 @@ FINALIDAD = "cotizacion"
 
 @dataclass(frozen=True, slots=True)
 class SolicitudDeCotizacion:
+    """`usar_open_finance` en False es el cliente pidiendo cotizar sin sus datos financieros:
+    ni siquiera se consulta el consentimiento. `canal` es el que origina la solicitud y queda
+    en la decisión auditada."""
+
     producto: ProductoId
     asegurado: DatosAsegurado
     id_cliente: str | None = None
+    usar_open_finance: bool = True
+    canal: str = CANAL_API
+
+
+@dataclass(frozen=True, slots=True)
+class _Base:
+    """Con qué información se tarifa, y por qué, si es la estándar."""
+
+    base: BasePerfilamiento
+    id_consentimiento: str | None = None
+    perfil: PerfilDeRiesgo | None = None
+    motivo: MotivoTarifa | None = None
 
 
 class ServicioDeCotizacion:
@@ -83,6 +101,8 @@ class ServicioDeCotizacion:
             producto=anterior.producto,
             asegurado=anterior.asegurado,
             id_cliente=anterior.id_cliente,
+            usar_open_finance=anterior.usar_open_finance,
+            canal=anterior.canal,
         )
         return self._crear(solicitud, id_origen=anterior.id_cotizacion)
 
@@ -91,9 +111,11 @@ class ServicioDeCotizacion:
     def _crear(self, solicitud: SolicitudDeCotizacion, id_origen: str | None) -> Cotizacion:
         ahora = self._reloj.ahora()
         producto = catalogo.obtener(solicitud.producto)
-        base, id_consentimiento, perfil = self._resolver_base(solicitud.id_cliente)
+        resuelta = self._resolver_base(solicitud)
 
-        resultado = tarificador.tarificar(producto, solicitud.asegurado, base, perfil)
+        resultado = tarificador.tarificar(
+            producto, solicitud.asegurado, resuelta.base, resuelta.perfil
+        )
 
         cotizacion = Cotizacion(
             id_cotizacion=self._repositorio.siguiente_id(ahora.year),
@@ -103,52 +125,58 @@ class ServicioDeCotizacion:
             oferta=resultado.oferta,
             creada_en=ahora,
             id_cliente=solicitud.id_cliente,
-            id_consentimiento=id_consentimiento,
-            perfil=perfil,
+            id_consentimiento=resuelta.id_consentimiento,
+            perfil=resuelta.perfil,
             id_cotizacion_origen=id_origen,
+            motivo_tarifa=resuelta.motivo,
+            usar_open_finance=solicitud.usar_open_finance,
+            canal=solicitud.canal,
         )
         self._repositorio.guardar(cotizacion)
 
         self._auditoria.registrar(
             id_cotizacion=cotizacion.id_cotizacion,
-            id_consentimiento=id_consentimiento,
+            id_consentimiento=resuelta.id_consentimiento,
             id_cliente=solicitud.id_cliente,
+            canal=solicitud.canal,
             version_regla=resultado.oferta.version_regla,
             variables_entrada=resultado.variables_entrada,
             resultado={
                 "prima_mensual": resultado.oferta.prima_mensual.monto,
                 "prima_estandar": resultado.oferta.prima_estandar.monto,
                 "ahorro_mensual": resultado.oferta.ahorro_mensual.monto,
-                "base_perfilamiento": str(base),
+                "base_perfilamiento": str(resuelta.base),
+                "motivo_tarifa": str(resuelta.motivo) if resuelta.motivo else None,
             },
             ocurrido_en=ahora,
         )
         return cotizacion
 
-    def _resolver_base(
-        self, id_cliente: str | None
-    ) -> tuple[BasePerfilamiento, str | None, PerfilDeRiesgo | None]:
+    def _resolver_base(self, solicitud: SolicitudDeCotizacion) -> _Base:
         """Decide con qué información se tarifa.
 
         Un cliente anónimo cotiza a precio estándar: sin identidad no hay consentimiento
-        que verificar, y sin consentimiento verificado no se tocan datos financieros.
+        que verificar, y sin consentimiento verificado no se tocan datos financieros. Si el
+        cliente pidió no usar sus datos, tampoco se consulta su consentimiento.
         """
-        if id_cliente is None:
-            return BasePerfilamiento.ESTANDAR, None, None
+        if not solicitud.usar_open_finance:
+            return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.OPEN_FINANCE_DESACTIVADO)
+        if solicitud.id_cliente is None:
+            return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.SIN_CONSENTIMIENTO)
 
-        estado = self._consentimiento.consentimiento_vigente(id_cliente, FINALIDAD)
+        estado = self._consentimiento.consentimiento_vigente(solicitud.id_cliente, FINALIDAD)
         if not estado.vigente or estado.id_consentimiento is None:
-            return BasePerfilamiento.ESTANDAR, None, None
+            return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.SIN_CONSENTIMIENTO)
 
-        respuesta = self._perfilamiento.perfil_de(id_cliente, estado.id_consentimiento)
+        respuesta = self._perfilamiento.perfil_de(solicitud.id_cliente, estado.id_consentimiento)
         if respuesta.perfil is None:
             # El proveedor falló y no había nada en caché: se cotiza a precio estándar
             # en vez de dejar al cliente sin oferta (RC-03).
-            return BasePerfilamiento.ESTANDAR, None, None
+            return _Base(BasePerfilamiento.ESTANDAR, motivo=MotivoTarifa.PROVEEDOR_NO_DISPONIBLE)
 
         base = (
             BasePerfilamiento.OPEN_FINANCE_EN_CACHE
             if respuesta.degradado
             else BasePerfilamiento.OPEN_FINANCE
         )
-        return base, estado.id_consentimiento, respuesta.perfil
+        return _Base(base, estado.id_consentimiento, respuesta.perfil)

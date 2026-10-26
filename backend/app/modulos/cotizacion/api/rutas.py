@@ -1,14 +1,15 @@
 """Rutas HTTP del módulo de cotización, bajo la fachada /v1.
 
 La API es la del módulo, no la del canal: web y móvil la consumen a través de su propio
-BFF. Aquí no hay nada específico de una pantalla.
+BFF. Aquí no hay nada específico de una pantalla. El BFF pasa el canal en la cabecera
+`X-Canal`; sin ella, la cotización queda como pedida directo a la API.
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 
 from app.compartido.reloj import Reloj
 from app.modulos.cotizacion.aplicacion.servicio import (
@@ -16,10 +17,11 @@ from app.modulos.cotizacion.aplicacion.servicio import (
     SolicitudDeCotizacion,
 )
 from app.modulos.cotizacion.dominio import catalogo
-from app.modulos.cotizacion.dominio.modelo import DatosAsegurado
+from app.modulos.cotizacion.dominio.modelo import CANAL_API, DatosAsegurado
 
 from .dependencias import obtener_reloj, obtener_servicio
 from .esquemas import (
+    Canal,
     CoberturaDto,
     CotizacionDto,
     ExplicacionDto,
@@ -34,6 +36,9 @@ router = APIRouter(prefix="/cotizacion", tags=["cotización"])
 # Dependencias del módulo, declaradas una vez y reutilizadas por todas las rutas.
 Servicio = Annotated[ServicioDeCotizacion, Depends(obtener_servicio)]
 RelojDep = Annotated[Reloj, Depends(obtener_reloj)]
+CanalDep = Annotated[
+    Canal | None, Header(alias="X-Canal", description="Canal que origina la solicitud")
+]
 
 
 @router.get(
@@ -67,6 +72,7 @@ def crear_cotizacion(
     solicitud: SolicitudCotizacionDto,
     servicio: Servicio,
     reloj: RelojDep,
+    canal: CanalDep = None,
 ) -> CotizacionDto:
     cotizacion = servicio.cotizar(
         SolicitudDeCotizacion(
@@ -77,6 +83,8 @@ def crear_cotizacion(
                 valor_asegurado=solicitud.asegurado.valor_asegurado,
             ),
             id_cliente=solicitud.id_cliente,
+            usar_open_finance=solicitud.usar_open_finance,
+            canal=str(canal) if canal else CANAL_API,
         )
     )
     return a_cotizacion_dto(cotizacion, reloj.ahora())

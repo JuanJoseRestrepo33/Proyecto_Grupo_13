@@ -69,6 +69,7 @@ class RegistroDeDecisiones(Protocol):
         id_cotizacion: str,
         id_consentimiento: str | None,
         id_cliente: str | None,
+        canal: str,
         version_regla: str,
         variables_entrada: dict[str, object],
         resultado: dict[str, object],

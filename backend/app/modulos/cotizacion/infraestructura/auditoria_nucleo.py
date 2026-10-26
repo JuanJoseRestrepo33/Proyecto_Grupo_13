@@ -12,7 +12,6 @@ from datetime import datetime
 from app.modulos.auditoria import EventoAuditable, ServicioDeAuditoria
 
 TIPO_DECISION = "decision_cotizacion"
-CANAL_POR_DEFECTO = "api-v1"
 
 
 class RegistroDeDecisionesEnAuditoria:
@@ -25,6 +24,7 @@ class RegistroDeDecisionesEnAuditoria:
         id_cotizacion: str,
         id_consentimiento: str | None,
         id_cliente: str | None,
+        canal: str,
         version_regla: str,
         variables_entrada: dict[str, object],
         resultado: dict[str, object],
@@ -38,7 +38,7 @@ class RegistroDeDecisionesEnAuditoria:
         evento = EventoAuditable(
             tipo=TIPO_DECISION,
             actor=id_cliente or "anonimo",
-            canal=CANAL_POR_DEFECTO,
+            canal=canal,
             ocurrido_en=ocurrido_en,
             version_regla=version_regla,
             variables_entrada=variables_entrada,

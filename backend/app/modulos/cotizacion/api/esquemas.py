@@ -11,6 +11,7 @@ renombrarlo o cambiar su tipo obliga a publicar `v2` y a mantener `v1` en pie.
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,8 +19,14 @@ from app.modulos.cotizacion.dominio.modelo import (
     BasePerfilamiento,
     Cotizacion,
     EstadoCotizacion,
+    MotivoTarifa,
     ProductoId,
 )
+
+
+class Canal(StrEnum):
+    WEB = "web"
+    MOVIL = "movil"
 
 
 class _Dto(BaseModel):
@@ -42,6 +49,13 @@ class SolicitudCotizacionDto(_Dto):
         description=(
             "Cliente autenticado. Sin él se cotiza a precio estándar: no hay "
             "consentimiento que verificar."
+        ),
+    )
+    usar_open_finance: bool = Field(
+        default=True,
+        description=(
+            "En false el cliente pide cotizar sin sus datos financieros: tarifa estándar con "
+            "motivo `open_finance_desactivado`, sin consultar el consentimiento."
         ),
     )
 
@@ -81,6 +95,12 @@ class CotizacionDto(_Dto):
     oferta: OfertaDto
     id_consentimiento: str | None = None
     id_cotizacion_origen: str | None = None
+    id_cliente: str | None = Field(
+        default=None, description="Dueño de la cotización; el BFF la niega a cualquier otro"
+    )
+    motivo_tarifa: MotivoTarifa | None = Field(
+        default=None, description="Por qué la prima es la estándar; null si es personalizada"
+    )
 
 
 class ExplicacionDto(_Dto):
@@ -137,6 +157,8 @@ def a_cotizacion_dto(cotizacion: Cotizacion, ahora: datetime) -> CotizacionDto:
         oferta=a_oferta_dto(cotizacion),
         id_consentimiento=cotizacion.id_consentimiento,
         id_cotizacion_origen=cotizacion.id_cotizacion_origen,
+        id_cliente=cotizacion.id_cliente,
+        motivo_tarifa=cotizacion.motivo_tarifa,
     )
 
 
