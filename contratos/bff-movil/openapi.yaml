@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Móvil
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Contrato entre la app Android y su Backend for Frontend (BFF).
 
@@ -15,6 +15,8 @@ info:
     - **MOB-F02** · Consentimiento de Open Finance desde la app, con las mismas rutas, formas y
       códigos de error que el contrato web: el consentimiento es del cliente, no del canal. Revocar
       en la app corta el uso del dato en todos los canales.
+    - **WEB-F05** · Reporte de siniestros desde la app, con las mismas rutas y códigos que la
+      web: el mismo siniestro se ve en los dos canales.
 
     **Biometría.** Solventa nunca recibe el dato biométrico. Tras el primer ingreso con contraseña,
     la app guarda el `token_refresco` cifrado con una llave del Android Keystore que solo se
@@ -44,6 +46,8 @@ tags:
     description: Verificación de identidad KYC/AML (MOB-F01)
   - name: consentimientos
     description: Consentimiento de Open Finance, igual que en la web (MOB-F02)
+  - name: siniestros
+    description: Reporte de siniestros (WEB-F05)
 
 paths:
   /registros:
@@ -344,6 +348,112 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /polizas:
+    get:
+      tags: [siniestros]
+      operationId: listarPolizas
+      summary: Pólizas del cliente, para elegir la afectada en el reporte de siniestro
+      description: |
+        Resumen de cada póliza con su vigencia y estado. La consulta completa, con coberturas,
+        deducibles y documento, llega con WEB-F04 y amplía esta misma respuesta.
+      responses:
+        "200":
+          description: Pólizas del cliente, de la más reciente a la más antigua
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PolizaResumen" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /siniestros:
+    get:
+      tags: [siniestros]
+      operationId: listarSiniestros
+      summary: Siniestros del cliente, reportados desde cualquier canal
+      responses:
+        "200":
+          description: Siniestros del cliente, del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [siniestros]
+      operationId: reportarSiniestro
+      summary: Reporta un siniestro sobre una póliza del cliente
+      description: |
+        El siniestro queda `reportado`, con un número de referencia y el siguiente paso del caso,
+        y se ve igual desde la web y desde la app (WEB-F05, criterio 1).
+
+        Cada envío del asistente lleva su `Idempotency-Key`, generada por el cliente. Repetirlo con
+        la **misma** clave (doble clic, reintento por red lenta) responde 200 con el mismo
+        siniestro y la misma referencia: no se crea otro (criterio 4, P10, P18).
+
+        Una póliza vencida admite el reporte si el evento ocurrió dentro de su vigencia; si no,
+        responde 409 `evento_fuera_de_vigencia` con las fechas de la póliza y no queda registro
+        (criterio 3).
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Identificador único del envío del reporte (UUID v4)
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudSiniestro" }
+      responses:
+        "200":
+          description: Reintento de un reporte ya hecho con la misma clave; no se creó otro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "201":
+          description: Siniestro reportado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404":
+          description: La póliza no existe o no es del cliente (`poliza_no_encontrada`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: |
+            `evento_fuera_de_vigencia` (trae `vigente_desde` y `vigente_hasta`) o
+            `clave_idempotencia_en_uso` (la clave ya se usó para un reporte con otros datos).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorVigencia" }
+        "422":
+          description: |
+            Datos inválidos, `fecha_futura` sobre `ocurrido_el` o `clave_idempotencia_invalida`
+            (falta la clave o no es un UUID). Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}:
+    get:
+      tags: [siniestros]
+      operationId: obtenerSiniestro
+      summary: Detalle de un siniestro
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Siniestro con su estado y siguiente paso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
 components:
   securitySchemes:
     token_acceso:
@@ -352,6 +462,11 @@ components:
       description: Token de acceso del canal móvil, emitido al abrir o renovar la sesión.
 
   parameters:
+    IdSiniestro:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
     IdRegistro:
       name: id
       in: path
@@ -625,3 +740,115 @@ components:
         ocurrido_en: { type: string, format: date-time }
         canal: { type: string, enum: [web, movil, sistema] }
         version_texto: { type: string }
+
+    Dinero:
+      type: object
+      required: [valor, moneda]
+      properties:
+        valor:
+          type: integer
+          description: Monto entero en la unidad mayor de la moneda, sin decimales (pesos para COP)
+          examples: [1500000]
+        moneda:
+          type: string
+          description: Código ISO 4217 de la moneda
+          examples: [COP]
+
+    EstadoPoliza:
+      type: string
+      enum: [vigente, vencida, por_iniciar]
+
+    PolizaResumen:
+      type: object
+      required: [numero, producto, inicio, fin, estado]
+      properties:
+        numero: { type: string, examples: [POL-2026-000101] }
+        producto: { type: string, examples: [auto] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        estado: { $ref: "#/components/schemas/EstadoPoliza" }
+
+    TipoEventoSiniestro:
+      type: string
+      enum:
+        - accidente_vehiculo
+        - hurto
+        - dano_hogar
+        - retraso_vuelo
+        - equipo_danado_o_perdido
+        - cancelacion_viaje
+        - otro
+
+    EstadoSiniestro:
+      type: string
+      description: En el Sprint 2 todo siniestro está `reportado`; el seguimiento llega con WEB-F06.
+      enum: [reportado, en_evaluacion, requiere_informacion, aprobado, rechazado, pagado]
+
+    SiguientePaso:
+      type: string
+      description: Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+      enum: [adjuntar_evidencia, esperar_evaluacion]
+
+    SolicitudSiniestro:
+      type: object
+      required: [numero_poliza, tipo_evento, ocurrido_el, descripcion]
+      properties:
+        numero_poliza: { type: string, minLength: 1 }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el:
+          type: string
+          format: date
+          description: Día del evento; no puede ser futuro
+        descripcion: { type: string, minLength: 10, maxLength: 2000 }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+          description: Opcional; lo que el cliente estima que costó
+
+    Siniestro:
+      type: object
+      required:
+        - id
+        - referencia
+        - numero_poliza
+        - tipo_evento
+        - ocurrido_el
+        - descripcion
+        - monto_estimado
+        - estado
+        - siguiente_paso
+        - canal
+        - reportado_en
+      properties:
+        id: { type: string }
+        referencia:
+          type: string
+          description: Número que ve el cliente, el mismo en los dos canales
+          examples: [SIN-2026-000123]
+        numero_poliza: { type: string }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el: { type: string, format: date }
+        descripcion: { type: string }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        siguiente_paso: { $ref: "#/components/schemas/SiguientePaso" }
+        canal: { type: string, enum: [web, movil] }
+        reportado_en: { type: string, format: date-time }
+
+    ErrorVigencia:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            vigente_desde:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
+            vigente_hasta:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
