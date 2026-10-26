@@ -8,14 +8,21 @@ direcciones sin levantar el núcleo.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 
 import httpx
+import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
 from app.comun.configuracion import Configuracion
+from app.comun.tokens import EMISOR, huella_jwk
 from app.main import crear_app
+
+CLIENTE = "CLI-2026-000318"
 
 Respuesta = httpx.Response | Callable[[httpx.Request], httpx.Response]
 
@@ -71,14 +78,56 @@ class NucleoFalso:
         return json.loads(solicitud.content)
 
 
+class Firmante:
+    """Hace las veces del núcleo emitiendo tokens con su propia llave privada ES256."""
+
+    def __init__(self) -> None:
+        self.privada = ec.generate_private_key(ec.SECP256R1())
+        self.kid = huella_jwk(self.privada.public_key())
+        self.pem_publica = (
+            self.privada.public_key()
+            .public_bytes(
+                serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            .decode()
+        )
+
+    def emitir(
+        self,
+        id_cliente: str = CLIENTE,
+        canal: str = "web",
+        vigencia: int = 900,
+        encabezado: dict[str, object] | None = None,
+        **reclamos: object,
+    ) -> str:
+        ahora = int(time.time())
+        datos = {
+            "sub": id_cliente,
+            "iss": EMISOR,
+            "iat": ahora,
+            "exp": ahora + vigencia,
+            "tipo": "acceso",
+            "canal": canal,
+            **reclamos,
+        }
+        return jwt.encode(
+            datos, self.privada, algorithm="ES256", headers={"kid": self.kid, **(encabezado or {})}
+        )
+
+
 @pytest.fixture
 def nucleo() -> NucleoFalso:
     return NucleoFalso()
 
 
+@pytest.fixture(scope="session")
+def firmante() -> Firmante:
+    return Firmante()
+
+
 @pytest.fixture
-def configuracion() -> Configuracion:
-    return Configuracion(nucleo_url="http://nucleo.prueba")
+def configuracion(firmante) -> Configuracion:
+    return Configuracion(nucleo_url="http://nucleo.prueba", llaves_publicas=(firmante.pem_publica,))
 
 
 @pytest.fixture

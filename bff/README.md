@@ -27,6 +27,11 @@ en local.
 |---|---|---|
 | `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
 | `NUCLEO_URL` | Apunta a `http://127.0.0.1:8000` | URL del núcleo, sin barra final |
+| `TOKENS_LLAVE_PUBLICA` | Ninguna ruta protegida abre sesión (503 `llave_no_configurada`). En Cloud Run, `/salud` responde 503 | Valida los tokens ES256 que emite el núcleo, eligiendo la llave por `kid` (huella JWK, RFC 7638) |
+| `TOKENS_LLAVE_PUBLICA_ANTERIOR` | Solo vale la llave actual | Durante una rotación, también valen los tokens firmados con la anterior |
+
+El BFF nunca recibe la llave privada: valida sesiones, no las emite. Un token solo vale en el canal
+para el que se emitió.
 
 ## Verificar lo mismo que el CI
 

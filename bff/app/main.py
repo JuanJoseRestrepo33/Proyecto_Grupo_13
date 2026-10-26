@@ -13,8 +13,17 @@ from app import salud
 from app.comun.configuracion import Configuracion
 from app.comun.errores import ErrorBff, manejar_error_bff, manejar_validacion
 from app.comun.nucleo import ClienteNucleo
+from app.comun.tokens import LlaveInvalida, VerificadorDeTokens
 
 VERSION_APP = "0.1.0"
+
+
+def _verificador(configuracion: Configuracion) -> tuple[VerificadorDeTokens, str | None]:
+    """Una llave mal configurada no tumba el arranque: `/salud` lo reporta y responde 503."""
+    try:
+        return VerificadorDeTokens.desde_pem(configuracion.llaves_publicas), None
+    except LlaveInvalida as error:
+        return VerificadorDeTokens(), str(error)
 
 
 def crear_app(
@@ -48,6 +57,7 @@ def crear_app(
     )
     app.state.configuracion = configuracion
     app.state.nucleo = nucleo
+    app.state.verificador, app.state.error_llaves = _verificador(configuracion)
     app.add_exception_handler(ErrorBff, manejar_error_bff)
     app.add_exception_handler(RequestValidationError, manejar_validacion)
     app.include_router(salud.construir_router(VERSION_APP))
