@@ -402,6 +402,8 @@ lados.
 | Código fijo de verificación del correo, solo en *staging* | `IDENTIDAD_OTP_FIJO` (6 dígitos) | `solventa-nucleo` | WEB-F13 |
 | Almacén de evidencias | `ALMACENAMIENTO_EVIDENCIAS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | MOB-F05 |
 | Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
+| Conexión de siniestros | `SINIESTROS_DATABASE_URL` ← secreto `siniestros-database-url` | `solventa-nucleo` | WEB-F05 |
+| Pólizas de prueba de *staging* | `POLIZAS_SEMILLA`: ruta a un JSON; `id_cliente` `"*"` es una plantilla para cualquier cliente | `solventa-nucleo` | WEB-F05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
