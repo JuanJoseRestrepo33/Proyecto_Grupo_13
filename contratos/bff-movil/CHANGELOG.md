@@ -5,12 +5,16 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
-## [Sin publicar]
+## [0.2.0] · 2026-10-26 · MOB-F02 y WEB-F13
 
-- WEB-F13 (#152): el BFF real implementa registro, OTP, `/sesiones`, `/sesiones/renovacion` y
-  `/sesion` tal como están. Se documenta que el 401 de toda ruta protegida lleva el código
-  `sesion_no_vigente` y `WWW-Authenticate: Bearer`; no cambia ningún esquema.
-- Sprint 2: se esperan las rutas de consentimiento en v0.2 (MOB-F02, #160).
+### Agregado
+
+- MOB-F02 (#160): `/consentimientos/finalidades`, `/consentimientos` (listar y otorgar),
+  `/consentimientos/{id}/revocacion`, `/renovacion` y `/eventos`, con los mismos esquemas y códigos
+  de error del contrato `bff-web`. El canal `movil` queda en el histórico del consentimiento.
+- WEB-F13 (#152): el 401 de toda ruta protegida documenta el código `sesion_no_vigente` y la
+  cabecera `WWW-Authenticate: Bearer`. El BFF real implementa registro, OTP y sesiones tal como
+  estaban.
 
 ## [0.1.0] · 2026-10-17 · MOB-F01
 

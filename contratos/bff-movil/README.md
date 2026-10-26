@@ -26,6 +26,17 @@ con una llave del Android Keystore que solo se desbloquea con huella o rostro, y
 **Fuera del Sprint 1:** captura guiada de documento y selfie, cola ante caída del proveedor de
 KYC/AML, recuperación de contraseña.
 
+## Consentimiento (MOB-F02)
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/consentimientos/finalidades` | Catálogo de finalidades con alcance, vigencia, entidades y versión del texto legal | MOB-F02 |
+| `/consentimientos` | Listar y otorgar | MOB-F02 |
+| `/consentimientos/{id}/revocacion` · `/renovacion` · `/eventos` | Revocar, renovar e histórico | MOB-F02 |
+
+Mismas formas y códigos que el contrato web: un consentimiento otorgado o revocado en un canal se
+ve igual en el otro.
+
 ## Historial
 
 Cada versión del contrato, con su historia y sus cambios incompatibles: [`CHANGELOG.md`](CHANGELOG.md).

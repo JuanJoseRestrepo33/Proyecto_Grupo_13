@@ -50,7 +50,12 @@ async def manejar_error_bff(_: Request, error: Exception) -> JSONResponse:
 
 #: Código general de una solicitud inválida según el primer campo que falla. Son los que la
 #: web ya maneja desde sus mocks.
-CODIGOS_POR_CAMPO = {"producto": "producto_invalido", "asegurado": "asegurado_invalido"}
+CODIGOS_POR_CAMPO = {
+    "producto": "producto_invalido",
+    "asegurado": "asegurado_invalido",
+    "finalidad": "finalidad_invalida",
+    "entidades_origen": "entidades_invalidas",
+}
 
 _CODIGOS_POR_TIPO = {
     "missing": "obligatorio",
