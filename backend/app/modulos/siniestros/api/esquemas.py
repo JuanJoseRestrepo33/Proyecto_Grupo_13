@@ -11,6 +11,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..dominio.evidencias import EvidenciaDelSiniestro
 from ..dominio.modelo import (
     DatosDeReporte,
     EstadoSiniestro,
@@ -74,4 +75,32 @@ def a_siniestro_dto(siniestro: Siniestro) -> SiniestroDto:
         siguiente_paso=siniestro.siguiente_paso,
         canal=siniestro.canal,
         reportado_en=siniestro.reportado_en,
+    )
+
+
+class EvidenciaDto(_Dto):
+    id: str
+    tipo_contenido: str
+    tamano: int
+    nombre_original: str | None
+    canal: str
+    cargada_en: datetime
+    tomada_en: datetime | None = None
+    latitud: float | None = None
+    longitud: float | None = None
+    lugar: str | None = None
+
+
+def a_evidencia_dto(evidencia: EvidenciaDelSiniestro) -> EvidenciaDto:
+    return EvidenciaDto(
+        id=evidencia.id_evidencia,
+        tipo_contenido=evidencia.tipo_contenido,
+        tamano=evidencia.tamano,
+        nombre_original=evidencia.nombre_original,
+        canal=evidencia.canal,
+        cargada_en=evidencia.cargada_en,
+        tomada_en=evidencia.captura.tomada_en,
+        latitud=evidencia.captura.latitud,
+        longitud=evidencia.captura.longitud,
+        lugar=evidencia.captura.lugar,
     )

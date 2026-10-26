@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
+from .evidencias import EvidenciaDelSiniestro
 from .modelo import Siniestro
 
 
@@ -49,8 +50,18 @@ class RepositorioSiniestros(Protocol):
         """Número que ve el cliente, con el formato SIN-AAAA-NNNNNN."""
         raise NotImplementedError
 
+    def agregar_evidencia(self, evidencia: EvidenciaDelSiniestro) -> None:
+        raise NotImplementedError
+
+    def evidencias(self, id_siniestro: str) -> tuple[EvidenciaDelSiniestro, ...]:
+        """Las evidencias del siniestro en el orden en que se cargaron."""
+        raise NotImplementedError
+
 
 class RegistroDeAuditoria(Protocol):
     def registrar(self, siniestro: Siniestro) -> str:
         """Deja el reporte en el log con póliza, tipo de evento, canal y marca de tiempo."""
+        raise NotImplementedError
+
+    def registrar_evidencia(self, siniestro: Siniestro, evidencia: EvidenciaDelSiniestro) -> str:
         raise NotImplementedError

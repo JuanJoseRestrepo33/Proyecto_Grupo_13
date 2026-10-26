@@ -21,8 +21,12 @@ from app.modulos.auditoria.aplicacion.servicio import ServicioDeAuditoria
 from app.modulos.auditoria.infraestructura.almacen_memoria import AlmacenEnMemoria
 from app.modulos.siniestros.api import dependencias
 from app.modulos.siniestros.aplicacion.servicio import ServicioDeSiniestros
+from app.modulos.siniestros.dominio.evidencias import Captura
 from app.modulos.siniestros.dominio.modelo import DatosDeReporte, EstadoSiniestro, TipoEvento
 from app.modulos.siniestros.dominio.puertos import VigenciaDePoliza
+from app.modulos.siniestros.infraestructura.almacen_evidencias_memoria import (
+    AlmacenDeEvidenciasEnMemoria,
+)
 from app.modulos.siniestros.infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from app.modulos.siniestros.infraestructura.repositorio_postgres import RepositorioPostgres
 
@@ -64,6 +68,7 @@ def _servicio(repositorio, reloj: RelojFijo | None = None) -> ServicioDeSiniestr
         auditoria=RegistroEnAuditoria(ServicioDeAuditoria(AlmacenEnMemoria())),
         bus=BusEnProceso(),
         reloj=reloj or RelojFijo(INSTANTE),
+        almacen=AlmacenDeEvidenciasEnMemoria(),
     )
 
 
@@ -147,3 +152,23 @@ def test_la_composicion_usa_postgres_con_la_variable(monkeypatch):
         dependencias.reiniciar()
 
     assert estado["repositorio_siniestros"].estado == "ok"
+
+
+def test_la_evidencia_conserva_su_captura_en_la_base(repositorio):
+    servicio = _servicio(repositorio)
+    siniestro, _ = servicio.reportar(CLIENTE, DATOS, "movil", "clave-pg-evid")
+    captura = Captura(
+        tomada_en=INSTANTE - timedelta(minutes=1), latitud=4.65, longitud=-74.08, lugar="Bogotá"
+    )
+
+    evidencia = servicio.adjuntar_evidencia(
+        CLIENTE,
+        siniestro.id_siniestro,
+        "image/jpeg",
+        b"\xff\xd8\xff\xe0foto",
+        "choque.jpg",
+        "movil",
+        captura,
+    )
+
+    assert RepositorioPostgres(DSN).evidencias(siniestro.id_siniestro) == (evidencia,)

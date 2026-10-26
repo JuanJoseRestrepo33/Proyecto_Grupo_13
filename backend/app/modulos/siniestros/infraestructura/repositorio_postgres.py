@@ -12,6 +12,7 @@ from collections.abc import Mapping
 import psycopg
 from psycopg.rows import dict_row
 
+from ..dominio.evidencias import Captura, EvidenciaDelSiniestro
 from ..dominio.modelo import DatosDeReporte, EstadoSiniestro, Siniestro, TipoEvento
 from . import esquema
 
@@ -105,3 +106,44 @@ class RepositorioPostgres:
         with self._conectar() as conexion:
             fila = conexion.execute(esquema.SIGUIENTE_REFERENCIA).fetchone()
         return f"SIN-{anio}-{int(fila['consecutivo']):06d}"  # type: ignore[index]
+
+    def agregar_evidencia(self, evidencia: EvidenciaDelSiniestro) -> None:
+        with self._conectar() as conexion:
+            conexion.execute(
+                esquema.INSERTAR_EVIDENCIA,
+                {
+                    "id_evidencia": evidencia.id_evidencia,
+                    "id_siniestro": evidencia.id_siniestro,
+                    "tipo_contenido": evidencia.tipo_contenido,
+                    "tamano": evidencia.tamano,
+                    "nombre_original": evidencia.nombre_original,
+                    "canal": evidencia.canal,
+                    "cargada_en": evidencia.cargada_en,
+                    "tomada_en": evidencia.captura.tomada_en,
+                    "latitud": evidencia.captura.latitud,
+                    "longitud": evidencia.captura.longitud,
+                    "lugar": evidencia.captura.lugar,
+                },
+            )
+
+    def evidencias(self, id_siniestro: str) -> tuple[EvidenciaDelSiniestro, ...]:
+        with self._conectar() as conexion:
+            filas = conexion.execute(esquema.EVIDENCIAS, {"id_siniestro": id_siniestro}).fetchall()
+        return tuple(
+            EvidenciaDelSiniestro(
+                id_evidencia=str(f["id_evidencia"]),
+                id_siniestro=str(f["id_siniestro"]),
+                tipo_contenido=str(f["tipo_contenido"]),
+                tamano=int(f["tamano"]),  # type: ignore[call-overload]
+                nombre_original=f["nombre_original"],  # type: ignore[arg-type]
+                canal=str(f["canal"]),
+                cargada_en=f["cargada_en"],  # type: ignore[arg-type]
+                captura=Captura(
+                    tomada_en=f["tomada_en"],  # type: ignore[arg-type]
+                    latitud=f["latitud"],  # type: ignore[arg-type]
+                    longitud=f["longitud"],  # type: ignore[arg-type]
+                    lugar=f["lugar"],  # type: ignore[arg-type]
+                ),
+            )
+            for f in filas
+        )

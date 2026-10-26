@@ -39,6 +39,10 @@ class EstadoSiniestro(StrEnum):
     PAGADO = "pagado"
 
 
+#: Un caso en estos estados ya no recibe evidencia.
+ESTADOS_CERRADOS = frozenset({EstadoSiniestro.RECHAZADO, EstadoSiniestro.PAGADO})
+
+
 class SiguientePaso(StrEnum):
     """Qué le toca al cliente ahora. Cada canal lo dice con su propio texto."""
 

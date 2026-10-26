@@ -9,12 +9,14 @@ from __future__ import annotations
 import itertools
 import threading
 
+from ..dominio.evidencias import EvidenciaDelSiniestro
 from ..dominio.modelo import Siniestro
 
 
 class RepositorioEnMemoria:
     def __init__(self) -> None:
         self._por_id: dict[str, Siniestro] = {}
+        self._evidencias: dict[str, list[EvidenciaDelSiniestro]] = {}
         self._consecutivo = itertools.count(1)
         self._cerrojo = threading.Lock()
 
@@ -42,3 +44,11 @@ class RepositorioEnMemoria:
     def siguiente_referencia(self, anio: int) -> str:
         with self._cerrojo:
             return f"SIN-{anio}-{next(self._consecutivo):06d}"
+
+    def agregar_evidencia(self, evidencia: EvidenciaDelSiniestro) -> None:
+        with self._cerrojo:
+            self._evidencias.setdefault(evidencia.id_siniestro, []).append(evidencia)
+
+    def evidencias(self, id_siniestro: str) -> tuple[EvidenciaDelSiniestro, ...]:
+        with self._cerrojo:
+            return tuple(self._evidencias.get(id_siniestro, ()))

@@ -31,6 +31,7 @@ Toda la configuración entra por variables de entorno; no hay archivos de config
 | Variable | Sin ella | Con ella |
 |---|---|---|
 | `SINIESTROS_DATABASE_URL` | Siniestros en memoria: se pierden al reiniciar | Siniestros en PostgreSQL, en el esquema `siniestros`, con la clave de idempotencia única por cliente |
+| `ALMACENAMIENTO_EVIDENCIAS`, `EVIDENCIAS_BUCKET` | Evidencias en memoria | Con `gcs`, las evidencias van al bucket de Cloud Storage; sin operación de borrar |
 | `POLIZAS_SEMILLA` | Sin pólizas | Ruta a un JSON con pólizas de prueba, con fechas relativas al arranque. Solo en *staging* |
 | `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
 | `TOKENS_LLAVE_PRIVADA` | Llave efímera al arrancar: los tokens solo los valida este proceso. En Cloud Run, `/salud` responde 503 | Firma los tokens de sesión (ES256). El `kid` es la huella JWK de su pública |

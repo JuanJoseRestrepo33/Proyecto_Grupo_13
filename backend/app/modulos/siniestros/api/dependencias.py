@@ -78,6 +78,7 @@ def _componentes() -> tuple[ServicioDeSiniestros, Reloj, RepositorioSiniestros]:
         auditoria=RegistroEnAuditoria(auditoria.obtener_servicio()),
         bus=obtener_bus(),
         reloj=reloj,
+        almacen=crear_almacen_de_evidencias(),
     )
     return servicio, reloj, repositorio
 
@@ -108,9 +109,18 @@ def _estado_repositorio() -> EstadoDeDependencia:
     return EstadoDeDependencia("repositorio_siniestros", "ok", "PostgreSQL, esquema siniestros")
 
 
+def _estado_almacen() -> EstadoDeDependencia:
+    tipo = os.environ.get(VARIABLE_ALMACENAMIENTO, "local")
+    if tipo == "gcs":
+        bucket = os.environ.get(VARIABLE_BUCKET, "")
+        return EstadoDeDependencia("almacen_evidencias", "ok", f"Cloud Storage, bucket {bucket}")
+    return EstadoDeDependencia("almacen_evidencias", "simulado", "En memoria")
+
+
 def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
     return (
         _estado_repositorio(),
         EstadoDeDependencia("polizas", "ok", "Módulo de pólizas del núcleo (interfaz pública)"),
         EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
+        _estado_almacen(),
     )

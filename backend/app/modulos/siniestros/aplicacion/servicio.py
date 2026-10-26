@@ -12,14 +12,18 @@ import uuid
 from app.compartido.eventos import BusDeEventos, Evento
 from app.compartido.reloj import Reloj
 
+from ..dominio.almacen_evidencias import AlmacenDeEvidencias
 from ..dominio.errores import (
     ClaveIdempotenciaEnUsoError,
     EventoFueraDeVigenciaError,
+    EvidenciaNoEncontradaError,
     FechaFuturaError,
     PolizaNoEncontradaError,
+    SiniestroCerradoError,
     SiniestroNoEncontradoError,
 )
-from ..dominio.modelo import DatosDeReporte, Siniestro
+from ..dominio.evidencias import Captura, EvidenciaDelSiniestro, exigir_evidencia_valida
+from ..dominio.modelo import ESTADOS_CERRADOS, DatosDeReporte, Siniestro
 from ..dominio.puertos import ConsultaDePolizas, RegistroDeAuditoria, RepositorioSiniestros
 
 #: Evento que publica un reporte nuevo. El seguimiento (WEB-F06) y las notificaciones
@@ -35,10 +39,12 @@ class ServicioDeSiniestros:
         auditoria: RegistroDeAuditoria,
         bus: BusDeEventos,
         reloj: Reloj,
+        almacen: AlmacenDeEvidencias,
     ) -> None:
         self._repositorio = repositorio
         self._polizas = polizas
         self._auditoria = auditoria
+        self._almacen = almacen
         self._bus = bus
         self._reloj = reloj
 
@@ -120,3 +126,69 @@ class ServicioDeSiniestros:
 
     def del_cliente(self, id_cliente: str) -> tuple[Siniestro, ...]:
         return self._repositorio.del_cliente(id_cliente)
+
+    # -- evidencia (MOB-F05) -------------------------------------------------------------
+
+    def adjuntar_evidencia(
+        self,
+        id_cliente: str,
+        id_siniestro: str,
+        tipo_contenido: str,
+        contenido: bytes,
+        nombre_original: str | None,
+        canal: str,
+        captura: Captura | None = None,
+    ) -> EvidenciaDelSiniestro:
+        """Guarda la evidencia en el almacén y la asocia al siniestro.
+
+        Se puede agregar en el reporte o después, desde cualquiera de los dos canales, y se
+        ve en ambos (criterio 5). Los límites se validan antes de tocar el almacén.
+        """
+        siniestro = self.obtener(id_cliente, id_siniestro)
+        if siniestro.estado in ESTADOS_CERRADOS:
+            raise SiniestroCerradoError(
+                "El siniestro ya está cerrado", estado=str(siniestro.estado)
+            )
+        tipo = exigir_evidencia_valida(tipo_contenido, contenido)
+        ahora = self._reloj.ahora()
+        captura = (captura or Captura()).validada(ahora)
+        id_evidencia = f"EVI-{uuid.uuid4().hex}"
+        guardada = self._almacen.guardar(
+            siniestro.id_siniestro, id_evidencia, tipo, contenido, nombre_original
+        )
+        evidencia = EvidenciaDelSiniestro(
+            id_evidencia=id_evidencia,
+            id_siniestro=siniestro.id_siniestro,
+            tipo_contenido=tipo,
+            tamano=guardada.tamano,
+            nombre_original=guardada.nombre_original,
+            canal=canal,
+            cargada_en=ahora,
+            captura=captura,
+        )
+        self._repositorio.agregar_evidencia(evidencia)
+        self._auditoria.registrar_evidencia(siniestro, evidencia)
+        return evidencia
+
+    def evidencias(self, id_cliente: str, id_siniestro: str) -> tuple[EvidenciaDelSiniestro, ...]:
+        siniestro = self.obtener(id_cliente, id_siniestro)
+        return self._repositorio.evidencias(siniestro.id_siniestro)
+
+    def archivo_de_evidencia(
+        self, id_cliente: str, id_siniestro: str, id_evidencia: str
+    ) -> tuple[EvidenciaDelSiniestro, bytes]:
+        """La evidencia y su contenido, solo si es de un siniestro del cliente."""
+        evidencia = next(
+            (
+                e
+                for e in self.evidencias(id_cliente, id_siniestro)
+                if e.id_evidencia == id_evidencia
+            ),
+            None,
+        )
+        archivo = None
+        if evidencia is not None:
+            archivo = self._almacen.leer(evidencia.id_siniestro, evidencia.id_evidencia)
+        if evidencia is None or archivo is None:
+            raise EvidenciaNoEncontradaError("La evidencia no existe", id_evidencia=id_evidencia)
+        return evidencia, archivo.contenido
