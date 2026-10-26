@@ -371,3 +371,15 @@ def test_un_reporte_que_no_procede_no_se_audita(servicio, almacen):
         servicio.reportar(CLIENTE, replace(DATOS, ocurrido_el=HOY + timedelta(days=3)), "web")
 
     assert almacen.todos() == ()
+
+
+def test_sin_base_la_salud_reporta_los_siniestros_caidos(monkeypatch):
+    monkeypatch.setenv(dependencias.VARIABLE_DSN, "postgresql://nadie@127.0.0.1:9/solventa")
+    dependencias.reiniciar()
+    try:
+        estado = {d.nombre: d for d in dependencias.estado_dependencias()}
+    finally:
+        monkeypatch.delenv(dependencias.VARIABLE_DSN)
+        dependencias.reiniciar()
+
+    assert estado["repositorio_siniestros"].estado == "caido"
