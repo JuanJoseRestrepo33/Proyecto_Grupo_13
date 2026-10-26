@@ -12,7 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from .errores import ErrorBff
-from .nucleo import ClienteNucleo
+from .nucleo import ClienteNucleo, segmento
 
 RUTA_NUCLEO = "/v1/consentimiento"
 NO_ENCONTRADO = "consentimiento_no_encontrado"
@@ -72,6 +72,11 @@ def _ruta_cliente(id_cliente: str) -> str:
     return f"{RUTA_NUCLEO}/clientes/{id_cliente}/consentimientos"
 
 
+def _ruta_consentimiento(id_cliente: str, id_consentimiento: str) -> str:
+    """La ruta de un consentimiento; el identificador llega del canal y se valida."""
+    return f"{_ruta_cliente(id_cliente)}/{segmento(id_consentimiento, NO_ENCONTRADO)}"
+
+
 def finalidades(nucleo: ClienteNucleo) -> list[dict[str, object]]:
     return [a_finalidad(f) for f in nucleo.get(f"{RUTA_NUCLEO}/finalidades")]
 
@@ -100,7 +105,7 @@ def revocar(
     nucleo: ClienteNucleo, id_cliente: str, canal: str, id_consentimiento: str
 ) -> dict[str, object]:
     consentimiento = nucleo.post(
-        f"{_ruta_cliente(id_cliente)}/{id_consentimiento}/revocacion",
+        f"{_ruta_consentimiento(id_cliente, id_consentimiento)}/revocacion",
         canal=canal,
         si_no_existe=NO_ENCONTRADO,
     )
@@ -111,7 +116,7 @@ def renovar(
     nucleo: ClienteNucleo, id_cliente: str, canal: str, id_consentimiento: str
 ) -> dict[str, object]:
     consentimiento = nucleo.post(
-        f"{_ruta_cliente(id_cliente)}/{id_consentimiento}/renovacion",
+        f"{_ruta_consentimiento(id_cliente, id_consentimiento)}/renovacion",
         canal=canal,
         si_no_existe=NO_ENCONTRADO,
     )
@@ -122,6 +127,6 @@ def eventos(
     nucleo: ClienteNucleo, id_cliente: str, id_consentimiento: str
 ) -> list[dict[str, object]]:
     historico = nucleo.get(
-        f"{_ruta_cliente(id_cliente)}/{id_consentimiento}/eventos", si_no_existe=NO_ENCONTRADO
+        f"{_ruta_consentimiento(id_cliente, id_consentimiento)}/eventos", si_no_existe=NO_ENCONTRADO
     )
     return [a_evento(e) for e in historico]
