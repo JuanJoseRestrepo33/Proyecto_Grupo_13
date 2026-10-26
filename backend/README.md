@@ -31,6 +31,7 @@ Toda la configuración entra por variables de entorno; no hay archivos de config
 | Variable | Sin ella | Con ella |
 |---|---|---|
 | `SINIESTROS_DATABASE_URL` | Siniestros en memoria: se pierden al reiniciar | Siniestros en PostgreSQL, en el esquema `siniestros`, con la clave de idempotencia única por cliente |
+| `ALMACENAMIENTO_EVIDENCIAS`, `EVIDENCIAS_BUCKET` | Evidencias en memoria | Con `gcs`, las evidencias van al bucket de Cloud Storage; sin operación de borrar |
 | `POLIZAS_SEMILLA` | Sin pólizas | Ruta a un JSON con pólizas de prueba, con fechas relativas al arranque. Solo en *staging* |
 | `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
 | `AUDITORIA_DATABASE_URL` | Log de auditoría en memoria (desarrollo y pruebas unitarias) | Log en PostgreSQL con las tres capas de protección. El esquema se crea solo al arrancar |
