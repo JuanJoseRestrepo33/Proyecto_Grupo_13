@@ -32,6 +32,7 @@ Toda la configuración entra por variables de entorno; no hay archivos de config
 |---|---|---|
 | `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
 | `AUDITORIA_DATABASE_URL` | Log de auditoría en memoria (desarrollo y pruebas unitarias) | Log en PostgreSQL con las tres capas de protección. El esquema se crea solo al arrancar |
+| `COTIZACION_DATABASE_URL` | Cotizaciones en memoria: se pierden al reiniciar | Cotizaciones en PostgreSQL, en el esquema `cotizacion`, que el módulo crea al arrancar |
 
 Al recibir la orden de apagado, la fachada llama a `detener()` en cada módulo en orden inverso al de
 arranque. Auditoría aprovecha ese momento para escribir lo que quedó en su cola; sin eso, una
