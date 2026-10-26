@@ -31,6 +31,10 @@ Toda la configuración entra por variables de entorno; no hay archivos de config
 | Variable | Sin ella | Con ella |
 |---|---|---|
 | `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
+| `TOKENS_LLAVE_PRIVADA` | Llave efímera al arrancar: los tokens solo los valida este proceso. En Cloud Run, `/salud` responde 503 | Firma los tokens de sesión (ES256). El `kid` es la huella JWK de su pública |
+| `TOKENS_LLAVE_PUBLICA` | Se deriva de la privada | Se comprueba que sea la de la privada; si no, `/salud` responde 503 |
+| `HUMO_CORREO`, `HUMO_CLAVE` | Sin cuenta de prueba | Al arrancar se crea la cuenta de prueba de *staging* con correo verificado |
+| `IDENTIDAD_OTP_FIJO` | Cada código de verificación del correo es aleatorio | Todos los códigos son ese (6 dígitos), para las E2E del registro. Nunca en producción |
 | `AUDITORIA_DATABASE_URL` | Log de auditoría en memoria (desarrollo y pruebas unitarias) | Log en PostgreSQL con las tres capas de protección. El esquema se crea solo al arrancar |
 | `COTIZACION_DATABASE_URL` | Cotizaciones en memoria: se pierden al reiniciar | Cotizaciones en PostgreSQL, en el esquema `cotizacion`, que el módulo crea al arrancar |
 
