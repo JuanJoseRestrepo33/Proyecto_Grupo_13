@@ -125,7 +125,8 @@ internal class MockConsentimiento(private val estado: EstadoMock) {
 
     private val consentimientos = mutableListOf<ConsentimientoMock>()
 
-    fun finalidades(): RespuestaMock = respuesta(200, CATALOGO_FINALIDADES)
+    fun finalidades(autorizacion: String?): RespuestaMock =
+        if (estado.cuentaAutenticada(autorizacion) == null) noAutenticado() else respuesta(200, CATALOGO_FINALIDADES)
 
     fun listar(autorizacion: String?): RespuestaMock {
         val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()

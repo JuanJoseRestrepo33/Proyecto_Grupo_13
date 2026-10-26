@@ -199,7 +199,9 @@ class MockBffMovilTest {
     }
 
     @Test
-    fun `el catalogo de finalidades no requiere autenticacion`() = runBlocking {
+    fun `el catalogo de finalidades exige sesion, como el router movil`() = runBlocking {
+        assertEquals(401 to "no_autenticado", falla { api.listarFinalidades() }.clave())
+        ingresarComoDemo()
         val finalidades = api.listarFinalidades()
         assertEquals(3, finalidades.size)
         assertEquals(co.solventa.core.network.CodigoFinalidad.COTIZACION, finalidades[0].codigo)

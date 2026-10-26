@@ -35,21 +35,21 @@ interface BffApi {
     suspend fun solicitarVerificacionIdentidad(): VerificacionIdentidad
 
     // ── Consentimiento (MOB-F02) ───────────────────────────────────────────────────────────────
-    // Rutas provisionales que espejean el contrato del BFF web y el backend Python.
-    // Se ajustarán a /api/v1/movil/ cuando #160 publique el contrato de bff-movil v0.2.
+    // Rutas que verifica el humo de staging (scripts/humo.py); todas exigen sesión. El contrato
+    // bff-movil v0.2 las publica con #160: si cambia algo, se ajusta aquí y en el mock.
 
-    @GET("consentimiento/finalidades")
+    @GET("consentimientos/finalidades")
     suspend fun listarFinalidades(): List<FinalidadConsentimiento>
 
-    @GET("consentimiento/consentimientos")
+    @GET("consentimientos")
     suspend fun listarConsentimientos(): List<Consentimiento>
 
-    @POST("consentimiento/consentimientos")
+    @POST("consentimientos")
     suspend fun otorgarConsentimiento(@Body solicitud: SolicitudConsentimiento): Consentimiento
 
-    @POST("consentimiento/consentimientos/{id}/revocacion")
+    @POST("consentimientos/{id}/revocacion")
     suspend fun revocarConsentimiento(@Path("id") idConsentimiento: String): Consentimiento
 
-    @POST("consentimiento/consentimientos/{id}/renovacion")
+    @POST("consentimientos/{id}/renovacion")
     suspend fun renovarConsentimiento(@Path("id") idConsentimiento: String): Consentimiento
 }

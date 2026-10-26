@@ -9,7 +9,7 @@ private val RUTA_OTP = Regex("^registros/([^/]+)/otp/(verificacion|reenvio)$")
 // Rutas de consentimiento con segmentos variables (patrón análogo a RUTA_OTP).
 // Se ajustarán cuando #160 publique el contrato de bff-movil v0.2.
 private val RUTA_CON_ACCION = Regex(
-    "^consentimiento/consentimientos/([^/]+)/(revocacion|renovacion)$",
+    "^consentimientos/([^/]+)/(revocacion|renovacion)$",
 )
 
 /**
@@ -49,9 +49,9 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         "GET sesion" -> sesiones.sesion(autorizacion)
         "GET identidad/verificacion" -> identidad.consultar(autorizacion)
         "POST identidad/verificacion" -> identidad.solicitar(autorizacion)
-        "GET consentimiento/finalidades" -> consentimiento.finalidades()
-        "GET consentimiento/consentimientos" -> consentimiento.listar(autorizacion)
-        "POST consentimiento/consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
+        "GET consentimientos/finalidades" -> consentimiento.finalidades(autorizacion)
+        "GET consentimientos" -> consentimiento.listar(autorizacion)
+        "POST consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
         else -> null
     }
 
