@@ -1,0 +1,72 @@
+[project]
+name = "solventa-bff"
+version = "0.1.0"
+description = "Backend for Frontend de Solventa: un servicio con un router por canal (web y móvil)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "pyjwt[crypto]>=2.9",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.7.4",
+    "import-linter>=2.1",
+    "diff-cover>=9.2",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------------------
+# Lint y formato. Mismas reglas que el núcleo para que el repo sea uno solo.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N"]
+
+[tool.ruff.lint.per-file-ignores]
+# Los errores se leen como sustantivos del dominio, igual que en el núcleo.
+"app/comun/errores.py" = ["N818"]
+"app/comun/tokens.py" = ["N818"]
+
+# ---------------------------------------------------------------------------
+# Pruebas
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+omit = ["app/main.py"]
+
+# ---------------------------------------------------------------------------
+# Frontera entre los routers (ADR 0001). El job `bff` del CI corre `lint-imports`.
+#
+# Si un router importa al otro, el servicio ya no se puede partir en dos sin reescribir.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "Los routers web y móvil no se importan entre sí"
+type = "independence"
+modules = ["app.web", "app.movil"]
+
+[[tool.importlinter.contracts]]
+name = "Lo común no depende de ningún canal ni del armado de la app"
+type = "forbidden"
+source_modules = ["app.comun"]
+forbidden_modules = ["app.web", "app.movil", "app.main", "app.salud"]

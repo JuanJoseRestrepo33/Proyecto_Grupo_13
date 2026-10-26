@@ -5,10 +5,15 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
-## [Sin publicar]
+## [0.6.0] · 2026-10-26 · WEB-F01
 
-- WEB-F01 (Sprint 2): sin cambios en el contrato todavía. El BFF real (#164) implementa las rutas de
-  cotización tal como están.
+El BFF real (#164) implementa las rutas de cotización.
+
+### Agregado
+
+- `motivo_tarifa` admite `proveedor_no_disponible`: había consentimiento vigente, pero el proveedor
+  de Open Finance no respondió y no había perfil en caché, así que la prima es la estándar. La web
+  lo explica distinto de `sin_consentimiento` (criterio 3).
 
 ## [0.5.0] · 2026-10-26 · WEB-F13
 

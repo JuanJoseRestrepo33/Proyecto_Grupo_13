@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.5.0
+  version: 0.6.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -695,10 +695,12 @@ components:
             degradado y se usó el perfil en caché; el precio es igual de válido.
         motivo_tarifa:
           type: [string, "null"]
-          enum: [sin_consentimiento, open_finance_desactivado, null]
+          enum: [sin_consentimiento, open_finance_desactivado, proveedor_no_disponible, null]
           description: |
             Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
-            el cliente pidió cotizar sin sus datos financieros.
+            el cliente pidió cotizar sin sus datos financieros. `proveedor_no_disponible`: había
+            consentimiento, pero el proveedor de Open Finance no respondió y no había perfil en
+            caché (WEB-F01, criterio 3).
         factores:
           type: array
           description: Factores que componen la prima y su efecto ("¿Por qué este precio?")

@@ -1,0 +1,56 @@
+# BFF de Solventa
+
+*Backend for Frontend* de los dos canales, en un solo servicio con dos routers
+([ADR 0001](../docs/adr/0001-bff-unico-dos-routers.md)):
+
+| Prefijo | Contrato | Cliente |
+|---|---|---|
+| `/api/v1/web/` | [`contratos/bff-web`](../contratos/bff-web/openapi.yaml) | La web, a través del proxy de nginx de `solventa-web` (mismo origen) |
+| `/api/v1/movil/` | [`contratos/bff-movil`](../contratos/bff-movil/openapi.yaml) | La app Android, directo |
+
+El BFF orquesta el núcleo por HTTP (`NUCLEO_URL`) y nunca importa su código. Las diferencias
+entre un contrato de canal y la API `/v1` del núcleo se resuelven aquí, no en los clientes.
+
+## Arrancar
+
+```bash
+cd bff
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn app.main:app --reload --port 8001
+```
+
+Con el núcleo corriendo en el puerto 8000, el BFF no necesita más configuración para atender
+en local.
+
+| Variable | Sin ella | Con ella |
+|---|---|---|
+| `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
+| `NUCLEO_URL` | Apunta a `http://127.0.0.1:8000` | URL del núcleo, sin barra final |
+| `TOKENS_LLAVE_PUBLICA` | Ninguna ruta protegida abre sesión (503 `llave_no_configurada`). En Cloud Run, `/salud` responde 503 | Valida los tokens ES256 que emite el núcleo, eligiendo la llave por `kid` (huella JWK, RFC 7638) |
+| `TOKENS_LLAVE_PUBLICA_ANTERIOR` | Solo vale la llave actual | Durante una rotación, también valen los tokens firmados con la anterior |
+
+El BFF nunca recibe la llave privada: valida sesiones, no las emite. Un token solo vale en el canal
+para el que se emitió.
+
+## Verificar lo mismo que el CI
+
+```bash
+ruff check . && ruff format --check .   # lint y formato
+lint-imports                            # frontera entre los routers web y móvil
+pytest --cov=app --cov-report=term-missing
+```
+
+## Estructura
+
+```
+app/
+├── comun/          Lo que comparten los dos routers: configuración, cliente del núcleo, errores, tokens y sesión
+├── web/            Router /api/v1/web: una ruta por recurso del contrato bff-web; sesión en la cookie `sesion`
+├── movil/          Router /api/v1/movil: una ruta por recurso del contrato bff-movil; sesión en `Authorization: Bearer`
+├── salud.py        /salud: estado del BFF, del núcleo y de las llaves
+└── main.py         Arma la app con los dos routers
+```
+
+`web` y `movil` no se importan entre sí y `comun` no conoce a ninguno de los dos: lo verifica
+`lint-imports` en el CI. Así el servicio se puede partir en dos sin cambiar ningún cliente.

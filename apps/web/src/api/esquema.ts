@@ -458,10 +458,12 @@ export interface components {
             base_perfilamiento: "open_finance" | "open_finance_en_cache" | "estandar";
             /**
              * @description Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
-             *     el cliente pidió cotizar sin sus datos financieros.
+             *     el cliente pidió cotizar sin sus datos financieros. `proveedor_no_disponible`: había
+             *     consentimiento, pero el proveedor de Open Finance no respondió y no había perfil en
+             *     caché (WEB-F01, criterio 3).
              * @enum {string|null}
              */
-            motivo_tarifa: "sin_consentimiento" | "open_finance_desactivado" | null;
+            motivo_tarifa: "sin_consentimiento" | "open_finance_desactivado" | "proveedor_no_disponible" | null;
             /** @description Factores que componen la prima y su efecto ("¿Por qué este precio?") */
             factores: components["schemas"]["FactorPrecio"][];
             /**

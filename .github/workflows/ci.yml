@@ -1,8 +1,8 @@
 # Integración continua (ARQ-04): corre en cada pull request hacia develop, main o release/* y en
 # cada push a develop o main. El check "ci-ok" es el que la protección de ramas exige en verde.
 #
-# Los jobs de backend se activan solos cuando exista backend/pyproject.toml (ARQ-01), y el de la
-# app web cuando exista apps/web/package.json.
+# Los jobs de backend se activan solos cuando exista backend/pyproject.toml (ARQ-01), el del BFF
+# cuando exista bff/pyproject.toml (WEB-F01) y el de la app web cuando exista apps/web/package.json.
 # Contrato que deben cumplir: ver docs/devops.md, sección "Integración continua".
 name: CI
 
@@ -25,12 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.componentes.outputs.backend }}
+      bff: ${{ steps.componentes.outputs.bff }}
       web: ${{ steps.componentes.outputs.web }}
     steps:
       - uses: actions/checkout@v4
       - id: componentes
         run: |
           if [ -f backend/pyproject.toml ]; then echo "backend=true"; else echo "backend=false"; fi >> "$GITHUB_OUTPUT"
+          if [ -f bff/pyproject.toml ]; then echo "bff=true"; else echo "bff=false"; fi >> "$GITHUB_OUTPUT"
           if [ -f apps/web/package.json ]; then echo "web=true"; else echo "web=false"; fi >> "$GITHUB_OUTPUT"
 
   convenciones:
@@ -147,6 +149,55 @@ jobs:
             backend/cobertura-nueva.md
           if-no-files-found: ignore
 
+  bff:
+    name: BFF · lint, frontera entre canales, pruebas y cobertura
+    needs: detectar
+    if: needs.detectar.outputs.bff == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bff
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: bff/pyproject.toml
+      - name: Instalar dependencias
+        run: pip install -e '.[dev]'
+      - name: Lint (ruff)
+        run: ruff check --output-format=github .
+      - name: Formato (ruff format)
+        run: ruff format --check .
+      - name: Frontera entre los routers web y móvil (import-linter)
+        run: lint-imports
+      - name: Pruebas con cobertura
+        run: pytest --cov=app --cov-report=xml --junitxml=reporte-pruebas.xml
+      - name: Cobertura del código nuevo ≥ 70%
+        if: github.event_name == 'pull_request'
+        run: |
+          diff-cover coverage.xml             --compare-branch="origin/${{ github.base_ref }}"             --fail-under=70             --markdown-report cobertura-nueva.md
+      - name: Publicar cobertura en el resumen del pipeline
+        if: always()
+        run: |
+          {
+            echo "## Cobertura del BFF"
+            python -c "import xml.etree.ElementTree as E; r=E.parse('coverage.xml').getroot(); print(f\"**Total:** {float(r.get('line-rate'))*100:.1f}% de líneas\")" || true
+            if [ -f cobertura-nueva.md ]; then cat cobertura-nueva.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-bff
+          path: |
+            bff/coverage.xml
+            bff/reporte-pruebas.xml
+            bff/cobertura-nueva.md
+          if-no-files-found: ignore
+
   web:
     name: Web · contrato, lint, tipos, pruebas, cobertura y build
     needs: detectar
@@ -257,7 +308,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [detectar, convenciones, herramientas, backend, web, imagen]
+    needs: [detectar, convenciones, herramientas, backend, bff, web, imagen]
     runs-on: ubuntu-latest
     steps:
       - name: Todos los checks requeridos pasaron
