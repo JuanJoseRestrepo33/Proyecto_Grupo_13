@@ -22,7 +22,7 @@ from ..dominio.errores import (
     SiniestroCerradoError,
     SiniestroNoEncontradoError,
 )
-from ..dominio.evidencias import EvidenciaDelSiniestro, exigir_evidencia_valida
+from ..dominio.evidencias import Captura, EvidenciaDelSiniestro, exigir_evidencia_valida
 from ..dominio.modelo import ESTADOS_CERRADOS, DatosDeReporte, Siniestro
 from ..dominio.puertos import ConsultaDePolizas, RegistroDeAuditoria, RepositorioSiniestros
 
@@ -137,6 +137,7 @@ class ServicioDeSiniestros:
         contenido: bytes,
         nombre_original: str | None,
         canal: str,
+        captura: Captura | None = None,
     ) -> EvidenciaDelSiniestro:
         """Guarda la evidencia en el almacén y la asocia al siniestro.
 
@@ -149,6 +150,8 @@ class ServicioDeSiniestros:
                 "El siniestro ya está cerrado", estado=str(siniestro.estado)
             )
         tipo = exigir_evidencia_valida(tipo_contenido, contenido)
+        ahora = self._reloj.ahora()
+        captura = (captura or Captura()).validada(ahora)
         id_evidencia = f"EVI-{uuid.uuid4().hex}"
         guardada = self._almacen.guardar(
             siniestro.id_siniestro, id_evidencia, tipo, contenido, nombre_original
@@ -160,7 +163,8 @@ class ServicioDeSiniestros:
             tamano=guardada.tamano,
             nombre_original=guardada.nombre_original,
             canal=canal,
-            cargada_en=self._reloj.ahora(),
+            cargada_en=ahora,
+            captura=captura,
         )
         self._repositorio.agregar_evidencia(evidencia)
         self._auditoria.registrar_evidencia(siniestro, evidencia)

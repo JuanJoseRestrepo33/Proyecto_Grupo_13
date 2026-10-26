@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -131,3 +131,27 @@ def test_la_salud_reporta_el_almacen_en_uso(nucleo, monkeypatch):
     gcs = {d.nombre: d for d in dependencias.estado_dependencias()}["almacen_evidencias"]
     assert gcs.estado == "ok"
     assert "proyecto-solventa-evidencias" in gcs.detalle
+
+
+def test_la_fecha_y_la_ubicacion_viajan_como_parametros(nucleo, id_siniestro):
+    hace_una_hora = (datetime.now(UTC) - timedelta(hours=1)).replace(microsecond=0)
+    respuesta = _adjuntar(
+        nucleo,
+        id_siniestro,
+        tomada_en=hace_una_hora.isoformat(),
+        latitud="4.6533",
+        longitud="-74.0836",
+    )
+
+    cuerpo = respuesta.json()
+    assert respuesta.status_code == 201
+    assert (cuerpo["latitud"], cuerpo["longitud"]) == (4.6533, -74.0836)
+    assert datetime.fromisoformat(cuerpo["tomada_en"]) == hace_una_hora
+    assert cuerpo["lugar"] is None
+
+
+def test_una_ubicacion_incompleta_es_400(nucleo, id_siniestro):
+    respuesta = _adjuntar(nucleo, id_siniestro, latitud="4.65")
+
+    assert respuesta.status_code == 400
+    assert respuesta.json()["title"] == "ubicacion_invalida"

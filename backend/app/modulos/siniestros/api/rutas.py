@@ -10,6 +10,7 @@ desarmó el formulario del canal. El núcleo deja de leer pasados los 10 MB.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated
 from urllib.parse import quote
 
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 from starlette.concurrency import run_in_threadpool
 
 from ..aplicacion.servicio import ServicioDeSiniestros
-from ..dominio.evidencias import TAMANO_MAXIMO, ArchivoDemasiadoGrandeError
+from ..dominio.evidencias import TAMANO_MAXIMO, ArchivoDemasiadoGrandeError, Captura
 from .dependencias import obtener_servicio
 from .esquemas import (
     Canal,
@@ -115,10 +116,15 @@ async def adjuntar_evidencia(
     servicio: Servicio,
     canal: CanalDep = Canal.WEB,
     nombre_original: Annotated[str | None, Query(max_length=255)] = None,
+    tomada_en: Annotated[datetime | None, Query(description="Fecha y hora de la cámara")] = None,
+    latitud: Annotated[float | None, Query()] = None,
+    longitud: Annotated[float | None, Query()] = None,
+    lugar: Annotated[str | None, Query(max_length=200)] = None,
 ) -> EvidenciaDto:
     """El cuerpo es el archivo y `Content-Type` su tipo. 400 `formato_no_admitido`,
     `archivo_demasiado_grande` o `archivo_vacio`; 409 `siniestro_cerrado`; 503
-    `almacenamiento_no_disponible`."""
+    `almacenamiento_no_disponible`. La fecha de la cámara y la ubicación son opcionales; sin
+    permiso de ubicación, el cliente puede escribir el `lugar`."""
     contenido = await _leer_con_tope(request)
     evidencia = await run_in_threadpool(
         servicio.adjuntar_evidencia,
@@ -128,6 +134,7 @@ async def adjuntar_evidencia(
         contenido,
         nombre_original,
         str(canal),
+        Captura(tomada_en, latitud, longitud, lugar),
     )
     return a_evidencia_dto(evidencia)
 

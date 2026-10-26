@@ -20,7 +20,10 @@ from app.modulos.siniestros.dominio.errores import (
 )
 from app.modulos.siniestros.dominio.evidencias import (
     ArchivoDemasiadoGrandeError,
+    Captura,
+    FechaDeCapturaInvalidaError,
     FormatoNoAdmitidoError,
+    UbicacionInvalidaError,
 )
 from app.modulos.siniestros.dominio.modelo import DatosDeReporte, EstadoSiniestro, TipoEvento
 from app.modulos.siniestros.dominio.puertos import VigenciaDePoliza
@@ -217,3 +220,67 @@ def test_la_evidencia_queda_auditada_sin_el_nombre_del_archivo(servicio, siniest
     assert registro.canal == "movil"
     assert registro.resultado == {"id_evidencia": evidencia.id_evidencia}
     assert "cedula-de-ana" not in str(registro)
+
+
+# -- fecha y ubicación de la captura (criterios 1 y 2) ------------------------------------
+
+
+def test_la_foto_queda_con_fecha_hora_y_ubicacion(servicio, siniestro):
+    captura = Captura(tomada_en=INSTANTE - timedelta(minutes=3), latitud=4.6533, longitud=-74.0836)
+
+    evidencia = servicio.adjuntar_evidencia(
+        CLIENTE, siniestro.id_siniestro, "image/jpeg", FOTO, None, "movil", captura
+    )
+
+    assert evidencia.captura == captura
+    assert servicio.evidencias(CLIENTE, siniestro.id_siniestro)[0].captura == captura
+
+
+def test_sin_permiso_de_ubicacion_se_escribe_el_lugar(servicio, siniestro):
+    evidencia = servicio.adjuntar_evidencia(
+        CLIENTE,
+        siniestro.id_siniestro,
+        "image/jpeg",
+        FOTO,
+        None,
+        "movil",
+        Captura(lugar="  Calle 80 con Boyacá  "),
+    )
+
+    assert evidencia.captura.lugar == "Calle 80 con Boyacá"
+    assert evidencia.captura.latitud is None
+
+
+@pytest.mark.parametrize(
+    "captura",
+    [
+        Captura(latitud=4.6),
+        Captura(latitud=91, longitud=0),
+        Captura(latitud=0, longitud=181),
+    ],
+)
+def test_una_ubicacion_incompleta_o_fuera_de_rango_se_rechaza(servicio, siniestro, captura):
+    with pytest.raises(UbicacionInvalidaError):
+        servicio.adjuntar_evidencia(
+            CLIENTE, siniestro.id_siniestro, "image/jpeg", FOTO, None, "movil", captura
+        )
+
+
+@pytest.mark.parametrize(
+    "tomada_en", [INSTANTE + timedelta(minutes=10), INSTANTE.replace(tzinfo=None)]
+)
+def test_una_fecha_de_captura_futura_o_sin_zona_se_rechaza(servicio, siniestro, tomada_en):
+    with pytest.raises(FechaDeCapturaInvalidaError):
+        servicio.adjuntar_evidencia(
+            CLIENTE, siniestro.id_siniestro, "image/jpeg", FOTO, None, "movil", Captura(tomada_en)
+        )
+
+
+def test_el_reloj_del_telefono_puede_ir_unos_minutos_adelantado(servicio, siniestro):
+    adelantado = Captura(tomada_en=INSTANTE + timedelta(minutes=2))
+
+    evidencia = servicio.adjuntar_evidencia(
+        CLIENTE, siniestro.id_siniestro, "image/jpeg", FOTO, None, "movil", adelantado
+    )
+
+    assert evidencia.captura.tomada_en == adelantado.tomada_en

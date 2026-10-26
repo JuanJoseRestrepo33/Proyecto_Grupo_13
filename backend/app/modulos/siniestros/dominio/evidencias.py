@@ -9,7 +9,7 @@ renombrado a `.jpg` no pasa.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.compartido.errores import ErrorDeNegocio
 
@@ -30,6 +30,49 @@ class ArchivoDemasiadoGrandeError(ErrorDeNegocio):
 
 class ArchivoVacioError(ErrorDeNegocio):
     codigo = "archivo_vacio"
+
+
+class UbicacionInvalidaError(ErrorDeNegocio):
+    codigo = "ubicacion_invalida"
+
+
+class FechaDeCapturaInvalidaError(ErrorDeNegocio):
+    codigo = "fecha_de_captura_invalida"
+
+
+#: Holgura para el reloj del teléfono, que puede ir unos minutos adelantado.
+TOLERANCIA_RELOJ = timedelta(minutes=5)
+LARGO_MAXIMO_LUGAR = 200
+
+
+@dataclass(frozen=True, slots=True)
+class Captura:
+    """Cuándo y dónde se tomó la evidencia (MOB-F05, criterios 1 y 2).
+
+    La app manda la fecha y hora de la cámara y, si el cliente concedió el permiso, la
+    ubicación. Si lo negó, puede escribir el lugar: el reporte nunca queda bloqueado por un
+    permiso (P20). Todo es opcional.
+    """
+
+    tomada_en: datetime | None = None
+    latitud: float | None = None
+    longitud: float | None = None
+    lugar: str | None = None
+
+    def validada(self, ahora: datetime) -> Captura:
+        if (self.latitud is None) != (self.longitud is None):
+            raise UbicacionInvalidaError("La ubicación necesita latitud y longitud")
+        if self.latitud is not None and not -90 <= self.latitud <= 90:
+            raise UbicacionInvalidaError("La latitud va de -90 a 90", latitud=self.latitud)
+        if self.longitud is not None and not -180 <= self.longitud <= 180:
+            raise UbicacionInvalidaError("La longitud va de -180 a 180", longitud=self.longitud)
+        if self.tomada_en is not None:
+            if self.tomada_en.tzinfo is None:
+                raise FechaDeCapturaInvalidaError("La fecha de captura necesita zona horaria")
+            if self.tomada_en > ahora + TOLERANCIA_RELOJ:
+                raise FechaDeCapturaInvalidaError("La fecha de captura no puede ser futura")
+        lugar = (self.lugar or "").strip()[:LARGO_MAXIMO_LUGAR] or None
+        return Captura(self.tomada_en, self.latitud, self.longitud, lugar)
 
 
 def _es_mp4_o_heic(contenido: bytes) -> str | None:
@@ -87,3 +130,4 @@ class EvidenciaDelSiniestro:
     nombre_original: str | None
     canal: str
     cargada_en: datetime
+    captura: Captura = Captura()

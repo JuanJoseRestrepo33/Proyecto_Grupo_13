@@ -85,6 +85,10 @@ class EvidenciaDto(_Dto):
     nombre_original: str | None
     canal: str
     cargada_en: datetime
+    tomada_en: datetime | None = None
+    latitud: float | None = None
+    longitud: float | None = None
+    lugar: str | None = None
 
 
 def a_evidencia_dto(evidencia: EvidenciaDelSiniestro) -> EvidenciaDto:
@@ -95,4 +99,8 @@ def a_evidencia_dto(evidencia: EvidenciaDelSiniestro) -> EvidenciaDto:
         nombre_original=evidencia.nombre_original,
         canal=evidencia.canal,
         cargada_en=evidencia.cargada_en,
+        tomada_en=evidencia.captura.tomada_en,
+        latitud=evidencia.captura.latitud,
+        longitud=evidencia.captura.longitud,
+        lugar=evidencia.captura.lugar,
     )

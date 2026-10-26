@@ -44,7 +44,11 @@ CREATE TABLE IF NOT EXISTS siniestros.evidencias (
     tamano           BIGINT       NOT NULL,
     nombre_original  TEXT,
     canal            TEXT         NOT NULL,
-    cargada_en       TIMESTAMPTZ  NOT NULL
+    cargada_en       TIMESTAMPTZ  NOT NULL,
+    tomada_en        TIMESTAMPTZ,
+    latitud          DOUBLE PRECISION,
+    longitud         DOUBLE PRECISION,
+    lugar            TEXT
 );
 
 CREATE INDEX IF NOT EXISTS evidencias_por_siniestro
@@ -85,13 +89,14 @@ ORDER BY reportado_en DESC
 """
 
 COLUMNAS_EVIDENCIA = """
-    id_evidencia, id_siniestro, tipo_contenido, tamano, nombre_original, canal, cargada_en
+    id_evidencia, id_siniestro, tipo_contenido, tamano, nombre_original, canal, cargada_en,
+    tomada_en, latitud, longitud, lugar
 """
 
 INSERTAR_EVIDENCIA = f"""
 INSERT INTO siniestros.evidencias ({COLUMNAS_EVIDENCIA}) VALUES (
     %(id_evidencia)s, %(id_siniestro)s, %(tipo_contenido)s, %(tamano)s, %(nombre_original)s,
-    %(canal)s, %(cargada_en)s
+    %(canal)s, %(cargada_en)s, %(tomada_en)s, %(latitud)s, %(longitud)s, %(lugar)s
 )
 """
 
