@@ -50,12 +50,14 @@ def _crear_repositorio() -> RepositorioCotizaciones:
 def _componentes() -> tuple[ServicioDeCotizacion, Reloj, RepositorioCotizaciones]:
     reloj = RelojDelSistema()
     repositorio = _crear_repositorio()
+    decisiones = RegistroDeDecisionesEnAuditoria(auditoria.obtener_servicio())
     servicio = ServicioDeCotizacion(
         repositorio=repositorio,
         consentimiento=ConsentimientoDelNucleo(consentimiento.obtener_servicio()),
         perfilamiento=PerfilamientoDelNucleo(perfilamiento.obtener_servicio()),
-        auditoria=RegistroDeDecisionesEnAuditoria(auditoria.obtener_servicio()),
+        auditoria=decisiones,
         reloj=reloj,
+        decisiones=decisiones,
     )
     return servicio, reloj, repositorio
 

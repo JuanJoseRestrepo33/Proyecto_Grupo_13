@@ -11,6 +11,9 @@ from fastapi.testclient import TestClient
 
 from app.compartido.reloj import RelojFijo
 from app.main import crear_app
+from app.modulos.auditoria import vaciar_escrituras_pendientes
+from app.modulos.auditoria.api import dependencias as auditoria_dependencias
+from app.modulos.cotizacion.api import dependencias
 from app.modulos.cotizacion.api.dependencias import obtener_reloj, obtener_servicio
 from app.modulos.cotizacion.aplicacion.servicio import ServicioDeCotizacion
 from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
@@ -213,8 +216,6 @@ def test_un_canal_desconocido_se_rechaza(cliente):
 
 def test_sin_base_la_salud_reporta_el_repositorio_caido(monkeypatch):
     """Con la variable definida y la base inalcanzable no se cae a memoria en silencio."""
-    from app.modulos.cotizacion.api import dependencias
-
     monkeypatch.setenv(dependencias.VARIABLE_DSN, "postgresql://nadie@127.0.0.1:9/solventa")
     dependencias.reiniciar()
     try:
@@ -224,3 +225,28 @@ def test_sin_base_la_salud_reporta_el_repositorio_caido(monkeypatch):
         dependencias.reiniciar()
 
     assert estado["repositorio_cotizaciones"].estado == "caido"
+
+
+def test_el_recalculo_lee_la_decision_del_log_real():
+    """De punta a punta con el módulo de auditoría del núcleo, no con el simulado."""
+    auditoria_dependencias.reiniciar()
+    dependencias.reiniciar()
+    try:
+        cliente = TestClient(crear_app())
+        id_cotizacion = cliente.post("/v1/cotizacion/cotizaciones", json=SOLICITUD).json()[
+            "id_cotizacion"
+        ]
+        vaciar_escrituras_pendientes()
+
+        cuerpo = cliente.get(f"/v1/cotizacion/cotizaciones/{id_cotizacion}/recalculo").json()
+    finally:
+        dependencias.reiniciar()
+        auditoria_dependencias.reiniciar()
+
+    assert cuerpo["coincide"] is True
+    assert cuerpo["prima_recalculada"] == cuerpo["prima_emitida"] == 148000
+    assert cuerpo["id_decision"].startswith("DEC-")
+
+
+def test_recalcular_una_cotizacion_inexistente_responde_404(cliente):
+    assert cliente.get("/v1/cotizacion/cotizaciones/QT-2026-99999/recalculo").status_code == 404

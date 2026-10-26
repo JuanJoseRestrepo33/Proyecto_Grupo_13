@@ -13,7 +13,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.modulos.cotizacion.dominio.modelo import PerfilDeRiesgo
-from app.modulos.cotizacion.dominio.puertos import EstadoConsentimiento, RespuestaPerfil
+from app.modulos.cotizacion.dominio.puertos import (
+    DecisionRegistrada,
+    EstadoConsentimiento,
+    RespuestaPerfil,
+)
 
 
 class ConsentimientoSimulado:
@@ -105,3 +109,13 @@ class RegistroDeDecisionesEnMemoria:
     @property
     def entradas(self) -> tuple[dict[str, object], ...]:
         return tuple(self._entradas)
+
+    def decision(self, id_decision: str) -> DecisionRegistrada | None:
+        for entrada in self._entradas:
+            if entrada["id_decision"] == id_decision:
+                return DecisionRegistrada(
+                    id_decision=id_decision,
+                    version_regla=entrada["version_regla"],  # type: ignore[arg-type]
+                    variables_entrada=entrada["variables_entrada"],  # type: ignore[arg-type]
+                )
+        return None

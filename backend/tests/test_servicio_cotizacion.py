@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from app.compartido.errores import RecursoNoEncontrado
-from app.modulos.cotizacion.aplicacion.servicio import SolicitudDeCotizacion
+from app.modulos.cotizacion.aplicacion.servicio import (
+    ServicioDeCotizacion,
+    SolicitudDeCotizacion,
+)
 from app.modulos.cotizacion.dominio.modelo import (
     CANAL_API,
     VIGENCIA_OFERTA,
@@ -15,6 +18,10 @@ from app.modulos.cotizacion.dominio.modelo import (
     OfertaVencidaError,
     ProductoId,
 )
+from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
+    RegistroDeDecisionesEnMemoria,
+)
+from app.modulos.cotizacion.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
 from .conftest import CLIENTE, CONSENTIMIENTO
 
@@ -257,3 +264,44 @@ def test_el_canal_queda_en_la_decision_auditada(servicio, asegurado, auditoria):
 
     assert [e["canal"] for e in auditoria.entradas] == [CANAL_API, "movil"]
     assert auditoria.entradas[0]["resultado"]["motivo_tarifa"] == "sin_consentimiento"
+
+
+# -- recálculo desde la decisión auditada (WEB-F01, criterio 5) --------------
+
+
+def test_la_prima_se_recalcula_igual_desde_la_decision_auditada(
+    servicio, asegurado, consentimiento
+):
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+    cotizacion = servicio.cotizar(_solicitud(asegurado, CLIENTE))
+
+    recalculo = servicio.recalcular(cotizacion.id_cotizacion)
+
+    assert recalculo.coincide
+    assert recalculo.id_decision == cotizacion.id_decision
+    assert recalculo.prima_recalculada == cotizacion.oferta.prima_mensual.monto
+    assert recalculo.version_regla == cotizacion.oferta.version_regla
+
+
+def test_el_recalculo_usa_lo_registrado_y_no_lo_guardado(servicio, asegurado, auditoria):
+    """Si el log dijera otra cosa, el recálculo lo delataría: no copia la oferta."""
+    cotizacion = servicio.cotizar(_solicitud(asegurado))
+    auditoria.entradas[0]["variables_entrada"]["prima_estandar"] += 1000
+
+    assert not servicio.recalcular(cotizacion.id_cotizacion).coincide
+
+
+def test_sin_la_decision_en_el_log_no_hay_recalculo(
+    asegurado, reloj, consentimiento, perfilamiento
+):
+    sin_lectura = ServicioDeCotizacion(
+        repositorio=RepositorioEnMemoria(),
+        consentimiento=consentimiento,
+        perfilamiento=perfilamiento,
+        auditoria=RegistroDeDecisionesEnMemoria(),
+        reloj=reloj,
+    )
+    cotizacion = sin_lectura.cotizar(_solicitud(asegurado))
+
+    with pytest.raises(RecursoNoEncontrado):
+        sin_lectura.recalcular(cotizacion.id_cotizacion)

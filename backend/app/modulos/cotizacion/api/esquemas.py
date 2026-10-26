@@ -114,6 +114,17 @@ class ExplicacionDto(_Dto):
     factores: tuple[FactorDto, ...]
 
 
+class RecalculoDto(_Dto):
+    """La prima recalculada con la decisión auditada (WEB-F01, criterio 5; RC-08)."""
+
+    id_cotizacion: str
+    id_decision: str
+    version_regla: str | None
+    prima_emitida: int
+    prima_recalculada: int
+    coincide: bool
+
+
 class ProductoDto(_Dto):
     id: ProductoId
     nombre: str

@@ -26,6 +26,7 @@ from .esquemas import (
     CotizacionDto,
     ExplicacionDto,
     ProductoDto,
+    RecalculoDto,
     SolicitudCotizacionDto,
     a_cotizacion_dto,
     a_explicacion_dto,
@@ -134,3 +135,23 @@ def explicar(
     servicio: Servicio,
 ) -> ExplicacionDto:
     return a_explicacion_dto(servicio.obtener(id_cotizacion))
+
+
+@router.get(
+    "/cotizaciones/{id_cotizacion}/recalculo",
+    response_model=RecalculoDto,
+    summary="Recalcula la prima con la decisión auditada",
+)
+def recalcular(id_cotizacion: str, servicio: Servicio) -> RecalculoDto:
+    """Lee la versión de regla y las variables de entrada del log de auditoría y vuelve a
+    calcular la prima. `coincide` en false significaría que la decisión registrada ya no
+    explica el precio emitido. 404 si la decisión todavía no está en el log."""
+    recalculo = servicio.recalcular(id_cotizacion)
+    return RecalculoDto(
+        id_cotizacion=recalculo.id_cotizacion,
+        id_decision=recalculo.id_decision,
+        version_regla=recalculo.version_regla,
+        prima_emitida=recalculo.prima_emitida,
+        prima_recalculada=recalculo.prima_recalculada,
+        coincide=recalculo.coincide,
+    )

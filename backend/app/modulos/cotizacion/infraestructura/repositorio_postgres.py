@@ -69,6 +69,7 @@ def _a_datos(cotizacion: Cotizacion) -> dict[str, object]:
         "motivo_tarifa": str(cotizacion.motivo_tarifa) if cotizacion.motivo_tarifa else None,
         "usar_open_finance": cotizacion.usar_open_finance,
         "canal": cotizacion.canal,
+        "id_decision": cotizacion.id_decision,
     }
 
 
@@ -102,6 +103,7 @@ def _a_cotizacion(fila: Mapping[str, object]) -> Cotizacion:
         usar_open_finance=datos["usar_open_finance"],
         canal=datos["canal"],
         huella=fila["huella"],  # type: ignore[arg-type]
+        id_decision=datos.get("id_decision"),
     )
 
 

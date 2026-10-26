@@ -29,6 +29,7 @@ from app.modulos.cotizacion.dominio.modelo import (
 )
 from app.modulos.cotizacion.dominio.puertos import (
     ConsultaConsentimiento,
+    ConsultaDeDecisiones,
     ConsultaPerfilDeRiesgo,
     EstadoConsentimiento,
     RegistroDeDecisiones,
@@ -78,6 +79,21 @@ def huella_de_solicitud(solicitud: SolicitudDeCotizacion, id_consentimiento: str
 
 
 @dataclass(frozen=True, slots=True)
+class Recalculo:
+    """La prima de una cotización, recalculada con los datos de su decisión auditada."""
+
+    id_cotizacion: str
+    id_decision: str
+    version_regla: str | None
+    prima_emitida: int
+    prima_recalculada: int
+
+    @property
+    def coincide(self) -> bool:
+        return self.prima_emitida == self.prima_recalculada
+
+
+@dataclass(frozen=True, slots=True)
 class _Base:
     """Con qué información se tarifa, y por qué, si es la estándar."""
 
@@ -95,12 +111,14 @@ class ServicioDeCotizacion:
         perfilamiento: ConsultaPerfilDeRiesgo,
         auditoria: RegistroDeDecisiones,
         reloj: Reloj,
+        decisiones: ConsultaDeDecisiones | None = None,
     ) -> None:
         self._repositorio = repositorio
         self._consentimiento = consentimiento
         self._perfilamiento = perfilamiento
         self._auditoria = auditoria
         self._reloj = reloj
+        self._decisiones = decisiones
         self._cerrojos = tuple(threading.Lock() for _ in range(_CERROJOS))
 
     # -- casos de uso ------------------------------------------------------
@@ -153,6 +171,30 @@ class ServicioDeCotizacion:
         consentimiento = self._consultar_consentimiento(solicitud)
         return self._crear(solicitud, consentimiento, id_origen=anterior.id_cotizacion)
 
+    def recalcular(self, id_cotizacion: str) -> Recalculo:
+        """Reconstruye la prima con la versión de regla y las variables auditadas (RC-08).
+
+        Lee la decisión del log de auditoría, no de la cotización: es la prueba de que lo
+        registrado basta para explicar el precio, aunque la cotización viva en otra base.
+        """
+        cotizacion = self.obtener(id_cotizacion)
+        decision = None
+        if self._decisiones is not None and cotizacion.id_decision is not None:
+            decision = self._decisiones.decision(cotizacion.id_decision)
+        if decision is None:
+            raise RecursoNoEncontrado(
+                f"la decisión de la cotización {id_cotizacion} no está en el log",
+                id_cotizacion=id_cotizacion,
+                id_decision=cotizacion.id_decision,
+            )
+        return Recalculo(
+            id_cotizacion=id_cotizacion,
+            id_decision=decision.id_decision,
+            version_regla=decision.version_regla,
+            prima_emitida=cotizacion.oferta.prima_mensual.monto,
+            prima_recalculada=tarificador.recalcular_prima(decision.variables_entrada).monto,
+        )
+
     # -- interno -----------------------------------------------------------
 
     def _crear(
@@ -170,26 +212,11 @@ class ServicioDeCotizacion:
             producto, solicitud.asegurado, resuelta.base, resuelta.perfil
         )
 
-        cotizacion = Cotizacion(
-            id_cotizacion=self._repositorio.siguiente_id(ahora.year),
-            producto=producto.id,
-            nombre_producto=producto.nombre,
-            asegurado=solicitud.asegurado,
-            oferta=resultado.oferta,
-            creada_en=ahora,
-            id_cliente=solicitud.id_cliente,
-            id_consentimiento=resuelta.id_consentimiento,
-            perfil=resuelta.perfil,
-            id_cotizacion_origen=id_origen,
-            motivo_tarifa=resuelta.motivo,
-            usar_open_finance=solicitud.usar_open_finance,
-            canal=solicitud.canal,
-            huella=huella,
-        )
-        self._repositorio.guardar(cotizacion)
-
-        self._auditoria.registrar(
-            id_cotizacion=cotizacion.id_cotizacion,
+        # La decisión se registra antes de guardar para que la cotización lleve su
+        # referencia. El log escribe en segundo plano, así que no demora la respuesta.
+        id_cotizacion = self._repositorio.siguiente_id(ahora.year)
+        id_decision = self._auditoria.registrar(
+            id_cotizacion=id_cotizacion,
             id_consentimiento=resuelta.id_consentimiento,
             id_cliente=solicitud.id_cliente,
             canal=solicitud.canal,
@@ -204,6 +231,25 @@ class ServicioDeCotizacion:
             },
             ocurrido_en=ahora,
         )
+
+        cotizacion = Cotizacion(
+            id_cotizacion=id_cotizacion,
+            producto=producto.id,
+            nombre_producto=producto.nombre,
+            asegurado=solicitud.asegurado,
+            oferta=resultado.oferta,
+            creada_en=ahora,
+            id_cliente=solicitud.id_cliente,
+            id_consentimiento=resuelta.id_consentimiento,
+            perfil=resuelta.perfil,
+            id_cotizacion_origen=id_origen,
+            motivo_tarifa=resuelta.motivo,
+            usar_open_finance=solicitud.usar_open_finance,
+            canal=solicitud.canal,
+            huella=huella,
+            id_decision=id_decision,
+        )
+        self._repositorio.guardar(cotizacion)
         return cotizacion
 
     def _consultar_consentimiento(

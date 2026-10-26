@@ -1,15 +1,17 @@
 """Registro de decisiones sobre el log de auditoría real (ARQ-03).
 
-Implementa el puerto `RegistroDeDecisiones` de cotización traduciendo cada decisión a un
-`EventoAuditable` del módulo de auditoría. Solo importa la interfaz pública de ese módulo;
-el contrato de frontera impide ir más adentro.
+Implementa los puertos `RegistroDeDecisiones` y `ConsultaDeDecisiones` de cotización
+traduciendo cada decisión a un `EventoAuditable` del módulo de auditoría, y de vuelta. Solo
+importa la interfaz pública de ese módulo; el contrato de frontera impide ir más adentro.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
+from app.compartido.errores import RecursoNoEncontrado
 from app.modulos.auditoria import EventoAuditable, ServicioDeAuditoria
+from app.modulos.cotizacion.dominio.puertos import DecisionRegistrada
 
 TIPO_DECISION = "decision_cotizacion"
 
@@ -46,3 +48,16 @@ class RegistroDeDecisionesEnAuditoria:
             referencias=referencias,
         )
         return self._auditoria.registrar(evento)
+
+    def decision(self, id_decision: str) -> DecisionRegistrada | None:
+        try:
+            registro = self._auditoria.reconstruir(id_decision)
+        except RecursoNoEncontrado:
+            return None
+        if registro.evento.tipo != TIPO_DECISION:
+            return None
+        return DecisionRegistrada(
+            id_decision=registro.id_decision,
+            version_regla=registro.evento.version_regla,
+            variables_entrada=registro.evento.variables_entrada,
+        )

@@ -155,6 +155,8 @@ class Cotizacion:
     canal: str = CANAL_API
     #: Huella de la solicitud que la originó; la tienen solo las de un cliente identificado.
     huella: str | None = None
+    #: La decisión que la explica en el log de auditoría (RC-08).
+    id_decision: str | None = None
 
     @property
     def expira_en(self) -> datetime:
