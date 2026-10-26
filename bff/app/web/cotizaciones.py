@@ -14,6 +14,7 @@ from fastapi import APIRouter, status
 from pydantic import BaseModel, Field
 
 from app.comun.errores import ErrorBff
+from app.comun.nucleo import segmento
 
 from .dependencias import CANAL, ClienteWeb, Nucleo
 
@@ -89,6 +90,7 @@ def a_cotizacion(cotizacion: dict[str, Any]) -> dict[str, object]:
 
 def _propia(nucleo: Nucleo, id_cotizacion: str, cliente: ClienteWeb) -> dict[str, Any]:
     """La cotización si es del cliente de la sesión; si no, el mismo 404 que si no existiera."""
+    id_cotizacion = segmento(id_cotizacion, NO_ENCONTRADA)
     cotizacion = nucleo.get(
         f"{RUTA_NUCLEO}/cotizaciones/{id_cotizacion}", si_no_existe=NO_ENCONTRADA
     )
@@ -132,9 +134,9 @@ def obtener(id_cotizacion: str, cliente: ClienteWeb, nucleo: Nucleo) -> dict[str
     summary="Recotiza con los mismos datos de una cotización vencida",
 )
 def recotizar(id_cotizacion: str, cliente: ClienteWeb, nucleo: Nucleo) -> dict[str, object]:
-    _propia(nucleo, id_cotizacion, cliente)
+    id_cotizacion = _propia(nucleo, id_cotizacion, cliente)["id_cotizacion"]
     cotizacion = nucleo.post(
-        f"{RUTA_NUCLEO}/cotizaciones/{id_cotizacion}/recotizar",
+        f"{RUTA_NUCLEO}/cotizaciones/{segmento(id_cotizacion, NO_ENCONTRADA)}/recotizar",
         canal=CANAL,
         si_no_existe=NO_ENCONTRADA,
     )
