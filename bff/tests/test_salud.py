@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
 from app.comun.configuracion import NUCLEO_LOCAL, Configuracion
-from app.main import crear_app
 
 
-def test_salud_responde_ok():
-    cuerpo = TestClient(crear_app(Configuracion())).get("/salud").json()
+def test_salud_responde_ok(cliente):
+    respuesta = cliente.get("/salud")
 
-    assert cuerpo["estado"] == "ok"
-    assert cuerpo["nucleo"]["url"] == NUCLEO_LOCAL
+    assert respuesta.status_code == 200
+    assert respuesta.json()["estado"] == "ok"
+    assert respuesta.json()["nucleo"] == {"url": "http://nucleo.prueba", "estado": "ok"}
 
 
 def test_la_url_del_nucleo_sale_del_entorno_sin_barra_final():
