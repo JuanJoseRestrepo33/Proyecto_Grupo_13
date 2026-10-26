@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import sesiones
+from . import consentimientos, sesiones
 from .dependencias import PREFIJO
 
 router = APIRouter(prefix=PREFIJO)
 router.include_router(sesiones.router)
+router.include_router(consentimientos.router)
