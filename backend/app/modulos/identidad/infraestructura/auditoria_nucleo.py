@@ -7,6 +7,8 @@ personales que ya están en la cuenta.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from app.modulos.auditoria import EventoAuditable, ServicioDeAuditoria
 
 from ..dominio.modelo import VerificacionIdentidad
@@ -37,5 +39,37 @@ class RegistroEnAuditoria:
                     "id_verificacion": verificacion.id_verificacion,
                     "id_cliente": verificacion.id_cliente,
                 },
+            )
+        )
+
+
+class RegistroDeAccesosEnAuditoria:
+    """Registros, verificaciones del correo e ingresos (contrato móvil, "Auditoría").
+
+    El tipo es `acceso_<suceso>`. Un ingreso fallido de un correo desconocido queda con actor
+    `desconocido`: el log no guarda el correo que se intentó.
+    """
+
+    def __init__(self, auditoria: ServicioDeAuditoria) -> None:
+        self._auditoria = auditoria
+
+    def registrar(
+        self,
+        suceso: str,
+        *,
+        id_cliente: str | None,
+        canal: str,
+        ocurrido_en: datetime,
+        resultado: dict[str, object],
+    ) -> str:
+        referencias = {"id_cliente": id_cliente} if id_cliente else {}
+        return self._auditoria.registrar(
+            EventoAuditable(
+                tipo=f"acceso_{suceso}",
+                actor=id_cliente or "desconocido",
+                canal=canal,
+                ocurrido_en=ocurrido_en,
+                resultado=resultado,
+                referencias=referencias,
             )
         )

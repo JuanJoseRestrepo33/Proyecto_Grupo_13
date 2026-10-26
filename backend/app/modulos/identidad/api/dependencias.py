@@ -15,13 +15,21 @@ import logging
 import os
 from collections.abc import Mapping
 
+from app.compartido.eventos import obtener_bus
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
 from app.compartido.unica import instancia_unica
 from app.modulos import auditoria
 
+from ..aplicacion.cuentas import ServicioDeCuentas
 from ..aplicacion.servicio import ServicioDeVerificacionDeIdentidad
-from ..infraestructura.auditoria_nucleo import RegistroEnAuditoria
+from ..infraestructura.auditoria_nucleo import RegistroDeAccesosEnAuditoria, RegistroEnAuditoria
+from ..infraestructura.codigos_simulados import CanalDeCodigosSimulado
+from ..infraestructura.cuentas_memoria import (
+    RepositorioDeCuentasEnMemoria,
+    RepositorioDeRefrescosEnMemoria,
+    RepositorioDeRegistrosEnMemoria,
+)
 from ..infraestructura.proveedor_kyc_simulado import NOMBRE, ProveedorKYCSimulado
 from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
 from ..infraestructura.tokens_es256 import EmisorEs256, LlaveInvalidaError
@@ -30,6 +38,7 @@ VARIABLE_PROVEEDOR_CAIDO = "IDENTIDAD_KYC_CAIDO"
 VARIABLE_LLAVE_PRIVADA = "TOKENS_LLAVE_PRIVADA"
 VARIABLE_LLAVE_PUBLICA = "TOKENS_LLAVE_PUBLICA"
 VARIABLE_CLOUD_RUN = "K_SERVICE"
+VARIABLE_OTP_FIJO = "IDENTIDAD_OTP_FIJO"
 
 log = logging.getLogger(__name__)
 
@@ -85,8 +94,33 @@ def _tokens() -> tuple[EmisorEs256, EstadoDeDependencia]:
     return crear_emisor()
 
 
+@instancia_unica
+def _cuentas() -> tuple[ServicioDeCuentas, CanalDeCodigosSimulado]:
+    codigos = CanalDeCodigosSimulado(os.environ.get(VARIABLE_OTP_FIJO) or None)
+    servicio = ServicioDeCuentas(
+        cuentas=RepositorioDeCuentasEnMemoria(),
+        registros=RepositorioDeRegistrosEnMemoria(),
+        refrescos=RepositorioDeRefrescosEnMemoria(),
+        codigos=codigos,
+        emisor=obtener_emisor(),
+        accesos=RegistroDeAccesosEnAuditoria(auditoria.obtener_servicio()),
+        bus=obtener_bus(),
+        reloj=obtener_reloj(),
+        estado_identidad=obtener_servicio().estado_identidad,
+    )
+    return servicio, codigos
+
+
 def obtener_servicio() -> ServicioDeVerificacionDeIdentidad:
     return _componentes()[0]
+
+
+def obtener_servicio_de_cuentas() -> ServicioDeCuentas:
+    return _cuentas()[0]
+
+
+def obtener_canal_de_codigos() -> CanalDeCodigosSimulado:
+    return _cuentas()[1]
 
 
 def obtener_emisor() -> EmisorEs256:
@@ -99,6 +133,7 @@ def obtener_reloj() -> Reloj:
 
 def reiniciar() -> None:
     """Descarta la composición actual. Solo para pruebas."""
+    _cuentas.cache_clear()
     _componentes.cache_clear()
     _tokens.cache_clear()
 
@@ -119,5 +154,9 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
             "simulado",
             "En memoria; persistencia por contexto pendiente",
         ),
+        EstadoDeDependencia(
+            "repositorio_cuentas", "simulado", "En memoria; se pierde con cada revisión"
+        ),
+        EstadoDeDependencia("envio_codigos", "simulado", "Correo simulado; no envía correos"),
         EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
     )

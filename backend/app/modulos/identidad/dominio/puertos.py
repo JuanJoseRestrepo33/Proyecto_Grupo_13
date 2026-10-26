@@ -4,6 +4,9 @@
     RepositorioVerificaciones  → persistencia del propio módulo
     RegistroDeAuditoria        → módulo de auditoría (ARQ-03), por su interfaz pública
     EmisorDeTokens             → firma y validación de los tokens de acceso (ES256, WEB-F13)
+    RepositorioCuentas, RepositorioRegistros, RepositorioRefrescos → persistencia propia
+    CanalDeCodigos             → envío del código de verificación al correo. Simulado hoy
+    RegistroDeAccesos          → registros, verificaciones de correo e ingresos, en auditoría
 
 El núcleo solo conoce `ProveedorKYC`; ninguna referencia a un proveedor concreto sale de
 `infraestructura/` (ARQ-02, criterio 1).
@@ -14,8 +17,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Protocol
 
+from .cuenta import Cuenta, Registro
 from .modelo import DatosDeIdentidad, ResultadoKYC, VerificacionIdentidad
-from .sesion import ReclamosDeAcceso, TokenEmitido
+from .sesion import ReclamosDeAcceso, Refresco, TokenEmitido
 
 
 class ProveedorKYC(Protocol):
@@ -54,4 +58,67 @@ class EmisorDeTokens(Protocol):
 
     def validar_acceso(self, token: str, ahora: datetime) -> ReclamosDeAcceso:
         """Los reclamos de un token vigente; si no lo es, `SesionNoVigenteError`."""
+        raise NotImplementedError
+
+
+class RepositorioCuentas(Protocol):
+    def guardar(self, cuenta: Cuenta) -> None:
+        raise NotImplementedError
+
+    def por_id(self, id_cliente: str) -> Cuenta | None:
+        raise NotImplementedError
+
+    def por_correo(self, correo: str) -> Cuenta | None:
+        """`correo` ya normalizado."""
+        raise NotImplementedError
+
+    def por_documento(self, numero_documento: str) -> Cuenta | None:
+        raise NotImplementedError
+
+    def siguiente_id(self, anio: int) -> str:
+        """Identificador legible, con el formato CLI-AAAA-NNNNNN."""
+        raise NotImplementedError
+
+
+class RepositorioRegistros(Protocol):
+    def guardar(self, registro: Registro) -> None:
+        raise NotImplementedError
+
+    def obtener(self, id_registro: str) -> Registro | None:
+        raise NotImplementedError
+
+    def siguiente_id(self, anio: int) -> str:
+        """Identificador legible, con el formato REG-AAAA-NNNNNN."""
+        raise NotImplementedError
+
+
+class RepositorioRefrescos(Protocol):
+    def guardar(self, refresco: Refresco) -> None:
+        raise NotImplementedError
+
+    def tomar(self, resumen: str) -> Refresco | None:
+        """Devuelve el refresco y lo borra en la misma operación: es de un solo uso."""
+        raise NotImplementedError
+
+
+class CanalDeCodigos(Protocol):
+    def nuevo_codigo(self) -> str:
+        """Código de 6 dígitos."""
+        raise NotImplementedError
+
+    def enviar(self, correo: str, codigo: str) -> None:
+        raise NotImplementedError
+
+
+class RegistroDeAccesos(Protocol):
+    def registrar(
+        self,
+        suceso: str,
+        *,
+        id_cliente: str | None,
+        canal: str,
+        ocurrido_en: datetime,
+        resultado: dict[str, object],
+    ) -> str:
+        """Deja el suceso en el log. Nunca recibe contraseñas, códigos ni tokens."""
         raise NotImplementedError
