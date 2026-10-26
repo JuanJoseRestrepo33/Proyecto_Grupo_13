@@ -13,14 +13,16 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
+from app.compartido.eventos import obtener_bus
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
 from app.compartido.unica import instancia_unica
-from app.modulos import polizas
+from app.modulos import auditoria, polizas
 
 from ..aplicacion.servicio import ServicioDeSiniestros
 from ..dominio.almacen_evidencias import AlmacenDeEvidencias
 from ..infraestructura.almacen_evidencias_memoria import AlmacenDeEvidenciasEnMemoria
+from ..infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from ..infraestructura.polizas_nucleo import PolizasDelNucleo
 from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
 
@@ -50,6 +52,8 @@ def _componentes() -> tuple[ServicioDeSiniestros, Reloj]:
     servicio = ServicioDeSiniestros(
         repositorio=RepositorioEnMemoria(),
         polizas=PolizasDelNucleo(polizas.obtener_servicio()),
+        auditoria=RegistroEnAuditoria(auditoria.obtener_servicio()),
+        bus=obtener_bus(),
         reloj=reloj,
     )
     return servicio, reloj
@@ -72,4 +76,5 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
     return (
         EstadoDeDependencia("repositorio_siniestros", "simulado", "En memoria"),
         EstadoDeDependencia("polizas", "ok", "Módulo de pólizas del núcleo (interfaz pública)"),
+        EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
     )

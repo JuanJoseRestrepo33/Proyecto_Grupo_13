@@ -48,3 +48,9 @@ class RepositorioSiniestros(Protocol):
     def siguiente_referencia(self, anio: int) -> str:
         """Número que ve el cliente, con el formato SIN-AAAA-NNNNNN."""
         raise NotImplementedError
+
+
+class RegistroDeAuditoria(Protocol):
+    def registrar(self, siniestro: Siniestro) -> str:
+        """Deja el reporte en el log con póliza, tipo de evento, canal y marca de tiempo."""
+        raise NotImplementedError

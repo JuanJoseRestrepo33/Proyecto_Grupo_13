@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 
+from app.compartido.eventos import BusDeEventos, Evento
 from app.compartido.reloj import Reloj
 
 from ..dominio.errores import (
@@ -19,7 +20,11 @@ from ..dominio.errores import (
     SiniestroNoEncontradoError,
 )
 from ..dominio.modelo import DatosDeReporte, Siniestro
-from ..dominio.puertos import ConsultaDePolizas, RepositorioSiniestros
+from ..dominio.puertos import ConsultaDePolizas, RegistroDeAuditoria, RepositorioSiniestros
+
+#: Evento que publica un reporte nuevo. El seguimiento (WEB-F06) y las notificaciones
+#: (MOB-F06) se suscriben a los eventos de siniestro.
+EVENTO_SINIESTRO_REPORTADO = "siniestro-reportado"
 
 
 class ServicioDeSiniestros:
@@ -27,10 +32,14 @@ class ServicioDeSiniestros:
         self,
         repositorio: RepositorioSiniestros,
         polizas: ConsultaDePolizas,
+        auditoria: RegistroDeAuditoria,
+        bus: BusDeEventos,
         reloj: Reloj,
     ) -> None:
         self._repositorio = repositorio
         self._polizas = polizas
+        self._auditoria = auditoria
+        self._bus = bus
         self._reloj = reloj
 
     def reportar(
@@ -76,6 +85,7 @@ class ServicioDeSiniestros:
         )
         guardado = self._repositorio.guardar_si_nuevo(candidato)
         if guardado.id_siniestro == candidato.id_siniestro:
+            self._propagar(guardado)
             return guardado, True
         if guardado.datos.huella() != datos.huella():
             raise ClaveIdempotenciaEnUsoError(
@@ -83,6 +93,24 @@ class ServicioDeSiniestros:
                 referencia=guardado.referencia,
             )
         return guardado, False
+
+    def _propagar(self, siniestro: Siniestro) -> None:
+        """Solo un reporte nuevo se audita y se publica: un reintento no es otro reporte."""
+        self._auditoria.registrar(siniestro)
+        self._bus.publicar(
+            Evento(
+                nombre=EVENTO_SINIESTRO_REPORTADO,
+                carga={
+                    "id_siniestro": siniestro.id_siniestro,
+                    "referencia": siniestro.referencia,
+                    "id_cliente": siniestro.id_cliente,
+                    "numero_poliza": siniestro.datos.numero_poliza,
+                    "tipo_evento": str(siniestro.datos.tipo_evento),
+                    "canal": siniestro.canal,
+                },
+                ocurrido_en=siniestro.reportado_en,
+            )
+        )
 
     def obtener(self, id_cliente: str, id_siniestro: str) -> Siniestro:
         siniestro = self._repositorio.obtener(id_cliente, id_siniestro)

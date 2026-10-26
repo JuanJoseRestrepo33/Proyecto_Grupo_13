@@ -8,7 +8,7 @@ from app.compartido.modulo import DescriptorDeModulo
 
 from .api.dependencias import estado_dependencias, obtener_servicio
 from .api.rutas import router
-from .aplicacion.servicio import ServicioDeSiniestros
+from .aplicacion.servicio import EVENTO_SINIESTRO_REPORTADO, ServicioDeSiniestros
 
 MODULO = DescriptorDeModulo(
     nombre="siniestros",
@@ -18,4 +18,4 @@ MODULO = DescriptorDeModulo(
     dependencias=estado_dependencias,
 )
 
-__all__ = ["MODULO", "ServicioDeSiniestros", "obtener_servicio"]
+__all__ = ["EVENTO_SINIESTRO_REPORTADO", "MODULO", "ServicioDeSiniestros", "obtener_servicio"]

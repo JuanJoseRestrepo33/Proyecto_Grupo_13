@@ -10,11 +10,17 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from app.compartido.eventos import BusEnProceso
 from app.compartido.reloj import RelojFijo
 from app.main import crear_app
+from app.modulos.auditoria.aplicacion.servicio import ServicioDeAuditoria
+from app.modulos.auditoria.infraestructura.almacen_memoria import AlmacenEnMemoria
 from app.modulos.polizas.api import dependencias as polizas_dependencias
 from app.modulos.siniestros.api import dependencias
-from app.modulos.siniestros.aplicacion.servicio import ServicioDeSiniestros
+from app.modulos.siniestros.aplicacion.servicio import (
+    EVENTO_SINIESTRO_REPORTADO,
+    ServicioDeSiniestros,
+)
 from app.modulos.siniestros.dominio.errores import (
     ClaveIdempotenciaEnUsoError,
     EventoFueraDeVigenciaError,
@@ -29,6 +35,7 @@ from app.modulos.siniestros.dominio.modelo import (
     TipoEvento,
 )
 from app.modulos.siniestros.dominio.puertos import VigenciaDePoliza
+from app.modulos.siniestros.infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from app.modulos.siniestros.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
 INSTANTE = datetime(2026, 10, 26, 15, 0, tzinfo=UTC)
@@ -65,10 +72,28 @@ def reloj() -> RelojFijo:
 
 
 @pytest.fixture
-def servicio(reloj) -> ServicioDeSiniestros:
+def almacen() -> AlmacenEnMemoria:
+    return AlmacenEnMemoria()
+
+
+@pytest.fixture
+def bus() -> BusEnProceso:
+    return BusEnProceso()
+
+
+def _servicio(polizas, reloj, almacen=None, bus=None) -> ServicioDeSiniestros:
     return ServicioDeSiniestros(
-        repositorio=RepositorioEnMemoria(), polizas=PolizasFalsas(VIGENTE, VENCIDA), reloj=reloj
+        repositorio=RepositorioEnMemoria(),
+        polizas=polizas,
+        auditoria=RegistroEnAuditoria(ServicioDeAuditoria(almacen or AlmacenEnMemoria())),
+        bus=bus or BusEnProceso(),
+        reloj=reloj,
     )
+
+
+@pytest.fixture
+def servicio(reloj, almacen, bus) -> ServicioDeSiniestros:
+    return _servicio(PolizasFalsas(VIGENTE, VENCIDA), reloj, almacen, bus)
 
 
 # -- reporte ----------------------------------------------------------------------------
@@ -106,9 +131,7 @@ def test_un_evento_de_hoy_se_acepta(servicio):
 
 
 def test_una_poliza_ajena_o_inexistente_es_404(reloj):
-    servicio = ServicioDeSiniestros(
-        RepositorioEnMemoria(), PolizasFalsas(VIGENTE, de="CLI-OTRO"), reloj
-    )
+    servicio = _servicio(PolizasFalsas(VIGENTE, de="CLI-OTRO"), reloj)
 
     with pytest.raises(PolizaNoEncontradaError):
         servicio.reportar(CLIENTE, DATOS, "web")
@@ -161,7 +184,7 @@ def test_la_misma_clave_con_otros_datos_es_409(servicio):
 
 
 def test_la_misma_clave_de_otro_cliente_es_otro_siniestro(reloj):
-    servicio = ServicioDeSiniestros(RepositorioEnMemoria(), PolizasFalsasParaTodos(VIGENTE), reloj)
+    servicio = _servicio(PolizasFalsasParaTodos(VIGENTE), reloj)
 
     uno, _ = servicio.reportar(CLIENTE, DATOS, "web", "clave-0001")
     otro, _ = servicio.reportar("CLI-OTRO", DATOS, "web", "clave-0001")
@@ -307,3 +330,44 @@ def test_el_detalle_de_un_siniestro_por_http(nucleo):
     assert detalle.json() == creado
     assert ajeno.status_code == 404
     assert ajeno.json()["title"] == "siniestro_no_encontrado"
+
+
+# -- auditoría y evento (criterio 5) ------------------------------------------------------
+
+
+def test_el_reporte_queda_auditado_con_poliza_tipo_canal_y_marca_de_tiempo(servicio, almacen):
+    siniestro, _ = servicio.reportar(CLIENTE, DATOS, "movil", "clave-0001")
+
+    (registro,) = almacen.todos()
+    evento = registro.evento
+    assert evento.tipo == "siniestro_reportado"
+    assert evento.canal == "movil"
+    assert evento.ocurrido_en == INSTANTE
+    assert evento.variables_entrada["numero_poliza"] == "POL-VIGENTE"
+    assert evento.variables_entrada["tipo_evento"] == "accidente_vehiculo"
+    assert evento.resultado["referencia"] == siniestro.referencia
+    assert DATOS.descripcion not in str(evento)
+
+
+def test_el_reporte_publica_el_evento_de_siniestro_reportado(servicio, bus):
+    siniestro, _ = servicio.reportar(CLIENTE, DATOS, "web", "clave-0001")
+
+    (evento,) = bus.publicados(EVENTO_SINIESTRO_REPORTADO)
+    assert evento.carga["referencia"] == siniestro.referencia
+    assert evento.carga["canal"] == "web"
+    assert evento.carga["id_cliente"] == CLIENTE
+
+
+def test_un_reintento_no_se_audita_ni_se_publica_otra_vez(servicio, almacen, bus):
+    servicio.reportar(CLIENTE, DATOS, "web", "clave-0001")
+    servicio.reportar(CLIENTE, DATOS, "web", "clave-0001")
+
+    assert len(almacen.todos()) == 1
+    assert len(bus.publicados(EVENTO_SINIESTRO_REPORTADO)) == 1
+
+
+def test_un_reporte_que_no_procede_no_se_audita(servicio, almacen):
+    with pytest.raises(FechaFuturaError):
+        servicio.reportar(CLIENTE, replace(DATOS, ocurrido_el=HOY + timedelta(days=3)), "web")
+
+    assert almacen.todos() == ()
