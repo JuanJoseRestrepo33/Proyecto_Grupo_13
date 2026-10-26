@@ -14,6 +14,8 @@ from app.comun.configuracion import Configuracion
 from app.comun.errores import ErrorBff, manejar_error_bff, manejar_validacion
 from app.comun.nucleo import ClienteNucleo
 from app.comun.tokens import LlaveInvalida, VerificadorDeTokens
+from app.movil import router as movil
+from app.web import router as web
 
 VERSION_APP = "0.1.0"
 
@@ -61,6 +63,8 @@ def crear_app(
     app.add_exception_handler(ErrorBff, manejar_error_bff)
     app.add_exception_handler(RequestValidationError, manejar_validacion)
     app.include_router(salud.construir_router(VERSION_APP))
+    app.include_router(web.router)
+    app.include_router(movil.router)
     return app
 
 

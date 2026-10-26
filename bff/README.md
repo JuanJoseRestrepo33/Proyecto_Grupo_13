@@ -37,5 +37,20 @@ para el que se emitió.
 
 ```bash
 ruff check . && ruff format --check .   # lint y formato
+lint-imports                            # frontera entre los routers web y móvil
 pytest --cov=app --cov-report=term-missing
 ```
+
+## Estructura
+
+```
+app/
+├── comun/          Lo que comparten los dos routers: configuración, cliente del núcleo, errores, tokens y sesión
+├── web/            Router /api/v1/web: una ruta por recurso del contrato bff-web; sesión en la cookie `sesion`
+├── movil/          Router /api/v1/movil: una ruta por recurso del contrato bff-movil; sesión en `Authorization: Bearer`
+├── salud.py        /salud: estado del BFF, del núcleo y de las llaves
+└── main.py         Arma la app con los dos routers
+```
+
+`web` y `movil` no se importan entre sí y `comun` no conoce a ninguno de los dos: lo verifica
+`lint-imports` en el CI. Así el servicio se puede partir en dos sin cambiar ningún cliente.

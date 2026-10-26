@@ -51,3 +51,22 @@ addopts = "-q"
 [tool.coverage.run]
 branch = true
 omit = ["app/main.py"]
+
+# ---------------------------------------------------------------------------
+# Frontera entre los routers (ADR 0001). El job `bff` del CI corre `lint-imports`.
+#
+# Si un router importa al otro, el servicio ya no se puede partir en dos sin reescribir.
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "Los routers web y móvil no se importan entre sí"
+type = "independence"
+modules = ["app.web", "app.movil"]
+
+[[tool.importlinter.contracts]]
+name = "Lo común no depende de ningún canal ni del armado de la app"
+type = "forbidden"
+source_modules = ["app.comun"]
+forbidden_modules = ["app.web", "app.movil", "app.main", "app.salud"]
