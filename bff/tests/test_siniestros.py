@@ -227,3 +227,11 @@ def test_un_siniestro_ajeno_es_404_del_contrato(con_sesion, canal):
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "siniestro_no_encontrado"
+
+
+def test_un_identificador_inseguro_es_404_sin_tocar_el_nucleo(con_sesion, nucleo, canal):
+    respuesta = con_sesion.get(f"{canal.prefijo}/siniestros/SIN..1")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "siniestro_no_encontrado"
+    assert _al_nucleo(nucleo) == []
