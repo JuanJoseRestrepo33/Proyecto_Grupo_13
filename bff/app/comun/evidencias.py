@@ -13,8 +13,8 @@ from typing import Any
 from fastapi import UploadFile
 
 from .errores import ErrorBff
-from .nucleo import ClienteNucleo
-from .siniestros import RUTA_NUCLEO
+from .nucleo import ClienteNucleo, segmento
+from .siniestros import ruta_siniestro
 
 #: El mismo límite del núcleo; el BFF corta antes para no reenviar lo que se va a rechazar.
 TAMANO_MAXIMO = 10 * 1024 * 1024
@@ -54,7 +54,7 @@ def a_evidencia(evidencia: dict[str, Any]) -> dict[str, object]:
 
 
 def _ruta(id_cliente: str, id_siniestro: str) -> str:
-    return f"{RUTA_NUCLEO}/clientes/{id_cliente}/siniestros/{id_siniestro}/evidencias"
+    return f"{ruta_siniestro(id_cliente, id_siniestro)}/evidencias"
 
 
 async def leer_archivo(archivo: UploadFile) -> bytes:
@@ -118,7 +118,9 @@ def descargar(
 ) -> tuple[bytes, str, str]:
     """El archivo, su tipo y su `Content-Disposition`, tal como los entrega el núcleo."""
     respuesta = nucleo.solicitar(
-        "GET", f"{_ruta(id_cliente, id_siniestro)}/{id_evidencia}", si_no_existe=NO_ENCONTRADA
+        "GET",
+        f"{_ruta(id_cliente, id_siniestro)}/{segmento(id_evidencia, NO_ENCONTRADA)}",
+        si_no_existe=NO_ENCONTRADA,
     )
     return (
         respuesta.content,

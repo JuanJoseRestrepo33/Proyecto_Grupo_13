@@ -223,3 +223,17 @@ def test_descargar_una_evidencia_inexistente_es_404(con_sesion, canal):
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "evidencia_no_encontrada"
+
+
+def test_identificadores_inseguros_son_404_sin_tocar_el_nucleo(con_sesion, nucleo, canal):
+    siniestro = con_sesion.get(f"{canal.prefijo}/siniestros/SIN..1/evidencias")
+    evidencia = con_sesion.get(_ruta(canal, "/EVI..1"))
+    carga = con_sesion.post(
+        f"{canal.prefijo}/siniestros/SIN..1/evidencias",
+        files={"archivo": ("x.jpg", FOTO, "image/jpeg")},
+    )
+
+    assert (siniestro.status_code, siniestro.json()["codigo"]) == (404, "siniestro_no_encontrado")
+    assert (carga.status_code, carga.json()["codigo"]) == (404, "siniestro_no_encontrado")
+    assert (evidencia.status_code, evidencia.json()["codigo"]) == (404, "evidencia_no_encontrada")
+    assert _al_nucleo(nucleo) == []
