@@ -13,9 +13,10 @@ from fastapi import Depends, Request
 from app.comun.nucleo import ClienteNucleo, obtener_nucleo
 from app.comun.sesion import ClienteAutenticado, autenticar
 
+PREFIJO = "/api/v1/movil"
 CANAL = "movil"
 _PORTADOR = "bearer "
-_DESAFIO = {"WWW-Authenticate": "Bearer"}
+DESAFIO = {"WWW-Authenticate": "Bearer"}
 
 
 def _token_portador(request: Request) -> str | None:
@@ -26,7 +27,7 @@ def _token_portador(request: Request) -> str | None:
 
 
 def cliente_movil(request: Request) -> ClienteAutenticado:
-    return autenticar(request, _token_portador(request), CANAL, encabezados_401=_DESAFIO)
+    return autenticar(request, _token_portador(request), CANAL, encabezados_401=DESAFIO)
 
 
 ClienteMovil = Annotated[ClienteAutenticado, Depends(cliente_movil)]
