@@ -5,6 +5,19 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
+## [0.8.0] · 2026-10-26 · MOB-F05
+
+### Agregado
+
+- `POST /siniestros/{id}/evidencias` (`multipart/form-data`, campo `archivo`): adjunta una foto,
+  un video o un documento de hasta 10 MB, con la fecha de la cámara y la ubicación, o el lugar
+  escrito, opcionales. Errores: 413 `archivo_demasiado_grande`; 422 `formato_no_admitido`,
+  `archivo_vacio`, `ubicacion_invalida` y `fecha_de_captura_invalida`; 409 `siniestro_cerrado`;
+  503 `almacenamiento_no_disponible`.
+- `GET /siniestros/{id}/evidencias` y `GET /siniestros/{id}/evidencias/{id_evidencia}`: listar
+  y descargar. La evidencia agregada en un canal se ve en el otro.
+- Esquemas `SolicitudEvidencia` y `Evidencia`.
+
 ## [0.7.0] · 2026-10-26 · WEB-F05
 
 ### Agregado

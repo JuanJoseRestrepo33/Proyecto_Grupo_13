@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -16,6 +16,7 @@ info:
       simulada, sin cobro doble. La firma y la emisión llegan con el resto de WEB-F03.
     - **WEB-F13** · Inicio y cierre de sesión con la misma cuenta del registro en la app.
     - **WEB-F05** · Reporte de siniestros en tres pasos, idempotente, igual que en la app.
+    - **MOB-F05** · Evidencia del siniestro: adjuntar, listar y descargar, igual que en la app.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -513,6 +514,93 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /siniestros/{id}/evidencias:
+    get:
+      tags: [siniestros]
+      operationId: listarEvidencias
+      summary: Evidencias del siniestro, cargadas desde cualquier canal
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Evidencias en el orden en que se cargaron
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+    post:
+      tags: [siniestros]
+      operationId: adjuntarEvidencia
+      summary: Adjunta una foto, un video o un documento al siniestro
+      description: |
+        Se puede agregar en el reporte o después; queda asociada al mismo siniestro y se ve en los
+        dos canales (MOB-F05, criterio 5). Hasta 10 MB, y solo JPEG, PNG, HEIC, MP4 o PDF: el
+        formato se comprueba con el contenido del archivo, no solo con su extensión.
+
+        La fecha y hora de la cámara y la ubicación son opcionales. Si el cliente negó el permiso
+        de ubicación puede escribir el `lugar`; el reporte nunca queda bloqueado por un permiso
+        (criterios 1 y 2, P20).
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/SolicitudEvidencia" }
+      responses:
+        "201":
+          description: Evidencia guardada y asociada al siniestro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: El siniestro está cerrado y ya no recibe evidencia (`siniestro_cerrado`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: El archivo supera los 10 MB (`archivo_demasiado_grande`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            `formato_no_admitido` o `archivo_vacio` sobre `archivo`; `ubicacion_invalida` o
+            `fecha_de_captura_invalida`. Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: El almacén de evidencias no respondió (`almacenamiento_no_disponible`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}/evidencias/{id_evidencia}:
+    get:
+      tags: [siniestros]
+      operationId: descargarEvidencia
+      summary: Contenido de una evidencia, con su tipo
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+        - name: id_evidencia
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: El archivo; `Content-Disposition` trae el nombre original si lo hay
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
 components:
   securitySchemes:
     sesion:
@@ -986,3 +1074,39 @@ components:
               type: string
               format: date
               description: Solo con `evento_fuera_de_vigencia`
+
+    SolicitudEvidencia:
+      type: object
+      required: [archivo]
+      properties:
+        archivo:
+          type: string
+          format: binary
+          description: Foto, video o documento, hasta 10 MB
+        tomada_en:
+          type: string
+          format: date-time
+          description: Fecha y hora de la cámara; no puede ser futura
+        latitud: { type: number, minimum: -90, maximum: 90 }
+        longitud: { type: number, minimum: -180, maximum: 180 }
+        lugar:
+          type: string
+          maxLength: 200
+          description: El lugar escrito por el cliente cuando no hay ubicación
+
+    Evidencia:
+      type: object
+      required: [id, tipo_contenido, tamano, nombre_original, canal, cargada_en]
+      properties:
+        id: { type: string, examples: [EVI-6f1c2a] }
+        tipo_contenido:
+          type: string
+          enum: [image/jpeg, image/png, image/heic, video/mp4, application/pdf]
+        tamano: { type: integer, description: Bytes }
+        nombre_original: { type: [string, "null"] }
+        canal: { type: string, enum: [web, movil] }
+        cargada_en: { type: string, format: date-time }
+        tomada_en: { type: [string, "null"], format: date-time }
+        latitud: { type: [number, "null"] }
+        longitud: { type: [number, "null"] }
+        lugar: { type: [string, "null"] }
