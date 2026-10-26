@@ -36,6 +36,19 @@ CREATE TABLE IF NOT EXISTS siniestros.siniestros (
 
 CREATE INDEX IF NOT EXISTS siniestros_por_cliente
     ON siniestros.siniestros (id_cliente, reportado_en DESC);
+
+CREATE TABLE IF NOT EXISTS siniestros.evidencias (
+    id_evidencia     TEXT         PRIMARY KEY,
+    id_siniestro     TEXT         NOT NULL REFERENCES siniestros.siniestros (id_siniestro),
+    tipo_contenido   TEXT         NOT NULL,
+    tamano           BIGINT       NOT NULL,
+    nombre_original  TEXT,
+    canal            TEXT         NOT NULL,
+    cargada_en       TIMESTAMPTZ  NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS evidencias_por_siniestro
+    ON siniestros.evidencias (id_siniestro, cargada_en);
 """
 
 SIGUIENTE_REFERENCIA = "SELECT nextval('siniestros.referencia') AS consecutivo"
@@ -69,4 +82,21 @@ DEL_CLIENTE = f"""
 SELECT {COLUMNAS} FROM siniestros.siniestros
 WHERE id_cliente = %(id_cliente)s
 ORDER BY reportado_en DESC
+"""
+
+COLUMNAS_EVIDENCIA = """
+    id_evidencia, id_siniestro, tipo_contenido, tamano, nombre_original, canal, cargada_en
+"""
+
+INSERTAR_EVIDENCIA = f"""
+INSERT INTO siniestros.evidencias ({COLUMNAS_EVIDENCIA}) VALUES (
+    %(id_evidencia)s, %(id_siniestro)s, %(tipo_contenido)s, %(tamano)s, %(nombre_original)s,
+    %(canal)s, %(cargada_en)s
+)
+"""
+
+EVIDENCIAS = f"""
+SELECT {COLUMNAS_EVIDENCIA} FROM siniestros.evidencias
+WHERE id_siniestro = %(id_siniestro)s
+ORDER BY cargada_en, id_evidencia
 """

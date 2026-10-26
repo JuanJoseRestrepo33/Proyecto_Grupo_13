@@ -29,3 +29,13 @@ class ClaveIdempotenciaEnUsoError(ReglaDeNegocioViolada):
 
 class SiniestroNoEncontradoError(RecursoNoEncontrado):
     codigo = "siniestro_no_encontrado"
+
+
+class SiniestroCerradoError(ReglaDeNegocioViolada):
+    """Un siniestro rechazado o pagado ya no recibe evidencia."""
+
+    codigo = "siniestro_cerrado"
+
+
+class EvidenciaNoEncontradaError(RecursoNoEncontrado):
+    codigo = "evidencia_no_encontrada"

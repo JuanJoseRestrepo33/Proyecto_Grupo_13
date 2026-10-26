@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from app.modulos.auditoria import EventoAuditable, ServicioDeAuditoria
 
+from ..dominio.evidencias import EvidenciaDelSiniestro
 from ..dominio.modelo import Siniestro
 
 TIPO = "siniestro_reportado"
+TIPO_EVIDENCIA = "evidencia_agregada"
 
 
 class RegistroEnAuditoria:
@@ -37,6 +39,27 @@ class RegistroEnAuditoria:
                     "id_siniestro": siniestro.id_siniestro,
                     "id_cliente": siniestro.id_cliente,
                     "numero_poliza": datos.numero_poliza,
+                },
+            )
+        )
+
+    def registrar_evidencia(self, siniestro: Siniestro, evidencia: EvidenciaDelSiniestro) -> str:
+        """Sin el nombre original del archivo, que puede traer datos del cliente."""
+        return self._auditoria.registrar(
+            EventoAuditable(
+                tipo=TIPO_EVIDENCIA,
+                actor=siniestro.id_cliente,
+                canal=evidencia.canal,
+                ocurrido_en=evidencia.cargada_en,
+                variables_entrada={
+                    "tipo_contenido": evidencia.tipo_contenido,
+                    "tamano": evidencia.tamano,
+                },
+                resultado={"id_evidencia": evidencia.id_evidencia},
+                referencias={
+                    "id_siniestro": siniestro.id_siniestro,
+                    "id_evidencia": evidencia.id_evidencia,
+                    "id_cliente": siniestro.id_cliente,
                 },
             )
         )

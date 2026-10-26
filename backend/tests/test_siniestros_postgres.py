@@ -23,6 +23,9 @@ from app.modulos.siniestros.api import dependencias
 from app.modulos.siniestros.aplicacion.servicio import ServicioDeSiniestros
 from app.modulos.siniestros.dominio.modelo import DatosDeReporte, EstadoSiniestro, TipoEvento
 from app.modulos.siniestros.dominio.puertos import VigenciaDePoliza
+from app.modulos.siniestros.infraestructura.almacen_evidencias_memoria import (
+    AlmacenDeEvidenciasEnMemoria,
+)
 from app.modulos.siniestros.infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from app.modulos.siniestros.infraestructura.repositorio_postgres import RepositorioPostgres
 
@@ -64,6 +67,7 @@ def _servicio(repositorio, reloj: RelojFijo | None = None) -> ServicioDeSiniestr
         auditoria=RegistroEnAuditoria(ServicioDeAuditoria(AlmacenEnMemoria())),
         bus=BusEnProceso(),
         reloj=reloj or RelojFijo(INSTANTE),
+        almacen=AlmacenDeEvidenciasEnMemoria(),
     )
 
 

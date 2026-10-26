@@ -35,6 +35,9 @@ from app.modulos.siniestros.dominio.modelo import (
     TipoEvento,
 )
 from app.modulos.siniestros.dominio.puertos import VigenciaDePoliza
+from app.modulos.siniestros.infraestructura.almacen_evidencias_memoria import (
+    AlmacenDeEvidenciasEnMemoria,
+)
 from app.modulos.siniestros.infraestructura.auditoria_nucleo import RegistroEnAuditoria
 from app.modulos.siniestros.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
@@ -88,6 +91,7 @@ def _servicio(polizas, reloj, almacen=None, bus=None) -> ServicioDeSiniestros:
         auditoria=RegistroEnAuditoria(ServicioDeAuditoria(almacen or AlmacenEnMemoria())),
         bus=bus or BusEnProceso(),
         reloj=reloj,
+        almacen=AlmacenDeEvidenciasEnMemoria(),
     )
 
 
