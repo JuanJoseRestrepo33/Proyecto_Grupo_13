@@ -146,7 +146,8 @@ def main():
             llamar("POST", "sesiones/renovacion", {"token_refresco": renovada["token_refresco"]})[0], 200)
     otro = f"vence.{sufijo}@ejemplo.co"
     _, reg, _ = registrar(documento(3), otro)
-    time.sleep(3.2)
+    # El mock compara en segundos enteros: un segundo de margen sobre MOCKOON_VIGENCIA_OTP=3.
+    time.sleep(4.2)
     esperar("OTP vencido", clave(*verificar(reg["id"], codigo_en_buzon(otro))[:2]), (409, "otp_vencido"))
 
     print()

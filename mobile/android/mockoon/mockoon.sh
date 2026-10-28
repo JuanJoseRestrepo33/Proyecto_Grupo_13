@@ -18,9 +18,10 @@ fi
 
 export MOCKOON_ESPERA_REENVIO=1 MOCKOON_VIGENCIA_OTP=3 MOCKOON_TTL_ACCESO=2 MOCKOON_OTP_FIJO=aleatorio
 REGISTRO="$(mktemp)"
-"${MOCKOON[@]}" > "$REGISTRO" 2>&1 &
+# Grupo de procesos propio: npx deja a node como hijo y matar solo a npx dejaría el puerto ocupado.
+setsid "${MOCKOON[@]}" > "$REGISTRO" 2>&1 &
 PID=$!
-trap 'kill "$PID" 2>/dev/null || true; rm -f "$REGISTRO"' EXIT
+trap 'kill -- "-$PID" 2>/dev/null || true; rm -f "$REGISTRO"' EXIT
 for _ in $(seq 120); do
     grep -q "Server started" "$REGISTRO" && break
     kill -0 "$PID" 2>/dev/null || { cat "$REGISTRO"; exit 1; }

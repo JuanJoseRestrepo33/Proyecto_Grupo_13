@@ -262,7 +262,7 @@
           "rules": [
             {
               "target": "templating",
-              "modifier": "{{#if (gt (parseInt (now 't')) (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.expira')))}}si{{/if}}",
+              "modifier": "{{#if (gte (parseInt (now 't')) (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.expira')))}}si{{/if}}",
               "value": "si",
               "invert": false,
               "operator": "equals"
