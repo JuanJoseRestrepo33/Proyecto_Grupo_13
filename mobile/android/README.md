@@ -74,17 +74,99 @@ Se usa sans del sistema como equivalente permitido por v2, sin descargar fuentes
 Escalas v2 (tamaño/alto en sp) y espaciados 4/8/16/24/32/48 dp. El texto sobre error
 usa negro para mejorar contraste; no se usa color como único indicador de selección.
 
-## BFF móvil y contratos pendientes
+## BFF móvil: modo mock y modo real
 
-`BuildConfig.BASE_URL` se genera en `app` desde la propiedad Gradle `BFF_BASE_URL`:
+La app habla con el router móvil de `solventa-bff` (`bff/app/movil/`), con el prefijo
+**`/api/v1/movil/`**. Dos propiedades Gradle de `app` deciden a dónde van las llamadas:
+
+| Propiedad | Por defecto | Efecto |
+|---|---|---|
+| `BFF_MOCK` | `true` | En debug, `true` instala `DebugMockInterceptor` y nada sale a Internet; `false` habla con el BFF de `BFF_BASE_URL`. Release nunca usa el mock |
+| `BFF_BASE_URL` | `https://mobile-bff.invalid/api/v1/movil/` | Raíz del router móvil del ambiente; genera `BuildConfig.BASE_URL` |
 
 ```bash
-./gradlew :app:assembleDebug -PBFF_BASE_URL=https://bff.example.com/v1/
+./gradlew :app:assembleDebug                                    # mock (lo que corre el CI)
+./gradlew :app:installDebug -PBFF_MOCK=false \
+  -PBFF_BASE_URL="$(gcloud run services describe solventa-bff --region=<GCP_REGION> --format='value(status.url)')/api/v1/movil/"
 ```
 
-Debe ser HTTPS, terminar en `/` y no contener credenciales, query ni fragmento.
-El valor por defecto `https://mobile-bff.invalid/api/v1/movil/` es deliberadamente no resoluble;
-**no es un backend desplegado**. No guardar tokens/secretos en propiedades ni BuildConfig.
+`BFF_BASE_URL` debe ser HTTPS (HTTP solo hacia el BFF simulado en la máquina local, ver abajo), terminar
+en `/` y no contener credenciales, query ni fragmento. El
+valor por defecto es deliberadamente no resoluble (**no es un backend desplegado**): con
+`BFF_MOCK=false` el build falla si el host sigue siendo `.invalid` o si la ruta no termina en
+`/api/v1/movil/`. La variable de GitHub `BFF_BASE_URL` (ver `docs/devops.md`) guarda la del ambiente.
+No guardar tokens/secretos en propiedades ni BuildConfig.
+
+**Requisitos del modo real contra *staging*** (fuera del alcance de la app, #155):
+
+- La llave de firma de tokens montada en `solventa-bff` y en `solventa-nucleo`; sin ella el BFF no valida tokens.
+- `IDENTIDAD_OTP_FIJO` definido en el núcleo: `CanalDeCodigosSimulado` no envía el código al correo.
+- Una sola instancia del núcleo: `identidad` guarda las cuentas en memoria, así que cada despliegue las
+  borra y, con varias instancias, el ingreso falla de forma intermitente.
+
+### BFF simulado con Mockoon (registro, OTP y sesión)
+
+`mockoon/bff-movil.json` es un ambiente de [Mockoon](https://mockoon.com) 9.9 que implementa, con
+estado, las rutas de WEB-F13 del contrato: registro, verificación y reenvío del OTP, ingreso, renovación
+con rotación del token de refresco, `GET /sesion` y la verificación de identidad. Sirve para probar el
+**modo real** de la app (cliente HTTP, `Authenticator`, errores) sin depender de *staging*. Se edita
+con Mockoon Desktop (*Open environment*); `mockoon/mockoon.sh` lo arranca con `mockoon-cli` vía `npx`
+(requiere Node 18+):
+
+```bash
+mobile/android/mockoon/mockoon.sh                     # http://localhost:3001/api/v1/movil/
+mobile/android/mockoon/mockoon.sh prueba              # tiempos cortos + prueba de humo (32 verificaciones)
+./gradlew :app:installDebug -PBFF_MOCK=false -PBFF_BASE_URL=http://10.0.2.2:3001/api/v1/movil/
+```
+
+El emulador ve la máquina como `10.0.2.2`; en un dispositivo físico, `adb reverse tcp:3001 tcp:3001` y
+`http://localhost:3001/...`. HTTP solo se admite hacia esos hosts y solo en debug
+(`app/src/debug/res/xml/red_debug.xml`); cualquier otro host exige HTTPS.
+
+| Escenario | Cómo provocarlo |
+|---|---|
+| Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
+| Código OTP | `123456`, o `MOCKOON_OTP_FIJO=aleatorio` y leerlo en el buzón: `GET /api/v1/movil/__pruebas/buzon?correo=...` (solo existe en el mock) |
+| OTP incorrecto, bloqueo y vencimiento | 3 intentos (`otp_invalido` → `otp_bloqueado`); vence a los `MOCKOON_VIGENCIA_OTP` s (600) |
+| Reenviar OTP | 429 con `Retry-After` antes de `MOCKOON_ESPERA_REENVIO` s (30); el reenvío devuelve los intentos |
+| Resultado KYC | Último dígito del documento: 0–6 aprobada, 7 rechazada (`datos_no_coinciden`), 8 en revisión, 9 en proceso → aprobada en la siguiente consulta |
+| Token de acceso vencido (renovación automática) | `MOCKOON_TTL_ACCESO=30` y esperar; por defecto vence a los 900 s |
+| Token de refresco reutilizado | Cada renovación invalida el anterior: reutilizarlo da 401 `token_refresco_invalido` |
+| Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
+
+El estado vive en el *data bucket* `estado` y se reinicia al arrancar. `ContraMockoonTest`
+(`core/network`) prueba el cliente real contra este ambiente: solo corre con `MOCKOON_URL` definida, como
+hace el CI tras levantar Mockoon con un token de 2 s. Si cambia el contrato de estas rutas, actualizar el
+ambiente y `mockoon/probar_mockoon.py` en el mismo PR.
+
+### Sesión: renovación ante un 401
+
+`MainActivity` crea el cliente con `BffProvider.create(sesion)`, donde `GestorSesion` es la `SesionBff`
+del proceso. `NetworkClient` instala un `Authenticator` de OkHttp (`RenovadorSesion`) que, ante un 401
+de una **ruta protegida** (las que llevan `Authorization`; registro e ingreso no cuentan):
+
+1. Renueva **una sola vez** con el `token_refresco` (`POST sesiones/renovacion`) y repite la llamada con
+   el token nuevo. Solo hay una renovación en curso: las llamadas que fallaron con el mismo token
+   esperan y reutilizan el resultado. La llamada de renovación no pasa por el autenticador.
+2. Con la renovación exitosa, `GestorSesion` guarda la sesión y rota el token cifrado de la huella. Si
+   `AlmacenToken.guardar` devuelve `false`, la huella se desactiva e Inicio lo avisa.
+3. Si el BFF rechaza el token de refresco (401 `token_refresco_invalido`, p. ej. porque ya se usó), se
+   limpia la sesión, se borra el token de la huella y la navegación vuelve a Ingreso con la pila vacía,
+   que pide la contraseña. Si la renovación falla por otra causa (5xx, cuerpo ilegible o sin red), la
+   sesión también vence, pero se conserva el token y el Ingreso ofrece la huella. Las llamadas que
+   esperaban esa renovación no la repiten.
+4. Si la llamada repetida vuelve a dar 401, no se renueva otra vez: la sesión vence sin borrar el token
+   de la huella y la app vuelve a Ingreso, en cualquier pantalla protegida.
+
+Las escrituras de `GestorSesion.sesion` pasan por un candado: la renovación corre en hilos de OkHttp y una
+copia vieja escrita desde una pantalla no puede restaurar un token de refresco ya consumido. El aviso de
+huella desactivada queda en Inicio hasta que el cliente toca «Entendido».
+
+`llamarBff` traduce una respuesta que no cumple el contrato (`SerializationException`) a una `Falla` con
+`http = HTTP_RESPUESTA_ILEGIBLE` y sin código: la pantalla muestra `error_generico` y la app no se cierra.
+En modo mock el `DebugMockInterceptor` responde antes que el autenticador, así que la renovación
+automática solo actúa contra un BFF real o el de Mockoon; sus pruebas usan MockWebServer
+(`RenovacionSesionTest`) y Mockoon (`ContraMockoonTest`).
 
 ### Contrato y mocks
 
@@ -150,7 +232,7 @@ y `scripts/EmuladorComun.ps1`.
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
-`contratos/bff-movil/**` o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
+`contratos/bff-movil/**`, el router móvil del BFF (`bff/app/movil/**`) o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
 por rama y publicación de reportes descritos en `../../docs/devops.md`.
 
 1. Checkout con historial completo y **gitleaks-action v3**: los secretos detectados
@@ -190,7 +272,11 @@ repositorio y se ignora mediante `.gitignore`.
 La cobertura baja en `feature/onboarding/biometria` (55 %) porque `AlmacenTokenKeystore` y
 `BiometriaAndroid` usan el Keystore y el sensor reales, que Robolectric no simula.
 
-Pendientes: contratos OpenAPI de Harold, URL real por ambiente, validación visual
+**WEB-F13 (#154).** Se agregó el modo real (`-PBFF_MOCK=false`), la renovación centralizada ante un
+401 y las pruebas de objetivos táctiles de 48 × 48 dp del recorrido (`ObjetivosTactilesTest`). Falta la
+evidencia contra *staging*, que depende de la URL pública de `solventa-bff` y de #155.
+
+Pendientes: contratos OpenAPI de Harold, validación visual
 con TalkBack/tamaños de fuente y pruebas de navegación en dispositivo. De MOB-F01 queda probar en
 dispositivo (API 26–27 y 30+) el ingreso biométrico real: creación de la llave, activación, fallos
 del sensor, invalidación al enrolar otra huella y rotación del token. El paquete y los

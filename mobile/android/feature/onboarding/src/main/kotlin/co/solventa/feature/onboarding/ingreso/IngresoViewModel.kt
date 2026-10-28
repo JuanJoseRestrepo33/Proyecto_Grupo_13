@@ -15,6 +15,7 @@ import co.solventa.feature.onboarding.R
 import co.solventa.feature.onboarding.biometria.AlmacenToken
 import co.solventa.feature.onboarding.biometria.DisponibilidadBiometrica
 import co.solventa.feature.onboarding.biometria.ResultadoBiometrico
+import co.solventa.feature.onboarding.biometria.rotar
 import co.solventa.core.network.Resultado
 import co.solventa.core.network.llamarBff
 import co.solventa.feature.onboarding.sesion.GestorSesion
@@ -115,11 +116,19 @@ class IngresoViewModel(
         }
     }
 
-    /** La rotación invalida el token anterior: el nuevo se guarda si la biometría sigue activa. */
+    /**
+     * La rotación invalida el token anterior: el nuevo se guarda si la biometría sigue activa. Si no
+     * se puede guardar, la huella se desactiva y el aviso se muestra en Inicio, adonde se navega.
+     */
     private fun abierta(nueva: Sesion): EstadoIngreso {
         sesion.sesion = nueva
-        if (almacen.hayToken()) almacen.guardar(nueva.tokenRefresco)
-        return estado.copy(enviando = false, ingresado = nueva.cliente)
+        val rotado = almacen.rotar(nueva.tokenRefresco)
+        if (!rotado) sesion.avisarBiometriaDesactivada()
+        return estado.copy(
+            enviando = false,
+            ingresado = nueva.cliente,
+            biometriaActiva = estado.biometriaActiva && rotado,
+        )
     }
 
     private fun desactivarBiometria(@StringRes motivo: Int) {
