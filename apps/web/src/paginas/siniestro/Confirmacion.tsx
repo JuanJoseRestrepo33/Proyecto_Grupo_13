@@ -7,15 +7,23 @@ import { Aviso } from '../../componentes/Aviso'
 import { Boton } from '../../componentes/Boton'
 import { clasesBoton } from '../../componentes/clasesBoton'
 import estilosTarjeta from '../cotizacion/Cotizacion.module.css'
+import type { ResultadoCarga } from './evidencias'
 import estilos from './Siniestro.module.css'
+
+export interface ResultadoArchivo {
+  archivo: File
+  resultado: ResultadoCarga
+}
 
 interface Propiedades {
   siniestro: Siniestro
+  /** Lo que pasó con cada evidencia elegida en el reporte. */
+  resultados: ResultadoArchivo[]
   onReportarOtro: () => void
 }
 
 /** El reporte quedó registrado: referencia, estado y siguiente paso del caso (criterio 1). */
-export function Confirmacion({ siniestro, onReportarOtro }: Propiedades) {
+export function Confirmacion({ siniestro, resultados, onReportarOtro }: Propiedades) {
   const { t } = useTranslation()
   const titulo = useRef<HTMLHeadingElement>(null)
 
@@ -38,8 +46,25 @@ export function Confirmacion({ siniestro, onReportarOtro }: Propiedades) {
         <dt>{t('siniestro.confirmacion.siguientePaso')}</dt>
         <dd>{t(`siniestro.siguientePaso.${siniestro.siguiente_paso}`)}</dd>
       </dl>
+      {resultados.length > 0 && (
+        <div>
+          <h3>{t('siniestro.confirmacion.evidencias')}</h3>
+          <ul className={estilos.listaSimple}>
+            {resultados.map(({ archivo, resultado }, indice) => (
+              <li key={`${archivo.name}-${indice}`}>
+                {resultado.ok
+                  ? t('siniestro.confirmacion.adjuntada', { nombre: archivo.name })
+                  : t(`siniestro.evidencia.fallo.${resultado.fallo}`, { nombre: archivo.name })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className={estilos.acciones}>
-        <Link className={clasesBoton('primario')} to="/">
+        <Link className={clasesBoton('primario')} to={`/siniestros/evidencias?siniestro=${encodeURIComponent(siniestro.id)}`}>
+          {t('siniestro.confirmacion.agregarEvidencia')}
+        </Link>
+        <Link className={clasesBoton('secundario')} to="/">
           {t('siniestro.confirmacion.inicio')}
         </Link>
         <Boton variante="secundario" onClick={onReportarOtro}>

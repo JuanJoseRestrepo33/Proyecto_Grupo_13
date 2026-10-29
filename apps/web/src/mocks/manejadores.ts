@@ -4,7 +4,9 @@
  * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
  * paga contra una pasarela simulada que responde según `estado.pasarela`, y el proveedor de
  * Open Finance responde según `estado.openFinance`. Los siniestros (WEB-F05) se reportan sobre
- * `estado.polizas`, con la misma `Idempotency-Key` reconocida como reintento. Sin sesión
+ * `estado.polizas`, con la misma `Idempotency-Key` reconocida como reintento, y reciben evidencia
+ * (MOB-F05) con los mismos límites del BFF. El formato se toma del tipo del archivo; el BFF real lo
+ * comprueba con el contenido. Sin sesión
  * (`estado.sesion` en `null`), toda ruta protegida responde 401 `sesion_no_vigente` (WEB-F13).
  */
 import { delay, http, HttpResponse } from 'msw'
@@ -14,6 +16,7 @@ import type {
   Consentimiento,
   Credenciales,
   ErrorVigencia,
+  Evidencia,
   Cotizacion,
   DatosAsegurado,
   ErrorApi,
@@ -175,6 +178,9 @@ const TIPOS_EVENTO: SolicitudSiniestro['tipo_evento'][] = [
   'cancelacion_viaje',
   'otro',
 ]
+const TIPOS_EVIDENCIA: Evidencia['tipo_contenido'][] = ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'application/pdf']
+/** 10 MB, el límite del BFF para cada evidencia. */
+const TAMANO_MAXIMO_EVIDENCIA = 10 * 1024 * 1024
 /** Lo que tarda el núcleo en registrar un reporte; visible en el navegador, corto en las pruebas. */
 const LATENCIA_REPORTE_MS = import.meta.env.MODE === 'test' ? 20 : 600
 
@@ -485,5 +491,52 @@ export const manejadores = [
     const siniestro = estado.siniestros.find((s) => s.id === String(params.id))
     if (!siniestro) return error(404, 'siniestro_no_encontrado', 'No existe')
     return HttpResponse.json(siniestro)
+  }),
+
+  http.get(ruta('/siniestros/:id/evidencias'), ({ params }) => {
+    const id = String(params.id)
+    if (!estado.siniestros.some((s) => s.id === id)) return error(404, 'siniestro_no_encontrado', 'No existe')
+    return HttpResponse.json((estado.evidencias.get(id) ?? []).map((e) => e.evidencia))
+  }),
+
+  http.post(ruta('/siniestros/:id/evidencias'), async ({ params, request }) => {
+    const id = String(params.id)
+    if (!estado.siniestros.some((s) => s.id === id)) return error(404, 'siniestro_no_encontrado', 'No existe')
+    const archivo = (await request.formData()).get('archivo')
+    if (!(archivo instanceof File)) return error(422, 'solicitud_invalida', 'Falta el archivo')
+    if (archivo.size > TAMANO_MAXIMO_EVIDENCIA) {
+      return error(413, 'archivo_demasiado_grande', 'El archivo supera los 10 MB')
+    }
+    if (archivo.size === 0) return error(422, 'archivo_vacio', 'El archivo está vacío')
+    const tipo = archivo.type as Evidencia['tipo_contenido']
+    if (!TIPOS_EVIDENCIA.includes(tipo)) return error(422, 'formato_no_admitido', 'Formato no admitido')
+
+    const evidencia: Evidencia = {
+      id: siguienteId('evi'),
+      tipo_contenido: tipo,
+      tamano: archivo.size,
+      nombre_original: archivo.name || null,
+      canal: 'web',
+      cargada_en: new Date().toISOString(),
+      tomada_en: null,
+      latitud: null,
+      longitud: null,
+      lugar: null,
+    }
+    estado.evidencias.set(id, [...(estado.evidencias.get(id) ?? []), { evidencia, contenido: archivo }])
+    return HttpResponse.json(evidencia, { status: 201 })
+  }),
+
+  http.get(ruta('/siniestros/:id/evidencias/:idEvidencia'), ({ params }) => {
+    const guardada = estado.evidencias.get(String(params.id))?.find((e) => e.evidencia.id === String(params.idEvidencia))
+    if (!guardada) return error(404, 'evidencia_no_encontrada', 'No existe')
+    const nombre = guardada.evidencia.nombre_original ?? guardada.evidencia.id
+    return new HttpResponse(guardada.contenido, {
+      headers: {
+        'Content-Type': guardada.evidencia.tipo_contenido,
+        // Igual que el BFF: en línea, con el nombre codificado; el enlace de la web pide descargarlo.
+        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(nombre)}`,
+      },
+    })
   }),
 ]

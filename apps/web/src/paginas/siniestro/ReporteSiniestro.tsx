@@ -11,9 +11,12 @@ import { diaLocal, formatearDia, leerMonto } from '../../formato'
 import type { Idioma } from '../../i18n'
 import estilosTarjeta from '../cotizacion/Cotizacion.module.css'
 import { Pasos } from '../cotizacion/Pasos'
-import { Confirmacion } from './Confirmacion'
+import { ArchivosPendientes } from './ArchivosPendientes'
+import { Confirmacion, type ResultadoArchivo } from './Confirmacion'
+import { subirEvidencia } from './evidencias'
 import { PasoInformacion } from './PasoInformacion'
 import { PasoRevision } from './PasoRevision'
+import { SelectorArchivos } from './SelectorArchivos'
 import estilos from './Siniestro.module.css'
 import { type DatosReporte, type ErroresReporte, validarReporte } from './validacion'
 
@@ -58,6 +61,10 @@ export function ReporteSiniestro() {
   const [enviando, setEnviando] = useState(false)
   const [fallo, setFallo] = useState<Fallo | null>(null)
   const [siniestro, setSiniestro] = useState<Siniestro | null>(null)
+  /** Evidencias elegidas en el paso 2; se adjuntan al siniestro cuando queda registrado. */
+  const [archivos, setArchivos] = useState<File[]>([])
+  const [adjuntando, setAdjuntando] = useState(false)
+  const [resultados, setResultados] = useState<ResultadoArchivo[]>([])
   const clave = useRef<string | null>(null)
   // Candado síncrono: un doble clic llega antes de que React deshabilite el botón.
   const enCurso = useRef(false)
@@ -124,13 +131,22 @@ export function ReporteSiniestro() {
         },
       })
       .catch(() => null)
+    const data = resultado?.data
+    if (data) {
+      // El siniestro ya está registrado: si falla un archivo, se puede adjuntar después.
+      setAdjuntando(true)
+      const subidos: ResultadoArchivo[] = []
+      for (const archivo of archivos) subidos.push({ archivo, resultado: await subirEvidencia(data.id, archivo) })
+      setResultados(subidos)
+      setSiniestro(data)
+      return
+    }
     enCurso.current = false
     setEnviando(false)
 
     // Sin respuesta no se sabe si llegó: el reintento lleva la misma clave y es seguro.
     if (!resultado) return setFallo({ tipo: 'error' })
-    const { data, error } = resultado
-    if (data) return setSiniestro(data)
+    const { error } = resultado
 
     const codigo = error?.codigo
     if (codigo === 'evento_fuera_de_vigencia') {
@@ -150,6 +166,11 @@ export function ReporteSiniestro() {
     setErrores({})
     setFallo(null)
     setSiniestro(null)
+    setArchivos([])
+    setResultados([])
+    setAdjuntando(false)
+    setEnviando(false)
+    enCurso.current = false
     clave.current = null
     setPaso(INFORMACION)
   }
@@ -194,7 +215,7 @@ export function ReporteSiniestro() {
     return (
       <>
         {encabezado}
-        <Confirmacion siniestro={siniestro} onReportarOtro={reiniciar} />
+        <Confirmacion siniestro={siniestro} resultados={resultados} onReportarOtro={reiniciar} />
       </>
     )
   }
@@ -223,12 +244,19 @@ export function ReporteSiniestro() {
           />
         )}
         {paso === 1 && (
-          <Aviso tipo="info">
-            <p>{t('siniestro.evidencia.opcional')}</p>
-            <p>{t('siniestro.evidencia.app')}</p>
-          </Aviso>
+          <>
+            <Aviso tipo="info">
+              <p>{t('siniestro.evidencia.opcional')}</p>
+              <p>{t('siniestro.evidencia.app')}</p>
+            </Aviso>
+            <SelectorArchivos onSeleccionar={(nuevos) => setArchivos((actuales) => [...actuales, ...nuevos])} />
+            <ArchivosPendientes
+              archivos={archivos}
+              onQuitar={(indice) => setArchivos((actuales) => actuales.filter((_, i) => i !== indice))}
+            />
+          </>
         )}
-        {paso === REVISION && poliza && <PasoRevision datos={datos} poliza={poliza} />}
+        {paso === REVISION && poliza && <PasoRevision datos={datos} poliza={poliza} archivos={archivos} />}
 
         {fallo && (
           <Aviso tipo="error" rol="alert">
@@ -264,7 +292,11 @@ export function ReporteSiniestro() {
             </Boton>
           ) : (
             <Boton key="enviar" onClick={() => void enviar()} disabled={enviando}>
-              {enviando ? t('siniestro.navegacion.enviando') : t('siniestro.navegacion.enviar')}
+              {adjuntando
+                ? t('siniestro.navegacion.adjuntando', { total: archivos.length })
+                : enviando
+                  ? t('siniestro.navegacion.enviando')
+                  : t('siniestro.navegacion.enviar')}
             </Boton>
           )}
         </div>

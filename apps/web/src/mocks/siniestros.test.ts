@@ -1,5 +1,5 @@
 import { bff } from '../api/cliente'
-import type { ErrorVigencia, SolicitudSiniestro } from '../api/tipos'
+import type { ErrorVigencia, SolicitudEvidencia, SolicitudSiniestro } from '../api/tipos'
 import { diaRelativo } from '../formato'
 import { polizasDePrueba } from './datos'
 import { estado } from './estado'
@@ -89,4 +89,56 @@ describe('mocks del BFF web · siniestros (WEB-F05)', () => {
     expect(response.status).toBe(422)
     expect(error?.codigo).toBe('clave_idempotencia_invalida')
   })
+
+  describe('evidencia (MOB-F05)', () => {
+    async function siniestroReportado() {
+      const { data } = await reportar()
+      return data!.id
+    }
+
+    function adjuntar(id: string, archivo: File) {
+      const formulario = new FormData()
+      formulario.append('archivo', archivo)
+      return bff.POST('/siniestros/{id}/evidencias', {
+        params: { path: { id } },
+        body: formulario as unknown as SolicitudEvidencia,
+      })
+    }
+
+    it('adjunta un archivo, lo lista y lo descarga con su nombre', async () => {
+      const id = await siniestroReportado()
+      const { data, response } = await adjuntar(id, new File(['%PDF-1.7'], 'factura.pdf', { type: 'application/pdf' }))
+
+      expect(response.status).toBe(201)
+      expect(data).toMatchObject({ tipo_contenido: 'application/pdf', tamano: 8, nombre_original: 'factura.pdf', canal: 'web' })
+      expect((await bff.GET('/siniestros/{id}/evidencias', { params: { path: { id } } })).data).toEqual([data])
+
+      const descarga = await fetch(`http://localhost/api/v1/web/siniestros/${id}/evidencias/${data!.id}`)
+      expect(descarga.headers.get('Content-Disposition')).toBe("inline; filename*=UTF-8''factura.pdf")
+      expect(await descarga.text()).toBe('%PDF-1.7')
+    })
+
+    it.each([
+      ['un formato no admitido', new File(['GIF89a'], 'a.gif', { type: 'image/gif' }), 422, 'formato_no_admitido'],
+      ['un archivo vacío', new File([], 'a.jpg', { type: 'image/jpeg' }), 422, 'archivo_vacio'],
+      [
+        'un archivo de más de 10 MB',
+        new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'a.mp4', { type: 'video/mp4' }),
+        413,
+        'archivo_demasiado_grande',
+      ],
+    ])('rechaza %s', async (_caso, archivo, estadoHttp, codigo) => {
+      const id = await siniestroReportado()
+      const { response, error } = await adjuntar(id, archivo)
+      expect(response.status).toBe(estadoHttp)
+      expect(error?.codigo).toBe(codigo)
+      expect(estado.evidencias.get(id) ?? []).toEqual([])
+    })
+
+    it('responde 404 para un siniestro que no es del cliente', async () => {
+      const { response } = await adjuntar('sin-9999', new File(['x'], 'a.jpg', { type: 'image/jpeg' }))
+      expect(response.status).toBe(404)
+    })
+  })
 })
+

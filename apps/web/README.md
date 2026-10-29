@@ -73,7 +73,9 @@ responde según `estado.openFinance`, con los mismos modos que el núcleo: `sano
 en caché) o `caido` (tarifa estándar con motivo `proveedor_no_disponible`). Para reportar siniestros,
 el cliente tiene una póliza vigente y una vencida hace 30 días (`polizasDePrueba`), con fechas
 relativas a hoy como la semilla de *staging*. Contra el núcleo real, las pólizas se siembran con
-`POLIZAS_SEMILLA` (ver [`backend/README.md`](../../backend/README.md)).
+`POLIZAS_SEMILLA` (ver [`backend/README.md`](../../backend/README.md)). La evidencia se adjunta en
+el reporte o después, en **Evidencias** (`/siniestros/evidencias`); los mocks toman el formato del
+tipo del archivo, mientras que el BFF real lo comprueba con su contenido.
 
 ## Sesión (WEB-F13)
 

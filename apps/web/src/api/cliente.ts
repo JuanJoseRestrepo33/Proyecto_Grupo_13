@@ -63,3 +63,11 @@ export function crearClienteBff(origen = import.meta.env.VITE_BFF_URL || globalT
 }
 
 export const bff = crearClienteBff()
+
+/**
+ * URL absoluta de una ruta del BFF, para lo que el navegador abre directamente, como la descarga de
+ * una evidencia: la cookie `sesion` viaja igual que en las llamadas del cliente.
+ */
+export function urlBff(camino: string, origen = import.meta.env.VITE_BFF_URL || globalThis.location?.origin) {
+  return `${origen ?? ''}${PREFIJO_BFF}${camino}`
+}

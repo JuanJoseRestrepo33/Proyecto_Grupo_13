@@ -3,6 +3,7 @@ import type {
   Consentimiento,
   Cotizacion,
   EventoConsentimiento,
+  Evidencia,
   MedioPago,
   Pago,
   PolizaResumen,
@@ -45,6 +46,8 @@ interface EstadoMocks {
   /** Pólizas del cliente; las pruebas pueden dejarlo sin ninguna. */
   polizas: PolizaResumen[]
   siniestros: Siniestro[]
+  /** Evidencias por siniestro, con su contenido para descargarlas. */
+  evidencias: Map<string, { evidencia: Evidencia; contenido: Blob }[]>
   /** Reportes por `Idempotency-Key`, con la solicitud que los creó para reconocer un reintento. */
   reportes: Map<string, { siniestroId: string; solicitud: string }>
   /** Respuesta del proveedor de Open Finance simulado; las pruebas la cambian. */
@@ -65,6 +68,7 @@ function nuevo(): EstadoMocks {
     intentos: new Map(),
     polizas: polizasDePrueba(),
     siniestros: [],
+    evidencias: new Map(),
     reportes: new Map(),
     openFinance: 'sano',
     pasarela: { tarjeta_credito: 'aprobado', pse: 'pendiente' },
