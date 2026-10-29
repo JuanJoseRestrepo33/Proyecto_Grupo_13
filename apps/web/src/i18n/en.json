@@ -11,7 +11,8 @@
     "cotizar": "Get a quote",
     "consentimientos": "Consents",
     "suscripcion": "Purchase",
-    "reportarSiniestro": "Report a claim"
+    "reportarSiniestro": "Report a claim",
+    "evidencias": "Evidence"
   },
   "inicio": {
     "saludo": "Hi, {{nombre}}",
@@ -300,7 +301,25 @@
     "evidencia": {
       "titulo": "2. Evidence",
       "opcional": "This step is optional: you can send the report without evidence.",
-      "app": "In the app you can take photos with the date and location of the event."
+      "app": "In the app you can take photos with the date and location of the event.",
+      "elegir": "Attach photos, videos or documents",
+      "limites": "JPEG, PNG, HEIC, MP4 or PDF, up to {{limite}} each.",
+      "elegidos": "Selected files",
+      "quitar": "Remove",
+      "quitarArchivo": "Remove {{nombre}}",
+      "rechazo": {
+        "formato": "{{nombre}}: this format isn't supported. Use JPEG, PNG, HEIC, MP4 or PDF.",
+        "tamano": "{{nombre}}: it's {{tamano}} and the maximum is {{limite}}.",
+        "vacio": "{{nombre}}: the file is empty."
+      },
+      "fallo": {
+        "formato": "{{nombre}}: not attached because its content isn't JPEG, PNG, HEIC, MP4 or PDF.",
+        "tamano": "{{nombre}}: not attached because it's larger than 10 MB.",
+        "vacio": "{{nombre}}: not attached because it's empty.",
+        "cerrado": "{{nombre}}: not attached because the claim is already closed.",
+        "almacenamiento": "{{nombre}}: not attached because evidence storage didn't respond. Try again in a few minutes.",
+        "error": "{{nombre}}: we couldn't attach it. Try again."
+      }
     },
     "revision": {
       "titulo": "3. Review your report",
@@ -318,7 +337,8 @@
       "atras": "Back",
       "continuar": "Continue",
       "enviar": "Send report",
-      "enviando": "Sending report…"
+      "enviando": "Sending report…",
+      "adjuntando": "Attaching evidence…"
     },
     "confirmacion": {
       "titulo": "Report sent",
@@ -327,7 +347,10 @@
       "estado": "Status",
       "siguientePaso": "Next step",
       "inicio": "Go to home",
-      "otro": "Report another claim"
+      "otro": "Report another claim",
+      "evidencias": "Evidence",
+      "adjuntada": "{{nombre}}: attached.",
+      "agregarEvidencia": "Add evidence"
     },
     "estados": {
       "reportado": "Reported",
@@ -378,6 +401,29 @@
       "polizaNoEncontrada": "The selected policy is no longer available. Review the event details.",
       "fueraDeVigenciaServidor": "This event isn't covered: it happened outside the policy's coverage (from {{inicio}} to {{fin}}). No report was registered.",
       "corregir": "Review the details"
+    },
+    "evidencias": {
+      "titulo": "Evidence for your claims",
+      "descripcion": "Attach photos, videos or documents to a claim you already reported, on the web or in the app.",
+      "siniestro": "Claim",
+      "elegir": "Choose a claim",
+      "opcion": "{{referencia}} · {{tipo}} · {{fecha}} ({{canal}})",
+      "subtitulo": "Evidence for {{referencia}}",
+      "cargando": "Loading evidence…",
+      "ninguna": "This claim has no evidence yet.",
+      "lista": "Attached evidence",
+      "detalle": "({{tamano}} · from {{canal}} · {{fecha}})",
+      "descargar": "Download",
+      "descargarArchivo": "Download {{nombre}}",
+      "subiendo": "{{nombre}}: attaching…",
+      "sinSiniestros": "You haven't reported any claims yet.",
+      "reportar": "Report a claim",
+      "errorSiniestros": "We couldn't load your claims.",
+      "errorEvidencias": "We couldn't load the evidence for this claim."
+    },
+    "canales": {
+      "web": "the web",
+      "movil": "the app"
     }
   }
 }

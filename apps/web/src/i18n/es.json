@@ -11,7 +11,8 @@
     "cotizar": "Cotizar",
     "consentimientos": "Consentimientos",
     "suscripcion": "Suscripción",
-    "reportarSiniestro": "Reportar siniestro"
+    "reportarSiniestro": "Reportar siniestro",
+    "evidencias": "Evidencias"
   },
   "inicio": {
     "saludo": "Hola, {{nombre}}",
@@ -300,7 +301,25 @@
     "evidencia": {
       "titulo": "2. Evidencias",
       "opcional": "Este paso es opcional: puedes enviar el reporte sin evidencias.",
-      "app": "Desde la app puedes tomar fotos con la fecha y la ubicación del evento."
+      "app": "Desde la app puedes tomar fotos con la fecha y la ubicación del evento.",
+      "elegir": "Adjuntar fotos, videos o documentos",
+      "limites": "JPEG, PNG, HEIC, MP4 o PDF, hasta {{limite}} cada uno.",
+      "elegidos": "Archivos elegidos",
+      "quitar": "Quitar",
+      "quitarArchivo": "Quitar {{nombre}}",
+      "rechazo": {
+        "formato": "{{nombre}}: este formato no se admite. Usa JPEG, PNG, HEIC, MP4 o PDF.",
+        "tamano": "{{nombre}}: pesa {{tamano}} y el máximo es {{limite}}.",
+        "vacio": "{{nombre}}: el archivo está vacío."
+      },
+      "fallo": {
+        "formato": "{{nombre}}: no se adjuntó porque su contenido no es JPEG, PNG, HEIC, MP4 ni PDF.",
+        "tamano": "{{nombre}}: no se adjuntó porque supera los 10 MB.",
+        "vacio": "{{nombre}}: no se adjuntó porque está vacío.",
+        "cerrado": "{{nombre}}: no se adjuntó porque el siniestro ya está cerrado.",
+        "almacenamiento": "{{nombre}}: no se adjuntó porque el almacén de evidencias no respondió. Intenta de nuevo en unos minutos.",
+        "error": "{{nombre}}: no pudimos adjuntarlo. Intenta de nuevo."
+      }
     },
     "revision": {
       "titulo": "3. Revisa tu reporte",
@@ -318,7 +337,8 @@
       "atras": "Atrás",
       "continuar": "Continuar",
       "enviar": "Enviar reporte",
-      "enviando": "Enviando reporte…"
+      "enviando": "Enviando reporte…",
+      "adjuntando": "Adjuntando evidencias…"
     },
     "confirmacion": {
       "titulo": "Reporte enviado",
@@ -327,7 +347,10 @@
       "estado": "Estado",
       "siguientePaso": "Siguiente paso",
       "inicio": "Ir al inicio",
-      "otro": "Reportar otro siniestro"
+      "otro": "Reportar otro siniestro",
+      "evidencias": "Evidencias",
+      "adjuntada": "{{nombre}}: adjuntada.",
+      "agregarEvidencia": "Agregar evidencia"
     },
     "estados": {
       "reportado": "Reportado",
@@ -378,6 +401,29 @@
       "polizaNoEncontrada": "La póliza elegida ya no está disponible. Revisa la información del evento.",
       "fueraDeVigenciaServidor": "Este evento no está cubierto: ocurrió fuera de la vigencia de la póliza (del {{inicio}} al {{fin}}). No se registró ningún reporte.",
       "corregir": "Revisar la información"
+    },
+    "evidencias": {
+      "titulo": "Evidencias de tus siniestros",
+      "descripcion": "Adjunta fotos, videos o documentos a un siniestro ya reportado, desde la web o desde la app.",
+      "siniestro": "Siniestro",
+      "elegir": "Elige un siniestro",
+      "opcion": "{{referencia}} · {{tipo}} · {{fecha}} ({{canal}})",
+      "subtitulo": "Evidencias de {{referencia}}",
+      "cargando": "Cargando evidencias…",
+      "ninguna": "Este siniestro aún no tiene evidencias.",
+      "lista": "Evidencias adjuntas",
+      "detalle": "({{tamano}} · desde {{canal}} · {{fecha}})",
+      "descargar": "Descargar",
+      "descargarArchivo": "Descargar {{nombre}}",
+      "subiendo": "{{nombre}}: adjuntando…",
+      "sinSiniestros": "Aún no has reportado siniestros.",
+      "reportar": "Reportar un siniestro",
+      "errorSiniestros": "No pudimos cargar tus siniestros.",
+      "errorEvidencias": "No pudimos cargar las evidencias de este siniestro."
+    },
+    "canales": {
+      "web": "la web",
+      "movil": "la app"
     }
   }
 }

@@ -94,3 +94,32 @@
     margin-bottom: var(--space-sm);
   }
 }
+
+.listaSimple {
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.archivos {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.archivo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.archivo small {
+  color: var(--neutral-700);
+}
