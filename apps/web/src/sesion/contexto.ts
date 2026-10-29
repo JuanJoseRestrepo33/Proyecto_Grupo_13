@@ -18,7 +18,10 @@ export type ResultadoInicio = 'iniciada' | 'credenciales' | 'servicio'
 export interface ValorSesion {
   estado: EstadoSesion
   iniciar: (credenciales: Credenciales) => Promise<ResultadoInicio>
-  /** `false` si el BFF no respondió: la cookie sigue vigente y la sesión sigue abierta. */
+  /**
+   * `false` si el BFF no respondió o respondió con un error (cualquier estado que no sea 2xx): la
+   * cookie puede seguir vigente, así que la sesión sigue abierta.
+   */
   cerrar: () => Promise<boolean>
   reintentar: () => void
 }

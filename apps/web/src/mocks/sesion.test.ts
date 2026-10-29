@@ -1,6 +1,9 @@
-import { alVencerSesion, bff } from '../api/cliente'
+import { delay, http, HttpResponse } from 'msw'
+
+import { alVencerSesion, bff, marcarSesionNueva } from '../api/cliente'
 import { CREDENCIALES_PRUEBA, SESION } from './datos'
 import { estado } from './estado'
+import { servidor } from './servidor'
 
 describe('mocks del BFF web · sesión (WEB-F13)', () => {
   beforeEach(() => {
@@ -79,5 +82,24 @@ describe('cliente del BFF · aviso de sesión vencida', () => {
     cancelar()
     await bff.GET('/consentimientos')
     expect(escucha).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignora el 401 de una solicitud que salió antes de iniciar una sesión nueva', async () => {
+    const escucha = vi.fn()
+    const cancelar = alVencerSesion(escucha)
+    servidor.use(
+      http.get('*/api/v1/web/consentimientos', async () => {
+        await delay(30)
+        return HttpResponse.json({ codigo: 'sesion_no_vigente', mensaje: 'No hay una sesión vigente' }, { status: 401 })
+      }),
+    )
+
+    const anterior = bff.GET('/consentimientos')
+    marcarSesionNueva()
+    const { error } = await anterior
+
+    expect(error?.codigo).toBe('sesion_no_vigente')
+    expect(escucha).not.toHaveBeenCalled()
+    cancelar()
   })
 })

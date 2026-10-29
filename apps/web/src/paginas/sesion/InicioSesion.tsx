@@ -20,8 +20,12 @@ export function InicioSesion() {
   const [errores, setErrores] = useState<ErroresIngreso>({})
   const [fallo, setFallo] = useState<keyof typeof MENSAJE_FALLO | null>(null)
   const [enviando, setEnviando] = useState(false)
+  // El aviso de por qué se está aquí (sesión vencida o cerrada) sobra después del primer intento.
+  const [intentado, setIntentado] = useState(false)
   const contrasena = useRef<HTMLInputElement>(null)
 
+  // Mientras se consulta la sesión no se muestra el formulario: si ya hay una, se redirige.
+  if (estado.tipo === 'cargando') return <p role="status">{t('sesion.cargando')}</p>
   if (estado.tipo === 'autenticada') return <Navigate to={state?.desde ?? '/'} replace />
 
   async function enviar(evento: FormEvent<HTMLFormElement>) {
@@ -36,6 +40,7 @@ export function InicioSesion() {
       return
     }
     setEnviando(true)
+    setIntentado(true)
     const resultado = await iniciar({ correo: campos.correo.trim(), contrasena: campos.contrasena })
     // Con la sesión iniciada este componente se reemplaza por la redirección.
     if (resultado === 'iniciada') return
@@ -47,7 +52,7 @@ export function InicioSesion() {
     }
   }
 
-  const aviso = estado.tipo === 'anonima' ? estado.motivo : undefined
+  const aviso = estado.tipo === 'anonima' && !intentado ? estado.motivo : undefined
   const descripcion = (campo: keyof CamposIngreso) => (errores[campo] ? `${campo}-error` : undefined)
 
   return (

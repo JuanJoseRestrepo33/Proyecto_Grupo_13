@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
-import { alVencerSesion, bff } from '../api/cliente'
+import { alVencerSesion, bff, marcarSesionNueva } from '../api/cliente'
 import type { Credenciales } from '../api/tipos'
 import { ContextoSesion, type EstadoSesion, type ResultadoInicio, type ValorSesion } from './contexto'
 
@@ -42,6 +42,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     try {
       const { data, response } = await bff.POST('/sesion', { body: credenciales })
       if (data) {
+        marcarSesionNueva()
         setEstado({ tipo: 'autenticada', sesion: data })
         return 'iniciada'
       }

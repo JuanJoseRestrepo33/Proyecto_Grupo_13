@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet } from 'react-router'
 
+import type { Sesion } from '../api/tipos'
 import { cambiarIdioma, IDIOMAS, type Idioma } from '../i18n'
 import { useSesion } from '../sesion/contexto'
 import { Boton } from './Boton'
@@ -21,15 +22,17 @@ export function Plantilla() {
   const { t, i18n } = useTranslation()
   const { estado, cerrar } = useSesion()
   const [cerrando, setCerrando] = useState(false)
-  const [falloAlCerrar, setFalloAlCerrar] = useState(false)
+  // El error es de la sesión en la que falló el cierre: si esa sesión termina por otra vía (vence)
+  // o empieza otra, deja de mostrarse.
+  const [falloAlCerrar, setFalloAlCerrar] = useState<Sesion | null>(null)
   const autenticada = estado.tipo === 'autenticada'
 
-  async function salir() {
+  async function salir(sesion: Sesion) {
     setCerrando(true)
-    setFalloAlCerrar(false)
+    setFalloAlCerrar(null)
     const cerrada = await cerrar()
     setCerrando(false)
-    setFalloAlCerrar(!cerrada)
+    setFalloAlCerrar(cerrada ? null : sesion)
   }
 
   return (
@@ -72,12 +75,12 @@ export function Plantilla() {
         {autenticada && (
           <div className={estilos.cuenta}>
             <span>{estado.sesion.cliente.nombre}</span>
-            <Boton variante="secundario" disabled={cerrando} onClick={() => void salir()}>
+            <Boton variante="secundario" disabled={cerrando} onClick={() => void salir(estado.sesion)}>
               {cerrando ? t('sesion.cerrando') : t('sesion.cerrar')}
             </Boton>
           </div>
         )}
-        {falloAlCerrar && (
+        {autenticada && falloAlCerrar === estado.sesion && (
           <p role="alert" className={estilos.errorCuenta}>
             {t('sesion.errores.cerrar')}
           </p>

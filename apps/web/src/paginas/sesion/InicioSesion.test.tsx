@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router'
 
 import { App } from '../../App'
-import { CREDENCIALES_PRUEBA } from '../../mocks/datos'
+import { CREDENCIALES_PRUEBA, SESION } from '../../mocks/datos'
 import { estado } from '../../mocks/estado'
 import { servidor } from '../../mocks/servidor'
 
@@ -30,6 +30,9 @@ describe('Inicio de sesión (WEB-F13)', () => {
     beforeEach(() => {
       estado.sesion = null
     })
+
+    // Si una aserción falla, el listener de una prueba no debe quedar vivo para las siguientes.
+    afterEach(() => servidor.events.removeAllListeners())
 
     it('lleva al inicio de sesión desde una ruta protegida, sin la navegación principal', async () => {
       renderizar('/consentimientos')
@@ -73,7 +76,6 @@ describe('Inicio de sesión (WEB-F13)', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
       expect(correo).toHaveAccessibleDescription('Escribe un correo válido, por ejemplo nombre@correo.com.')
       expect(enviado).not.toHaveBeenCalled()
-      servidor.events.removeAllListeners()
     })
 
     it.each([
@@ -169,6 +171,51 @@ describe('Inicio de sesión (WEB-F13)', () => {
       expect(
         await screen.findByRole('heading', { level: 1, name: 'Consentimientos de Open Finance' }),
       ).toBeInTheDocument()
+    })
+
+    it('el error de cierre no sigue en pantalla si la sesión vence después', async () => {
+      servidor.use(http.delete('*/api/v1/web/sesion', () => HttpResponse.error()))
+      renderizar('/')
+      await userEvent.click(await screen.findByRole('button', { name: 'Cerrar sesión' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos cerrar tu sesión')
+
+      estado.sesion = null
+      await userEvent.click(screen.getByRole('link', { name: 'Consentimientos' }))
+
+      expect(await tituloIngreso()).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Tu sesión venció')
+      expect(screen.queryByText('No pudimos cerrar tu sesión. Intenta de nuevo.')).not.toBeInTheDocument()
+
+      await ingresar(CREDENCIALES_PRUEBA.correo, CREDENCIALES_PRUEBA.contrasena)
+      await screen.findByRole('heading', { level: 1, name: 'Consentimientos de Open Finance' })
+      expect(screen.queryByText('No pudimos cerrar tu sesión. Intenta de nuevo.')).not.toBeInTheDocument()
+    })
+
+    it('tras un intento fallido, ya no muestra el aviso de sesión vencida junto al error', async () => {
+      renderizar('/cotizacion')
+      await screen.findByRole('heading', { level: 1, name: 'Cotizar un seguro' })
+      estado.sesion = null
+      await userEvent.click(screen.getByRole('link', { name: 'Consentimientos' }))
+      expect(await screen.findByRole('status')).toHaveTextContent('Tu sesión venció')
+
+      await ingresar(CREDENCIALES_PRUEBA.correo, 'equivocada')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('El correo o la contraseña no son correctos')
+      expect(screen.queryByText('Tu sesión venció. Inicia sesión de nuevo para continuar.')).not.toBeInTheDocument()
+    })
+
+    it('entrando a /ingresar con sesión, no muestra el formulario mientras consulta la sesión', async () => {
+      servidor.use(
+        http.get('*/api/v1/web/sesion', async () => {
+          await delay(30)
+          return HttpResponse.json(SESION)
+        }),
+      )
+      renderizar('/ingresar')
+
+      expect(screen.getByRole('status')).toHaveTextContent('Cargando tu información')
+      expect(screen.queryByLabelText('Correo electrónico')).not.toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 1, name: 'Hola, Ana' })).toBeInTheDocument()
     })
 
     it('si la consulta de la sesión falla, ofrece reintentar', async () => {
