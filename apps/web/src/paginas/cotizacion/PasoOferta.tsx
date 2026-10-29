@@ -71,7 +71,8 @@ export function PasoOferta({ cotizacion, recotizando, onRecotizar }: Propiedades
       )}
 
       {cotizacion.tipo_tarifa === 'estandar' ? (
-        <Aviso tipo="info">
+        // Sin el proveedor de Open Finance es una advertencia, no un error: la oferta es válida.
+        <Aviso tipo={cotizacion.motivo_tarifa === 'proveedor_no_disponible' ? 'advertencia' : 'info'}>
           <p>
             <strong>{t('cotizacion.oferta.estandar.titulo')}.</strong>{' '}
             {t(`cotizacion.oferta.estandar.${cotizacion.motivo_tarifa ?? 'sin_consentimiento'}`)}{' '}

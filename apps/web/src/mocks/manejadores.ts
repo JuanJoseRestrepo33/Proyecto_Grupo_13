@@ -2,7 +2,8 @@
  * Mocks del BFF web (MSW). Implementan contratos/bff-web/openapi.yaml con un estado en memoria
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
  * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
- * paga contra una pasarela simulada que responde según `estado.pasarela`. Sin sesión
+ * paga contra una pasarela simulada que responde según `estado.pasarela`, y el proveedor de
+ * Open Finance responde según `estado.openFinance`. Sin sesión
  * (`estado.sesion` en `null`), toda ruta protegida responde 401 `sesion_no_vigente` (WEB-F13).
  */
 import { delay, http, HttpResponse } from 'msw'
@@ -107,10 +108,18 @@ function aseguradoValido(asegurado: DatosAsegurado | undefined): boolean {
   return edadValida && ciudadValida && valorValido
 }
 
+/** Por qué la prima es la estándar; `null` si se puede personalizar. */
+function motivoTarifa(solicitud: SolicitudCotizacion): Cotizacion['motivo_tarifa'] {
+  if (!solicitud.usar_open_finance) return 'open_finance_desactivado'
+  if (!tieneConsentimientoVigente('cotizacion')) return 'sin_consentimiento'
+  if (estado.openFinance === 'caido') return 'proveedor_no_disponible'
+  return null
+}
+
 /** Cálculo aditivo: prima = estándar × (1 + suma de efectos de los factores). */
 function cotizar(producto: Producto, solicitud: SolicitudCotizacion): Cotizacion {
-  const conConsentimiento = tieneConsentimientoVigente('cotizacion')
-  const personalizada = solicitud.usar_open_finance && conConsentimiento
+  const motivo = motivoTarifa(solicitud)
+  const personalizada = motivo === null
   const factores = personalizada ? FACTORES_OPEN_FINANCE : FACTORES_ESTANDAR
   const efectoTotal = factores.reduce((total, f) => total + f.efecto, 0)
   const estandar = producto.prima_estandar
@@ -126,12 +135,12 @@ function cotizar(producto: Producto, solicitud: SolicitudCotizacion): Cotizacion
     prima_estandar: estandar,
     ahorro_mensual: { valor: Math.max(estandar.valor - prima, 0), moneda: estandar.moneda },
     tipo_tarifa: personalizada ? 'personalizada' : 'estandar',
-    base_perfilamiento: personalizada ? 'open_finance' : 'estandar',
-    motivo_tarifa: personalizada
-      ? null
-      : solicitud.usar_open_finance
-        ? 'sin_consentimiento'
-        : 'open_finance_desactivado',
+    base_perfilamiento: !personalizada
+      ? 'estandar'
+      : estado.openFinance === 'degradado'
+        ? 'open_finance_en_cache'
+        : 'open_finance',
+    motivo_tarifa: motivo,
     factores,
     version_regla: VERSION_REGLA,
     valor_asegurado: producto.valor_asegurado,

@@ -17,6 +17,13 @@ export type ConsentimientoGuardado = Omit<Consentimiento, 'por_vencer' | 'dias_p
 /** Lo que se guarda; `reintento` depende de cada respuesta. */
 export type PagoGuardado = Omit<Pago, 'reintento'>
 
+/**
+ * Respuesta del proveedor de Open Finance, con los mismos modos que el núcleo
+ * (`PERFILAMIENTO_OPEN_FINANCE_MODO`): `degradado` sirve el perfil en caché y `caido` no deja
+ * perfil, así que la prima es la estándar (WEB-F01, criterio 3).
+ */
+export type ModoOpenFinance = 'sano' | 'degradado' | 'caido'
+
 /** Pagos por `Idempotency-Key`: `'procesando'` mientras la pasarela responde. */
 export interface IntentoPago {
   suscripcionId: string
@@ -33,6 +40,8 @@ interface EstadoMocks {
   suscripciones: Map<string, Omit<Suscripcion, 'pago'> & { pagoId: string | null }>
   pagos: Map<string, PagoGuardado>
   intentos: Map<string, IntentoPago>
+  /** Respuesta del proveedor de Open Finance simulado; las pruebas la cambian. */
+  openFinance: ModoOpenFinance
   /** Respuesta de la pasarela simulada por medio de pago; las pruebas la cambian. */
   pasarela: Record<MedioPago, Pago['estado']>
   secuencia: number
@@ -47,6 +56,7 @@ function nuevo(): EstadoMocks {
     suscripciones: new Map(),
     pagos: new Map(),
     intentos: new Map(),
+    openFinance: 'sano',
     pasarela: { tarjeta_credito: 'aprobado', pse: 'pendiente' },
     secuencia: 0,
   }

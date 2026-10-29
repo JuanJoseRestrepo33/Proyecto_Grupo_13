@@ -170,7 +170,7 @@
       "deducible": "Deducible",
       "coberturas": "Coberturas",
       "vigencia": "Válida por",
-      "vigenciaHasta": "La oferta es válida hasta las {{hora}}.",
+      "vigenciaHasta": "La oferta es válida hasta las {{hora}}",
       "base": {
         "open_finance": "Precio calculado con tu perfil de Open Finance. El resultado es explicable y auditable.",
         "open_finance_en_cache": "Tu entidad financiera no respondió a tiempo, así que usamos tu perfil financiero guardado. El precio es igual de válido."
@@ -178,7 +178,8 @@
       "estandar": {
         "titulo": "Precio estándar",
         "sin_consentimiento": "No usamos datos financieros porque no tienes un consentimiento vigente para cotización.",
-        "open_finance_desactivado": "No usamos datos financieros porque elegiste cotizar sin ellos."
+        "open_finance_desactivado": "No usamos datos financieros porque elegiste cotizar sin ellos.",
+        "proveedor_no_disponible": "Tu entidad financiera no respondió y no teníamos tu perfil guardado, así que te mostramos el precio estándar. Puedes recotizar en unos minutos para intentarlo con tu perfil."
       },
       "vencida": "La cotización venció.",
       "vencidaDetalle": "Los precios se garantizan por 5 minutos.",
