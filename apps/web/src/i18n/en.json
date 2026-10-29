@@ -10,7 +10,8 @@
     "inicio": "Home",
     "cotizar": "Get a quote",
     "consentimientos": "Consents",
-    "suscripcion": "Purchase"
+    "suscripcion": "Purchase",
+    "reportarSiniestro": "Report a claim"
   },
   "inicio": {
     "saludo": "Hi, {{nombre}}",
@@ -271,5 +272,112 @@
     "recotizar": "Get a new quote",
     "reintentar": "Retry",
     "atras": "Back"
+  },
+  "siniestro": {
+    "titulo": "Report a claim",
+    "descripcion": "Tell us what happened to start evaluating your case.",
+    "pasos": {
+      "etiqueta": "Report steps",
+      "actual": "step {{actual}} of {{total}}",
+      "informacion": "Details",
+      "evidencia": "Evidence",
+      "revision": "Review"
+    },
+    "informacion": {
+      "titulo": "1. Event details",
+      "poliza": "Affected policy",
+      "elegirPoliza": "Choose a policy",
+      "opcionPoliza": "{{numero}} · {{producto}} ({{estado}})",
+      "vigencia": "Coverage from {{inicio}} to {{fin}}.",
+      "tipoEvento": "Event type",
+      "elegirTipo": "Choose the event type",
+      "fecha": "Event date",
+      "descripcion": "What happened",
+      "descripcionAyuda": "Between 10 and 2,000 characters. Tell us what happened, where and how.",
+      "monto": "Estimated amount (optional)",
+      "montoAyuda": "What you think it cost, in pesos."
+    },
+    "evidencia": {
+      "titulo": "2. Evidence",
+      "opcional": "This step is optional: you can send the report without evidence.",
+      "app": "In the app you can take photos with the date and location of the event."
+    },
+    "revision": {
+      "titulo": "3. Review your report",
+      "poliza": "Policy",
+      "tipoEvento": "Event type",
+      "fecha": "Event date",
+      "descripcion": "Description",
+      "monto": "Estimated amount",
+      "sinMonto": "Not provided",
+      "evidencias": "Evidence",
+      "sinEvidencias": "None",
+      "aviso": "Once you send it, your report will be registered and its evaluation will begin."
+    },
+    "navegacion": {
+      "atras": "Back",
+      "continuar": "Continue",
+      "enviar": "Send report",
+      "enviando": "Sending report…"
+    },
+    "confirmacion": {
+      "titulo": "Report sent",
+      "detalle": "We received your report. Keep the reference number: it's the same on the web and in the app.",
+      "referencia": "Reference number",
+      "estado": "Status",
+      "siguientePaso": "Next step",
+      "inicio": "Go to home",
+      "otro": "Report another claim"
+    },
+    "estados": {
+      "reportado": "Reported",
+      "en_evaluacion": "Under evaluation",
+      "requiere_informacion": "Information required",
+      "aprobado": "Approved",
+      "rechazado": "Rejected",
+      "pagado": "Paid"
+    },
+    "siguientePaso": {
+      "adjuntar_evidencia": "Attach any photos, invoices or documents you have to speed up the evaluation.",
+      "esperar_evaluacion": "We're evaluating your case; we'll let you know when its status changes."
+    },
+    "tiposEvento": {
+      "accidente_vehiculo": "Vehicle accident",
+      "hurto": "Theft",
+      "dano_hogar": "Home damage",
+      "retraso_vuelo": "Flight delay",
+      "equipo_danado_o_perdido": "Damaged or lost device",
+      "cancelacion_viaje": "Trip cancellation",
+      "otro": "Other"
+    },
+    "productos": {
+      "auto": "Auto",
+      "hogar": "Home",
+      "viaje": "Travel",
+      "dispositivos": "Devices"
+    },
+    "estadoPoliza": {
+      "vigente": "active",
+      "vencida": "expired",
+      "por_iniciar": "not started"
+    },
+    "sinPolizas": "You don't have any policies to report a claim on.",
+    "cotizar": "Get an insurance quote",
+    "errores": {
+      "cargar": "We couldn't load your policies.",
+      "reintentar": "Try again",
+      "polizaRequerida": "Choose the affected policy.",
+      "tipoRequerido": "Choose the event type.",
+      "fechaRequerida": "Enter the event date.",
+      "fechaFutura": "The event date can't be later than today.",
+      "fueraDeVigencia": "The event must have happened between {{inicio}} and {{fin}}, while the policy was active.",
+      "descripcionCorta": "Describe what happened in at least 10 characters.",
+      "descripcionLarga": "The description allows up to 2,000 characters.",
+      "montoInvalido": "Enter the amount in pesos, using numbers only.",
+      "enviar": "We couldn't confirm your report was sent. Try again: if it had already arrived, you'll see the same reference number.",
+      "polizaNoEncontrada": "The selected policy is no longer available. Review the event details.",
+      "fueraDeVigenciaServidor": "This event isn't covered: it happened outside the policy's coverage (from {{inicio}} to {{fin}}). No report was registered.",
+      "corregir": "Review the details"
+    }
   }
 }

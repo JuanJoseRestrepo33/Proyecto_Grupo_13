@@ -70,7 +70,10 @@ src/
 Los mocks reproducen el guion del Sprint 1: sin consentimiento la cotización es de tarifa estándar,
 al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El proveedor de Open Finance
 responde según `estado.openFinance`, con los mismos modos que el núcleo: `sano`, `degradado` (perfil
-en caché) o `caido` (tarifa estándar con motivo `proveedor_no_disponible`).
+en caché) o `caido` (tarifa estándar con motivo `proveedor_no_disponible`). Para reportar siniestros,
+el cliente tiene una póliza vigente y una vencida hace 30 días (`polizasDePrueba`), con fechas
+relativas a hoy como la semilla de *staging*. Contra el núcleo real, las pólizas se siembran con
+`POLIZAS_SEMILLA` (ver [`backend/README.md`](../../backend/README.md)).
 
 ## Sesión (WEB-F13)
 
