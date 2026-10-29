@@ -5,11 +5,13 @@ import type {
   EventoConsentimiento,
   MedioPago,
   Pago,
+  PolizaResumen,
   Sesion,
+  Siniestro,
   SolicitudCotizacion,
   Suscripcion,
 } from '../api/tipos'
-import { SESION } from './datos'
+import { polizasDePrueba, SESION } from './datos'
 
 /** Lo que se guarda; `por_vencer` y `dias_para_vencer` se calculan al responder. */
 export type ConsentimientoGuardado = Omit<Consentimiento, 'por_vencer' | 'dias_para_vencer'>
@@ -40,6 +42,11 @@ interface EstadoMocks {
   suscripciones: Map<string, Omit<Suscripcion, 'pago'> & { pagoId: string | null }>
   pagos: Map<string, PagoGuardado>
   intentos: Map<string, IntentoPago>
+  /** Pólizas del cliente; las pruebas pueden dejarlo sin ninguna. */
+  polizas: PolizaResumen[]
+  siniestros: Siniestro[]
+  /** Reportes por `Idempotency-Key`, con la solicitud que los creó para reconocer un reintento. */
+  reportes: Map<string, { siniestroId: string; solicitud: string }>
   /** Respuesta del proveedor de Open Finance simulado; las pruebas la cambian. */
   openFinance: ModoOpenFinance
   /** Respuesta de la pasarela simulada por medio de pago; las pruebas la cambian. */
@@ -56,6 +63,9 @@ function nuevo(): EstadoMocks {
     suscripciones: new Map(),
     pagos: new Map(),
     intentos: new Map(),
+    polizas: polizasDePrueba(),
+    siniestros: [],
+    reportes: new Map(),
     openFinance: 'sano',
     pasarela: { tarjeta_credito: 'aprobado', pse: 'pendiente' },
     secuencia: 0,
@@ -64,7 +74,7 @@ function nuevo(): EstadoMocks {
 
 export const estado: EstadoMocks = nuevo()
 
-/** Vuelve al estado inicial: cliente con sesión, sin consentimientos, cotizaciones ni suscripciones. */
+/** Vuelve al estado inicial: cliente con sesión y pólizas, sin consentimientos, cotizaciones, suscripciones ni siniestros. */
 export function reiniciarEstado(): void {
   Object.assign(estado, nuevo())
 }

@@ -1,0 +1,96 @@
+.campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+}
+
+.campo {
+  display: grid;
+  gap: var(--space-xs);
+  align-content: start;
+  /* Sin esto, un selector con opciones largas ensancha su columna y se monta sobre la vecina. */
+  min-width: 0;
+}
+
+.campoAncho {
+  grid-column: 1 / -1;
+}
+
+.campo label {
+  font-weight: 600;
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--neutral-500);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  background: var(--neutral-0);
+  font: inherit;
+}
+
+.campo textarea {
+  min-height: 120px;
+  padding: var(--space-sm) var(--space-md);
+  resize: vertical;
+}
+
+.campo [aria-invalid='true'] {
+  border-color: var(--error-600);
+}
+
+.ayuda {
+  margin: 0;
+  color: var(--neutral-700);
+  font-size: 14px;
+}
+
+.error {
+  margin: 0;
+  color: var(--error-600);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.resumen {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-sm) var(--space-lg);
+  margin: 0;
+}
+
+.resumen dt {
+  color: var(--neutral-700);
+}
+
+.resumen dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.referencia {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-900);
+  letter-spacing: 0.02em;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+@media (max-width: 480px) {
+  .resumen {
+    grid-template-columns: 1fr;
+  }
+
+  .resumen dd {
+    margin-bottom: var(--space-sm);
+  }
+}

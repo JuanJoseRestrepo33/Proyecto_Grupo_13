@@ -3,7 +3,8 @@
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
  * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
  * paga contra una pasarela simulada que responde según `estado.pasarela`, y el proveedor de
- * Open Finance responde según `estado.openFinance`. Sin sesión
+ * Open Finance responde según `estado.openFinance`. Los siniestros (WEB-F05) se reportan sobre
+ * `estado.polizas`, con la misma `Idempotency-Key` reconocida como reintento. Sin sesión
  * (`estado.sesion` en `null`), toda ruta protegida responde 401 `sesion_no_vigente` (WEB-F13).
  */
 import { delay, http, HttpResponse } from 'msw'
@@ -12,6 +13,7 @@ import { PREFIJO_BFF, SESION_NO_VIGENTE } from '../api/cliente'
 import type {
   Consentimiento,
   Credenciales,
+  ErrorVigencia,
   Cotizacion,
   DatosAsegurado,
   ErrorApi,
@@ -21,9 +23,12 @@ import type {
   SolicitudConsentimiento,
   SolicitudCotizacion,
   SolicitudPago,
+  SolicitudSiniestro,
   SolicitudSuscripcion,
+  Siniestro,
   Suscripcion,
 } from '../api/tipos'
+import { diaLocal } from '../formato'
 import {
   CREDENCIALES_PRUEBA,
   ENTIDADES,
@@ -161,6 +166,32 @@ function conEstadoActual(cotizacion: Cotizacion): Cotizacion {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MEDIOS: SolicitudPago['medio'][] = ['tarjeta_credito', 'pse']
+const TIPOS_EVENTO: SolicitudSiniestro['tipo_evento'][] = [
+  'accidente_vehiculo',
+  'hurto',
+  'dano_hogar',
+  'retraso_vuelo',
+  'equipo_danado_o_perdido',
+  'cancelacion_viaje',
+  'otro',
+]
+/** Lo que tarda el núcleo en registrar un reporte; visible en el navegador, corto en las pruebas. */
+const LATENCIA_REPORTE_MS = import.meta.env.MODE === 'test' ? 20 : 600
+
+function solicitudSiniestroValida(solicitud: Partial<SolicitudSiniestro>): boolean {
+  const { numero_poliza: poliza, tipo_evento: tipo, ocurrido_el: dia, descripcion, monto_estimado: monto } = solicitud
+  return (
+    typeof poliza === 'string' &&
+    poliza.length > 0 &&
+    TIPOS_EVENTO.includes(tipo!) &&
+    typeof dia === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dia) &&
+    typeof descripcion === 'string' &&
+    descripcion.length >= 10 &&
+    descripcion.length <= 2000 &&
+    (monto === undefined || monto === null || (Number.isInteger(monto.valor) && monto.valor >= 0))
+  )
+}
 /** Lo que tarda la pasarela simulada; visible en el navegador, corto en las pruebas. */
 const LATENCIA_PASARELA_MS = import.meta.env.MODE === 'test' ? 20 : 1200
 
@@ -391,5 +422,68 @@ export const manejadores = [
     if (pago.estado === 'pendiente') guardarPago(suscripcionId, { ...pago, estado: 'aprobado' })
     const actual: Pago = { ...estado.pagos.get(pago.id)!, reintento: false }
     return HttpResponse.json(actual)
+  }),
+
+  http.get(ruta('/polizas'), () => HttpResponse.json(estado.polizas)),
+
+  http.get(ruta('/siniestros'), () => HttpResponse.json([...estado.siniestros].reverse())),
+
+  http.post(ruta('/siniestros'), async ({ request }) => {
+    const clave = request.headers.get('Idempotency-Key') ?? ''
+    if (!UUID.test(clave)) return error(422, 'clave_idempotencia_invalida', 'Falta la clave del reporte')
+    const cuerpo = await request.text()
+    const solicitud = JSON.parse(cuerpo || '{}') as Partial<SolicitudSiniestro>
+
+    // Misma clave: es el mismo envío. Nunca se crea un segundo siniestro (WEB-F05, criterio 4).
+    const previo = estado.reportes.get(clave)
+    if (previo) {
+      if (previo.solicitud !== cuerpo) {
+        return error(409, 'clave_idempotencia_en_uso', 'La clave ya se usó para otro reporte')
+      }
+      return HttpResponse.json(estado.siniestros.find((s) => s.id === previo.siniestroId), { status: 200 })
+    }
+
+    if (!solicitudSiniestroValida(solicitud)) return error(422, 'solicitud_invalida', 'Datos del reporte inválidos')
+    const { numero_poliza: numero, ocurrido_el: dia } = solicitud as SolicitudSiniestro
+    const poliza = estado.polizas.find((p) => p.numero === numero)
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'La póliza no existe')
+    if (dia > diaLocal()) return error(422, 'fecha_futura', 'El evento no puede ser futuro')
+    if (dia < poliza.inicio || dia > poliza.fin) {
+      return HttpResponse.json<ErrorVigencia>(
+        {
+          codigo: 'evento_fuera_de_vigencia',
+          mensaje: 'El evento ocurrió fuera de la vigencia de la póliza',
+          vigente_desde: poliza.inicio,
+          vigente_hasta: poliza.fin,
+        },
+        { status: 409 },
+      )
+    }
+
+    const id = siguienteId('sin')
+    const siniestro: Siniestro = {
+      id,
+      referencia: `SIN-2026-${String(estado.secuencia).padStart(6, '0')}`,
+      numero_poliza: numero,
+      tipo_evento: solicitud.tipo_evento!,
+      ocurrido_el: dia,
+      descripcion: solicitud.descripcion!,
+      monto_estimado: solicitud.monto_estimado ?? null,
+      estado: 'reportado',
+      siguiente_paso: 'adjuntar_evidencia',
+      canal: 'web',
+      reportado_en: new Date().toISOString(),
+    }
+    estado.siniestros.push(siniestro)
+    estado.reportes.set(clave, { siniestroId: id, solicitud: cuerpo })
+    // Se registra antes de esperar: un reintento simultáneo con la misma clave recibe este mismo.
+    await delay(LATENCIA_REPORTE_MS)
+    return HttpResponse.json(siniestro, { status: 201 })
+  }),
+
+  http.get(ruta('/siniestros/:id'), ({ params }) => {
+    const siniestro = estado.siniestros.find((s) => s.id === String(params.id))
+    if (!siniestro) return error(404, 'siniestro_no_encontrado', 'No existe')
+    return HttpResponse.json(siniestro)
   }),
 ]

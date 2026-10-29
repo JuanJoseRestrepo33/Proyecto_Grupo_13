@@ -6,6 +6,7 @@ import { Cotizacion } from './paginas/cotizacion/Cotizacion'
 import { Inicio } from './paginas/Inicio'
 import { NoEncontrada } from './paginas/NoEncontrada'
 import { InicioSesion } from './paginas/sesion/InicioSesion'
+import { ReporteSiniestro } from './paginas/siniestro/ReporteSiniestro'
 import { Suscripcion } from './paginas/suscripcion/Suscripcion'
 import { ProveedorSesion } from './sesion/ProveedorSesion'
 import { RutaProtegida } from './sesion/RutaProtegida'
@@ -21,6 +22,7 @@ export function App() {
             <Route path="cotizacion" element={<Cotizacion />} />
             <Route path="consentimientos" element={<Consentimientos />} />
             <Route path="suscripcion/:cotizacion" element={<Suscripcion />} />
+            <Route path="siniestros/reportar" element={<ReporteSiniestro />} />
           </Route>
           <Route path="*" element={<NoEncontrada />} />
         </Route>
