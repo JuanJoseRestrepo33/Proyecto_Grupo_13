@@ -40,7 +40,7 @@ npm run dev          # http://localhost:5173, con el BFF simulado (VITE_MOCKS=tr
 
 Variables de entorno: ver [`.env.example`](.env.example).
 
-Contra el BFF real: con el núcleo y el BFF corriendo en local (ver [`bff/README.md`](../../bff/README.md)), `VITE_MOCKS=false npm run dev`. El servidor de desarrollo reenvía `/api` al BFF (`BFF_URL`, por defecto `http://127.0.0.1:8001`), igual que nginx en *staging*. Para tener cuenta con qué entrar, el núcleo crea una al arrancar con `HUMO_CORREO` y `HUMO_CLAVE`.
+Contra el BFF real: con el núcleo y el BFF corriendo en local (ver [`bff/README.md`](../../bff/README.md)), `VITE_MOCKS=false npm run dev`. El servidor de desarrollo reenvía `/api` al BFF (`BFF_URL`, por defecto `http://127.0.0.1:8001`), igual que nginx en *staging*. Para tener cuenta con qué entrar, el núcleo crea una al arrancar con `HUMO_CORREO` y `HUMO_CLAVE`. Para ver la cotización con Open Finance caído (WEB-F01, criterio 3), arranca el núcleo con `PERFILAMIENTO_OPEN_FINANCE_MODO=caido`.
 
 ## Estructura
 
@@ -68,7 +68,9 @@ src/
    pantalla. TypeScript avisa si la ruta, los parámetros o la respuesta no coinciden.
 
 Los mocks reproducen el guion del Sprint 1: sin consentimiento la cotización es de tarifa estándar,
-al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar.
+al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El proveedor de Open Finance
+responde según `estado.openFinance`, con los mismos modos que el núcleo: `sano`, `degradado` (perfil
+en caché) o `caido` (tarifa estándar con motivo `proveedor_no_disponible`).
 
 ## Sesión (WEB-F13)
 
