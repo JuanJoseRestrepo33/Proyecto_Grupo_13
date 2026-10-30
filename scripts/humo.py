@@ -100,6 +100,14 @@ def _tres_finalidades(cuerpo: bytes) -> str | None:
     return f"faltan finalidades: {', '.join(sorted(faltan))}" if faltan else None
 
 
+def _alguna_vigente(cuerpo: bytes) -> str | None:
+    try:
+        estados = [p["estado"] for p in json.loads(cuerpo)]
+    except (ValueError, TypeError, KeyError):
+        return "la respuesta no es una lista de pólizas"
+    return None if "vigente" in estados else "la cuenta de prueba no tiene pólizas vigentes"
+
+
 # ID que no existe, para probar que las rutas con segmento variable piden sesión antes de buscar.
 _INEXISTENTE = "humo-no-existe"
 _MOVIL = "/api/v1/movil"
@@ -110,29 +118,27 @@ RUTAS = (
     _ruta("bff", "GET", "/salud", 200),
     _ruta("bff", "GET", "/api/v1/web/cotizaciones/productos", 200, 401),
     # WEB-F13 (#155): /sesion rechaza a quien no tiene un token válido, en los dos routers.
-    _ruta("bff", "GET", "/api/v1/web/sesion", 401, pendiente="#152", caso="sin cookie"),
+    _ruta("bff", "GET", "/api/v1/web/sesion", 401, caso="sin cookie"),
     _ruta(
         "bff",
         "GET",
         "/api/v1/web/sesion",
         401,
         encabezados={"Cookie": f"sesion={_AJENO}"},
-        pendiente="#152",
         caso="token ajeno",
     ),
-    _ruta("bff", "GET", f"{_MOVIL}/sesion", 401, pendiente="#152", caso="sin token"),
+    _ruta("bff", "GET", f"{_MOVIL}/sesion", 401, caso="sin token"),
     _ruta(
         "bff",
         "GET",
         f"{_MOVIL}/sesion",
         401,
         encabezados={"Authorization": f"Bearer {_AJENO}"},
-        pendiente="#152",
         caso="token ajeno",
     ),
     # MOB-F02 (#161): las rutas de consentimiento del router móvil existen y exigen sesión.
     *(
-        _ruta("bff", metodo, f"{_MOVIL}{ruta}", 401, pendiente="#160", caso="sin token")
+        _ruta("bff", metodo, f"{_MOVIL}{ruta}", 401, caso="sin token")
         for metodo, ruta in (
             ("GET", "/consentimientos/finalidades"),
             ("GET", "/consentimientos"),
@@ -147,20 +153,33 @@ RUTAS = (
         "GET",
         f"{_MOVIL}/consentimientos/finalidades",
         200,
-        pendiente="#160",
         caso="con sesión",
         autenticada=True,
         validar=_tres_finalidades,
     ),
-    # MOB-F05 (#177): las rutas de evidencia de los dos routers exigen sesión. Las define #175;
-    # si su contrato elige otra ruta, se ajusta aquí al quitar la marca.
+    # WEB-F05 (#170) y MOB-F05 (#177): pólizas, siniestros y evidencias exigen sesión en los dos
+    # routers. El humo no crea siniestros; el reporte completo lo prueban los E2E.
     *(
-        _ruta("bff", metodo, f"{prefijo}/siniestros/{_INEXISTENTE}/evidencias", 401, **marca)
-        for prefijo, marca in (
-            ("/api/v1/web", {"pendiente": "#175", "caso": "sin cookie"}),
-            (_MOVIL, {"pendiente": "#175", "caso": "sin token"}),
+        _ruta("bff", metodo, f"{prefijo}{ruta}", 401, caso=caso)
+        for prefijo, caso in (("/api/v1/web", "sin cookie"), (_MOVIL, "sin token"))
+        for metodo, ruta in (
+            ("GET", "/polizas"),
+            ("GET", "/siniestros"),
+            ("POST", "/siniestros"),
+            ("GET", f"/siniestros/{_INEXISTENTE}"),
+            ("GET", f"/siniestros/{_INEXISTENTE}/evidencias"),
+            ("POST", f"/siniestros/{_INEXISTENTE}/evidencias"),
         )
-        for metodo in ("GET", "POST")
+    ),
+    # La cuenta de prueba ve las pólizas sembradas (POLIZAS_SEMILLA), con al menos una vigente.
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/polizas",
+        200,
+        caso="con sesión",
+        autenticada=True,
+        validar=_alguna_vigente,
     ),
     # A través del proxy de nginx: un 502 o 504 significa que la web no llega al BFF.
     _ruta("web", "GET", "/", 200),

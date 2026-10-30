@@ -9,6 +9,8 @@ WORKDIR /opt/solventa
 
 COPY pyproject.toml ./
 COPY app ./app
+# Pólizas de prueba de staging; solo se cargan si POLIZAS_SEMILLA apunta al archivo (WEB-F05).
+COPY semillas ./semillas
 
 RUN pip install --no-cache-dir ".[gcs]" \
     && useradd --create-home --uid 10001 solventa
