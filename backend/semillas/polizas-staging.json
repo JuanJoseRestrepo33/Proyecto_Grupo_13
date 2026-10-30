@@ -1,0 +1,8 @@
+[
+  {"numero": "POL-STG-AUTO", "id_cliente": "*", "producto": "auto",
+   "desde_dias": -30, "hasta_dias": 335},
+  {"numero": "POL-STG-VIAJE", "id_cliente": "*", "producto": "viaje",
+   "desde_dias": -5, "hasta_dias": 25},
+  {"numero": "POL-STG-HOGAR", "id_cliente": "*", "producto": "hogar",
+   "desde_dias": -395, "hasta_dias": -30}
+]
