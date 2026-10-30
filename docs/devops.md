@@ -318,33 +318,42 @@ arranca.
 Una fila se puede escribir antes que el código que la cumple, marcada `pendiente="#NNN"` con el
 issue que la entrega: se prueba en cada despliegue, pero su falla deja un *warning* en vez de
 detener el despliegue (y no provoca reintentos). Cuando ese issue se fusiona, se quita la marca en
-el mismo PR o en uno inmediato. Así, por ejemplo, el humo de `/sesion` (WEB-F13) no bloquea el
-despliegue del BFF mientras sus rutas no existen.
+el mismo PR o en uno inmediato. Así, por ejemplo, el humo de `/sesion` (WEB-F13) no bloqueó el
+despliegue del BFF mientras sus rutas no existían. Hoy no queda ninguna fila pendiente.
 
 Una fila `autenticada=True` se pide con la sesión de la cuenta de prueba: el humo inicia sesión por
 `POST /api/v1/movil/sesiones` con `HUMO_CORREO` y `HUMO_CLAVE` y usa el token en `Authorization`.
-Puede validar además el cuerpo (por ejemplo, que el catálogo de consentimiento traiga sus tres
-finalidades), pero nunca lo imprime, como tampoco imprime las credenciales ni el token.
+Puede validar además el cuerpo (que el catálogo de consentimiento traiga sus tres finalidades, que
+la cuenta vea al menos una póliza vigente), pero nunca lo imprime, como tampoco imprime las
+credenciales ni el token. Si la cuenta no puede iniciar sesión, el despliegue falla.
 
-**Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Sus
-credenciales viven en dos lugares, con los mismos valores:
+El humo **no crea datos**: pide los siniestros y las evidencias sin sesión (401) y nunca envía un
+reporte. El reporte completo lo prueban los E2E.
+
+**Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Mientras
+las cuentas vivan en memoria (WEB-F13), **el núcleo la siembra al arrancar** con `HUMO_CORREO` y
+`HUMO_CLAVE`, con el correo ya verificado: existe en cada revisión sin registrarla a mano. Sus
+credenciales viven en tres lugares, con los mismos valores:
 
 - Secret Manager, secreto `humo-cuenta-staging` (JSON con `correo` y `clave`), sin acceso para
-  ninguna cuenta de servicio: solo lo leen los administradores del proyecto, para registrar la
-  cuenta.
+  ninguna cuenta de servicio: es el original, lo leen solo los administradores del proyecto.
+- Secretos `humo-correo` y `humo-clave`, que el núcleo monta como `HUMO_CORREO` y `HUMO_CLAVE`
+  (Cloud Run monta un secreto entero, no un campo de un JSON).
 - Secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment, para el pipeline.
 
-La cuenta se registra **una vez**, con el flujo real de la app (WEB-F13): el correo es un alias del
-equipo, así el OTP llega a un buzón real.
+Si se sospecha que se filtró, se cambia la clave en los tres lugares y se publica una revisión del
+núcleo, que la siembra con la nueva:
 
 ```bash
-# Leer las credenciales para registrarse desde la app de staging (no se imprimen en logs compartidos)
-gcloud secrets versions access latest --secret=humo-cuenta-staging
+CLAVE=$(openssl rand -base64 24)
+gcloud secrets versions access latest --secret=humo-cuenta-staging \
+  | jq --arg c "$CLAVE" '.clave = $c' | gcloud secrets versions add humo-cuenta-staging --data-file=-
+printf '%s' "$CLAVE" | gcloud secrets versions add humo-clave --data-file=-
+printf '%s' "$CLAVE" | gh secret set HUMO_CLAVE --env staging
+unset CLAVE
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=HUMO_CLAVE=humo-clave:latest
 ```
-
-Si se sospecha que se filtró, se cambia su contraseña desde la app y se actualizan los dos lugares
-(`gcloud secrets versions add humo-cuenta-staging --data-file=-` y `gh secret set HUMO_CLAVE --env
-staging`).
 
 ### Principio de seguridad: el repositorio no guarda credenciales
 
@@ -423,9 +432,10 @@ puede leer los datos de otro, igual que en el código (ARQ-01).
   arranque y de vida.
 - **Apagado.** Cloud Run envía `SIGTERM` y da diez segundos. El núcleo aprovecha ese lapso para
   escribir lo que quedó en la cola de auditoría.
-- **Secretos.** `AUDITORIA_DATABASE_URL` y `COTIZACION_DATABASE_URL` montadas desde Secret Manager,
-  apuntando a Cloud SQL. Sin ellas el log de auditoría y las cotizaciones viven en memoria y se
-  pierden con cada revisión: válido para una demo, no para *staging*.
+- **Secretos.** `AUDITORIA_DATABASE_URL`, `COTIZACION_DATABASE_URL` y `SINIESTROS_DATABASE_URL`
+  montadas desde Secret Manager, apuntando a Cloud SQL. Sin ellas el log de auditoría, las
+  cotizaciones y los siniestros viven en memoria y se pierden con cada revisión: válido para una
+  demo, no para *staging*.
 - **Instancias.** Consentimiento y perfilamiento guardan su estado en memoria hasta que tengan
   persistencia propia. Mientras tanto el núcleo corre con **una sola instancia**
   (`--min-instances=1 --max-instances=1`); con más, un consentimiento otorgado en una instancia no
@@ -810,7 +820,8 @@ sesión del cliente.
 
 ```bash
 BUCKET="gs://<GCP_PROJECT_ID>-solventa-evidencias"
-gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD   --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD \
+  --uniform-bucket-level-access --public-access-prevention
 
 # Solo en staging: los archivos de prueba se borran a los 30 días. En produccion no se configura
 # hasta definir la política de retención.
@@ -824,7 +835,8 @@ for rol in roles/storage.objectCreator roles/storage.objectViewer; do
   gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="$NUCLEO" --role="$rol"
 done
 
-gcloud run services update solventa-nucleo --region=<GCP_REGION>   --update-env-vars=ALMACENAMIENTO_EVIDENCIAS=gcs,EVIDENCIAS_BUCKET=<GCP_PROJECT_ID>-solventa-evidencias
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-env-vars=ALMACENAMIENTO_EVIDENCIAS=gcs,EVIDENCIAS_BUCKET=<GCP_PROJECT_ID>-solventa-evidencias
 ```
 
 El BFF no tiene acceso al bucket. El adaptador (`siniestros/infraestructura/almacen_evidencias_gcs.py`)
@@ -838,3 +850,79 @@ editores y dueños del proyecto se conservan: son los administradores. Ojo: la c
 defecto es editora del proyecto y por eso también los hereda; ningún servicio de Cloud Run corre con
 ella (cada uno usa su `run-*`), y conviene quitarle el rol de editor cuando nada la use.
 
+### 8. Siniestros y pólizas de prueba (WEB-F05)
+
+**Esquema y usuario `siniestros`.** Igual que cotización: el usuario se crea con SQL (no con
+`gcloud sql users create`, que lo haría `cloudsqlsuperuser`) y solo puede crear su propio esquema.
+Desde Cloud SQL Studio, conectado a `solventa` como `auditoria`:
+
+```sql
+CREATE ROLE siniestros LOGIN PASSWORD '<contraseña de siniestros>';
+GRANT CONNECT ON DATABASE solventa TO siniestros;
+-- Solo para que el núcleo cree su esquema al arrancar (CREATE SCHEMA IF NOT EXISTS siniestros).
+GRANT CREATE ON DATABASE solventa TO siniestros;
+```
+
+```bash
+SOCKET="/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria"
+printf "postgresql://siniestros:<contraseña de siniestros>@/solventa?host=$SOCKET" \
+  | gcloud secrets create siniestros-database-url --data-file=-
+gcloud secrets add-iam-policy-binding siniestros-database-url \
+  --member="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor
+```
+
+Comprobación: conectado como `siniestros`, `SELECT 1 FROM auditoria.registros LIMIT 1;` y
+`SELECT 1 FROM cotizacion.cotizaciones LIMIT 1;` deben responder *permission denied*. La unicidad de
+la clave de idempotencia es una restricción de la tabla, así que el doble envío de un reporte se
+sostiene aunque el núcleo se reinicie.
+
+**Pólizas de prueba.** La imagen del núcleo trae
+[`backend/semillas/polizas-staging.json`](../backend/semillas/polizas-staging.json): una póliza de
+auto y una de viaje vigentes y una de hogar vencida hace 30 días, como plantillas (`"*"`) que tiene
+cualquier cuenta, con número propio. Las fechas son relativas al arranque, así que no caducan, y
+cargarla en cada revisión deja lo mismo. Sin datos personales. En producción `POLIZAS_SEMILLA` no
+se define.
+
+Una cuenta **sin pólizas** no se puede tener en *staging* mientras las pólizas sean plantillas: ese
+caso lo cubren los mocks de la web y de la app.
+
+**Cuenta de prueba y OTP fijo (WEB-F13).** `identidad-otp-fijo` guarda 6 dígitos al azar: con
+`IDENTIDAD_OTP_FIJO` todos los códigos de verificación del correo son ese, para que los E2E del
+registro puedan verificar una cuenta nueva. Nunca en producción.
+
+```bash
+printf '%06d' "$(( $(od -An -N4 -tu4 /dev/urandom) % 1000000 ))" \
+  | gcloud secrets create identidad-otp-fijo --data-file=-
+CUENTA=$(gcloud secrets versions access latest --secret=humo-cuenta-staging)
+printf '%s' "$(jq -r .correo <<<"$CUENTA")" | gcloud secrets create humo-correo --data-file=-
+printf '%s' "$(jq -r .clave <<<"$CUENTA")" | gcloud secrets create humo-clave --data-file=-
+unset CUENTA
+for s in identidad-otp-fijo humo-correo humo-clave; do
+  gcloud secrets add-iam-policy-binding "$s" \
+    --member="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --role=roles/secretmanager.secretAccessor
+done
+```
+
+**Montarlo todo en el núcleo:**
+
+```bash
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=SINIESTROS_DATABASE_URL=siniestros-database-url:latest,HUMO_CORREO=humo-correo:latest,HUMO_CLAVE=humo-clave:latest,IDENTIDAD_OTP_FIJO=identidad-otp-fijo:latest \
+  --update-env-vars=POLIZAS_SEMILLA=/opt/solventa/semillas/polizas-staging.json
+```
+
+`/salud` del núcleo reporta `semilla_polizas` con cuántas plantillas cargó; si el archivo no está o
+no se puede leer, queda `degradado` sin tumbar el servicio.
+
+**Auditoría de un reporte** (criterio 5 de WEB-F05). Después de reportar un siniestro de prueba, en
+Cloud SQL Studio como `auditoria`:
+
+```sql
+SELECT secuencia, ocurrido_en, canal, referencias
+FROM auditoria.registros
+WHERE tipo = 'siniestro_reportado'
+ORDER BY secuencia DESC
+LIMIT 5;
+```
