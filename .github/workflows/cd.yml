@@ -6,6 +6,7 @@
 # web estática (apps/web/, nginx que reenvía /api/ al BFF). Cada servicio de Cloud Run se llama igual
 # que su imagen. El pipeline publica las imágenes en el registro de GitHub, las copia a Artifact
 # Registry y las despliega en orden: núcleo → BFF → web, porque cada uno depende del anterior.
+# En staging, al final corren las E2E de la web (Playwright) contra lo recién desplegado.
 #
 # Se autentica ante Google Cloud con Workload Identity Federation: no existe ninguna llave de cuenta
 # de servicio, ni en GitHub ni en el código. Las credenciales de bases de datos, las URL entre
@@ -189,3 +190,96 @@ jobs:
           HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
           HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
         run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"
+
+  e2e:
+    # Los flujos de la web de punta a punta, después de desplegar (WEB-F01, #166). Solo en staging:
+    # inician sesión con la cuenta de prueba y cambian su estado, cosa que no se hace en producción.
+    name: E2E web en staging
+    needs: desplegar
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write # para leer la URL de la web en Cloud Run con Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar configuración
+        id: config
+        # La cuenta de prueba solo llega a los pasos que la usan, no a npm ni a la instalación de Chromium.
+        env:
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: |
+          faltan=""
+          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO E2E_CORREO E2E_CLAVE; do
+            [ -z "${!variable}" ] && faltan="$faltan $variable"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::notice::El environment no tiene configuradas las E2E (faltan:$faltan); se omiten."
+            echo "lista=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Autenticar en Google Cloud
+        if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: URL de la web en staging
+        if: steps.config.outputs.lista == 'true'
+        id: web
+        run: |
+          url=$(gcloud run services describe solventa-web --region="$REGION" --project="$PROYECTO" \
+                  --format='value(status.url)' 2>/dev/null || true)
+          if [ -z "$url" ]; then
+            echo "::warning::No se encontró solventa-web en Cloud Run; no hay contra qué correr las E2E."
+            echo "url=" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.web.outputs.url != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Instalar dependencias y Chromium
+        if: steps.web.outputs.url != ''
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: E2E (Playwright)
+        if: steps.web.outputs.url != ''
+        env:
+          E2E_URL_WEB: ${{ steps.web.outputs.url }}
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+          # El núcleo de staging tiene Open Finance sano: el flujo con el proveedor caído se omite.
+          E2E_OPEN_FINANCE: sano
+        run: npm run e2e
+      - name: Avisar los flujos de la parte B
+        if: steps.web.outputs.url != ''
+        run: >-
+          echo "::notice::E2E: cotizar con Open Finance caído es de la parte B de WEB-F01 (#123) y aún no
+          corre en staging: el núcleo no permite provocar la caída del proveedor sin redesplegarlo."
+      - name: Capturas de las pruebas fallidas
+        if: failure() && steps.web.outputs.url != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-e2e
+          # Solo las capturas: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba.
+          path: apps/web/test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
