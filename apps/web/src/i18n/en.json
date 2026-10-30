@@ -14,9 +14,32 @@
   },
   "inicio": {
     "saludo": "Hi, {{nombre}}",
-    "descripcion": "Get insurance quotes and manage your Open Finance consents.",
+    "descripcion": "Get insurance quotes and manage your Open Finance consents."
+  },
+  "sesion": {
     "cargando": "Loading your information…",
-    "error": "We couldn't load your information. Please try again later."
+    "error": "We couldn't load your information. Please try again later.",
+    "reintentar": "Try again",
+    "titulo": "Sign in",
+    "descripcion": "Use the email and password of your Solventa account. It's the same account as in the app.",
+    "correo": "Email",
+    "contrasena": "Password",
+    "boton": "Sign in",
+    "enviando": "Signing in…",
+    "cerrar": "Sign out",
+    "cerrando": "Signing out…",
+    "avisos": {
+      "vencida": "Your session expired. Sign in again to continue.",
+      "cerrada": "You signed out. See you soon!"
+    },
+    "errores": {
+      "correoRequerido": "Enter your email.",
+      "correoInvalido": "Enter a valid email, for example name@email.com.",
+      "contrasenaRequerida": "Enter your password.",
+      "credenciales": "The email or password is incorrect. Check them and try again.",
+      "servicio": "We couldn't sign you in right now. Please try again in a few minutes.",
+      "cerrar": "We couldn't sign you out. Please try again."
+    }
   },
   "consentimientos": {
     "titulo": "Open Finance consents",

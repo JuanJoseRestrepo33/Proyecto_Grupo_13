@@ -2,13 +2,15 @@
  * Mocks del BFF web (MSW). Implementan contratos/bff-web/openapi.yaml con un estado en memoria
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
  * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
- * paga contra una pasarela simulada que responde según `estado.pasarela`.
+ * paga contra una pasarela simulada que responde según `estado.pasarela`. Sin sesión
+ * (`estado.sesion` en `null`), toda ruta protegida responde 401 `sesion_no_vigente` (WEB-F13).
  */
 import { delay, http, HttpResponse } from 'msw'
 
-import { PREFIJO_BFF } from '../api/cliente'
+import { PREFIJO_BFF, SESION_NO_VIGENTE } from '../api/cliente'
 import type {
   Consentimiento,
+  Credenciales,
   Cotizacion,
   DatosAsegurado,
   ErrorApi,
@@ -22,6 +24,7 @@ import type {
   Suscripcion,
 } from '../api/tipos'
 import {
+  CREDENCIALES_PRUEBA,
   ENTIDADES,
   FACTORES_ESTANDAR,
   FACTORES_OPEN_FINANCE,
@@ -168,8 +171,38 @@ function guardarPago(suscripcionId: string, pago: PagoGuardado): void {
   if (pago.estado === 'aprobado') suscripcion.estado = 'pagada'
 }
 
+/** Mismo resultado para un correo que no existe y para una contraseña equivocada (WEB-F13, criterio 3). */
+function credencialesValidas({ correo, contrasena }: Partial<Credenciales>): boolean {
+  return (
+    correo?.trim().toLowerCase() === CREDENCIALES_PRUEBA.correo && contrasena === CREDENCIALES_PRUEBA.contrasena
+  )
+}
+
 export const manejadores = [
-  http.get(ruta('/sesion'), () => HttpResponse.json(SESION)),
+  http.post(ruta('/sesion'), async ({ request }) => {
+    const credenciales = (await request.json().catch(() => null)) as Partial<Credenciales> | null
+    if (typeof credenciales?.correo !== 'string' || typeof credenciales.contrasena !== 'string') {
+      return error(422, 'solicitud_invalida', 'Faltan el correo o la contraseña')
+    }
+    if (!credencialesValidas(credenciales)) {
+      return error(401, 'credenciales_invalidas', 'Correo o contraseña incorrectos')
+    }
+    estado.sesion = SESION
+    return HttpResponse.json(SESION)
+  }),
+
+  http.delete(ruta('/sesion'), () => {
+    estado.sesion = null
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  // Las rutas de arriba no exigen sesión; las de abajo sí. Con sesión, este manejador no responde
+  // y la solicitud sigue al manejador de su ruta.
+  http.all(ruta('/*'), () => {
+    if (!estado.sesion) return error(401, SESION_NO_VIGENTE, 'No hay una sesión vigente')
+  }),
+
+  http.get(ruta('/sesion'), () => HttpResponse.json(estado.sesion)),
 
   http.get(ruta('/consentimientos/finalidades'), () => HttpResponse.json(FINALIDADES)),
 

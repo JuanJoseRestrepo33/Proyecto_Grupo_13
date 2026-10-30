@@ -1,7 +1,10 @@
 /** Catálogos de los mocks del BFF. Datos ficticios y deterministas, aptos para aserciones. */
-import type { Entidad, FactorPrecio, Finalidad, Producto, Sesion } from '../api/tipos'
+import type { Credenciales, Entidad, FactorPrecio, Finalidad, Producto, Sesion } from '../api/tipos'
 
 export const SESION: Sesion = { cliente: { id: 'cli-001', nombre: 'Ana' } }
+
+/** Cuenta de prueba de los mocks: con estas credenciales se inicia sesión como `SESION`. */
+export const CREDENCIALES_PRUEBA: Credenciales = { correo: 'ana@solventa.test', contrasena: 'Solventa-2026' }
 
 export const ENTIDADES: Entidad[] = [
   { id: 'ent-andes', nombre: 'Banco Andes S.A.' },

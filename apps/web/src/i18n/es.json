@@ -14,9 +14,32 @@
   },
   "inicio": {
     "saludo": "Hola, {{nombre}}",
-    "descripcion": "Cotiza tus seguros y gestiona tus consentimientos de Open Finance.",
+    "descripcion": "Cotiza tus seguros y gestiona tus consentimientos de Open Finance."
+  },
+  "sesion": {
     "cargando": "Cargando tu información…",
-    "error": "No pudimos cargar tu información. Intenta de nuevo más tarde."
+    "error": "No pudimos cargar tu información. Intenta de nuevo más tarde.",
+    "reintentar": "Reintentar",
+    "titulo": "Inicia sesión",
+    "descripcion": "Entra con el correo y la contraseña de tu cuenta Solventa. Es la misma cuenta de la app.",
+    "correo": "Correo electrónico",
+    "contrasena": "Contraseña",
+    "boton": "Iniciar sesión",
+    "enviando": "Iniciando sesión…",
+    "cerrar": "Cerrar sesión",
+    "cerrando": "Cerrando sesión…",
+    "avisos": {
+      "vencida": "Tu sesión venció. Inicia sesión de nuevo para continuar.",
+      "cerrada": "Cerraste sesión. ¡Hasta pronto!"
+    },
+    "errores": {
+      "correoRequerido": "Escribe tu correo electrónico.",
+      "correoInvalido": "Escribe un correo válido, por ejemplo nombre@correo.com.",
+      "contrasenaRequerida": "Escribe tu contraseña.",
+      "credenciales": "El correo o la contraseña no son correctos. Revísalos e intenta de nuevo.",
+      "servicio": "No pudimos iniciar sesión en este momento. Intenta de nuevo en unos minutos.",
+      "cerrar": "No pudimos cerrar tu sesión. Intenta de nuevo."
+    }
   },
   "consentimientos": {
     "titulo": "Consentimientos de Open Finance",

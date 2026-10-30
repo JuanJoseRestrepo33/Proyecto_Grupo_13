@@ -8,9 +8,27 @@ function claves(objeto: object, prefijo = ''): string[] {
   )
 }
 
+/** Código fuente de la app (sin pruebas), para buscar las claves que usa. */
+const fuentes = import.meta.glob<string>(['../**/*.{ts,tsx}', '!../**/*.test.{ts,tsx}', '!../api/esquema.ts'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+
 describe('i18n', () => {
   it('español e inglés tienen exactamente las mismas claves', () => {
     expect(claves(en).sort()).toEqual(claves(es).sort())
+  })
+
+  it('cada clave literal que usa el código existe en los textos', () => {
+    const existentes = new Set(claves(es))
+    const faltantes = Object.entries(fuentes).flatMap(([archivo, codigo]) =>
+      [...codigo.matchAll(/\bt\(\s*['"]([\w.]+)['"]/g)]
+        .map(([, clave]) => clave!)
+        .filter((clave) => !existentes.has(clave))
+        .map((clave) => `${archivo}: ${clave}`),
+    )
+    expect(faltantes).toEqual([])
   })
 
   it('usa español si no hay preferencia o si el almacenamiento falla', () => {

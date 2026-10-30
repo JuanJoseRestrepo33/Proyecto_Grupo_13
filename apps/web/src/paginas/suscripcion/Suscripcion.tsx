@@ -194,7 +194,7 @@ export function Suscripcion() {
     </>
   )
 
-  if (carga.tipo === 'cargando') return <p role="status">{t('inicio.cargando')}</p>
+  if (carga.tipo === 'cargando') return <p role="status">{t('sesion.cargando')}</p>
   if (carga.tipo !== 'listo') {
     return (
       <>

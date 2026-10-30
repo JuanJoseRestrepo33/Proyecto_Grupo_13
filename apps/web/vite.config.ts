@@ -18,7 +18,12 @@ function sinWorkerDeMocks(): Plugin {
 
 export default defineConfig({
   plugins: [react(), sinWorkerDeMocks()],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    // Con VITE_MOCKS=false, /api llega al BFF local como en staging llega por nginx: mismo origen,
+    // así la cookie `sesion` funciona sin CORS. BFF_URL es el origen del BFF, sin barra final.
+    proxy: { '/api': process.env.BFF_URL ?? 'http://127.0.0.1:8001' },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
