@@ -178,7 +178,8 @@
       "estandar": {
         "titulo": "Standard price",
         "sin_consentimiento": "We didn't use financial data because you don't have an active consent for quotes.",
-        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it."
+        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it.",
+        "proveedor_no_disponible": "Your financial institution didn't respond and we had no saved profile, so we're showing the standard price. You can get a new quote in a few minutes to try again with your profile."
       },
       "vencida": "The quote has expired.",
       "vencidaDetalle": "Prices are guaranteed for 5 minutes.",
