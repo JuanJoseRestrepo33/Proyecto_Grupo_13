@@ -14,7 +14,7 @@ Solventa es una aseguradora digital: puedes cotizar, comprar y administrar tus s
 - [Antes de empezar](#antes-de-empezar)
 - **Web · clientes:** [Iniciar sesión](#1-iniciar-sesión) · [Inicio](#2-inicio) · [Consentimiento de datos](#3-consentimiento-de-datos-financieros) · [Cotizar](#4-cotizar-un-seguro) · [Comprar](#5-comprar-y-recibir-tu-póliza) · [Mis pólizas](#6-consultar-tus-pólizas) · [Modificar, renovar o cancelar](#7-modificar-renovar-o-cancelar-una-póliza) · [Reportar siniestro](#8-reportar-un-siniestro) · [Seguimiento](#9-seguir-tus-siniestros) · [Vida hipotecario](#10-oferta-de-vida-hipotecario) · [Cuenta y ayuda](#11-perfil-configuración-y-ayuda)
 - **Web · equipos internos:** [Tablero operacional](#12-tablero-operacional) · [Portal de socios](#13-portal-de-socios-de-distribución)
-- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Cotizar y comprar](#16-cotizar-y-comprar-desde-el-celular) · [Billetera](#17-billetera-de-pólizas-y-modo-sin-conexión) · [Siniestros](#18-siniestros-desde-el-celular) · [Asistencia](#19-asistencia-en-sitio) · [Escanear](#20-escanear-documentos) · [Notificaciones](#21-notificaciones)
+- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Consentimiento](#16-consentimiento-de-datos-financieros-en-la-app) · [Cotizar y comprar](#17-cotizar-y-comprar-desde-el-celular) · [Billetera](#18-billetera-de-pólizas-y-modo-sin-conexión) · [Siniestros](#19-siniestros-desde-el-celular) · [Asistencia](#20-asistencia-en-sitio) · [Escanear](#21-escanear-documentos) · [Notificaciones](#22-notificaciones)
 - [Mensajes que puedes ver y qué hacer](#mensajes-que-puedes-ver-y-qué-hacer) · [Accesibilidad e idioma](#accesibilidad-e-idioma)
 
 ---
@@ -30,6 +30,12 @@ También puedes abrirla en tu equipo: desde la carpeta del proyecto ejecuta `pyt
 
 **Datos de prueba.** El inicio de sesión ya trae un usuario de ejemplo: `juan.rodriguez@correo.com` / `demo1234`.
 
+**Ambiente de pruebas (*staging*).** Las secciones 1, 3, 4 y 8 describen la web real, desplegada
+en [https://solventa-web-6y7n6dblla-ue.a.run.app](https://solventa-web-6y7n6dblla-ue.a.run.app), y
+las secciones 14, 15 y 16, la app real. Ahí entras con una cuenta creada en la app (sección 14); no
+hay usuario de ejemplo. La verificación de identidad y las consultas a tu banco siguen siendo
+simuladas.
+
 **Botones “Demo”.** Algunas pantallas tienen casillas marcadas con la etiqueta **Demo**. Sirven para ver qué pasa en situaciones poco frecuentes (el banco no responde, un pago es rechazado, no hay internet). No existen en el producto real.
 
 **Empezar de cero.** Lo que haces en la demo (pólizas compradas, consentimientos, reclamos) se conserva mientras la pestaña esté abierta. Cierra la pestaña para volver al estado inicial.
@@ -40,13 +46,26 @@ También puedes abrirla en tu equipo: desde la carpeta del proyecto ejecuta `pyt
 
 ## 1. Iniciar sesión
 
-![Pantalla de inicio de sesión web](img/web-login.png)
+![Pantalla de inicio de sesión web](img/web-staging-login.png)
 
-1. Escribe tu correo y contraseña.
-2. En **Ingresar como (demo)** deja **Cliente**. (Las opciones Operaciones y Socio de distribución se explican en las secciones 12 y 13.)
-3. Pulsa **Iniciar sesión**.
+Entras con **la misma cuenta de la app**: si te registraste en el celular (sección 14), no
+necesitas crear otra.
 
-¿Olvidaste la contraseña? Pulsa **¿Olvidaste tu contraseña?**, escribe tu correo y recibirás un enlace válido por 15 minutos.
+1. Escribe tu **correo electrónico** y tu **contraseña**.
+2. Pulsa **Iniciar sesión**. Mientras validamos tus datos, el botón dice *Iniciando sesión…*.
+3. Entras a tu inicio. Si habías abierto una página que pide sesión, vuelves a ella.
+
+Si el correo o la contraseña no son correctos, verás un único mensaje: por seguridad no te decimos
+cuál de los dos falló ni si el correo tiene cuenta.
+
+![Credenciales incorrectas](img/web-staging-login-error.png)
+
+**Tu sesión dura una hora.** Al vencer, la próxima vez que hagas algo te pedimos iniciar sesión de
+nuevo (*Tu sesión venció…*) y no pierdes la página en la que estabas. Para salir, pulsa **Cerrar
+sesión** en la barra superior.
+
+> En el prototipo navegable, **Ingresar como (demo)** permite entrar como Operaciones o Socio de
+> distribución (secciones 12 y 13). En *staging* solo hay cuentas de cliente.
 
 ## 2. Inicio
 
@@ -79,7 +98,7 @@ Solventa puede ofrecerte un precio más justo si autorizas el uso de tus datos f
 4. **Open Finance:** deja encendido **Usar mis datos financieros (Open Finance)** para un precio personalizado. Si no tienes un consentimiento vigente para cotización, verás *Cotizaremos con precio estándar* y el enlace **Otorgar consentimiento**. Pulsa **Ver mi oferta**.
 5. **Tu oferta:** revisa la prima mensual, cuánto ahorras frente al precio estándar, el valor asegurado, el deducible y las coberturas.
 
-![Oferta personalizada](img/web-cotizacion-oferta.png)
+![Oferta con su explicación, en staging](img/web-staging-cotizacion-oferta.png)
 
 - **¿Por qué este precio?** muestra cada factor que movió tu prima, cuánto la movió y con qué versión de la regla se calculó.
 - **Precio estándar no es un error.** Si no autorizaste tus datos o elegiste cotizar sin ellos, la oferta usa el precio estándar y te dice por qué.
@@ -126,14 +145,48 @@ Desde el detalle de la póliza:
 
 ## 8. Reportar un siniestro
 
-![Reportar siniestro](img/web-siniestro-reportar.png)
+![Información del evento](img/web-staging-siniestro-informacion.png)
 
-1. Ve a **Siniestros → Reportar siniestro**.
-2. **Información:** elige la póliza afectada y el tipo de siniestro, y cuéntanos qué pasó y cuándo.
-3. **Evidencia:** adjunta fotos, facturas o certificados.
-4. **Revisión:** verifica el resumen y pulsa **Enviar reporte**.
+Pulsa **Reportar siniestro** en el menú. Arriba ves en qué paso vas (*paso 1 de 3*).
 
-Recibirás un número de reclamo (`CLM-…`) y el estado **Pendiente revisión**.
+1. **Información del evento.** Elige la **póliza afectada** (cada una dice si está vigente o
+   vencida, y su periodo de cobertura), el **tipo de evento**, la **fecha** y una **descripción** de
+   lo ocurrido (entre 10 y 2.000 caracteres). El **monto estimado** es opcional. Si falta un dato, el
+   campo te dice qué corregir y no puedes continuar.
+   - La fecha no puede ser posterior a hoy.
+   - Con una **póliza vencida** puedes reportar un evento que ocurrió mientras estaba vigente. Si
+     ocurrió después, te explicamos por qué no está cubierto y no se registra nada.
+2. **Evidencias** (opcional). Adjunta fotos, videos o documentos; ver *Adjuntar evidencia* abajo.
+   Puedes enviar el reporte sin evidencias y agregarlas después.
+3. **Revisa tu reporte.** Comprueba el resumen y pulsa **Enviar reporte**. Mientras se envía, el
+   botón dice *Enviando reporte…*: no hace falta pulsarlo de nuevo.
+
+Verás **Reporte enviado** con el **número de referencia**, el estado *Reportado* y el siguiente paso
+de tu caso. **La referencia es la misma en la web y en la app**: el siniestro se ve en los dos
+canales.
+
+![Reporte enviado](img/web-staging-siniestro-confirmacion.png)
+
+**Nunca queda un reporte repetido.** Si pulsas dos veces o se cae la conexión al enviar, vuelve a
+intentarlo: si el reporte ya había llegado, verás el mismo número de referencia.
+
+### Adjuntar evidencia
+
+Se admiten **JPEG, PNG, HEIC, MP4 y PDF, hasta 10 MB por archivo**.
+
+- **En el reporte:** en el paso 2, pulsa **Adjuntar fotos, videos o documentos** y elige uno o
+  varios archivos. Antes de enviar ves la lista y puedes **Quitar** cualquiera. Un archivo de otro
+  formato, vacío o de más de 10 MB se rechaza en ese momento, con el motivo.
+
+  ![Paso de evidencias](img/web-staging-siniestro-evidencia.png)
+- **Después del reporte:** desde la confirmación pulsa **Agregar evidencia**, o en el menú
+  **Evidencias** elige el siniestro. Ves las evidencias que ya tiene, desde qué canal se adjuntó
+  cada una (la web o la app) y puedes **Descargar** cualquiera.
+
+  ![Evidencias de un siniestro](img/web-staging-siniestro-evidencias.png)
+
+Las evidencias son privadas: solo las ves tú, con tu sesión. Una vez adjunta, una evidencia no se
+borra ni se reemplaza.
 
 ## 9. Seguir tus siniestros
 
@@ -198,11 +251,20 @@ En la pantalla de ingreso pulsa **Crear cuenta**.
 |---|---|
 | ![Registro](img/mob-registro.png) | ![Identidad verificada](img/mob-kyc.png) |
 
-1. **Datos:** nombre, cédula, correo y celular; acepta los términos y la política de datos.
-2. **Selfie:** toca el visor para tomar la foto con prueba de vida.
-3. **KYC:** esperamos unos segundos mientras validamos tu identidad.
-4. **Biometría:** activa el ingreso con huella o con rostro. Si tu celular no tiene biometría, usarás un PIN.
-5. **Listo:** pulsa **Ir a mi inicio**.
+La cuenta que creas aquí es la misma con la que entras a la web (sección 1).
+
+1. **Tus datos:** nombre completo, correo y celular (10 dígitos, empieza por 3).
+2. **Tu documento:** tipo y número de documento, sin puntos ni espacios.
+3. **Tu contraseña:** mínimo 8 caracteres, con letras y números, y su confirmación. Acepta los
+   términos y la política de tratamiento de datos y pulsa **Crear cuenta**.
+4. **Verifica tu correo:** escribe el código de 6 dígitos que te enviamos. Vence a los 10 minutos y
+   tiene 3 intentos; si se agotan o vence, pulsa **Pedir un código nuevo** (tu cuenta sigue activa).
+5. **Identidad:** validamos tu identidad en unos segundos; puedes seguir mientras tanto y te
+   avisamos el resultado.
+6. **Huella o rostro:** si tu celular los tiene, te ofrecemos **Activar** el ingreso con ellos.
+   Nunca salen del teléfono: Solventa no los recibe ni los guarda.
+
+Tu contraseña se guarda cifrada de forma irreversible: nadie en Solventa puede leerla.
 
 ## 15. Ingresar a la app
 
@@ -210,11 +272,40 @@ En la pantalla de ingreso pulsa **Crear cuenta**.
 |---|---|
 | ![Ingreso móvil](img/mob-login.png) | ![Ingreso con huella](img/mob-login-huella.png) |
 
-Pulsa **Iniciar sesión**, o **👆 Ingresar con huella** y apoya el dedo en el sensor. Si la huella no funciona, elige **Usar PIN**.
+Escribe tu correo y contraseña y pulsa **Iniciar sesión**, o pulsa **Ingresar con huella o
+rostro**. Si el sensor falla, siempre puedes **Usar contraseña**.
+
+**No tienes que volver a entrar a cada rato.** La app renueva tu sesión sola mientras la uses. Si no
+puede renovarla (por ejemplo, después de muchos días sin abrirla), vuelve a la pantalla de ingreso,
+con huella si la tienes activa.
+
+Si el correo o la contraseña no son correctos, verás un mensaje que no dice cuál de los dos falló.
 
 ![Inicio en la app](img/mob-inicio.png)
 
-## 16. Cotizar y comprar desde el celular
+## 16. Consentimiento de datos financieros en la app
+
+![Consentimiento en la app](img/mob-consentimiento.png)
+
+Es **el mismo consentimiento de la web** (sección 3): lo que autorizas o revocas en un canal ya está
+en el otro. Ábrelo desde **Perfil → Consentimientos Open Finance**.
+
+Cada finalidad (cotización, suscripción y prevención de fraude) muestra su estado: *Vigente*,
+*Revocado*, *Vencido* o *Sin consentimiento*, con sus fechas. Si uno vence en 30 días o menos, lo
+verás marcado como *Próximo a vencer*.
+
+- **Autorizar:** elige las entidades de las que podemos consultar tus datos (ninguna viene marcada),
+  revisa qué datos se consultan y por cuánto tiempo, acepta la versión vigente del texto legal y
+  confirma.
+- **Revocar:** pulsa **Revocar** y confirma. Desde ese momento, **tu siguiente cotización, en la web
+  o en la app, usa la tarifa estándar**, sin descuento por tu perfil financiero.
+- **Renovar:** en uno próximo a vencer, pulsa **Renovar** y confirma la nueva fecha; no repites el
+  flujo completo.
+
+Si cambiaste algo desde la web con la app abierta, pulsa **Actualizar lista** para ver el estado
+actual.
+
+## 17. Cotizar y comprar desde el celular
 
 1. Toca **Cotizar** en el inicio.
 2. Elige Dispositivos, Viaje u Hogar.
@@ -228,7 +319,7 @@ Pulsa **Iniciar sesión**, o **👆 Ingresar con huella** y apoya el dedo en el 
 
 La póliza queda de inmediato en tu **billetera**.
 
-## 17. Billetera de pólizas y modo sin conexión
+## 18. Billetera de pólizas y modo sin conexión
 
 Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digital** con número y vigencia, útil para mostrarla en un taller o una clínica.
 
@@ -238,7 +329,7 @@ Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digit
 
 **Sin internet** puedes seguir viendo tus pólizas y coberturas desde la última sincronización (lo indica la franja oscura superior). Las acciones que necesitan conexión (modificar, renovar, cancelar) aparecen en gris y, si las tocas, te lo explicamos. En la demo usa **📴 Simular modo sin conexión** y **📶 Volver a conectarse**.
 
-## 18. Siniestros desde el celular
+## 19. Siniestros desde el celular
 
 | Reportar con fotos | Mis siniestros | Pago automático |
 |---|---|---|
@@ -246,7 +337,21 @@ Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digit
 
 Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**), pulsa **Enviar reporte** y sigue el estado en **Mis siniestros**. Los pagos automáticos muestran el evento que los activó.
 
-## 19. Asistencia en sitio
+Las reglas son las mismas de la web (sección 8): la referencia es la misma en los dos canales y, si
+pulsas dos veces o se cae la conexión, no queda un reporte repetido.
+
+### Adjuntar evidencia desde el celular
+
+- **Con la cámara:** la foto queda con la fecha y la hora y, si permites la ubicación, con el lugar
+  del evento.
+- **Sin permiso de cámara o de ubicación:** te explicamos para qué lo usamos y puedes elegir fotos de
+  la galería o escribir el lugar. El reporte nunca queda bloqueado.
+- **Archivos grandes:** una foto o un video de más de 10 MB se comprime antes de enviarlo. Si aun así
+  no cabe, te lo decimos y puedes quitarlo.
+- **Después del reporte:** agrega evidencia desde el siniestro. La que adjuntes en la app se ve en
+  la web, y al revés.
+
+## 20. Asistencia en sitio
 
 | Permiso de ubicación | Asistencia en camino |
 |---|---|
@@ -257,7 +362,7 @@ Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos
 3. Elige un prestador cercano, pulsa **Solicitar asistencia**, selecciona la póliza y qué necesitas, y confirma.
 4. Sigue la llegada en la tarjeta **Asistencia en camino**. Puedes **Llamar** al prestador o **Cancelar solicitud**.
 
-## 20. Escanear documentos
+## 21. Escanear documentos
 
 ![Escanear documento](img/mob-escaneo.png)
 
@@ -267,7 +372,7 @@ Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos
 
 Tus documentos quedan en **Documentos escaneados**.
 
-## 21. Notificaciones
+## 22. Notificaciones
 
 ![Notificaciones](img/mob-notificaciones.png)
 
@@ -279,6 +384,11 @@ Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punt
 
 | Mensaje | Qué significa | Qué hacer |
 |---|---|---|
+| *El correo o la contraseña no son correctos.* | No pudimos iniciar sesión con esos datos. Por seguridad no decimos cuál falló. | Revisa los dos e intenta de nuevo. |
+| *Tu sesión venció. Inicia sesión de nuevo para continuar.* | Pasó una hora desde que entraste a la web. | Inicia sesión; vuelves a la página donde estabas. |
+| *Código incorrecto. Intentos restantes: …* | El código de verificación del correo no coincide. | Revisa el correo y escríbelo de nuevo. |
+| *Usaste los 3 intentos y este código se bloqueó.* | Se agotaron los intentos de ese código. Tu cuenta sigue activa. | Pulsa **Pedir un código nuevo**. |
+| *Ya hay una cuenta con este correo.* | Ese correo ya está registrado. | Inicia sesión con él, en la web o en la app. |
 | *Completa los campos obligatorios para continuar.* | Falta un dato en el paso actual. | Llena los campos vacíos; el botón **Continuar** se habilita solo. |
 | *No tienes un consentimiento vigente.* | No autorizaste el uso de tus datos financieros. | Cotiza con precio estándar u otorga el consentimiento desde el enlace. |
 | *Tu entidad financiera no respondió a tiempo, así que usamos tu perfil financiero guardado.* | Tu banco tardó en responder. | Nada: el precio es igual de válido y la cotización sigue normalmente. |
@@ -290,6 +400,13 @@ Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punt
 | *Tu banco aún no confirma el pago.* | El pago está pendiente, normalmente con PSE. | No pagues de nuevo; pulsa **Consultar estado del pago** en unos minutos. |
 | *Tu pago ya está en curso.* / *Este pago ya se había procesado.* | Reintentaste un pago que ya estaba en marcha o hecho. No hubo un segundo cobro. | Nada: espera el resultado o revisa la referencia del pago. |
 | *No pudimos confirmar tu pago.* | Se perdió la conexión mientras pagabas. | Pulsa **Consultar estado del pago**; reintentar es seguro. |
+| *El texto legal se actualizó.* (app) | Cambió la versión del texto de autorización mientras lo leías. | Revisa la versión vigente y acéptala de nuevo. |
+| *Este consentimiento ya no está vigente. La lista se actualizó…* (app) | Lo revocaste o venció, quizá desde la web. | Revisa el estado actual; si lo necesitas, autorízalo de nuevo. |
+| *La fecha del evento no puede ser posterior a hoy.* | La fecha del siniestro está en el futuro. | Corrige la fecha. |
+| *Este evento no está cubierto: ocurrió fuera de la vigencia de la póliza.* | El evento es posterior al fin de la póliza. No se registró nada. | Revisa la fecha o elige otra póliza. |
+| *No pudimos confirmar el envío de tu reporte.* | Se perdió la conexión al enviar. | Intenta de nuevo: si ya había llegado, verás la misma referencia. |
+| *…: este formato no se admite.* / *…: pesa … y el máximo es 10 MB.* | La evidencia no es JPEG, PNG, HEIC, MP4 o PDF, o pesa más de 10 MB. | Usa otro archivo o reduce su tamaño. |
+| *…: no se adjuntó porque el almacén de evidencias no respondió.* | No pudimos guardar el archivo en ese momento. El reporte sí quedó. | Agrégala después desde **Evidencias**. |
 | *Requiere conexión* | Estás sin internet. | Vuelve a intentarlo cuando tengas conexión. |
 | *403 · Acceso denegado* (socios) | La póliza no pertenece a tu organización. | Verifica el número; solo ves pólizas de tu canal. |
 | *No tienes permisos para ver esta sección.* | Tu usuario no tiene ese rol. | Ingresa con el usuario correspondiente. |
