@@ -234,6 +234,94 @@ describe('Reporte de siniestro (WEB-F05)', () => {
     })
   })
 
+  describe('evidencia en el reporte (MOB-F05)', () => {
+    // El navegador deja elegir "Todos los archivos" aunque el selector sugiera unos formatos.
+    const usuario = () => userEvent.setup({ applyAccept: false })
+    const selector = () => screen.getByLabelText('Adjuntar fotos, videos o documentos')
+
+    function archivo(nombre: string, tipo: string, tamano?: number) {
+      const resultado = new File(['contenido'], nombre, { type: tipo })
+      if (tamano !== undefined) Object.defineProperty(resultado, 'size', { value: tamano })
+      return resultado
+    }
+
+    async function irAEvidencia() {
+      await llenarInformacion()
+      await continuar()
+      await screen.findByRole('heading', { level: 2, name: /Evidencias/ })
+    }
+
+    it('rechaza antes de enviar un formato no admitido, un archivo vacío o uno de más de 10 MB, con el límite', async () => {
+      await renderizar()
+      await irAEvidencia()
+      expect(screen.getByText('JPEG, PNG, HEIC, MP4 o PDF, hasta 10 MB cada uno.')).toBeInTheDocument()
+
+      await usuario().upload(selector(), [
+        archivo('animacion.gif', 'image/gif'),
+        archivo('vacio.jpg', 'image/jpeg', 0),
+        archivo('video.mp4', 'video/mp4', 12 * 1024 * 1024),
+        archivo('foto.jpg', 'image/jpeg'),
+      ])
+
+      const alerta = screen.getByRole('alert')
+      expect(alerta).toHaveTextContent('animacion.gif: este formato no se admite. Usa JPEG, PNG, HEIC, MP4 o PDF.')
+      expect(alerta).toHaveTextContent('vacio.jpg: el archivo está vacío.')
+      expect(alerta).toHaveTextContent(/video\.mp4: pesa 12\s?MB y el máximo es 10\s?MB\./)
+      const elegidos = screen.getByRole('list', { name: 'Archivos elegidos' })
+      expect(within(elegidos).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+        expect.stringContaining('foto.jpg'),
+      ])
+    })
+
+    it('permite quitar un archivo antes de enviarlo', async () => {
+      await renderizar()
+      await irAEvidencia()
+      await usuario().upload(selector(), [archivo('foto.jpg', 'image/jpeg'), archivo('factura.pdf', 'application/pdf')])
+
+      await userEvent.click(screen.getByRole('button', { name: 'Quitar foto.jpg' }))
+
+      const elegidos = screen.getByRole('list', { name: 'Archivos elegidos' })
+      expect(within(elegidos).getAllByRole('listitem')).toHaveLength(1)
+      expect(elegidos).toHaveTextContent('factura.pdf')
+    })
+
+    it('adjunta los archivos al siniestro al enviar y lo confirma por archivo', async () => {
+      await renderizar()
+      await irAEvidencia()
+      await usuario().upload(selector(), [archivo('foto.jpg', 'image/jpeg'), archivo('factura.pdf', 'application/pdf')])
+      await continuar()
+      expect(await screen.findByText('foto.jpg, factura.pdf')).toBeInTheDocument()
+      await enviar()
+
+      const confirmacion = (await screen.findByRole('heading', { level: 2, name: 'Reporte enviado' })).closest('section')!
+      expect(confirmacion).toHaveTextContent('foto.jpg: adjuntada.')
+      expect(confirmacion).toHaveTextContent('factura.pdf: adjuntada.')
+      const id = estado.siniestros[0]!.id
+      expect(estado.evidencias.get(id)?.map((e) => e.evidencia.nombre_original)).toEqual(['foto.jpg', 'factura.pdf'])
+      expect(within(confirmacion).getByRole('link', { name: 'Agregar evidencia' })).toHaveAttribute(
+        'href',
+        `/siniestros/evidencias?siniestro=${id}`,
+      )
+    })
+
+    it('si un archivo no se adjunta, el siniestro queda reportado y se explica por qué', async () => {
+      servidor.use(
+        http.post(ruta('/siniestros/:id/evidencias'), () =>
+          HttpResponse.json({ codigo: 'almacenamiento_no_disponible', mensaje: 'Sin almacén' }, { status: 503 }),
+        ),
+      )
+      await renderizar()
+      await irAEvidencia()
+      await usuario().upload(selector(), [archivo('foto.jpg', 'image/jpeg')])
+      await continuar()
+      await enviar()
+
+      const confirmacion = (await screen.findByRole('heading', { level: 2, name: 'Reporte enviado' })).closest('section')!
+      expect(confirmacion).toHaveTextContent(/foto\.jpg: no se adjuntó porque el almacén de evidencias no respondió/)
+      expect(estado.siniestros).toHaveLength(1)
+    })
+  })
+
   describe('pólizas', () => {
     it('sin pólizas lo explica y ofrece cotizar', async () => {
       estado.polizas = []

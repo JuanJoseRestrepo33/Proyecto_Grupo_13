@@ -9,10 +9,11 @@ import type { DatosReporte } from './validacion'
 interface Propiedades {
   datos: DatosReporte
   poliza: PolizaResumen
+  archivos: File[]
 }
 
 /** Paso 3: lo que se va a enviar, para revisarlo antes. */
-export function PasoRevision({ datos, poliza }: Propiedades) {
+export function PasoRevision({ datos, poliza, archivos }: Propiedades) {
   const { t, i18n } = useTranslation()
   const idioma = i18n.language as Idioma
   const monto = datos.montoEstimado.trim() ? leerMonto(datos.montoEstimado) : null
@@ -35,7 +36,11 @@ export function PasoRevision({ datos, poliza }: Propiedades) {
           {monto === null ? t('siniestro.revision.sinMonto') : formatearMoneda({ valor: monto, moneda: 'COP' }, idioma)}
         </dd>
         <dt>{t('siniestro.revision.evidencias')}</dt>
-        <dd>{t('siniestro.revision.sinEvidencias')}</dd>
+        <dd>
+          {archivos.length === 0
+            ? t('siniestro.revision.sinEvidencias')
+            : archivos.map((archivo) => archivo.name).join(', ')}
+        </dd>
       </dl>
       <p className={estilos.ayuda}>{t('siniestro.revision.aviso')}</p>
     </>
