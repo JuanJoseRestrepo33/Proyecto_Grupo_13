@@ -4,9 +4,11 @@
 Lo consumen:
 
 - **La app Android** ([`mobile/android`](../../mobile/android)): `core/network` lo implementa con
-  Retrofit (`BffApi` y `Modelos.kt`), y el build debug trabaja contra un mock en memoria que cumple
-  este mismo contrato (`app/src/debug/.../mock`) mientras el BFF no exista.
-- **El BFF móvil**, cuando se construya: debe cumplirlo tal cual.
+  Retrofit (`BffApi` y `Modelos.kt`). El build debug trabaja contra un mock en memoria que cumple
+  este mismo contrato (`app/src/debug/.../mock`); la conexión al BFF real llega con WEB-F13 (#154).
+- **El router móvil del BFF** ([`bff/app/movil`](../../bff/app/movil)), desplegado en
+  `solventa-bff` bajo `/api/v1/movil/` ([ADR 0001](../../docs/adr/0001-bff-unico-dos-routers.md)):
+  lo cumple tal cual.
 
 ## Alcance del Sprint 1
 
