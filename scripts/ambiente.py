@@ -169,9 +169,10 @@ class Ambiente:
     region: str
     informe: Informe = field(default_factory=Informe)
     entorno: Mapping[str, str] = field(default_factory=lambda: os.environ)
-    conectar: Conectar = conectar_postgres
-    generar_llaves: Callable[[], tuple[str, str]] = generar_par_de_llaves
-    ahora: Callable[[], datetime] = lambda: datetime.now(UTC)
+    # Inyectables para las pruebas; sin ellos, la base, openssl y el reloj reales.
+    conectar: Conectar | None = None
+    generar_llaves: Callable[[], tuple[str, str]] | None = None
+    ahora: Callable[[], datetime] | None = None
     servicios_creados: list[str] = field(default_factory=list)
 
     @property
@@ -300,7 +301,8 @@ class Ambiente:
     def _instancia(self) -> str:
         instancia = self.instancia()
         if instancia is None:
-            nombre = f"{PREFIJO_INSTANCIA}{self.ahora():%Y%m%d-%H%M}"
+            ahora = self.ahora() if self.ahora else datetime.now(UTC)
+            nombre = f"{PREFIJO_INSTANCIA}{ahora:%Y%m%d-%H%M}"
             self.informe.nota(f"Creando Cloud SQL {nombre} (unos 10 minutos)…")
             operacion = self.gcloud(
                 "sql", "instances", "create", nombre, "--database-version=POSTGRES_15",
@@ -362,7 +364,8 @@ class Ambiente:
         otros = [m for m in pendientes if m != DUENO]
         if not otros:
             return
-        con = self.conectar(self.conexion(instancia), DUENO, clave_dueno)
+        conectar = self.conectar or conectar_postgres
+        con = conectar(self.conexion(instancia), DUENO, clave_dueno)
         try:
             cursor = con.cursor()
             for modulo in otros:
@@ -399,7 +402,7 @@ class Ambiente:
             publica = publica_de(privada)
         else:
             # Un par nuevo: los tokens emitidos con el anterior dejan de valer.
-            privada, publica = self.generar_llaves()
+            privada, publica = (self.generar_llaves or generar_par_de_llaves)()
             self.agregar_version("tokens-llave-privada", privada)
         self.agregar_version("tokens-llave-publica", publica)
         self.informe.creado("Llaves de firma de tokens")
