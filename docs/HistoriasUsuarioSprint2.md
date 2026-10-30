@@ -189,11 +189,12 @@ despliega. **Aquí nace el servicio BFF** que usan todas las historias siguiente
 **Patrones de interfaz.** P04 Asistente paso a paso con puertas de validación · P05 Tarjetas de
 opción · P06 Validación en línea · P14 Degradación elegante · P15 Oferta con vigencia · P16
 Explicabilidad del precio.
-**Capturas.** [`web-cotizacion-oferta.png`](guia-de-usuario/img/web-cotizacion-oferta.png).
-*Pendiente:* reemplazarla por la captura de *staging* cuando la web esté desplegada contra el BFF
-real (depende de #164 y #128).
+**Capturas** (*staging*, 30 oct 2026).
+[`web-staging-cotizacion-oferta.png`](guia-de-usuario/img/web-staging-cotizacion-oferta.png):
+cotización contra el BFF y el núcleo desplegados, con la tarifa estándar explicada y el desglose de
+"¿Por qué este precio?".
 
-![Oferta personalizada](guia-de-usuario/img/web-cotizacion-oferta.png)
+![Oferta en staging](guia-de-usuario/img/web-staging-cotizacion-oferta.png)
 
 **Favorece** RC-01 Latencia, RC-08 Trazabilidad y explicabilidad ·
 **Puntos** 13 · **Responsables** Sergio (backend, integración), Harold (web, E2E), Juan (cloud,
@@ -203,33 +204,285 @@ documentación) · **Depende de** ARQ-02, WEB-F02, WEB-F13
 
 ### WEB-F13 · Sesión del cliente en web y app
 
-*Se completa con [#158](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/158).*
-Historia, criterios, partes, notas técnicas, patrones y ficha de
-[#150](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/150).
+**Como** cliente, **quiero** entrar con la misma cuenta en la web y en la app, **para** continuar mis
+trámites en cualquier canal.
+
+Historia nueva del sprint. Absorbe el criterio pendiente de MOB-F01 (contraseña con hash y sal,
+evento `ClientRegistered`). Sin sesión real ninguna historia es completa de punta a punta: todas
+correrían con un cliente sembrado. Desde esta historia, las demás parten de un inicio de sesión
+real.
+
+**Criterios de aceptación**
+
+1. Dado un cliente que se registró en la app (MOB-F01), cuando inicia sesión en la web con su correo
+   y contraseña, entonces entra a su cuenta sin un registro adicional.
+2. Dado un registro nuevo, cuando se completa, entonces la contraseña queda guardada con hash y sal,
+   nunca en claro, y el núcleo publica el evento `ClientRegistered`.
+3. Dadas credenciales inválidas, cuando el cliente intenta entrar en cualquiera de los dos canales,
+   entonces ve un mensaje genérico que no revela si el correo existe.
+4. Dada una sesión vencida, cuando el cliente hace una operación, entonces la web le pide iniciar
+   sesión de nuevo y la app renueva la sesión o, si no puede, vuelve al inicio de sesión (con huella
+   si está activa).
+5. Dada la suite E2E del sprint, cuando corre contra *staging*, entonces todos los flujos parten de
+   un inicio de sesión real, sin clientes sembrados en la interfaz.
+
+**Partes de la historia**
+
+| Parte | Alcance | Responsable | Issue |
+|---|---|---|---|
+| Backend | Credenciales con hash y sal, evento `ClientRegistered`, emisión y validación del token en el módulo `identidad` | Sergio | #151 |
+| Integración | `/sesion` en el router web; `/registros` y `/sesiones` en el router móvil | Sergio | #152 |
+| Web | Pantallas de inicio y cierre de sesión; rutas protegidas | Harold | #153 |
+| Móvil | Registro e inicio de sesión contra el BFF real (las pantallas ya existen de MOB-F01) | Edwin | #154 |
+| Cloud | Llave de firma de tokens en Secret Manager, montada en el BFF y en el núcleo; humo de `/sesion` en *staging* | Juan | #155 |
+| E2E web | Inicio de sesión válido e inválido | Harold | #156 |
+| E2E móvil | Registro → inicio de sesión → sesión renovada | Edwin | #157 |
+| Documentación | Esta historia, la guía de usuario (inicio de sesión) y el changelog de los contratos | Juan | #158 |
+
+**Notas técnicas**
+
+- **Contraseñas con scrypt** (2^14 iteraciones, 8 bloques, sal aleatoria por cuenta). Se guarda solo
+  la derivación, con sus parámetros, para poder subir el costo sin invalidar las existentes. El
+  registro verifica el correo con un código de 6 dígitos que vence a los 10 minutos y admite 3
+  intentos.
+- **Tokens ES256 firmados por el núcleo.** El núcleo firma con la llave privada y el BFF solo valida
+  con la pública: un BFF comprometido no puede emitir sesiones. El `kid` es la huella JWK de la llave
+  pública (RFC 7638), así que durante una rotación el BFF acepta la actual y la anterior. Las llaves
+  viven en Secret Manager ([`devops.md`, paso 6](devops.md#6-llaves-de-firma-de-los-tokens-de-sesión-web-f13)).
+- **Cada canal guarda la sesión a su manera.** La web recibe la cookie `sesion` (`HttpOnly`,
+  `Secure`, `SameSite=Lax`, `Path=/api/v1/web`) y nunca ve el token; dura 60 minutos y no se renueva.
+  La app recibe un token de acceso de 15 minutos y uno de refresco de 30 días que **rota** en cada
+  uso: un refresco ya usado no vale aunque alguien lo haya copiado.
+- **Un solo mensaje para credenciales inválidas** (`credenciales_invalidas`), exista o no el correo.
+- **La cuenta de prueba de *staging*** la siembra el núcleo al arrancar con `HUMO_CORREO` y
+  `HUMO_CLAVE`; la usan la prueba de humo y las E2E. Nunca se define en producción.
+
+**Patrones de interfaz.** P06 Validación en línea · P10 Botón ocupado.
+**Capturas** (*staging*, 30 oct 2026).
+[`web-staging-login.png`](guia-de-usuario/img/web-staging-login.png) ·
+[`web-staging-login-error.png`](guia-de-usuario/img/web-staging-login-error.png) (mensaje
+genérico, criterio 3). *Pendiente:* la de la app contra *staging*
+([`mob-login.png`](guia-de-usuario/img/mob-login.png) es del prototipo), cuando la app hable con el
+BFF real (#154).
+
+![Credenciales inválidas en staging](guia-de-usuario/img/web-staging-login-error.png)
+
+**Favorece** RC-04 Seguridad y privacidad ·
+**Puntos** 5 · **Responsables** Sergio (backend, integración), Harold (web, E2E web), Edwin (móvil,
+E2E móvil), Juan (cloud, documentación) · **Depende de** MOB-F01, WEB-F01 (base del BFF)
 
 ---
 
 ### MOB-F02 · Consentimiento Open Finance en web y app
 
-*Se completa con [#163](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/163).*
-Historia, criterios, partes, notas técnicas, patrones y ficha de
-[#127](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/127).
+**Como** cliente, **quiero** otorgar, consultar y revocar mi consentimiento de Open Finance desde la
+app con el mismo efecto que en la web, **para** tener el mismo control sin cambiar de canal.
+
+El consentimiento es del cliente, no del canal. WEB-F02 (Sprint 1) dejó la API y la web; esta
+historia lleva al móvil las mismas reglas sobre la misma API desplegada, incluida la que más
+importa: revocar corta el acceso de inmediato en todos los canales.
+
+**Criterios de aceptación**
+
+1. Dado un cliente con sesión en la app, cuando abre consentimientos, entonces ve las mismas
+   finalidades, alcances, vigencias y estados que en la web, adaptados al formato del canal.
+2. Dado un consentimiento otorgado o revocado desde la web, cuando el cliente abre o refresca la
+   app, entonces ve el mismo estado, y viceversa.
+3. Dada una finalidad sin consentimiento, cuando el cliente la otorga, entonces elige las entidades
+   de origen (ninguna viene marcada) y acepta la versión vigente del texto legal. Queda registrado el
+   canal `movil`.
+4. Dado un consentimiento vigente, cuando el cliente lo revoca y confirma, entonces la siguiente
+   cotización de ese cliente, desde cualquier canal, usa la tarifa estándar (RC-04, P07).
+5. Dado un consentimiento a 30 días o menos de vencer, cuando el cliente abre la app, entonces lo ve
+   marcado y puede renovarlo sin repetir el flujo completo.
+
+**Partes de la historia**
+
+| Parte | Alcance | Responsable | Issue |
+|---|---|---|---|
+| Backend | Canal `movil` en la API de consentimiento | Sergio | #159 |
+| Integración | Rutas de consentimiento en el router móvil (`bff-movil` 0.2.0), con los mismos códigos de error que el router web | Sergio | #160 |
+| Móvil | Consentimiento en la app: listar, otorgar, revocar y renovar | Edwin | #133 |
+| Cloud | Humo de las rutas de consentimiento del router móvil en *staging* | Juan | #161 |
+| E2E móvil | Otorgar y revocar en la app → la web muestra el mismo estado y la siguiente cotización usa la tarifa estándar | Edwin | #162 |
+| Documentación | Esta historia, la guía de usuario (consentimiento en la app) y el changelog de `bff-movil` | Juan | #163 |
+| Web | *N/A:* quedó cerrada en el Sprint 1 con WEB-F02. La verificación entre canales está en el E2E móvil | - | - |
+
+**Notas técnicas**
+
+- **Una sola API para los dos canales.** El BFF reenvía al núcleo el canal (`X-Canal: movil`) y el
+  núcleo lo guarda en cada otorgamiento, revocación y renovación, y en el log de auditoría. El estado
+  es uno solo: lo que se cambia en un canal ya está en el otro.
+- **La app no muestra el `mensaje` del error tal cual:** traduce el código del contrato a un texto
+  propio. Tras un conflicto (`409`), bloquea las acciones hasta volver a consultar el estado, para
+  no actuar sobre un dato viejo.
+- **Humo en *staging*:** las cinco rutas del router móvil responden 401 sin sesión, y con la cuenta
+  de prueba el catálogo trae sus tres finalidades (`cotizacion`, `suscripcion`,
+  `prevencion_fraude`).
+
+**Patrones de interfaz.** P07 Confirmación de acciones destructivas o irreversibles · P08
+Consentimiento explícito y revocable.
+**Capturas.** [`mob-consentimiento.png`](guia-de-usuario/img/mob-consentimiento.png). *Pendiente:*
+reemplazarla por la captura de la app contra *staging*.
+
+![Consentimiento en la app](guia-de-usuario/img/mob-consentimiento.png)
+
+**Favorece** RC-04 Seguridad y privacidad ·
+**Puntos** 5 · **Responsables** Sergio (backend, integración), Edwin (móvil, E2E), Juan (cloud,
+documentación) · **Depende de** WEB-F02, MOB-F01, WEB-F13
 
 ---
 
 ### WEB-F05 · Reportar un siniestro en web y app
 
-*Se completa con [#173](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/173).*
-Historia, criterios, partes, notas técnicas, patrones, partición y ficha de
-[#125](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/125).
+**Como** cliente asegurado, **quiero** reportar un siniestro desde la web o desde la app con ayuda
+paso a paso, **para** iniciar la reclamación sin llamar a nadie y sin saber de antemano qué datos me
+van a pedir.
+
+Es el primer momento de verdad después de la venta. El reporte es el mismo en los dos canales:
+mismo servicio, misma referencia, misma clave de idempotencia. La evidencia es MOB-F05; el modo sin
+conexión, MOB-F05-02 (Sprint 3).
+
+**Criterios de aceptación**
+
+1. Dado un cliente con al menos una póliza vigente, cuando completa los tres pasos del asistente
+   (información, evidencia, revisión) en la web o en la app y envía, entonces queda un siniestro en
+   estado *reportado*; el cliente ve un número de referencia y el siguiente paso de su caso, y el
+   mismo siniestro se ve en los dos canales.
+2. Dado el paso de información, cuando el cliente intenta continuar sin póliza, tipo de evento,
+   fecha o descripción, entonces el asistente no avanza e indica qué falta en cada campo. Una fecha
+   futura se rechaza.
+3. Dada una póliza vencida, cuando el cliente reporta un evento ocurrido dentro de su vigencia,
+   entonces el reporte se acepta. Si el evento es posterior a la vigencia, se le explica por qué no
+   procede y no queda registro.
+4. Dado un doble clic en "Enviar reporte" o un reintento por una red lenta, en cualquiera de los dos
+   canales, cuando llega la segunda solicitud, entonces el botón está ocupado y el núcleo no crea un
+   segundo siniestro: devuelve el mismo número de referencia (P10, P18).
+5. Dado un reporte creado, cuando se consulta el log de auditoría, entonces el reporte está ahí con
+   la póliza, el tipo de evento, el canal (`web` o `movil`) y la marca de tiempo, y se publicó el
+   evento de siniestro reportado.
+
+**Partes de la historia**
+
+| Parte | Alcance | Responsable | Issue |
+|---|---|---|---|
+| Backend | Servicio de reporte de siniestros, pólizas de prueba por la interfaz pública de `polizas`, clave de idempotencia y evento de siniestro reportado | Sergio | #135 |
+| Integración | Contrato y rutas de siniestros en los dos routers del BFF | Sergio | #168 |
+| Web | Asistente de reporte en tres pasos (información, evidencia opcional, revisión) y confirmación | Harold | #132 |
+| Móvil | Asistente de reporte en la app y confirmación con la referencia | Edwin | #169 |
+| Cloud | Esquema de siniestros en el Cloud SQL de *staging*, pólizas de prueba sembradas y humo de las rutas | Juan | #170 |
+| E2E web | Tres pasos y doble envío idempotente | Harold | #171 |
+| E2E móvil | Reporte desde la app; la misma referencia aparece en la web | Edwin | #172 |
+| Documentación | Esta historia, la guía de usuario (reporte de siniestro) y el changelog de los contratos | Juan | #173 |
+
+**Partición definida de antemano**
+
+| | Alcance | Puntos |
+|---|---|---:|
+| **A** (se cierra) | Reporte en web y app sobre póliza vigente, validado, idempotente y auditado (crit. 1, 2, 4, 5) | 5 |
+| **B** (se mueve) | Póliza vencida con evento dentro de la vigencia, en web y app (crit. 3) | 3 |
+
+**Notas técnicas**
+
+- **La idempotencia vive en la base, no en memoria.** Cada envío del asistente lleva su
+  `Idempotency-Key`, generada por el cliente. La clave es única por cliente en la tabla
+  `siniestros.siniestros`, así que el doble envío devuelve la misma referencia aunque el núcleo se
+  reinicie entre las dos solicitudes. La misma clave con otros datos responde
+  `clave_idempotencia_en_uso`.
+- **La vigencia se valida por la interfaz pública de `polizas`** (ARQ-01), nunca leyendo sus datos.
+  El módulo de pólizas aún no persiste (la emisión es WEB-F03): en *staging* carga al arrancar la
+  semilla [`backend/semillas/polizas-staging.json`](../backend/semillas/polizas-staging.json), con
+  una póliza de auto y una de viaje vigentes y una de hogar vencida, con fechas relativas al arranque.
+- **Persistencia en *staging*:** esquema y usuario `siniestros` en la instancia de Cloud SQL, sin
+  acceso a los esquemas de auditoría ni de cotización
+  ([`devops.md`, paso 8](devops.md#8-siniestros-y-pólizas-de-prueba-web-f05)).
+- **Auditoría:** cada reporte deja un registro `siniestro_reportado` con el canal en el log
+  inmutable de ARQ-03 y publica el evento `siniestro-reportado`.
+
+**Patrones de interfaz.** P02 Migas de pan y barra de flujo · P04 Asistente paso a paso con puertas
+de validación · P06 Validación en línea · P10 Botón ocupado · P18 Idempotencia comunicada.
+**Capturas** (*staging*, 30 oct 2026).
+[`web-staging-siniestro-informacion.png`](guia-de-usuario/img/web-staging-siniestro-informacion.png) ·
+[`web-staging-siniestro-confirmacion.png`](guia-de-usuario/img/web-staging-siniestro-confirmacion.png):
+reporte sobre la póliza sembrada, con la referencia y el siguiente paso. *Pendiente:* la de la app
+([`mob-siniestro-reportar.png`](guia-de-usuario/img/mob-siniestro-reportar.png) es del prototipo),
+con el asistente móvil (#169).
+
+![Reporte enviado en staging](guia-de-usuario/img/web-staging-siniestro-confirmacion.png)
+
+**Favorece** RC-05 Auditabilidad, RC-08 Trazabilidad y explicabilidad ·
+**Puntos** 8 · **Responsables** Sergio (backend, integración), Harold (web, E2E web), Edwin (móvil,
+E2E móvil), Juan (cloud, documentación) · **Depende de** ARQ-01, ARQ-03, WEB-F13
 
 ---
 
 ### MOB-F05 · Evidencia del siniestro en web y app
 
-*Se completa con [#180](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/180).*
-Historia, criterios, partes, notas técnicas, patrones y ficha de
-[#126](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/issues/126).
+**Como** cliente asegurado, **quiero** adjuntar fotos, videos o documentos a mi siniestro desde la
+app o desde la web, **para** dejar la evidencia en el momento y acelerar la evaluación de mi caso.
+
+El móvil aporta la cámara y la ubicación en el momento del evento; la web, la carga de archivos. La
+evidencia se puede agregar en el reporte o después. El modo sin conexión salió a MOB-F05-02
+(Sprint 3).
+
+**Criterios de aceptación**
+
+1. Dado el paso de evidencia en la app, cuando el cliente toma una foto con la cámara, entonces la
+   foto queda con la fecha y hora y, si concedió el permiso de ubicación, con la ubicación del
+   evento.
+2. Dado un cliente que niega el permiso de cámara o de ubicación, cuando llega al paso de evidencia,
+   entonces la app explica para qué lo necesita y ofrece una alternativa: elegir de la galería o
+   escribir el lugar. El reporte no queda bloqueado (P20).
+3. Dada una foto o video que supera 10 MB en la app, cuando se adjunta, entonces la app la comprime
+   antes de enviar. Si aun así no cabe, lo explica y ofrece eliminarla.
+4. Dado el paso de evidencia en la web, cuando el cliente adjunta un archivo de un formato no
+   admitido o de más de 10 MB, entonces se rechaza antes de enviar, con el límite explicado.
+5. Dado un siniestro ya reportado, cuando el cliente agrega evidencia después desde cualquiera de
+   los dos canales, entonces queda asociada al mismo siniestro y se ve en ambos.
+
+**Partes de la historia**
+
+| Parte | Alcance | Responsable | Issue |
+|---|---|---|---|
+| Backend | Carga de evidencia detrás de un puerto de almacenamiento de archivos | Sergio | #174 |
+| Integración | Rutas de evidencia en los dos routers del BFF | Sergio | #175 |
+| Web | Adjuntar archivos en el paso de evidencia y después del reporte, con validación de formato y tamaño | Harold | #176 |
+| Móvil | Foto con fecha y ubicación, compresión y permisos con alternativa | Edwin | #137 |
+| Cloud | Bucket de evidencias en Cloud Storage, adaptador y permisos de la cuenta de servicio | Juan | #177 |
+| E2E web | Adjuntar un archivo válido y rechazar uno inválido | Harold | #178 |
+| E2E móvil | Reporte con foto sin duplicar el siniestro | Edwin | #179 |
+| Documentación | Esta historia, la guía de usuario (evidencia) y el changelog de los contratos | Juan | #180 |
+
+**Notas técnicas**
+
+- **Formatos y tamaño:** JPEG, PNG, HEIC, MP4 y PDF, hasta 10 MB por archivo. El núcleo valida el
+  tipo real del contenido, no solo el declarado; los canales validan antes de enviar para no gastar
+  la subida.
+- **Un puerto de almacenamiento** (`AlmacenDeEvidencias`) con dos adaptadores: en memoria para
+  desarrollo y pruebas, Cloud Storage en *staging*. Ninguno tiene operación de borrar, y guardar dos
+  veces la misma evidencia falla en lugar de sobrescribirla (en Cloud Storage, con la precondición
+  `if_generation_match=0`).
+- **Bucket privado:** acceso uniforme, acceso público bloqueado y ningún objeto con URL pública; la
+  lectura pasa por el núcleo y el BFF con la sesión del cliente. La cuenta del núcleo solo puede
+  crear y leer objetos de ese bucket, no borrarlos. El objeto se llama
+  `siniestros/{siniestro}/{evidencia}`, sin datos del cliente; el nombre original va en sus metadatos
+  ([`devops.md`, paso 7](devops.md#7-bucket-de-evidencias-de-siniestros-mob-f05)).
+- **nginx acepta cuerpos de hasta 12 MB** en `/api/`, para que una evidencia de 10 MB llegue al BFF
+  desde la web.
+
+**Patrones de interfaz.** P06 Validación en línea · P10 Botón ocupado · P20 Permiso en contexto
+con alternativa.
+**Capturas** (*staging*, 30 oct 2026).
+[`web-staging-siniestro-evidencia.png`](guia-de-usuario/img/web-staging-siniestro-evidencia.png) ·
+[`web-staging-siniestro-evidencias.png`](guia-de-usuario/img/web-staging-siniestro-evidencias.png):
+la evidencia quedó en el bucket de Cloud Storage y se lista con su canal de origen. *Pendiente:* la
+de la app con la foto y la misma evidencia vista desde el otro canal (#137).
+
+![Evidencias en staging](guia-de-usuario/img/web-staging-siniestro-evidencias.png)
+
+**Favorece** RC-04 Seguridad y privacidad ·
+**Puntos** 5 · **Responsables** Sergio (backend, integración), Harold (web, E2E web), Edwin (móvil,
+E2E móvil), Juan (cloud, documentación) · **Depende de** **WEB-F05**, MOB-F01
 
 ---
 
