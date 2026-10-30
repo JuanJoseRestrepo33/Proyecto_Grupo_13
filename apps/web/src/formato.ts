@@ -14,6 +14,24 @@ export function formatearFecha(iso: string, idioma: Idioma): string {
   return new Intl.DateTimeFormat(IDIOMAS[idioma], { dateStyle: 'long' }).format(new Date(iso))
 }
 
+/** Un día sin hora (`2026-10-29`), tal cual: no pasa por UTC, que lo correría un día en Colombia. */
+export function formatearDia(dia: string, idioma: Idioma): string {
+  const [anio, mes, fecha] = dia.split('-').map(Number)
+  return new Intl.DateTimeFormat(IDIOMAS[idioma], { dateStyle: 'long' }).format(new Date(anio!, mes! - 1, fecha))
+}
+
+/** El día de `fecha` en la zona del navegador, como `2026-10-29`. */
+export function diaLocal(fecha = new Date()): string {
+  const dosDigitos = (n: number) => String(n).padStart(2, '0')
+  return `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
+}
+
+/** El día que está `dias` antes (negativo) o después de hoy, como `2026-10-29`. */
+export function diaRelativo(dias: number, hoy = new Date()): string {
+  const fecha = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias)
+  return diaLocal(fecha)
+}
+
 export function formatearHora(iso: string, idioma: Idioma): string {
   return new Intl.DateTimeFormat(IDIOMAS[idioma], { timeStyle: 'short' }).format(new Date(iso))
 }

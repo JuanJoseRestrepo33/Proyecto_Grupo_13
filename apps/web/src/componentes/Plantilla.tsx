@@ -12,6 +12,7 @@ const ENLACES = [
   { a: '/', clave: 'nav.inicio' },
   { a: '/cotizacion', clave: 'nav.cotizar' },
   { a: '/consentimientos', clave: 'nav.consentimientos' },
+  { a: '/siniestros/reportar', clave: 'nav.reportarSiniestro' },
 ] as const
 
 /**
