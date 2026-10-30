@@ -1,0 +1,64 @@
+# Aprovisionar el ambiente de staging en Google Cloud (WEB-F01, #165). Manual.
+#
+# Crea lo que falta y omite lo que ya existe, en orden de dependencia: Cloud SQL (con su base, sus
+# usuarios y sus cadenas de conexión), las llaves de firma de tokens, la cuenta de prueba, el bucket
+# de evidencias y los tres servicios de Cloud Run. Correrlo dos veces deja lo mismo; si Cloud SQL ya
+# existe, no espera los 10 minutos que tarda en crearse. Si crea algún servicio (con una imagen de
+# relleno), al final dispara el CD para que despliegue las imágenes reales.
+#
+# Usa la cuenta `infraestructura`, que solo puede usar el environment `staging-infraestructura`, y
+# ese environment pide aprobación y solo acepta la rama develop. El acceso (Workload Identity y las
+# cuentas de servicio) no lo crea: docs/devops.md, "Configuración manual en GCP", pasos 3 y 4.
+name: Aprovisionar ambiente
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ambiente-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  aprovisionar:
+    name: Aprovisionar staging
+    runs-on: ubuntu-latest
+    environment: staging-infraestructura
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+      actions: write # para disparar el CD si se creó algún servicio
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Para crear los usuarios de cada módulo con SQL, sin abrir la base a internet.
+      - run: pip install "cloud-sql-python-connector[pg8000]==1.22.0"
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Aprovisionar
+        id: aprovisionar
+        env:
+          # La cuenta de prueba se siembra en Secret Manager solo si falta; nunca se imprime.
+          HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
+          HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: python3 scripts/ambiente.py aprovisionar --proyecto "$PROYECTO" --region "$REGION"
+      - name: Desplegar las imágenes reales
+        if: steps.aprovisionar.outputs.servicios_creados != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CREADOS: ${{ steps.aprovisionar.outputs.servicios_creados }}
+        run: |
+          gh workflow run cd.yml --ref develop
+          echo "::notice::Se crearon $CREADOS con una imagen de relleno; el CD de develop despliega las reales."
