@@ -297,9 +297,10 @@ funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
 
 | Etapa | Qué hace | Requisito para activarse |
 |---|---|---|
-| **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>` y `:<rama>` y las publica en el registro de paquetes de GitHub | Que exista el `Dockerfile` del componente. No requiere secretos |
-| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (primer despliegue manual) |
-| **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
+| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, el bucket y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | Las variables de la tabla de abajo |
+| **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>`, `:<rama>` y `:arbol-<árbol>` y las publica en el registro de paquetes de GitHub. El árbol es `git rev-parse HEAD:<carpeta>`: si ya existe una imagen de ese árbol, el componente no cambió y solo se le agregan las etiquetas nuevas, sin construir | Que exista el `Dockerfile` del componente. No requiere secretos |
+| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (lo crea [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente)) |
+| **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen y la etiqueta `arbol`. Si el servicio ya corre ese árbol, no copia ni despliega nada (no hay qué cambiar), pero sí corre la prueba de humo. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
 | **Prueba de humo** | [`scripts/humo.py`](../scripts/humo.py) pide las rutas del servicio a la URL que devuelve Cloud Run y comprueba el estado HTTP, sin imprimir respuestas | Igual que la anterior |
 | **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | Solo en `staging` (push a `develop`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE`; sin ellos, se omite con un aviso |
 
@@ -307,8 +308,45 @@ Los servicios se despliegan **uno a la vez, en orden núcleo → BFF → web**: 
 siguientes no se despliegan. La web solo se despliega cuando existe `bff/`, porque sin BFF no tiene a
 quién reenviar `/api/`.
 
-Si un servicio no existe todavía en Cloud Run, el pipeline no lo crea: deja un aviso y sigue. Creado
-por el pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
+Así, un merge que solo toca la web no reconstruye ni redespliega el núcleo ni el BFF: sus jobs
+terminan en segundos tras repetir la prueba de humo.
+
+Si un servicio no existe todavía en Cloud Run, el CD no lo crea: deja un aviso y sigue. Creado por el
+pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
+
+### Aprovisionar y destruir el ambiente
+
+Dos workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
+[`scripts/ambiente.py`](../scripts/ambiente.py), con la misma lista de recursos que verifica el CD:
+
+| Workflow | Qué hace | Cuánto tarda |
+|---|---|---|
+| [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el bucket de evidencias y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
+| [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, el bucket con las evidencias y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
+
+**Lo que destruir conserva** es el acceso, que se configura a mano una sola vez (pasos 3 y 4 de
+[Configuración manual en GCP](#configuración-manual-en-gcp)): Workload Identity, las cuentas
+`despliegue`, `infraestructura` y `run-*`, y el repositorio de Artifact Registry. Con eso, Aprovisionar
+rehace todo desde GitHub. Tampoco toca las variables ni los secretos de los environments de GitHub.
+
+Los dos corren en el environment `staging-infraestructura`, que **pide aprobación** antes de empezar y
+solo acepta la rama `develop`, con la cuenta `infraestructura`. Esa cuenta solo la puede suplantar un
+job de ese environment: el CD de cada merge sigue con `despliegue`, que puede publicar revisiones pero
+no crear ni borrar bases, secretos ni buckets.
+
+Detalles que conviene saber:
+
+- **Cloud SQL no deja reutilizar el nombre** de una instancia borrada durante una semana. Por eso cada
+  instancia nueva se llama `solventa-<fecha>-<hora>`, y el script reconoce la del ambiente por el
+  prefijo `solventa-`. Cada secreto `*-database-url` lleva la etiqueta `instancia`: si apunta a otra
+  (la base se recreó), el usuario y el secreto se rehacen, y el núcleo pasa a la instancia nueva.
+- **Las contraseñas y llaves nuevas** se generan en el runner y llegan a Secret Manager por la entrada
+  estándar de `gcloud`; nunca se imprimen. Un ambiente recreado tiene llaves de tokens nuevas, así que
+  las sesiones anteriores dejan de valer.
+- **La cuenta de prueba** sale de los secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment
+  `staging-infraestructura`; si faltan, se avisa y no se crea.
+- Mientras el ambiente esté destruido, el CD de cada merge avisa en el job "Verificar ambiente" y no
+  despliega; el siguiente Aprovisionar lo deja listo y dispara el CD.
 
 **Prueba de humo.** Cada parte Cloud de una historia agrega sus filas a la tabla `RUTAS` de
 `scripts/humo.py` (servicio, método, ruta y estados aceptados); el pipeline no cambia. En las rutas
@@ -610,9 +648,11 @@ cerrarlo y reabrirlo a mano para que corra.
   |---|---|---|
   | `staging` | Selected branches → solo `develop` | - |
   | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
+  | `staging-infraestructura` | Selected branches → solo `develop` | *Required reviewers*: quien administra Cloud aprueba cada Aprovisionar o Destruir |
 
   En cada uno se cargan, como **variables** del environment, las cinco de la tabla de
-  [despliegue continuo](#despliegue-continuo).
+  [despliegue continuo](#despliegue-continuo). En `staging-infraestructura`, `GCP_SERVICE_ACCOUNT`
+  es la cuenta `infraestructura` (paso 3) y además van los secretos `HUMO_CORREO` y `HUMO_CLAVE`.
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
 
@@ -681,7 +721,7 @@ gcloud iam workload-identity-pools create github --location=global
 gcloud iam workload-identity-pools providers create-oidc solventa \
   --location=global --workload-identity-pool=github \
   --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.environment=assertion.environment" \
   --attribute-condition="assertion.repository == '<propietario>/<repositorio>'"
 
 NUMERO=$(gcloud projects describe <GCP_PROJECT_ID> --format='value(projectNumber)')
@@ -694,6 +734,36 @@ gcloud iam service-accounts add-iam-policy-binding "$CUENTA" \
 `projects/$NUMERO/locations/global/workloadIdentityPools/github/providers/solventa` y
 `GCP_SERVICE_ACCOUNT` es `$CUENTA`. La condición sobre `assertion.repository` hace que solo este
 repositorio pueda suplantar la cuenta.
+
+Para que el CD verifique el ambiente sin poder cambiarlo, `despliegue` puede **leer** (no modificar)
+Cloud SQL, los metadatos de los secretos (no su valor) y los buckets:
+
+```bash
+for rol in roles/cloudsql.viewer roles/secretmanager.viewer roles/storage.bucketViewer; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$CUENTA" --role="$rol"
+done
+```
+
+**Cuenta `infraestructura`** (Aprovisionar y Destruir). Administra Cloud SQL, Secret Manager, Storage
+y Cloud Run, y solo la puede suplantar un job del environment `staging-infraestructura`, que pide
+aprobación:
+
+```bash
+gcloud iam service-accounts create infraestructura --display-name="Aprovisionar y destruir staging"
+INFRA="infraestructura@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/cloudsql.admin roles/secretmanager.admin roles/storage.admin roles/run.admin; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$INFRA" --role="$rol"
+done
+# Borrar las imágenes del repositorio, y nada más de Artifact Registry.
+gcloud artifacts repositories add-iam-policy-binding solventa --location=<GCP_REGION> \
+  --member="serviceAccount:$INFRA" --role=roles/artifactregistry.repoAdmin
+gcloud iam service-accounts add-iam-policy-binding "$INFRA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/staging-infraestructura"
+```
+
+No recibe permisos de IAM sobre el proyecto: no puede crear cuentas ni darse más roles. Por eso las
+cuentas `run-*` y sus roles (paso 4) son parte del acceso y se crean a mano.
 
 ### 4. Cuentas de servicio de ejecución
 
@@ -708,6 +778,12 @@ for cuenta in nucleo bff web; do
     --member="serviceAccount:$CUENTA" --role=roles/iam.serviceAccountUser
 done
 NUCLEO="run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+
+# infraestructura crea los servicios con estas cuentas (Aprovisionar ambiente).
+for cuenta in nucleo bff web; do
+  gcloud iam service-accounts add-iam-policy-binding "run-$cuenta@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --member="serviceAccount:$INFRA" --role=roles/iam.serviceAccountUser
+done
 
 gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> \
   --member="serviceAccount:$NUCLEO" --role=roles/cloudsql.client
@@ -725,6 +801,10 @@ proyecto, el pipeline podría desplegar revisiones con cualquier cuenta, incluid
 defecto, que tiene rol de editor.
 
 ### 5. Primer despliegue de cada servicio
+
+> Con el acceso listo (pasos 3 y 4), el workflow
+> [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente) hace este paso y los pasos 1 (base),
+> 2, 6, 7 y 8, omitiendo lo que ya exista. Lo que sigue es lo mismo a mano, como referencia.
 
 El pipeline solo cambia la imagen y **no crea servicios**: la configuración de cada uno se fija una vez
 aquí y se conserva entre revisiones. El primer despliegue usa la imagen pública de ejemplo de Cloud
