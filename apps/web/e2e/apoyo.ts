@@ -78,3 +78,40 @@ export async function cotizarAuto(page: Page) {
   await page.getByRole('button', { name: 'Ver mi oferta' }).click()
   await expect(page.getByRole('heading', { level: 2, name: /Tu oferta/ })).toBeVisible()
 }
+
+/** El día que fue hace `dias` días en Bogotá, como `2026-10-29`: así nunca es una fecha futura. */
+export function diaEnBogota(dias: number) {
+  const fecha = new Date(Date.now() - dias * 24 * 60 * 60 * 1000)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(fecha)
+}
+
+/**
+ * Llena el reporte de un siniestro sobre la póliza de auto vigente, hasta la revisión. La descripción
+ * lleva una marca única para encontrar después ese siniestro entre los de la cuenta de prueba.
+ */
+export async function llenarReporteHastaRevision(page: Page, descripcion: string) {
+  await page.goto('/siniestros/reportar')
+  const poliza = page.getByLabel('Póliza afectada')
+  const vigente = poliza.locator('option', { hasText: '· Auto (vigente)' }).first()
+  await poliza.selectOption((await vigente.getAttribute('value'))!)
+  await page.getByLabel('Tipo de evento').selectOption({ label: 'Accidente de vehículo' })
+  await page.getByLabel('Fecha del evento').fill(diaEnBogota(2))
+  await page.getByLabel('Descripción de lo ocurrido').fill(descripcion)
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: /Evidencias/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: /Revisa tu reporte/ })).toBeVisible()
+}
+
+interface SiniestroResumen {
+  id: string
+  referencia: string
+  descripcion: string
+}
+
+/** Siniestros de la cuenta de prueba cuya descripción lleva la marca, según el BFF. */
+export async function siniestrosConMarca(page: Page, marca: string) {
+  const respuesta = await page.request.get(`${API}/siniestros`)
+  expect(respuesta.ok()).toBe(true)
+  return ((await respuesta.json()) as SiniestroResumen[]).filter((s) => s.descripcion.includes(marca))
+}
