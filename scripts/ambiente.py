@@ -86,6 +86,22 @@ def ejecutar_gcloud(args: list[str], entrada: str | None = None) -> Salida:
     return Salida(r.returncode, r.stdout, r.stderr)
 
 
+# Cómo dice gcloud que un recurso no existe, en minúsculas. Comprobado con `describe` de solo
+# lectura sobre recursos inexistentes:
+#   secrets, iam service-accounts, artifacts → "NOT_FOUND: …"
+#   run services                             → "Cannot find service [x]"
+#   storage buckets                          → "gs://x not found: 404."
+#   sql databases                            → "HTTPError 404: …"
+# Cualquier otro fallo (permiso, cuota, 5xx, instancia de Cloud SQL apagada) no dice que el recurso
+# falte, y actuar como si faltara podría reemplazar uno real.
+NO_ENCONTRADO = ("not_found", "cannot find service", "not found: 404", "httperror 404")
+
+
+def no_encontrado(error: str) -> bool:
+    error = error.lower()
+    return any(marcador in error for marcador in NO_ENCONTRADO)
+
+
 class Gcloud:
     def __init__(self, proyecto: str, ejecutar: Ejecutar = ejecutar_gcloud) -> None:
         self.proyecto = proyecto
@@ -94,16 +110,26 @@ class Gcloud:
     def intentar(self, *args: str, entrada: str | None = None) -> Salida:
         return self._ejecutar([*args, f"--project={self.proyecto}", "--quiet"], entrada)
 
+    @staticmethod
+    def fallo(args: tuple[str, ...], salida: Salida) -> GcloudError:
+        # Solo el comando, nunca sus valores: pueden llevar contraseñas.
+        ultima = (salida.error.strip().splitlines() or ["sin detalle"])[-1]
+        return GcloudError(f"gcloud {' '.join(args[:3])}: {ultima[:300]}")
+
     def __call__(self, *args: str, entrada: str | None = None, tolerar: str = "") -> str:
         salida = self.intentar(*args, entrada=entrada)
         if salida.codigo and not (tolerar and tolerar in salida.error.lower()):
-            # Solo el comando, nunca sus valores: pueden llevar contraseñas.
-            ultima = (salida.error.strip().splitlines() or ["sin detalle"])[-1]
-            raise GcloudError(f"gcloud {' '.join(args[:3])}: {ultima[:300]}")
+            raise self.fallo(args, salida)
         return salida.texto.strip()
 
     def existe(self, *args: str) -> bool:
-        return self.intentar(*args).codigo == 0
+        """True si existe; False solo si gcloud dice que no existe. Otro fallo es un error."""
+        salida = self.intentar(*args)
+        if salida.codigo == 0:
+            return True
+        if no_encontrado(salida.error):
+            return False
+        raise self.fallo(args, salida)
 
 
 @dataclass
@@ -174,6 +200,9 @@ class Ambiente:
     generar_llaves: Callable[[], tuple[str, str]] | None = None
     ahora: Callable[[], datetime] | None = None
     servicios_creados: list[str] = field(default_factory=list)
+    # Servicios que ya existían y leen un secreto que recibió una versión nueva: Cloud Run lee
+    # `latest` al arrancar, así que sin una revisión nueva seguirían con el valor anterior.
+    reiniciar: set[str] = field(default_factory=set)
 
     @property
     def proyecto(self) -> str:
@@ -205,10 +234,14 @@ class Ambiente:
         return self.gcloud.existe("secrets", "versions", "describe", "latest", f"--secret={nombre}")
 
     def instancia_del_secreto(self, nombre: str) -> str | None:
-        salida = self.gcloud.intentar(
-            "secrets", "describe", nombre, "--format=value(labels.instancia)"
-        )
-        return salida.texto.strip() or None if salida.codigo == 0 else None
+        """La etiqueta `instancia` del secreto: "" si no la tiene y None si el secreto no existe."""
+        args = ("secrets", "describe", nombre, "--format=value(labels.instancia)")
+        salida = self.gcloud.intentar(*args)
+        if salida.codigo == 0:
+            return salida.texto.strip()
+        if no_encontrado(salida.error):
+            return None
+        raise self.gcloud.fallo(args, salida)
 
     def servicio_existe(self, servicio: str) -> bool:
         return self.gcloud.existe(
@@ -225,8 +258,7 @@ class Ambiente:
 
     def agregar_version(self, nombre: str, valor: str, etiquetas: str = "") -> None:
         """Crea el secreto si falta y le agrega una versión, por la entrada estándar."""
-        creado = self.gcloud.intentar("secrets", "describe", nombre).codigo != 0
-        if creado:
+        if not self.gcloud.existe("secrets", "describe", nombre):
             self.gcloud("secrets", "create", nombre, "--replication-policy=automatic")
         self.gcloud("secrets", "versions", "add", nombre, "--data-file=-", entrada=valor)
         if etiquetas:
@@ -338,9 +370,7 @@ class Ambiente:
 
     def _usuarios(self, instancia: str) -> None:
         """Un usuario y un secreto por módulo; solo se rehacen los de otra instancia."""
-        pendientes = [
-            m for m in MODULOS_BD if self.instancia_del_secreto(f"{m}-database-url") != instancia
-        ]
+        pendientes = [m for m in MODULOS_BD if not self._cadena_vigente(m, instancia)]
         for modulo in MODULOS_BD:
             if modulo not in pendientes:
                 self.informe.existe(f"Usuario {modulo} y su secreto")
@@ -381,12 +411,38 @@ class Ambiente:
         finally:
             con.close()
 
+    def _cadena_vigente(self, modulo: str, instancia: str) -> bool:
+        """El secreto del módulo apunta a esta instancia.
+
+        Uno sin etiqueta (creado a mano) cuya cadena ya usa el socket de esta instancia se adopta:
+        se etiqueta sin rotar la contraseña. La cadena se lee pero nunca se imprime.
+        """
+        secreto = f"{modulo}-database-url"
+        etiqueta = self.instancia_del_secreto(secreto)
+        if etiqueta == instancia:
+            return True
+        if etiqueta != "":  # falta, o es de otra instancia
+            return False
+        args = ("secrets", "versions", "access", "latest", f"--secret={secreto}")
+        salida = self.gcloud.intentar(*args)
+        if salida.codigo != 0:
+            if no_encontrado(salida.error):  # existe, pero sin versiones
+                return False
+            raise self.gcloud.fallo(args, salida)
+        consulta = urllib.parse.parse_qs(urllib.parse.urlsplit(salida.texto.strip()).query)
+        if consulta.get("host") != [f"/cloudsql/{self.conexion(instancia)}"]:
+            return False
+        self.gcloud("secrets", "update", secreto, f"--update-labels=instancia={instancia}")
+        self.informe.nota(f"{secreto} ya apuntaba a {instancia}: se etiqueta sin rotar la clave")
+        return True
+
     def _guardar_cadena(self, modulo: str, clave: str, instancia: str) -> None:
         self.agregar_version(
             f"{modulo}-database-url",
             self._cadena(modulo, clave, instancia),
             etiquetas=f"instancia={instancia}",
         )
+        self.reiniciar.add("solventa-nucleo")
         self.informe.creado(f"Usuario {modulo} y su secreto")
 
     def _llaves(self) -> None:
@@ -405,6 +461,7 @@ class Ambiente:
             privada, publica = (self.generar_llaves or generar_par_de_llaves)()
             self.agregar_version("tokens-llave-privada", privada)
         self.agregar_version("tokens-llave-publica", publica)
+        self.reiniciar.update({"solventa-nucleo", "solventa-bff"})
         self.informe.creado("Llaves de firma de tokens")
 
     def _cuenta_de_prueba(self) -> None:
@@ -444,58 +501,121 @@ class Ambiente:
         self.informe.nota("Accesos a los secretos al día")
 
     def _bucket(self) -> None:
+        """Crea el bucket si falta y, exista o no, repara su ciclo de vida y sus permisos."""
         destino = f"gs://{self.bucket}"
-        if self.gcloud.existe("storage", "buckets", "describe", destino):
-            self.informe.existe(f"Bucket {self.bucket}")
-            return
-        self.gcloud(
-            "storage", "buckets", "create", destino, f"--location={self.region}",
-            "--default-storage-class=STANDARD", "--uniform-bucket-level-access",
-            "--public-access-prevention",
-        )  # fmt: skip
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as ciclo:
-            json.dump(CICLO_BUCKET, ciclo)
-        try:
+        creado = not self.gcloud.existe("storage", "buckets", "describe", destino)
+        if creado:
             self.gcloud(
-                "storage", "buckets", "update", destino, f"--lifecycle-file={ciclo.name}",
-                "--update-labels=historia=mob-f05",
+                "storage", "buckets", "create", destino, f"--location={self.region}",
+                "--default-storage-class=STANDARD", "--uniform-bucket-level-access",
+                "--public-access-prevention",
             )  # fmt: skip
-        finally:
-            os.unlink(ciclo.name)
+        reparado = self._configurar_bucket(destino)
+        if creado:
+            self.informe.creado(f"Bucket {self.bucket}")
+        elif reparado:
+            self.informe.nota(f"Bucket {self.bucket}: ya existía; se completó {reparado}")
+        else:
+            self.informe.existe(f"Bucket {self.bucket}")
+
+    def _configurar_bucket(self, destino: str) -> str:
+        """Aplica solo lo que falte; devuelve qué se completó, o "" si ya estaba."""
+        completado = []
+        formato = "--format=json(lifecycle_config)"
+        actual = json.loads(self.gcloud("storage", "buckets", "describe", destino, formato) or "{}")
+        if actual.get("lifecycle_config") != CICLO_BUCKET:
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as ciclo:
+                json.dump(CICLO_BUCKET, ciclo)
+            try:
+                self.gcloud(
+                    "storage", "buckets", "update", destino, f"--lifecycle-file={ciclo.name}",
+                    "--update-labels=historia=mob-f05",
+                )  # fmt: skip
+            finally:
+                os.unlink(ciclo.name)
+            completado.append("el ciclo de vida")
+        politica = json.loads(
+            self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json") or "{}"
+        )
+        miembro = f"serviceAccount:{self.cuenta('run-nucleo')}"
         # Crear y leer, sin borrar: la evidencia de un siniestro no se elimina desde la aplicación.
         for rol in ("roles/storage.objectCreator", "roles/storage.objectViewer"):
+            if any(
+                b.get("role") == rol and miembro in b.get("members", [])
+                for b in politica.get("bindings", [])
+            ):
+                continue
             self.gcloud(
                 "storage", "buckets", "add-iam-policy-binding", destino,
-                f"--member=serviceAccount:{self.cuenta('run-nucleo')}", f"--role={rol}",
+                f"--member={miembro}", f"--role={rol}",
             )  # fmt: skip
-        self.informe.creado(f"Bucket {self.bucket}")
+            completado.append(rol)
+        return ", ".join(completado)
 
     def _servicios(self, instancia: str) -> None:
         conexion = self.conexion(instancia)
         for servicio in SERVICIOS:
             if self.servicio_existe(servicio):
                 self.informe.existe(f"Servicio {servicio}")
-                if servicio == "solventa-nucleo":
-                    self._nucleo_en_instancia(conexion)
+                self._reconciliar(servicio, conexion)
                 continue
             self.gcloud(*self._primer_despliegue(servicio, conexion))
             self.servicios_creados.append(servicio)
             self.informe.creado(f"Servicio {servicio} (imagen de relleno hasta el próximo CD)")
 
-    def _nucleo_en_instancia(self, conexion: str) -> None:
-        descripcion = self.gcloud(
-            "run", "services", "describe", "solventa-nucleo", f"--region={self.region}",
-            "--format=json(spec.template.metadata.annotations)",
-        )  # fmt: skip
-        plantilla = json.loads(descripcion or "{}").get("spec", {}).get("template", {})
-        anotaciones = plantilla.get("metadata", {}).get("annotations", {})
-        actual = anotaciones.get("run.googleapis.com/cloudsql-instances")
-        if actual != conexion:
-            self.gcloud(
-                "run", "services", "update", "solventa-nucleo", f"--region={self.region}",
-                f"--set-cloudsql-instances={conexion}",
+    def _configuracion_nucleo(self) -> tuple[dict[str, str], dict[str, str]]:
+        """Secretos (variable → secreto) y variables que debe tener el núcleo."""
+        montados = {v: s for v, s in SECRETOS_NUCLEO.items() if self.secreto_existe(s)}
+        variables = {
+            "ALMACENAMIENTO_EVIDENCIAS": "gcs",
+            "EVIDENCIAS_BUCKET": self.bucket,
+            "POLIZAS_SEMILLA": SEMILLA_POLIZAS,
+        }
+        return montados, variables
+
+    def _reconciliar(self, servicio: str, conexion: str) -> None:
+        """Agrega al servicio existente lo que le falte, sin tocar lo demás (`--update-*`).
+
+        Si no falta nada, no lo actualiza: cada actualización crea una revisión nueva.
+        """
+        secretos: dict[str, str] = {}
+        variables: dict[str, str] = {}
+        otros: list[str] = []
+        if servicio == "solventa-nucleo":
+            descripcion = self.gcloud(
+                "run", "services", "describe", servicio, f"--region={self.region}",
+                "--format=json(spec.template)",
             )  # fmt: skip
-            self.informe.nota(f"solventa-nucleo apunta ahora a {conexion}")
+            plantilla = json.loads(descripcion or "{}").get("spec", {}).get("template", {})
+            contenedor = (plantilla.get("spec", {}).get("containers") or [{}])[0]
+            actuales = {e["name"]: e for e in contenedor.get("env", [])}
+            esperados, valores = self._configuracion_nucleo()
+            for variable, secreto in esperados.items():
+                referencia = actuales.get(variable, {}).get("valueFrom", {}).get("secretKeyRef", {})
+                if referencia.get("name") != secreto:
+                    secretos[variable] = secreto
+            for variable, valor in valores.items():
+                if actuales.get(variable, {}).get("value") != valor:
+                    variables[variable] = valor
+            anotaciones = plantilla.get("metadata", {}).get("annotations", {})
+            if anotaciones.get("run.googleapis.com/cloudsql-instances") != conexion:
+                otros.append(f"--set-cloudsql-instances={conexion}")
+        if servicio in self.reiniciar:
+            # Una revisión nueva para que lea la versión nueva de sus secretos.
+            ahora = self.ahora() if self.ahora else datetime.now(UTC)
+            variables["CREDENCIALES_ROTADAS"] = f"{ahora:%Y%m%dT%H%M%SZ}"
+        if not (secretos or variables or otros):
+            return
+        args = ["run", "services", "update", servicio, f"--region={self.region}", *otros]
+        if secretos:
+            args.append(
+                "--update-secrets=" + ",".join(f"{v}={s}:latest" for v, s in secretos.items())
+            )
+        if variables:
+            args.append("--update-env-vars=" + ",".join(f"{v}={x}" for v, x in variables.items()))
+        self.gcloud(*args)
+        cambios = [*secretos, *variables, *(["Cloud SQL"] if otros else [])]
+        self.informe.nota(f"{servicio}: se actualizó {', '.join(cambios)}")
 
     def _primer_despliegue(self, servicio: str, conexion: str) -> list[str]:
         """El primer despliegue fija la cuenta, las variables y los secretos; el CD los conserva."""
@@ -504,12 +624,7 @@ class Ambiente:
             f"--service-account={self.cuenta(CUENTAS[servicio])}", "--allow-unauthenticated",
         ]  # fmt: skip
         if servicio == "solventa-nucleo":
-            montados = {v: s for v, s in SECRETOS_NUCLEO.items() if self.secreto_existe(s)}
-            variables = {
-                "ALMACENAMIENTO_EVIDENCIAS": "gcs",
-                "EVIDENCIAS_BUCKET": self.bucket,
-                "POLIZAS_SEMILLA": SEMILLA_POLIZAS,
-            }
+            montados, variables = self._configuracion_nucleo()
             # Una sola instancia mientras haya módulos con estado en memoria.
             args += [
                 "--min-instances=1",
@@ -597,6 +712,10 @@ def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int
                 return 2
             ambiente.destruir()
     except (GcloudError, FaltaAccesoError) as error:
+        if args.accion == "verificar":
+            # Verificar solo avisa: un fallo al consultar no debe poner el CD en rojo.
+            print(f"::warning::No se pudo verificar el ambiente: {error}")
+            return 0
         print(f"::error::{error}")
         return 1
     return 0

@@ -343,6 +343,18 @@ Detalles que conviene saber:
 - **Las contraseñas y llaves nuevas** se generan en el runner y llegan a Secret Manager por la entrada
   estándar de `gcloud`; nunca se imprimen. Un ambiente recreado tiene llaves de tokens nuevas, así que
   las sesiones anteriores dejan de valer.
+- **"No existe" solo cuando gcloud lo dice.** Un recurso se crea únicamente si gcloud responde que no
+  existe (`NOT_FOUND`, `Cannot find service`, `not found: 404`, `HTTPError 404`). Cualquier otro
+  fallo, como un permiso faltante, un 5xx o la instancia de Cloud SQL apagada, detiene Aprovisionar
+  sin crear ni rotar nada. En el job "Verificar ambiente" del CD, ese mismo fallo queda como aviso.
+- **Lo que ya existe se completa, no se reemplaza.** Al núcleo existente se le agregan los secretos y
+  las variables que le falten (`--update-*`, sin borrar los demás), y al bucket, el ciclo de vida y
+  los permisos de `run-nucleo` que le falten. Si no falta nada, no se toca: cada actualización de un
+  servicio crea una revisión.
+- **Una clave rotada reinicia a quien la usa.** Cloud Run lee `latest` al arrancar, así que si
+  Aprovisionar rota una contraseña o genera llaves nuevas, publica una revisión del núcleo (y del BFF,
+  si son las llaves) con la variable `CREDENCIALES_ROTADAS`. Un secreto `*-database-url` creado a mano
+  sin etiqueta que ya apunta a la instancia se etiqueta sin rotar su contraseña.
 - **La cuenta de prueba** sale de los secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment
   `staging-infraestructura`; si faltan, se avisa y no se crea.
 - Mientras el ambiente esté destruido, el CD de cada merge avisa en el job "Verificar ambiente" y no
