@@ -1,6 +1,7 @@
 package co.solventa.mobile.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -26,6 +27,15 @@ fun SolventaRaiz(
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
 ) {
     val nav = rememberNavController()
+    val sesion = dependencias.sesion
+    // Vencida la sesión (el cliente del BFF no pudo renovarla), se vacía la pila protegida y se vuelve
+    // a Ingreso, que ofrece la huella si sigue activa (WEB-F13).
+    LaunchedEffect(sesion.vencida) {
+        if (sesion.vencida) {
+            sesion.vencimientoAtendido()
+            nav.reiniciarEn(RutasEntrada.INGRESO)
+        }
+    }
     val alIngresar = { cliente: Cliente -> nav.reiniciarEn(destinoTrasIngreso(cliente, dependencias)) }
     val alAprobar = { nav.reiniciarEn(destinoTrasAprobacion(dependencias)) }
     val alInicio = { nav.reiniciarEn(RutasEntrada.INICIO) }
@@ -68,9 +78,12 @@ fun SolventaRaiz(
         composable(RutasEntrada.BIOMETRIA) { RutaOfertaBiometria(dependencias, onTerminar = alInicio) }
         composable(RutasEntrada.INICIO) {
             SolventaApp(
-                identidadVerificada = dependencias.sesion.identidadVerificada,
+                identidadVerificada = sesion.identidadVerificada,
                 dependenciasConsentimiento = dependenciasConsentimiento,
-                onSesionVencida = { nav.reiniciarEn(RutasEntrada.INGRESO) },
+                // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
+                onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
+                avisoBiometriaDesactivada = sesion.biometriaDesactivada,
+                onAvisoAtendido = sesion::avisoBiometriaAtendido,
             )
         }
     }

@@ -32,6 +32,7 @@ import co.solventa.mobile.mock.CORREO_DEMO
 import co.solventa.mobile.mock.MockBffMovil
 import javax.crypto.Cipher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -47,8 +48,8 @@ class SolventaRaizTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val sesion = GestorSesion()
     private val almacen = AlmacenEnMemoria()
+    private val sesion = GestorSesion(almacen)
     private val biometria = BiometriaSimulada()
     private val dependencias = DependenciasOnboarding(
         api = NetworkClient.create(
@@ -134,6 +135,36 @@ class SolventaRaizTest {
         assertEquals(listOf(PropositoBiometrico.ACTIVAR, PropositoBiometrico.INGRESAR), biometria.propositos)
         assertEquals(sesion.sesion?.tokenRefresco, almacen.token)
         assertNotEquals("la renovación rota el token", tokenActivado, almacen.token)
+    }
+
+    private fun entrarConHuellaActiva() {
+        mostrar()
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("oferta"))
+        compose.onNodeWithText("Activar").performClick()
+        compose.onNodeWithText("Ir al inicio").performClick()
+        compose.onNodeWithTag("screen-home").assertIsDisplayed()
+    }
+
+    @Test
+    fun `una sesion vencida que no se pudo renovar vuelve a ingreso con la huella activa`() {
+        entrarConHuellaActiva()
+        compose.runOnIdle { sesion.alVencer(tokenRechazado = false) }
+        compose.esperar(hasText("Ingresar con huella o rostro"))
+        compose.onNodeWithTag("screen-home").assertDoesNotExist()
+        assertNull(sesion.sesion)
+        assertFalse("el aviso se consume al navegar", sesion.vencida)
+    }
+
+    @Test
+    fun `un token de refresco rechazado vuelve a ingreso y pide la contrasena`() {
+        entrarConHuellaActiva()
+        compose.runOnIdle { sesion.alVencer(tokenRechazado = true) }
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.onNodeWithText("Ingresar con huella o rostro").assertDoesNotExist()
+        assertNull(almacen.token)
     }
 
     @Test

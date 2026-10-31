@@ -265,7 +265,7 @@ class PantallaConsentimientoTest {
     @Test
     fun `401 se delega al flujo de sesion`() {
         mostrar(consentimientos = listOf(consentimientoVigente()))
-        api.revocar = { throw fallaBff(401, "no_autenticado") }
+        api.revocar = { throw fallaBff(401, "sesion_no_vigente") }
         compose.onNodeWithTag("boton-revocar-cotizacion").performClick()
         compose.onNodeWithTag("boton-confirmar-revocar").performClick()
         compose.waitForIdle()

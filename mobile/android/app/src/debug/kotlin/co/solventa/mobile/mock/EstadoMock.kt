@@ -37,7 +37,7 @@ internal fun fallo(
     intentosRestantes: Int? = null,
 ) = respuesta(codigo, ErrorBff(clave, "Mock BFF móvil: $clave", campos, intentosRestantes))
 
-internal fun noAutenticado() = fallo(401, "no_autenticado")
+internal fun noAutenticado() = fallo(401, "sesion_no_vigente")
 
 internal class CuentaMock(
     val id: String,

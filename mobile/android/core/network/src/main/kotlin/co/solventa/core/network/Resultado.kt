@@ -1,6 +1,7 @@
 package co.solventa.core.network
 
 import java.io.IOException
+import kotlinx.serialization.SerializationException
 import retrofit2.HttpException
 
 /** Resultado de una operación del BFF, ya traducido a lo que la interfaz necesita decidir. */
@@ -21,6 +22,9 @@ sealed interface Resultado<out T> {
     data object SinConexion : Resultado<Nothing>
 }
 
+/** Estado de una [Resultado.Falla] sin respuesta HTTP utilizable: un cuerpo que no cumple el contrato. */
+const val HTTP_RESPUESTA_ILEGIBLE = 0
+
 suspend fun <T> llamarBff(llamada: suspend () -> T): Resultado<T> = try {
     Resultado.Exito(llamada())
 } catch (http: HttpException) {
@@ -31,6 +35,9 @@ suspend fun <T> llamarBff(llamada: suspend () -> T): Resultado<T> = try {
         error = error,
         reintentarEnSegundos = http.response()?.headers()?.get("Retry-After")?.toLongOrNull(),
     )
+} catch (ignored: SerializationException) {
+    // Un cuerpo que no cumple el contrato (campo faltante, enum desconocido): error genérico, sin cerrar la app.
+    Resultado.Falla(http = HTTP_RESPUESTA_ILEGIBLE, codigo = null)
 } catch (ignored: IOException) {
     Resultado.SinConexion
 }

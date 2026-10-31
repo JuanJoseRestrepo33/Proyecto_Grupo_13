@@ -25,7 +25,7 @@ class DebugMockInterceptorTest {
         val request = Request.Builder().url(BuildConfig.BASE_URL + "sesion").build()
         client.newCall(request).execute().use { response ->
             assertEquals(401, response.code)
-            assertTrue(response.body?.string().orEmpty().contains("no_autenticado"))
+            assertTrue(response.body?.string().orEmpty().contains("sesion_no_vigente"))
         }
     }
 }

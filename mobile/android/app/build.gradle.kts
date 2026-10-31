@@ -9,10 +9,23 @@ plugins {
 
 val bffBaseUrl = providers.gradleProperty("BFF_BASE_URL").orElse("https://mobile-bff.invalid/api/v1/movil/")
 val parsedBaseUrl = URI(bffBaseUrl.get())
-require(parsedBaseUrl.scheme == "https" && parsedBaseUrl.host != null &&
-    parsedBaseUrl.rawUserInfo == null && parsedBaseUrl.rawQuery == null &&
+// HTTP solo hacia la máquina local (el BFF simulado con Mockoon); el emulador la ve como 10.0.2.2.
+val hostLocal = parsedBaseUrl.host in setOf("10.0.2.2", "localhost", "127.0.0.1")
+require((parsedBaseUrl.scheme == "https" || parsedBaseUrl.scheme == "http" && hostLocal) &&
+    parsedBaseUrl.host != null && parsedBaseUrl.rawUserInfo == null && parsedBaseUrl.rawQuery == null &&
     parsedBaseUrl.rawFragment == null && bffBaseUrl.get().endsWith("/")) {
-    "BFF_BASE_URL debe ser una URL HTTPS sin credenciales, query ni fragmento y terminar en /."
+    "BFF_BASE_URL debe ser HTTPS (HTTP solo hacia 10.0.2.2 o localhost), sin credenciales, query ni fragmento " +
+        "y terminar en /."
+}
+// Debug responde con el mock salvo -PBFF_MOCK=false, que habla con el BFF del ambiente (WEB-F13).
+val bffMock = providers.gradleProperty("BFF_MOCK").orElse("true").get().let {
+    requireNotNull(it.toBooleanStrictOrNull()) { "BFF_MOCK debe ser true o false, no '$it'." }
+}
+require(bffMock || !parsedBaseUrl.host.endsWith(".invalid")) {
+    "BFF_MOCK=false necesita la URL del ambiente: -PBFF_BASE_URL=<URL de solventa-bff>/api/v1/movil/"
+}
+require(bffMock || parsedBaseUrl.rawPath.endsWith("/api/v1/movil/")) {
+    "BFF_BASE_URL debe terminar en el prefijo del router móvil: /api/v1/movil/"
 }
 
 android {
@@ -36,6 +49,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "BASE_URL", "\"${bffBaseUrl.get()}\"")
+        buildConfigField("boolean", "BFF_MOCK", bffMock.toString())
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures {
