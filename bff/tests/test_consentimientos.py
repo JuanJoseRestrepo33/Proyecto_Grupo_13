@@ -6,13 +6,9 @@ error. Lo único que cambia es cómo viaja la sesión y el canal que se le pasa 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import pytest
 
-from app.web.dependencias import COOKIE_SESION
-
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, al_nucleo, problema
 
 NUCLEO = f"/v1/consentimiento/clientes/{CLIENTE}/consentimientos"
 SOLICITUD = {
@@ -50,34 +46,6 @@ EVENTO = {
 }
 
 
-@dataclass
-class Canal:
-    nombre: str
-    prefijo: str
-
-
-CANALES = [Canal("web", "/api/v1/web"), Canal("movil", "/api/v1/movil")]
-
-
-@pytest.fixture(params=CANALES, ids=lambda c: c.nombre)
-def canal(request) -> Canal:
-    return request.param
-
-
-@pytest.fixture
-def con_sesion(cliente, firmante, canal):
-    token = firmante.emitir(canal=canal.nombre)
-    if canal.nombre == "web":
-        cliente.cookies.set(COOKIE_SESION, token)
-    else:
-        cliente.headers["Authorization"] = f"Bearer {token}"
-    return cliente
-
-
-def _al_nucleo(nucleo) -> list:
-    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
-
-
 @pytest.mark.parametrize(
     ("metodo", "ruta"),
     [
@@ -95,7 +63,7 @@ def test_sin_sesion_toda_ruta_es_401_sin_tocar_el_nucleo(cliente, nucleo, canal,
 
     assert respuesta.status_code == 401
     assert respuesta.json()["codigo"] == "sesion_no_vigente"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_las_finalidades_llegan_del_nucleo(con_sesion, nucleo, canal):
@@ -115,7 +83,7 @@ def test_la_lista_es_la_del_cliente_de_la_sesion(con_sesion, nucleo, canal):
     assert nucleo.ultima.url.path == NUCLEO
 
 
-def test_otorgar_pasa_el_canal_al_nucleo(con_sesion, nucleo, canal):
+def test_otorgar_pasa_el_canalal_nucleo(con_sesion, nucleo, canal):
     """Criterio 3: queda registrado el canal por el que se otorgó."""
     nucleo.responder("POST", NUCLEO, 201, CONSENTIMIENTO)
 
@@ -134,12 +102,12 @@ def test_otorgar_pasa_el_canal_al_nucleo(con_sesion, nucleo, canal):
         ({"entidades_origen": []}, "entidades_invalidas"),
     ],
 )
-def test_una_solicitud_invalida_no_llega_al_nucleo(con_sesion, nucleo, canal, cambio, codigo):
+def test_una_solicitud_invalida_no_llegaal_nucleo(con_sesion, nucleo, canal, cambio, codigo):
     respuesta = con_sesion.post(f"{canal.prefijo}/consentimientos", json={**SOLICITUD, **cambio})
 
     assert respuesta.status_code == 422
     assert respuesta.json()["codigo"] == codigo
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 @pytest.mark.parametrize(
@@ -214,4 +182,4 @@ def test_un_identificador_inseguro_es_404_sin_tocar_el_nucleo(con_sesion, nucleo
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "consentimiento_no_encontrado"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []

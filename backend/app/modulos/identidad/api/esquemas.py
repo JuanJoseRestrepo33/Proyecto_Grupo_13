@@ -1,7 +1,8 @@
 """DTO del contrato v1 de identidad.
 
-`VerificacionIdentidadDto` tiene la misma forma que `VerificacionIdentidad` del contrato
-del BFF móvil (`contratos/bff-movil/openapi.yaml`), para que el BFF la pase tal cual.
+`VerificacionIdentidadDto` tiene los campos de `VerificacionIdentidad` del contrato del BFF
+móvil (`contratos/bff-movil/openapi.yaml`) y además `solicitada_en` y `proveedor`, que el BFF
+no le pasa a la app.
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..aplicacion.cuentas import SesionAbierta
 from ..dominio.cuenta import Cuenta, DatosDeRegistro, Registro
 from ..dominio.modelo import (
-    DatosDeIdentidad,
     EstadoIdentidad,
     EstadoVerificacion,
     MotivoRechazo,
@@ -30,19 +30,6 @@ class Canal(StrEnum):
 
 class _Dto(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class SolicitudVerificacionDto(_Dto):
-    nombre_completo: str = Field(min_length=3, max_length=120)
-    tipo_documento: TipoDocumento
-    numero_documento: str = Field(pattern=r"^[A-Za-z0-9]{5,15}$")
-
-    def a_datos(self) -> DatosDeIdentidad:
-        return DatosDeIdentidad(
-            nombre_completo=self.nombre_completo,
-            tipo_documento=self.tipo_documento,
-            numero_documento=self.numero_documento,
-        )
 
 
 class VerificacionIdentidadDto(_Dto):

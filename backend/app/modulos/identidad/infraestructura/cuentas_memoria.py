@@ -8,15 +8,18 @@ from __future__ import annotations
 
 import itertools
 import threading
+import time
 
 from ..dominio.cuenta import Cuenta, Registro
 from ..dominio.sesion import Refresco
 
 
 class RepositorioDeCuentasEnMemoria:
-    def __init__(self) -> None:
+    def __init__(self, inicio: int | None = None) -> None:
+        """El consecutivo arranca en la hora de inicio, no en 1: las cuentas se pierden con
+        cada revisión, pero un id ya entregado no puede volver a usarse."""
         self._por_id: dict[str, Cuenta] = {}
-        self._consecutivo = itertools.count(1)
+        self._consecutivo = itertools.count(int(time.time()) if inicio is None else inicio)
         self._cerrojo = threading.Lock()
 
     def guardar(self, cuenta: Cuenta) -> None:

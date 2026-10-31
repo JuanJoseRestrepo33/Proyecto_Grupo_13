@@ -25,6 +25,18 @@ class VerificacionEnCursoError(ReglaDeNegocioViolada):
     codigo = "verificacion_en_curso"
 
 
+class ReintentoNoPermitidoError(ReglaDeNegocioViolada):
+    """El último rechazo no admite reintento: la regla no puede vivir solo en la app."""
+
+    codigo = "reintento_no_permitido"
+
+
+class ReintentoSinCambiosError(ReglaDeNegocioViolada):
+    """`datos_no_coinciden` no cambia reenviando los mismos datos: no se gasta otra consulta."""
+
+    codigo = "reintento_sin_cambios"
+
+
 class ProveedorKYCNoDisponibleError(DependenciaNoDisponible):
     """El proveedor de KYC/AML falló o no respondió a tiempo.
 
@@ -36,6 +48,12 @@ class ProveedorKYCNoDisponibleError(DependenciaNoDisponible):
 
 
 # -- registro y verificación del correo (MOB-F01, WEB-F13) ---------------------------
+
+
+class CorreoNoVerificadoError(ReglaDeNegocioViolada):
+    """La verificación de identidad viene después del OTP: registro → OTP → KYC."""
+
+    codigo = "correo_no_verificado"
 
 
 class CorreoYaRegistradoError(ReglaDeNegocioViolada):

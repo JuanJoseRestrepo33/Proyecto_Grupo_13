@@ -281,16 +281,18 @@ Verificación de identidad del cliente contra el proveedor de KYC/AML, detrás d
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `POST` | `/v1/identidad/clientes/{id_cliente}/verificaciones` | Envía los datos al proveedor (202). 409 si ya está verificada o hay una en curso; 503 si el proveedor no responde |
+| `POST` | `/v1/identidad/clientes/{id_cliente}/verificaciones` | Envía al proveedor los datos de la cuenta, sin cuerpo (202). 404 sin cuenta; 409 `correo_no_verificado`, `identidad_ya_verificada`, `verificacion_en_curso`, `reintento_no_permitido` o `reintento_sin_cambios`; 503 si el proveedor no responde |
 | `GET` | `/v1/identidad/clientes/{id_cliente}/verificaciones/ultima` | Última verificación. Si estaba `en_proceso`, pregunta al proveedor antes de responder |
 | `GET` | `/v1/identidad/clientes/{id_cliente}/estado` | `pendiente_verificacion`, `en_revision`, `verificada` o `rechazada`: lo que el BFF pone en `/sesion` |
 
-El BFF móvil expone esto como `/identidad/verificacion`; la forma de la respuesta es la
-misma del contrato (`id`, `estado`, `motivo`, `reintento_permitido`, `actualizada_en`).
+El BFF móvil expone esto como `/identidad/verificacion`, sin cuerpo: el documento se queda en
+el núcleo. De la respuesta le pasa a la app lo del contrato (`id`, `estado`, `motivo`,
+`reintento_permitido`, `actualizada_en`), sin `solicitada_en` ni `proveedor`.
 
 **Proveedor simulado.** Determinista y con la misma regla que el mock del BFF móvil, para
 que la app se comporte igual contra el núcleo que contra sus mocks: el último dígito del
-documento decide. `7` rechazada (`datos_no_coinciden`, con reintento), `8` en revisión
+documento decide. `7` rechazada (`datos_no_coinciden`, con reintento; reenviar los mismos datos responde 409
+`reintento_sin_cambios` sin llamar al proveedor), `8` en revisión
 manual, `9` en proceso y aprobada en la siguiente consulta, cualquier otro aprobada.
 `IDENTIDAD_KYC_CAIDO=1` lo deja fuera de servicio: toda solicitud responde 503 con
 `proveedor_kyc_no_disponible` y `/salud` reporta `proveedor_kyc: caido`. El núcleo nunca ve

@@ -8,7 +8,7 @@ import pytest
 
 from app.web.dependencias import COOKIE_SESION
 
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, al_nucleo, problema
 
 RUTA = "/api/v1/web/sesion"
 NUCLEO = "/v1/identidad"
@@ -83,7 +83,7 @@ def test_credenciales_mal_formadas_son_422(cliente, nucleo, cuerpo):
     respuesta = cliente.post(RUTA, json=cuerpo)
 
     assert respuesta.status_code == 422
-    assert [s for s in nucleo.solicitudes if s.url.path != "/salud"] == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_consultar_la_sesion_con_la_cookie(cliente, nucleo, firmante):
@@ -115,6 +115,16 @@ def test_si_la_cuenta_ya_no_existe_en_el_nucleo_la_sesion_es_401(cliente, nucleo
 
     assert respuesta.status_code == 401
     assert respuesta.json()["codigo"] == "sesion_no_vigente"
+
+
+def test_otro_404_del_nucleo_no_vence_la_sesion(cliente, nucleo, firmante):
+    nucleo.responder("GET", f"{NUCLEO}/clientes/{CLIENTE}", problema(404, "recurso_no_encontrado"))
+    cliente.cookies.set(COOKIE_SESION, firmante.emitir(canal="web"))
+
+    respuesta = cliente.get(RUTA)
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "recurso_no_encontrado"
 
 
 def test_un_error_del_nucleo_al_consultar_la_sesion_no_se_disfraza(cliente, nucleo, firmante):

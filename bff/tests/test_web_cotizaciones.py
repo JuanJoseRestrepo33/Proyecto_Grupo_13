@@ -10,7 +10,7 @@ import pytest
 
 from app.web.dependencias import COOKIE_SESION
 
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, al_nucleo, problema
 
 RUTA = "/api/v1/web/cotizaciones"
 NUCLEO = "/v1/cotizacion"
@@ -74,10 +74,6 @@ def web(cliente, firmante):
     return cliente
 
 
-def _al_nucleo(nucleo) -> list:
-    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
-
-
 def test_los_productos_llegan_con_el_formato_de_la_web(web, nucleo):
     nucleo.responder("GET", f"{NUCLEO}/productos", 200, [PRODUCTO])
 
@@ -111,7 +107,7 @@ def test_sin_sesion_toda_ruta_responde_401(cliente, nucleo, metodo, ruta):
 
     assert respuesta.status_code == 401
     assert respuesta.json()["codigo"] == "sesion_no_vigente"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_cotizar_usa_el_cliente_de_la_sesion_y_el_canal_web(web, nucleo):
@@ -178,12 +174,12 @@ def test_con_el_perfil_en_cache_la_tarifa_sigue_siendo_personalizada(web, nucleo
         ({"usar_open_finance": None}, "solicitud_invalida"),
     ],
 )
-def test_datos_invalidos_no_llegan_al_nucleo(web, nucleo, cambio, codigo):
+def test_datos_invalidos_no_lleganal_nucleo(web, nucleo, cambio, codigo):
     respuesta = web.post(RUTA, json={**SOLICITUD, **cambio})
 
     assert respuesta.status_code == 422
     assert respuesta.json()["codigo"] == codigo
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_consultar_una_cotizacion_propia(web, nucleo):
@@ -230,7 +226,7 @@ def test_no_se_recotiza_la_cotizacion_de_otro(web, nucleo):
     respuesta = web.post(f"{RUTA}/QT-2026-08831/recotizacion")
 
     assert respuesta.status_code == 404
-    assert [s.method for s in _al_nucleo(nucleo)] == ["GET"]
+    assert [s.method for s in al_nucleo(nucleo)] == ["GET"]
 
 
 def test_el_nucleo_caido_es_503_para_la_web(web, nucleo):
@@ -245,7 +241,7 @@ def test_el_nucleo_caido_es_503_para_la_web(web, nucleo):
 
 
 @pytest.mark.parametrize("identificador", ["QT..2026", "QT.2026", "QT 2026", "a" * 129])
-def test_un_identificador_que_no_es_un_segmento_seguro_no_llega_al_nucleo(
+def test_un_identificador_que_no_es_un_segmento_seguro_no_llegaal_nucleo(
     web, nucleo, identificador
 ):
     """Un `..` no puede llevar la solicitud a otra ruta del núcleo."""
@@ -255,4 +251,4 @@ def test_un_identificador_que_no_es_un_segmento_seguro_no_llega_al_nucleo(
     ):
         assert respuesta.status_code == 404
         assert respuesta.json()["codigo"] == "cotizacion_no_encontrada"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []

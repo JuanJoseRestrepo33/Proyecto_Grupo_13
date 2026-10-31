@@ -10,12 +10,17 @@ import pytest
 
 from app.compartido.eventos import BusEnProceso
 from app.compartido.reloj import RelojFijo
-from app.modulos.identidad.aplicacion.cuentas import EVENTO_CLIENTE_REGISTRADO, ServicioDeCuentas
+from app.modulos.identidad.aplicacion.cuentas import (
+    EVENTO_CLIENTE_REGISTRADO,
+    ID_CUENTA_PRUEBA,
+    ServicioDeCuentas,
+)
 from app.modulos.identidad.dominio import credenciales
 from app.modulos.identidad.dominio.credenciales import ContrasenaDebilError
 from app.modulos.identidad.dominio.cuenta import DatosDeRegistro
 from app.modulos.identidad.dominio.errores import (
     ClienteNoEncontradoError,
+    CorreoNoVerificadoError,
     CorreoYaRegistradoError,
     CredencialesInvalidasError,
     DocumentoYaRegistradoError,
@@ -29,6 +34,7 @@ from app.modulos.identidad.dominio.errores import (
 )
 from app.modulos.identidad.dominio.modelo import EstadoIdentidad, TipoDocumento
 from app.modulos.identidad.dominio.sesion import SesionNoVigenteError
+from app.modulos.identidad.infraestructura import cuentas_memoria
 from app.modulos.identidad.infraestructura.codigos_simulados import (
     CanalDeCodigosSimulado,
     enmascarar,
@@ -83,7 +89,7 @@ def entorno() -> Entorno:
     accesos = AccesosEnMemoria()
     bus = BusEnProceso()
     emisor = EmisorEs256.efimero()
-    cuentas = RepositorioDeCuentasEnMemoria()
+    cuentas = RepositorioDeCuentasEnMemoria(inicio=1)
     servicio = ServicioDeCuentas(
         cuentas=cuentas,
         registros=RepositorioDeRegistrosEnMemoria(),
@@ -401,5 +407,41 @@ def test_la_cuenta_de_prueba_entra_sin_registrarse_y_no_se_duplica(entorno):
 
     assert segunda == primera
     assert primera.correo_verificado is True
+    assert primera.id_cliente == ID_CUENTA_PRUEBA
     assert sesion.cuenta.id_cliente == primera.id_cliente
     assert entorno.bus.publicados(EVENTO_CLIENTE_REGISTRADO) == ()
+
+
+# -- datos para el proveedor de KYC/AML -------------------------------------------------
+
+
+def test_sin_confirmar_el_correo_no_hay_datos_para_verificar_la_identidad(entorno):
+    _, cuenta = entorno.servicio.registrar(DATOS, "movil")
+
+    with pytest.raises(CorreoNoVerificadoError):
+        entorno.servicio.datos_de_identidad(cuenta.id_cliente)
+
+
+def test_con_el_correo_confirmado_los_datos_son_los_del_registro(entorno):
+    registro, cuenta = entorno.servicio.registrar(DATOS, "movil")
+    entorno.servicio.verificar_correo(registro.id_registro, _codigo(entorno), "movil")
+
+    datos = entorno.servicio.datos_de_identidad(cuenta.id_cliente)
+
+    assert datos.numero_documento == DATOS.numero_documento
+    assert datos.tipo_documento is DATOS.tipo_documento
+
+
+# -- identificadores que no se reutilizan -----------------------------------------------
+
+
+def test_un_id_de_cliente_no_se_repite_tras_un_reinicio(monkeypatch):
+    monkeypatch.setattr(cuentas_memoria.time, "time", lambda: 1_790_000_000.5)
+    antes = RepositorioDeCuentasEnMemoria()
+    entregados = {antes.siguiente_id(2026), antes.siguiente_id(2026)}
+
+    monkeypatch.setattr(cuentas_memoria.time, "time", lambda: 1_790_000_060.5)
+    despues = RepositorioDeCuentasEnMemoria().siguiente_id(2026)
+
+    assert despues == "CLI-2026-1790000060"
+    assert despues not in entregados

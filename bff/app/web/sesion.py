@@ -14,8 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, Field
 
-from app.comun.errores import ErrorBff
-from app.comun.sesion import sesion_no_vigente
+from app.comun.sesion import cuenta_vigente
 
 from .dependencias import CANAL, COOKIE_SESION, PREFIJO, ClienteWeb, Nucleo
 
@@ -48,12 +47,8 @@ def _segundos_hasta(expira_en: str) -> int:
 def obtener(cliente: ClienteWeb, nucleo: Nucleo) -> dict[str, object]:
     """Si la cuenta ya no existe en el núcleo (por ejemplo, tras una revisión nueva con las
     cuentas en memoria), la sesión no es vigente: la web vuelve a iniciar sesión."""
-    try:
+    with cuenta_vigente():
         cuenta = nucleo.get(f"{RUTA_NUCLEO}/clientes/{cliente.id_cliente}")
-    except ErrorBff as error:
-        if error.estado == status.HTTP_404_NOT_FOUND:
-            raise sesion_no_vigente() from error
-        raise
     return a_sesion(cuenta)
 
 

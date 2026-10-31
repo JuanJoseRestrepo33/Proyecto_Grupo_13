@@ -36,6 +36,7 @@ BFF_SANO = {
     "/productos": 401,
     "/web/sesion": 401,
     "/movil/sesion": 401,
+    "/identidad/verificacion": 401,
     "/consentimientos/finalidades": 401,
     "/consentimientos": 401,
     "/revocacion": 401,
@@ -322,11 +323,23 @@ def test_agota_los_intentos_y_devuelve_el_ultimo_error():
     assert esperas == [1, 1]
 
 
+@pytest.mark.parametrize("metodo", ["GET", "POST"])
+def test_un_404_en_la_verificacion_de_identidad_del_router_movil_detiene_el_despliegue(metodo):
+    pedir = _respondiendo({**BFF_SANO, "/identidad/verificacion": 404})
+
+    resultado = humo.fallas("bff", "https://x", pedir)
+
+    assert (
+        f"{metodo} /api/v1/movil/identidad/verificacion (sin token): se esperaba 401, llegó 404"
+        in resultado.errores
+    )
+
+
 class _Manejador(http.server.BaseHTTPRequestHandler):
     def _responder(self):
         rutas = {"/salud": 200, "/api/v1/web/cotizaciones/productos": 401}
         protegida = (
-            self.path.endswith(("/sesion", "/evidencias", "/polizas"))
+            self.path.endswith(("/sesion", "/evidencias", "/polizas", "/identidad/verificacion"))
             or "/consentimientos" in self.path
             or "/siniestros" in self.path
         )

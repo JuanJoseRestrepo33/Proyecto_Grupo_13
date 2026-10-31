@@ -7,6 +7,8 @@ no abre sesión en la app ni al revés.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,6 +18,7 @@ from .errores import ErrorBff
 from .tokens import TokenInvalido, VerificadorDeTokens
 
 CODIGO_NO_VIGENTE = "sesion_no_vigente"
+CODIGO_CLIENTE_NO_ENCONTRADO = "cliente_no_encontrado"
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,22 @@ def sesion_no_vigente(encabezados: dict[str, str] | None = None) -> ErrorBff:
         "No hay una sesión vigente",
         encabezados=encabezados,
     )
+
+
+@contextmanager
+def cuenta_vigente(encabezados_401: dict[str, str] | None = None) -> Iterator[None]:
+    """Envuelve una llamada al núcleo hecha con el cliente de la sesión.
+
+    Si la cuenta ya no existe (viven en memoria y un despliegue las borra), la sesión no es
+    vigente. Solo ese 404: cualquier otro, como una ruta que falta en el núcleo, es un problema
+    del servicio y no puede verse como una sesión vencida.
+    """
+    try:
+        yield
+    except ErrorBff as error:
+        if error.codigo == CODIGO_CLIENTE_NO_ENCONTRADO:
+            raise sesion_no_vigente(encabezados_401) from error
+        raise
 
 
 def autenticar(

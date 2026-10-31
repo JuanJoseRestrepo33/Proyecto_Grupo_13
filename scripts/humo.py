@@ -136,6 +136,11 @@ RUTAS = (
         encabezados={"Authorization": f"Bearer {_AJENO}"},
         caso="token ajeno",
     ),
+    # WEB-F13 (#154): la verificación de identidad del router móvil existe y exige sesión.
+    *(
+        _ruta("bff", metodo, f"{_MOVIL}/identidad/verificacion", 401, caso="sin token")
+        for metodo in ("GET", "POST")
+    ),
     # MOB-F02 (#161): las rutas de consentimiento del router móvil existen y exigen sesión.
     *(
         _ruta("bff", metodo, f"{_MOVIL}{ruta}", 401, caso="sin token")

@@ -5,6 +5,23 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
+## [0.5.0] · 2026-10-31 · WEB-F13
+
+Los códigos nuevos son compatibles: la app relee la verificación ante cualquier 409 y muestra su
+pantalla de error ante un 503.
+
+### Agregado
+
+- `POST /identidad/verificacion`: 409 `correo_no_verificado`, `reintento_no_permitido` y
+  `reintento_sin_cambios`, además de los que ya existían.
+- `GET` y `POST /identidad/verificacion`: 503 `proveedor_kyc_no_disponible` y
+  `nucleo_no_disponible`, que el BFF ya devolvía sin estar documentados.
+
+### Cambiado
+
+- `POST /identidad/verificacion`: se documenta que no lleva cuerpo y que `verificacion_en_curso`
+  también aplica mientras un intento anterior espera al proveedor.
+
 ## [0.4.0] · 2026-10-26 · MOB-F05
 
 ### Agregado

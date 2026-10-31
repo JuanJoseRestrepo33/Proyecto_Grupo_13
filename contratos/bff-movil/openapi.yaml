@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Móvil
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Contrato entre la app Android y su Backend for Frontend (BFF).
 
@@ -219,6 +219,7 @@ paths:
               schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
+        "503": { $ref: "#/components/responses/VerificacionNoDisponible" }
     post:
       tags: [identidad]
       operationId: solicitarVerificacionIdentidad
@@ -228,6 +229,8 @@ paths:
         valida los datos del registro; la captura de documento y selfie llega después. La respuesta
         puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o `en_proceso`, y entonces la
         app consulta `GET /identidad/verificacion` en lugar de esperar en una pantalla de carga.
+
+        No lleva cuerpo: los datos son los de la cuenta, así que el documento no viaja por el BFF.
       responses:
         "202":
           description: Verificación recibida
@@ -236,10 +239,17 @@ paths:
               schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "409":
-          description: La identidad ya está verificada o hay una verificación en curso
+          description: |
+            La verificación no aplica: `correo_no_verificado` (falta confirmar el OTP),
+            `identidad_ya_verificada`, `verificacion_en_curso` (también si un intento anterior
+            sigue esperando al proveedor), `reintento_no_permitido` (el último rechazo no admite
+            reintento) o `reintento_sin_cambios` (un `datos_no_coinciden` con los mismos datos; no
+            vuelve al proveedor). La app consulta `GET /identidad/verificacion` para mostrar el
+            resultado vigente.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/VerificacionNoDisponible" }
 
   /consentimientos/finalidades:
     get:
@@ -590,6 +600,15 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    VerificacionNoDisponible:
+      description: |
+        El proveedor de KYC/AML (`proveedor_kyc_no_disponible`) o el núcleo
+        (`nucleo_no_disponible`) no respondieron. La app ofrece reintentar. Tras
+        `nucleo_no_disponible` la solicitud pudo llegar: el reintento puede recibir un 409
+        `verificacion_en_curso`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     SolicitudInvalida:
       description: Los datos enviados no son válidos
       content:
@@ -744,7 +763,10 @@ components:
           enum: [datos_no_coinciden, documento_no_valido, no_superada]
         reintento_permitido:
           type: boolean
-          description: Solo si `estado` es `rechazada`
+          description: |
+            Solo si `estado` es `rechazada`. Sin `true`, un nuevo `POST` responde 409
+            `reintento_no_permitido`. Con `datos_no_coinciden`, el reintento solo llega al
+            proveedor si los datos de la cuenta cambiaron.
         actualizada_en: { type: string, format: date-time }
 
     CodigoFinalidad:

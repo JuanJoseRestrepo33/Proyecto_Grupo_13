@@ -5,15 +5,12 @@ El canal manda un formulario multipart; el núcleo falso recibe el archivo como 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import httpx
 import pytest
 
 from app.comun.evidencias import TAMANO_MAXIMO
-from app.web.dependencias import COOKIE_SESION
 
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, Canal, al_nucleo, problema
 
 NUCLEO = f"/v1/siniestros/clientes/{CLIENTE}/siniestros/SIN-1/evidencias"
 FOTO = bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"foto" * 50
@@ -31,33 +28,6 @@ DEL_NUCLEO = {
 }
 
 
-@dataclass
-class Canal:
-    nombre: str
-    prefijo: str
-
-
-@pytest.fixture(
-    params=[Canal("web", "/api/v1/web"), Canal("movil", "/api/v1/movil")], ids=lambda c: c.nombre
-)
-def canal(request) -> Canal:
-    return request.param
-
-
-@pytest.fixture
-def con_sesion(cliente, firmante, canal):
-    token = firmante.emitir(canal=canal.nombre)
-    if canal.nombre == "web":
-        cliente.cookies.set(COOKIE_SESION, token)
-    else:
-        cliente.headers["Authorization"] = f"Bearer {token}"
-    return cliente
-
-
-def _al_nucleo(nucleo) -> list:
-    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
-
-
 def _ruta(canal: Canal, sufijo: str = "") -> str:
     return f"{canal.prefijo}/siniestros/SIN-1/evidencias{sufijo}"
 
@@ -68,7 +38,7 @@ def test_sin_sesion_las_rutas_de_evidencia_son_401(cliente, nucleo, canal, metod
     respuesta = cliente.request(metodo, f"{canal.prefijo}/siniestros/humo-no-existe/evidencias")
 
     assert respuesta.status_code == 401
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_adjuntar_reenvia_el_archivo_crudo_con_su_tipo_y_su_captura(con_sesion, nucleo, canal):
@@ -113,7 +83,7 @@ def test_mas_de_10_mb_es_413_sin_reenviar(con_sesion, nucleo, canal):
 
     assert respuesta.status_code == 413
     assert respuesta.json()["codigo"] == "archivo_demasiado_grande"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_sin_archivo_es_422(con_sesion, nucleo, canal):
@@ -121,7 +91,7 @@ def test_sin_archivo_es_422(con_sesion, nucleo, canal):
 
     assert respuesta.status_code == 422
     assert respuesta.json()["campos"][0]["campo"] == "archivo"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 @pytest.mark.parametrize(
@@ -236,4 +206,4 @@ def test_identificadores_inseguros_son_404_sin_tocar_el_nucleo(con_sesion, nucle
     assert (siniestro.status_code, siniestro.json()["codigo"]) == (404, "siniestro_no_encontrado")
     assert (carga.status_code, carga.json()["codigo"]) == (404, "siniestro_no_encontrado")
     assert (evidencia.status_code, evidencia.json()["codigo"]) == (404, "evidencia_no_encontrada")
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []

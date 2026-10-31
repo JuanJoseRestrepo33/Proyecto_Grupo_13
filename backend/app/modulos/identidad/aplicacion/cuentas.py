@@ -22,6 +22,7 @@ from ..dominio import credenciales
 from ..dominio.cuenta import Cuenta, DatosDeRegistro, Registro, normalizar_correo
 from ..dominio.errores import (
     ClienteNoEncontradoError,
+    CorreoNoVerificadoError,
     CorreoYaRegistradoError,
     CredencialesInvalidasError,
     DocumentoYaRegistradoError,
@@ -33,7 +34,7 @@ from ..dominio.errores import (
     RegistroYaVerificadoError,
     TokenRefrescoInvalidoError,
 )
-from ..dominio.modelo import EstadoIdentidad, TipoDocumento
+from ..dominio.modelo import DatosDeIdentidad, EstadoIdentidad, TipoDocumento
 from ..dominio.puertos import (
     CanalDeCodigos,
     EmisorDeTokens,
@@ -47,7 +48,9 @@ from ..dominio.sesion import VIGENCIA_ACCESO, VIGENCIA_REFRESCO, Refresco, Token
 #: Nombre del evento que se publica al crear una cuenta (criterio 2 de WEB-F13).
 EVENTO_CLIENTE_REGISTRADO = "ClientRegistered"
 
-#: Datos fijos de la cuenta de prueba de *staging*. Solo cambian correo y contraseña.
+#: Datos fijos de la cuenta de prueba de *staging*. Solo cambian correo y contraseña. Su id
+#: tampoco cambia entre revisiones: lo que ella dejó en Postgres sigue siendo suyo.
+ID_CUENTA_PRUEBA = "CLI-2026-000001"
 NOMBRE_CUENTA_PRUEBA = "Cuenta de prueba"
 DOCUMENTO_CUENTA_PRUEBA = "PRUEBA0001"
 
@@ -221,7 +224,7 @@ class ServicioDeCuentas:
                 return existente
             ahora = self._reloj.ahora()
             cuenta = Cuenta(
-                id_cliente=self._cuentas.siguiente_id(ahora.year),
+                id_cliente=ID_CUENTA_PRUEBA,
                 nombre_completo=NOMBRE_CUENTA_PRUEBA,
                 tipo_documento=TipoDocumento.PASAPORTE,
                 numero_documento=DOCUMENTO_CUENTA_PRUEBA,
@@ -285,6 +288,23 @@ class ServicioDeCuentas:
         if cuenta is None:
             raise ClienteNoEncontradoError("El cliente no existe", id_cliente=id_cliente)
         return cuenta
+
+    def datos_de_identidad(self, id_cliente: str) -> DatosDeIdentidad:
+        """Lo que el proveedor de KYC/AML necesita, tal como quedó en el registro.
+
+        Solo para quien demostró su correo: quien abre sesión sin haber confirmado el OTP no
+        puede verificar una identidad registrada con datos ajenos.
+        """
+        cuenta = self.cliente(id_cliente)
+        if not cuenta.correo_verificado:
+            raise CorreoNoVerificadoError(
+                "El correo de la cuenta no está verificado", id_cliente=id_cliente
+            )
+        return DatosDeIdentidad(
+            nombre_completo=cuenta.nombre_completo,
+            tipo_documento=cuenta.tipo_documento,
+            numero_documento=cuenta.numero_documento,
+        )
 
     def cliente_de_sesion(self, token_acceso: str) -> Cuenta:
         """El cliente de un token de acceso vigente, o `SesionNoVigenteError`."""
