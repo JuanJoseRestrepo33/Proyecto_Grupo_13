@@ -64,7 +64,7 @@ class RenovacionSesionTest {
     private fun json(codigo: Int, cuerpo: String) =
         MockResponse().setResponseCode(codigo).setHeader("Content-Type", "application/json").setBody(cuerpo)
 
-    private fun noAutenticado(codigo: String = "no_autenticado") =
+    private fun noAutenticado(codigo: String = "sesion_no_vigente") =
         json(401, """{"codigo":"$codigo","mensaje":"x"}""").setHeader("WWW-Authenticate", "Bearer")
 
     private fun siguiente(): RecordedRequest = server.takeRequest(1, TimeUnit.SECONDS) ?: error("Sin petición")

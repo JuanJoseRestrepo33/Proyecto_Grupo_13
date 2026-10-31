@@ -664,10 +664,10 @@
       "responses": [
         {
           "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
-          "body": "{\"codigo\":\"no_autenticado\",\"mensaje\":\"La sesión no es válida o venció\"}",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
           "latency": 0,
           "statusCode": 401,
-          "label": "Sin sesión vigente (no_autenticado)",
+          "label": "Sin sesión vigente (sesion_no_vigente)",
           "headers": [
             {
               "key": "Content-Type",
@@ -736,10 +736,10 @@
       "responses": [
         {
           "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
-          "body": "{\"codigo\":\"no_autenticado\",\"mensaje\":\"La sesión no es válida o venció\"}",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
           "latency": 0,
           "statusCode": 401,
-          "label": "Sin sesión vigente (no_autenticado)",
+          "label": "Sin sesión vigente (sesion_no_vigente)",
           "headers": [
             {
               "key": "Content-Type",
@@ -840,10 +840,10 @@
       "responses": [
         {
           "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
-          "body": "{\"codigo\":\"no_autenticado\",\"mensaje\":\"La sesión no es válida o venció\"}",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
           "latency": 0,
           "statusCode": 401,
-          "label": "Sin sesión vigente (no_autenticado)",
+          "label": "Sin sesión vigente (sesion_no_vigente)",
           "headers": [
             {
               "key": "Content-Type",

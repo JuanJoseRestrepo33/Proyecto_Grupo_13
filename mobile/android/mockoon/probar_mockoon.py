@@ -134,14 +134,14 @@ def main():
     esperar("reutilizar el token anterior", clave(*llamar("POST", "sesiones/renovacion",
                                                           {"token_refresco": refresco})[:2]),
             (401, "token_refresco_invalido"))
-    esperar("sin token", clave(*llamar("GET", "sesion")[:2]), (401, "no_autenticado"))
+    esperar("sin token", clave(*llamar("GET", "sesion")[:2]), (401, "sesion_no_vigente"))
     acceso = renovada["token_acceso"]
     esperar("token vigente", llamar("GET", "sesion", token=acceso)[0], 200)
 
     print("Vencimientos (tiempos de MOCKOON_*)")
     ttl = 2.2
     time.sleep(ttl)
-    esperar("token de acceso vencido", clave(*llamar("GET", "sesion", token=acceso)[:2]), (401, "no_autenticado"))
+    esperar("token de acceso vencido", clave(*llamar("GET", "sesion", token=acceso)[:2]), (401, "sesion_no_vigente"))
     esperar("el refresco sigue sirviendo",
             llamar("POST", "sesiones/renovacion", {"token_refresco": renovada["token_refresco"]})[0], 200)
     otro = f"vence.{sufijo}@ejemplo.co"

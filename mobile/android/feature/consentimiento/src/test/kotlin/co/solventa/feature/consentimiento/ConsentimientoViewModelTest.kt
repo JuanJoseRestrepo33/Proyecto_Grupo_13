@@ -99,7 +99,7 @@ class ConsentimientoViewModelTest {
     @Test
     fun `401 al consultar delega al flujo de sesion`() {
         api.finalidades = { listOf(finalidadCotizacion()) }
-        api.consentimientos = { throw fallaBff(401, "no_autenticado") }
+        api.consentimientos = { throw fallaBff(401, "sesion_no_vigente") }
         val viewModel = ConsentimientoViewModel(api)
         viewModel.cargar()
         assertTrue(viewModel.estado.sesionVencida)
@@ -108,7 +108,7 @@ class ConsentimientoViewModelTest {
 
     @Test
     fun `401 en el catalogo delega de inmediato sin consultar consentimientos`() {
-        api.finalidades = { throw fallaBff(401, "no_autenticado") }
+        api.finalidades = { throw fallaBff(401, "sesion_no_vigente") }
         val viewModel = ConsentimientoViewModel(api)
         viewModel.cargar()
         assertTrue(viewModel.estado.sesionVencida)
@@ -344,7 +344,7 @@ class ConsentimientoViewModelTest {
     fun `401 delega al flujo de sesion sin reenviar`() {
         val viewModel = cargado()
         viewModel.formularioListo()
-        api.otorgar = { throw fallaBff(401, "no_autenticado") }
+        api.otorgar = { throw fallaBff(401, "sesion_no_vigente") }
         viewModel.otorgar()
 
         assertTrue(viewModel.estado.sesionVencida)
