@@ -11,6 +11,7 @@ import co.solventa.feature.onboarding.fallaBff
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import co.solventa.feature.onboarding.sesionPrueba
 import java.io.IOException
+import kotlinx.serialization.SerializationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -99,6 +100,28 @@ class IngresoViewModelTest {
         api.ingreso = { sesionPrueba(refresco = "REF-CONTRASENA") }
         viewModel(almacen).ingresarCon("ana@ejemplo.co", "Solventa2026")
         assertEquals("REF-CONTRASENA", almacen.token)
+    }
+
+    @Test
+    fun `si el token rotado no se puede guardar se desactiva la huella y se avisa en inicio`() {
+        val almacen = AlmacenFalso("REF-0").apply { llaveCreable = false }
+        api.ingreso = { sesionPrueba(EstadoIdentidad.VERIFICADA, refresco = "REF-CONTRASENA") }
+        val viewModel = viewModel(almacen)
+        viewModel.ingresarCon("ana@ejemplo.co", "Solventa2026")
+        assertNull(almacen.token)
+        assertFalse(viewModel.estado.biometriaActiva)
+        assertTrue(gestor.biometriaDesactivada)
+        assertEquals("el ingreso sigue", EstadoIdentidad.VERIFICADA, viewModel.estado.ingresado?.estadoIdentidad)
+    }
+
+    @Test
+    fun `una respuesta de formato inesperado muestra el error generico`() {
+        api.ingreso = { throw SerializationException("campo faltante") }
+        val viewModel = viewModel()
+        viewModel.ingresarCon("ana@ejemplo.co", "Solventa2026")
+        assertEquals(R.string.error_generico, viewModel.estado.mensaje)
+        assertFalse(viewModel.estado.enviando)
+        assertNull(gestor.sesion)
     }
 
     @Test

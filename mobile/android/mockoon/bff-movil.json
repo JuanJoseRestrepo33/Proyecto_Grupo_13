@@ -1,0 +1,1118 @@
+{
+  "uuid": "c2667454-0eeb-5771-b440-e675e9d48b80",
+  "lastMigration": 33,
+  "name": "Solventa · BFF Móvil (registro, OTP y sesión)",
+  "endpointPrefix": "api/v1/movil",
+  "latency": 0,
+  "port": 3001,
+  "hostname": "",
+  "folders": [],
+  "routes": [
+    {
+      "uuid": "a173813f-6ee8-5fe6-bbe7-2434137f550c",
+      "type": "http",
+      "documentation": "Crea la cuenta y envía el OTP (MOB-F01)",
+      "method": "post",
+      "endpoint": "registros",
+      "responses": [
+        {
+          "uuid": "cd6964f2-c0e3-53f0-8629-b36ccf83ac59",
+          "body": "{\"codigo\":\"solicitud_invalida\",\"mensaje\":\"Revisa los datos del registro\",\"campos\":[{\"campo\":\"correo\",\"codigo\":\"formato_invalido\"}]}",
+          "latency": 0,
+          "statusCode": 422,
+          "label": "Datos incompletos (solicitud_invalida)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{body 'correo'}}",
+              "value": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+              "invert": true,
+              "operator": "regex"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "32d5fb02-8d1f-56af-aca7-41dc58a61e1b",
+          "body": "{\"codigo\":\"correo_ya_registrado\",\"mensaje\":\"Ya hay una cuenta con este correo\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Correo ya registrado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'correos.' (replaceAll (lowercase (body 'correo')) '.' '_'))}}",
+              "value": "",
+              "invert": true,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "9528278e-520a-5850-8fdb-ffc2155cf260",
+          "body": "{\"codigo\":\"documento_ya_registrado\",\"mensaje\":\"Ya hay una cuenta con este documento\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Documento ya registrado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'documentos.' (body 'numero_documento'))}}",
+              "value": "",
+              "invert": true,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "181153c0-e177-5a46-8e7c-90ded893ea72",
+          "body": "{{setVar 'cli' (concat 'cli-' (uuid))}}{{setVar 'reg' (concat 'reg-' (uuid))}}{{setVar 'clave' (replaceAll (lowercase (body 'correo')) '.' '_')}}{{setVar 'codigo' (getEnvVar 'OTP_FIJO' '123456')}}{{#if (eq @codigo 'aleatorio')}}{{setVar 'codigo' (faker 'string.numeric' 6)}}{{/if}}{{setData 'set' 'estado' (concat 'cuentas.' @cli) (object id=@cli nombre_completo=(body 'nombre_completo') correo=(lowercase (body 'correo')) contrasena=(body 'contrasena') documento=(body 'numero_documento') estado_identidad='pendiente_verificacion' correo_verificado=false)}}{{setData 'set' 'estado' (concat 'correos.' @clave) @cli}}{{setData 'set' 'estado' (concat 'documentos.' (body 'numero_documento')) @cli}}{{setData 'set' 'estado' (concat 'registros.' @reg) (object cliente=@cli clave_correo=@clave codigo=@codigo intentos=3 expira=(add (parseInt (now 't')) (parseInt (getEnvVar 'VIGENCIA_OTP' '600'))) reenvio=(add (parseInt (now 't')) (parseInt (getEnvVar 'ESPERA_REENVIO' '30'))))}}{{setData 'set' 'estado' (concat 'buzon.' @clave) (object codigo=@codigo id_registro=@reg enviado_en=(now))}}{\"id\":\"{{@reg}}\",\"estado_identidad\":\"pendiente_verificacion\",\"otp\":{\"expira_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'VIGENCIA_OTP' '600'))}}\",\"intentos_restantes\":3,\"reenvio_disponible_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'ESPERA_REENVIO' '30'))}}\"}}",
+          "latency": 0,
+          "statusCode": 201,
+          "label": "Cuenta creada; código enviado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "f0ecc03e-0efa-5a23-a9d4-cc00235aaaed",
+      "type": "http",
+      "documentation": "Verifica el OTP y abre la primera sesión",
+      "method": "post",
+      "endpoint": "registros/:id/otp/verificacion",
+      "responses": [
+        {
+          "uuid": "790c01ce-3996-5d71-8d2d-a1a31a1446f3",
+          "body": "{\"codigo\":\"registro_no_encontrado\",\"mensaje\":\"No existe el registro\"}",
+          "latency": 0,
+          "statusCode": 404,
+          "label": "Registro inexistente",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.cliente')}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "0d28a058-113b-5c60-90ca-d6f2c448cfef",
+          "body": "{\"codigo\":\"registro_ya_verificado\",\"mensaje\":\"El correo ya está verificado\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Correo ya verificado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'cuentas.' (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.cliente')) '.correo_verificado')}}",
+              "value": "true",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "b785c04c-a45a-5195-9c9a-ac3b3988fe3f",
+          "body": "{\"codigo\":\"otp_bloqueado\",\"mensaje\":\"Se agotaron los intentos; pide un código nuevo\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Código bloqueado (3 intentos)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.intentos')}}",
+              "value": "0",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "7081c0f4-e4e3-5f28-a370-2ec988e59d19",
+          "body": "{\"codigo\":\"otp_vencido\",\"mensaje\":\"El código venció; pide uno nuevo\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Código vencido",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{#if (gte (parseInt (now 't')) (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.expira')))}}si{{/if}}",
+              "value": "si",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "667fa595-0f71-5047-91a8-c82248cf0364",
+          "body": "{{setData 'set' 'estado' (concat 'registros.' (urlParam 'id') '.intentos') 0}}{\"codigo\":\"otp_bloqueado\",\"mensaje\":\"Se agotaron los intentos; pide un código nuevo\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Tercer intento fallido: el código se bloquea",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{#if (eq (body 'codigo') (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.codigo')))}}{{else}}no{{/if}}",
+              "value": "no",
+              "invert": false,
+              "operator": "equals"
+            },
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.intentos')}}",
+              "value": "1",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "70712479-c1a4-5380-b00e-fb6216d2ec85",
+          "body": "{{setData 'dec' 'estado' (concat 'registros.' (urlParam 'id') '.intentos')}}{\"codigo\":\"otp_invalido\",\"mensaje\":\"Código incorrecto\",\"intentos_restantes\":{{dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.intentos')}} }",
+          "latency": 0,
+          "statusCode": 422,
+          "label": "Código incorrecto",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{#if (eq (body 'codigo') (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.codigo')))}}{{else}}no{{/if}}",
+              "value": "no",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "87eefa7f-3490-5409-9888-168e32bbbbf7",
+          "body": "{{setVar 'cli' (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.cliente'))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.correo_verificado') true}}{{setVar 'acc' (concat 'acc-' (uuid))}}{{setVar 'ref' (concat 'ref-' (uuid))}}{{setData 'set' 'estado' (concat 'accesos.' @acc) (object cliente=@cli expira=(add (parseInt (now 't')) (parseInt (getEnvVar 'TTL_ACCESO' '900'))))}}{{setData 'set' 'estado' (concat 'refrescos.' @ref) @cli}}{\"token_acceso\":\"{{@acc}}\",\"token_refresco\":\"{{@ref}}\",\"expira_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'TTL_ACCESO' '900'))}}\",\"cliente\":{{#with (dataRaw 'estado' (concat 'cuentas.' @cli))}}{{{stringify (object id=id nombre_completo=nombre_completo correo=correo estado_identidad=estado_identidad)}}}{{/with}} }",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Correo verificado; sesión abierta",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "0ebf70f5-69d9-54be-bdf6-cb8e74490ec3",
+      "type": "http",
+      "documentation": "Envía un OTP nuevo e invalida el anterior",
+      "method": "post",
+      "endpoint": "registros/:id/otp/reenvio",
+      "responses": [
+        {
+          "uuid": "790c01ce-3996-5d71-8d2d-a1a31a1446f3",
+          "body": "{\"codigo\":\"registro_no_encontrado\",\"mensaje\":\"No existe el registro\"}",
+          "latency": 0,
+          "statusCode": 404,
+          "label": "Registro inexistente",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.cliente')}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "0d28a058-113b-5c60-90ca-d6f2c448cfef",
+          "body": "{\"codigo\":\"registro_ya_verificado\",\"mensaje\":\"El correo ya está verificado\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Correo ya verificado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'cuentas.' (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.cliente')) '.correo_verificado')}}",
+              "value": "true",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "aa3052a6-98e6-5291-aa75-c7abe4966785",
+          "body": "{\"codigo\":\"otp_reenvio_prematuro\",\"mensaje\":\"Espera antes de pedir otro código\"}",
+          "latency": 0,
+          "statusCode": 429,
+          "label": "Reenvío prematuro",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Retry-After",
+              "value": "{{subtract (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.reenvio')) (parseInt (now 't'))}}"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{#if (lt (parseInt (now 't')) (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.reenvio')))}}si{{/if}}",
+              "value": "si",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "e97540a8-3e98-583f-a359-e693de242bfb",
+          "body": "{{setVar 'codigo' (getEnvVar 'OTP_FIJO' '123456')}}{{#if (eq @codigo 'aleatorio')}}{{setVar 'codigo' (faker 'string.numeric' 6)}}{{/if}}{{setData 'merge' 'estado' (concat 'registros.' (urlParam 'id')) (object codigo=@codigo intentos=3 expira=(add (parseInt (now 't')) (parseInt (getEnvVar 'VIGENCIA_OTP' '600'))) reenvio=(add (parseInt (now 't')) (parseInt (getEnvVar 'ESPERA_REENVIO' '30'))))}}{{setData 'set' 'estado' (concat 'buzon.' (dataRaw 'estado' (concat 'registros.' (urlParam 'id') '.clave_correo'))) (object codigo=@codigo id_registro=(urlParam 'id') enviado_en=(now))}}{\"expira_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'VIGENCIA_OTP' '600'))}}\",\"intentos_restantes\":3,\"reenvio_disponible_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'ESPERA_REENVIO' '30'))}}\"}",
+          "latency": 0,
+          "statusCode": 202,
+          "label": "Código nuevo enviado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "94b56dee-540c-515b-9b4a-080f466ba2c7",
+      "type": "http",
+      "documentation": "Ingreso con correo y contraseña",
+      "method": "post",
+      "endpoint": "sesiones",
+      "responses": [
+        {
+          "uuid": "d1ae43df-b138-51d5-95cc-6b488addfbca",
+          "body": "{\"codigo\":\"credenciales_invalidas\",\"mensaje\":\"Correo o contraseña incorrectos\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Credenciales inválidas",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'cli' (dataRaw 'estado' (concat 'correos.' (replaceAll (lowercase (body 'correo')) '.' '_')))}}{{#if @cli}}{{#if (eq (dataRaw 'estado' (concat 'cuentas.' @cli '.contrasena')) (body 'contrasena'))}}ok{{/if}}{{/if}}",
+              "value": "ok",
+              "invert": true,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "d3dc0b21-57ba-5ca5-a31c-60ebe314b99a",
+          "body": "{{setVar 'cli' (dataRaw 'estado' (concat 'correos.' (replaceAll (lowercase (body 'correo')) '.' '_')))}}{{setVar 'acc' (concat 'acc-' (uuid))}}{{setVar 'ref' (concat 'ref-' (uuid))}}{{setData 'set' 'estado' (concat 'accesos.' @acc) (object cliente=@cli expira=(add (parseInt (now 't')) (parseInt (getEnvVar 'TTL_ACCESO' '900'))))}}{{setData 'set' 'estado' (concat 'refrescos.' @ref) @cli}}{\"token_acceso\":\"{{@acc}}\",\"token_refresco\":\"{{@ref}}\",\"expira_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'TTL_ACCESO' '900'))}}\",\"cliente\":{{#with (dataRaw 'estado' (concat 'cuentas.' @cli))}}{{{stringify (object id=id nombre_completo=nombre_completo correo=correo estado_identidad=estado_identidad)}}}{{/with}} }",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Sesión abierta",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "9d5268f9-a324-5a97-b36e-c0d8956cc68e",
+      "type": "http",
+      "documentation": "Renueva la sesión y rota el token de refresco",
+      "method": "post",
+      "endpoint": "sesiones/renovacion",
+      "responses": [
+        {
+          "uuid": "8e75f455-2351-5304-babf-a1e4e4075963",
+          "body": "{\"codigo\":\"token_refresco_invalido\",\"mensaje\":\"El token de refresco no es válido\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Token de refresco inválido o ya usado",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'refrescos.' (body 'token_refresco'))}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "a7fd4d66-6770-5200-9fcd-082bfb47dd37",
+          "body": "{{setVar 'cli' (dataRaw 'estado' (concat 'refrescos.' (body 'token_refresco')))}}{{setData 'del' 'estado' (concat 'refrescos.' (body 'token_refresco'))}}{{setVar 'acc' (concat 'acc-' (uuid))}}{{setVar 'ref' (concat 'ref-' (uuid))}}{{setData 'set' 'estado' (concat 'accesos.' @acc) (object cliente=@cli expira=(add (parseInt (now 't')) (parseInt (getEnvVar 'TTL_ACCESO' '900'))))}}{{setData 'set' 'estado' (concat 'refrescos.' @ref) @cli}}{\"token_acceso\":\"{{@acc}}\",\"token_refresco\":\"{{@ref}}\",\"expira_en\":\"{{dateTimeShift seconds=(parseInt (getEnvVar 'TTL_ACCESO' '900'))}}\",\"cliente\":{{#with (dataRaw 'estado' (concat 'cuentas.' @cli))}}{{{stringify (object id=id nombre_completo=nombre_completo correo=correo estado_identidad=estado_identidad)}}}{{/with}} }",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Sesión renovada",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "5b489396-fd67-5239-bfe3-23d75290024e",
+      "type": "http",
+      "documentation": "Cliente autenticado",
+      "method": "get",
+      "endpoint": "sesion",
+      "responses": [
+        {
+          "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Sin sesión vigente (sesion_no_vigente)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{@cli}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "d6fcd4d6-9a8d-5ac3-b529-da654f87bd48",
+          "body": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{#with (dataRaw 'estado' (concat 'cuentas.' @cli))}}{{{stringify (object id=id nombre_completo=nombre_completo correo=correo estado_identidad=estado_identidad)}}}{{/with}}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Cliente de la sesión",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "a066e0b0-4090-57e2-ab76-d4700468e1ac",
+      "type": "http",
+      "documentation": "Estado de la última verificación de identidad",
+      "method": "get",
+      "endpoint": "identidad/verificacion",
+      "responses": [
+        {
+          "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Sin sesión vigente (sesion_no_vigente)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{@cli}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "33ae4b5f-0678-550d-8f20-5f846bf0aa7d",
+          "body": "{\"codigo\":\"verificacion_no_encontrada\",\"mensaje\":\"No hay verificación\"}",
+          "latency": 0,
+          "statusCode": 404,
+          "label": "Sin verificación",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{dataRaw 'estado' (concat 'verificaciones.' @cli)}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "b8d3617e-55d3-5f8d-87e6-3b71382d5dae",
+          "body": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{#if (eq (dataRaw 'estado' (concat 'verificaciones.' @cli '.estado')) 'en_proceso')}}{{setData 'merge' 'estado' (concat 'verificaciones.' @cli) (object estado='aprobada' actualizada_en=(now))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.estado_identidad') 'verificada'}}{{/if}}{{#with (dataRaw 'estado' (concat 'verificaciones.' @cli))}}{\"id\":\"{{id}}\",\"estado\":\"{{estado}}\"{{#if motivo}},\"motivo\":\"{{motivo}}\",\"reintento_permitido\":true{{/if}},\"actualizada_en\":\"{{actualizada_en}}\"}{{/with}}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Última verificación",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "7e5ea880-2492-57b9-b26a-36194d1d7568",
+      "type": "http",
+      "documentation": "Envía los datos al proveedor KYC/AML simulado",
+      "method": "post",
+      "endpoint": "identidad/verificacion",
+      "responses": [
+        {
+          "uuid": "39898d1a-28d7-59d7-94d7-26ccd28e0d79",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Sin sesión vigente (sesion_no_vigente)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{@cli}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "421aea74-863d-5dde-b77c-1db3af4de8c0",
+          "body": "{\"codigo\":\"identidad_ya_verificada\",\"mensaje\":\"La identidad ya está verificada\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Identidad ya verificada",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{dataRaw 'estado' (concat 'cuentas.' @cli '.estado_identidad')}}",
+              "value": "verificada",
+              "invert": false,
+              "operator": "equals"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "3f8ec7ee-52ce-5a1a-9bcc-aff1dd7287bc",
+          "body": "{\"codigo\":\"verificacion_en_curso\",\"mensaje\":\"Hay una verificación en curso\"}",
+          "latency": 0,
+          "statusCode": 409,
+          "label": "Verificación en curso",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{dataRaw 'estado' (concat 'verificaciones.' @cli '.estado')}}",
+              "value": "^(en_proceso|en_revision)$",
+              "invert": false,
+              "operator": "regex"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "9e845a8c-5afa-5eb1-8267-0d0c27cd4095",
+          "body": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{setVar 'digito' (substr (dataRaw 'estado' (concat 'cuentas.' @cli '.documento')) (subtract (len (dataRaw 'estado' (concat 'cuentas.' @cli '.documento'))) 1) 1)}}{{#if (eq @digito '7')}}{{setData 'set' 'estado' (concat 'verificaciones.' @cli) (object id=(concat 'kyc-' (uuid)) estado='rechazada' motivo='datos_no_coinciden' actualizada_en=(now))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.estado_identidad') 'rechazada'}}{{else if (eq @digito '8')}}{{setData 'set' 'estado' (concat 'verificaciones.' @cli) (object id=(concat 'kyc-' (uuid)) estado='en_revision' actualizada_en=(now))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.estado_identidad') 'en_revision'}}{{else if (eq @digito '9')}}{{setData 'set' 'estado' (concat 'verificaciones.' @cli) (object id=(concat 'kyc-' (uuid)) estado='en_proceso' actualizada_en=(now))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.estado_identidad') 'pendiente_verificacion'}}{{else}}{{setData 'set' 'estado' (concat 'verificaciones.' @cli) (object id=(concat 'kyc-' (uuid)) estado='aprobada' actualizada_en=(now))}}{{setData 'set' 'estado' (concat 'cuentas.' @cli '.estado_identidad') 'verificada'}}{{/if}}{{#with (dataRaw 'estado' (concat 'verificaciones.' @cli))}}{\"id\":\"{{id}}\",\"estado\":\"{{estado}}\"{{#if motivo}},\"motivo\":\"{{motivo}}\",\"reintento_permitido\":true{{/if}},\"actualizada_en\":\"{{actualizada_en}}\"}{{/with}}",
+          "latency": 0,
+          "statusCode": 202,
+          "label": "Verificación recibida",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "4f5f97d2-e066-581b-a344-dab42eb1d782",
+      "type": "http",
+      "documentation": "Último OTP enviado a un correo (?correo=...). Solo para pruebas",
+      "method": "get",
+      "endpoint": "__pruebas/buzon",
+      "responses": [
+        {
+          "uuid": "d366efd8-f339-5c2b-abfc-3e57225701c8",
+          "body": "{\"codigo\":\"sin_codigos\",\"mensaje\":\"No se ha enviado ningún código a ese correo\"}",
+          "latency": 0,
+          "statusCode": 404,
+          "label": "Sin códigos enviados",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{dataRaw 'estado' (concat 'buzon.' (replaceAll (lowercase (queryParam 'correo')) '.' '_'))}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "3170e597-ebc4-54fe-8bf8-20e70a4da8b3",
+          "body": "{{#with (dataRaw 'estado' (concat 'buzon.' (replaceAll (lowercase (queryParam 'correo')) '.' '_')))}}{\"codigo\":\"{{codigo}}\",\"id_registro\":\"{{id_registro}}\",\"enviado_en\":\"{{enviado_en}}\"}{{/with}}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Último código",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    }
+  ],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uuid": "a173813f-6ee8-5fe6-bbe7-2434137f550c"
+    },
+    {
+      "type": "route",
+      "uuid": "f0ecc03e-0efa-5a23-a9d4-cc00235aaaed"
+    },
+    {
+      "type": "route",
+      "uuid": "0ebf70f5-69d9-54be-bdf6-cb8e74490ec3"
+    },
+    {
+      "type": "route",
+      "uuid": "94b56dee-540c-515b-9b4a-080f466ba2c7"
+    },
+    {
+      "type": "route",
+      "uuid": "9d5268f9-a324-5a97-b36e-c0d8956cc68e"
+    },
+    {
+      "type": "route",
+      "uuid": "5b489396-fd67-5239-bfe3-23d75290024e"
+    },
+    {
+      "type": "route",
+      "uuid": "a066e0b0-4090-57e2-ab76-d4700468e1ac"
+    },
+    {
+      "type": "route",
+      "uuid": "7e5ea880-2492-57b9-b26a-36194d1d7568"
+    },
+    {
+      "type": "route",
+      "uuid": "4f5f97d2-e066-581b-a344-dab42eb1d782"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    }
+  ],
+  "proxyReqHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "proxyResHeaders": [
+    {
+      "key": "",
+      "value": ""
+    }
+  ],
+  "data": [
+    {
+      "uuid": "aefe438f-1b56-5dc8-b747-584e101f2fc7",
+      "id": "estado",
+      "name": "estado",
+      "documentation": "Cuentas, registros con su OTP, tokens y verificaciones. Se reinicia al arrancar.",
+      "value": "{\n  \"cuentas\": {\n    \"cli-ana\": {\n      \"id\": \"cli-ana\",\n      \"nombre_completo\": \"Ana María Rojas\",\n      \"correo\": \"ana@ejemplo.co\",\n      \"contrasena\": \"Solventa2026\",\n      \"documento\": \"1020304050\",\n      \"estado_identidad\": \"verificada\",\n      \"correo_verificado\": true\n    }\n  },\n  \"correos\": {\n    \"ana@ejemplo_co\": \"cli-ana\"\n  },\n  \"documentos\": {\n    \"1020304050\": \"cli-ana\"\n  },\n  \"verificaciones\": {\n    \"cli-ana\": {\n      \"id\": \"kyc-ana\",\n      \"estado\": \"aprobada\",\n      \"actualizada_en\": \"2026-10-01T09:00:00.000+00:00\"\n    }\n  },\n  \"registros\": {},\n  \"accesos\": {},\n  \"refrescos\": {},\n  \"buzon\": {}\n}"
+    }
+  ],
+  "callbacks": []
+}

@@ -1,5 +1,8 @@
 package co.solventa.mobile.navigation
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -23,6 +26,7 @@ import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.MockBffMovil
 import java.time.Instant
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +93,24 @@ class SolventaAppTest {
         compose.onNodeWithContentDescription("Volver a Perfil").performClick()
         compose.onNodeWithTag("screen-profile").assertIsDisplayed()
         compose.onNodeWithTag("pantalla-consentimiento").assertDoesNotExist()
+    }
+
+    @Test
+    fun `si la huella se desactivo al rotar el token inicio lo avisa una sola vez`() {
+        var atendido = 0
+        var aviso by mutableStateOf(true)
+        compose.setContent {
+            SolventaTheme {
+                SolventaApp(avisoBiometriaDesactivada = aviso, onAvisoAtendido = { atendido++; aviso = false })
+            }
+        }
+        compose.onNodeWithText("No pudimos guardar de forma segura tu ingreso con huella", substring = true)
+            .assertIsDisplayed()
+        assertEquals("sigue visible hasta que el cliente lo cierre", 0, atendido)
+        compose.onNodeWithText("Entendido").assertHeightIsAtLeast(48.dp).performClick()
+        compose.waitForIdle()
+        assertEquals(1, atendido)
+        compose.onNodeWithText("No pudimos guardar", substring = true).assertDoesNotExist()
     }
 
     @Test

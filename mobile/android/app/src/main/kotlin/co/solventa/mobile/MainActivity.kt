@@ -1,5 +1,6 @@
 package co.solventa.mobile
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
@@ -16,14 +17,15 @@ import co.solventa.mobile.navigation.SolventaRaiz
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val proceso = Proceso.de(applicationContext)
         val dependencias = DependenciasOnboarding(
-            api = Proceso.bffApi,
-            sesion = Proceso.sesion,
-            almacen = AlmacenTokenKeystore(applicationContext),
+            api = proceso.bffApi,
+            sesion = proceso.sesion,
+            almacen = proceso.almacen,
             biometria = BiometriaAndroid(this),
         )
         val dependenciasConsentimiento = DependenciasConsentimiento(
-            api = Proceso.bffApi,
+            api = proceso.bffApi,
         )
         setContent {
             SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento) }
@@ -31,8 +33,21 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-/** Punto de composición: la sesión y el cliente del BFF sobreviven a la recreación de la Activity. */
-private object Proceso {
-    val sesion = GestorSesion()
-    val bffApi: BffApi by lazy { BffProvider.create(tokenAcceso = { sesion.tokenAcceso }) }
+/**
+ * Punto de composición: la sesión y el cliente del BFF sobreviven a la recreación de la Activity.
+ * La sesión y el ingreso comparten el almacén para rotar el mismo token de refresco.
+ */
+private class Proceso(context: Context) {
+    val almacen = AlmacenTokenKeystore(context)
+    val sesion = GestorSesion(almacen)
+    val bffApi: BffApi by lazy { BffProvider.create(sesion) }
+
+    companion object {
+        @Volatile
+        private var instancia: Proceso? = null
+
+        fun de(context: Context): Proceso = instancia ?: synchronized(this) {
+            instancia ?: Proceso(context).also { instancia = it }
+        }
+    }
 }

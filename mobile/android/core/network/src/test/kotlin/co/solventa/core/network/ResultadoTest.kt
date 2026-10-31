@@ -57,6 +57,12 @@ class ResultadoTest {
     }
 
     @Test
+    fun `un cuerpo que no cumple el contrato llega como falla sin codigo y no rompe la app`() = runBlocking {
+        val ilegible = llamarBff { NetworkClient.json.decodeFromString(Sesion.serializer(), "{\"token_acceso\":1}") }
+        assertEquals(Resultado.Falla(http = HTTP_RESPUESTA_ILEGIBLE, codigo = null), ilegible)
+    }
+
+    @Test
     fun `un fallo de red se reporta como sin conexion`() = runBlocking {
         assertEquals(Resultado.SinConexion, llamarBff<Int> { throw IOException("sin red") })
     }

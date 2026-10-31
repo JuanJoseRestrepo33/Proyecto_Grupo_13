@@ -5,12 +5,14 @@ on:
     paths:
       - 'mobile/android/**'
       - 'contratos/bff-movil/**'
+      - 'bff/app/movil/**'
       - '.github/workflows/mobile-android.yml'
   pull_request:
     branches: [main, develop, 'release/**']
     paths:
       - 'mobile/android/**'
       - 'contratos/bff-movil/**'
+      - 'bff/app/movil/**'
       - '.github/workflows/mobile-android.yml'
   workflow_dispatch:
 
@@ -55,7 +57,20 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Lint
         run: ./gradlew --no-daemon detekt lintDebug
+      - name: BFF simulado con Mockoon · prueba de humo
+        run: mockoon/mockoon.sh prueba
+      - name: Levantar el BFF simulado para las pruebas del cliente
+        run: |
+          MOCKOON_TTL_ACCESO=2 nohup mockoon/mockoon.sh > "$RUNNER_TEMP/mockoon.log" 2>&1 &
+          for _ in $(seq 60); do
+            curl -s -o /dev/null http://localhost:3001/api/v1/movil/sesion && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/mockoon.log"; exit 1
       - name: Test
+        env:
+          # ContraMockoonTest: el cliente renueva solo un token vencido contra el BFF simulado.
+          MOCKOON_URL: http://localhost:3001/api/v1/movil/
         run: >-
           ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
           :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest
@@ -84,6 +99,13 @@ jobs:
           PYTHON
       - name: Assemble debug
         run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Verificar que el modo real exige la URL del ambiente
+        run: |
+          if ./gradlew --no-daemon --quiet :app:help -PBFF_MOCK=false > modo-real.log 2>&1; then
+            echo "BFF_MOCK=false con el host .invalid debía fallar" >&2
+            exit 1
+          fi
+          grep -q "BFF_MOCK=false necesita la URL del ambiente" modo-real.log
       - name: Resumen
         if: always()
         env:

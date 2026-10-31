@@ -7,4 +7,6 @@
     <string name="perfil_consentimiento">Consentimientos Open Finance</string>
     <string name="placeholder">Esta sección estará disponible próximamente.</string>
     <string name="aviso_identidad_pendiente">Tu identidad aún no está verificada. Podrás cotizar y contratar pólizas cuando terminemos de validarla.</string>
+    <string name="aviso_biometria_desactivada">No pudimos guardar de forma segura tu ingreso con huella y lo desactivamos. Puedes activarlo de nuevo la próxima vez que entres con tu contraseña.</string>
+    <string name="aviso_entendido">Entendido</string>
 </resources>

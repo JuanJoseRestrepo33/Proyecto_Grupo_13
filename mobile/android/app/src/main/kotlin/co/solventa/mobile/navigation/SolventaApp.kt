@@ -18,9 +18,14 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
@@ -39,17 +44,24 @@ import co.solventa.mobile.R
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
  * @param dependenciasConsentimiento con ellas, Perfil da acceso al consentimiento (MOB-F02).
  * @param onSesionVencida flujo de sesión al que se delega un 401 del BFF.
+ * @param avisoBiometriaDesactivada el token rotado no se pudo guardar: se avisa que la huella se
+ * desactivó y [onAvisoAtendido] lo consume.
  */
 @Composable
 fun SolventaApp(
     identidadVerificada: Boolean = true,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
     onSesionVencida: () -> Unit = {},
+    avisoBiometriaDesactivada: Boolean = false,
+    onAvisoAtendido: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
+    val avisos = remember { SnackbarHostState() }
+    AvisoBiometriaDesactivada(avisos, avisoBiometriaDesactivada, onAvisoAtendido)
     Scaffold(
+        snackbarHost = { SnackbarHost(avisos) },
         bottomBar = {
             NavigationBar {
                 TopLevelDestination.entries.forEach { destination ->
@@ -92,6 +104,19 @@ fun SolventaApp(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Se consume al cerrarlo: consumirlo antes cambiaría la clave del efecto y cancelaría el propio aviso. */
+@Composable
+private fun AvisoBiometriaDesactivada(avisos: SnackbarHostState, activo: Boolean, onAtendido: () -> Unit) {
+    val texto = stringResource(R.string.aviso_biometria_desactivada)
+    val entendido = stringResource(R.string.aviso_entendido)
+    LaunchedEffect(activo) {
+        if (activo) {
+            avisos.showSnackbar(texto, actionLabel = entendido, duration = SnackbarDuration.Indefinite)
+            onAtendido()
         }
     }
 }

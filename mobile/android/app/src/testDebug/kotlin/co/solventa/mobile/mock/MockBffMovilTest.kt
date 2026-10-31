@@ -172,10 +172,10 @@ class MockBffMovilTest {
     @Test
     fun `las operaciones protegidas exigen sesion`() {
         token = null
-        assertEquals(401 to "no_autenticado", falla { api.obtenerSesion() }.clave())
-        assertEquals(401 to "no_autenticado", falla { api.obtenerVerificacionIdentidad() }.clave())
+        assertEquals(401 to "sesion_no_vigente", falla { api.obtenerSesion() }.clave())
+        assertEquals(401 to "sesion_no_vigente", falla { api.obtenerVerificacionIdentidad() }.clave())
         token = "ACC-inventado"
-        assertEquals(401 to "no_autenticado", falla { api.solicitarVerificacionIdentidad() }.clave())
+        assertEquals(401 to "sesion_no_vigente", falla { api.solicitarVerificacionIdentidad() }.clave())
     }
 
     @Test
@@ -200,7 +200,7 @@ class MockBffMovilTest {
 
     @Test
     fun `el catalogo de finalidades exige sesion, como el router movil`() = runBlocking {
-        assertEquals(401 to "no_autenticado", falla { api.listarFinalidades() }.clave())
+        assertEquals(401 to "sesion_no_vigente", falla { api.listarFinalidades() }.clave())
         ingresarComoDemo()
         val finalidades = api.listarFinalidades()
         assertEquals(3, finalidades.size)
@@ -210,7 +210,7 @@ class MockBffMovilTest {
 
     @Test
     fun `listar consentimientos requiere sesion`() {
-        assertEquals(401 to "no_autenticado", falla { api.listarConsentimientos() }.clave())
+        assertEquals(401 to "sesion_no_vigente", falla { api.listarConsentimientos() }.clave())
         ingresarComoDemo()
         val lista = runBlocking { api.listarConsentimientos() }
         assertEquals(0, lista.size)

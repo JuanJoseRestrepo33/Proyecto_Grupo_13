@@ -115,4 +115,11 @@ class NetworkClientTest {
             assertFalse(texto, texto.contains("Secreta123") || texto.contains("secreto"))
         }
     }
+
+    @Test
+    fun `una respuesta exitosa con formato inesperado llega como falla y no como excepcion`() = runBlocking {
+        server.enqueue(json(200, """{"token_acceso":"ACC","estado":"desconocido"}"""))
+        val resultado = llamarBff { api().iniciarSesion(Credenciales("ana@ejemplo.co", "Solventa2026")) }
+        assertEquals(Resultado.Falla(http = HTTP_RESPUESTA_ILEGIBLE, codigo = null), resultado)
+    }
 }
