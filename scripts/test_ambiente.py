@@ -8,21 +8,44 @@ import ambiente as amb
 PROYECTO = "proyecto-prueba"
 REGION = "us-east1"
 CONEXION_VIEJA = f"{PROYECTO}:{REGION}:solventa-auditoria"
+BUCKET = f"gs://{PROYECTO}-solventa-evidencias"
+ROLES_BUCKET = ("roles/storage.objectCreator", "roles/storage.objectViewer")
 
 
 class NubeSimulada:
-    """Interpreta los comandos de gcloud que usa ambiente.py sobre un estado en memoria."""
+    """Interpreta los comandos de gcloud que usa ambiente.py sobre un estado en memoria.
+
+    Los errores de "no encontrado" copian el texto real de cada comando de gcloud. `fallas` permite
+    que un comando responda otro error (403, 503, instancia apagada) para probar que no se toma
+    como "no existe".
+    """
+
+    # El texto real de gcloud para un recurso que no existe, por comando.
+    NO_EXISTE = {
+        ("iam", "service-accounts"): "NOT_FOUND: Unknown service account.",
+        ("artifacts", "repositories"): "NOT_FOUND: Requested entity was not found.",
+        ("artifacts", "packages"): "NOT_FOUND: Requested entity was not found.",
+        ("sql", "databases"): "HTTPError 404: The Cloud SQL database does not exist.",
+        ("secrets", "describe"): "NOT_FOUND: Secret [projects/1/secrets/x] not found.",
+        (
+            "secrets",
+            "versions",
+        ): "NOT_FOUND: Secret [projects/1/secrets/x] not found or has no versions.",
+        ("storage", "buckets"): "gs://x not found: 404.",
+        ("run", "services"): "Cannot find service [x]",
+    }
 
     def __init__(self, completa: bool = False) -> None:
         self.llamadas: list[list[str]] = []
         self.valores: list[str] = []  # todo lo que llegó por stdin: nunca debe imprimirse
+        self.fallas: dict[tuple[str, ...], str] = {}
         self.cuentas = {f"{c}@{PROYECTO}.iam.gserviceaccount.com" for c in amb.CUENTAS.values()}
         self.repositorio = True
         self.instancias: dict[str, str] = {}  # nombre → política de activación
         self.bases: set[tuple[str, str]] = set()
         self.usuarios: set[tuple[str, str]] = set()
         self.secretos: dict[str, dict] = {}
-        self.buckets: set[str] = set()
+        self.buckets: dict[str, dict] = {}  # gs://… → ciclo de vida y roles de run-nucleo
         self.servicios: dict[str, dict] = {}
         self.paquetes: set[str] = set()
         if completa:
@@ -35,14 +58,27 @@ class NubeSimulada:
         for nombre in amb.SECRETOS:
             self.secretos[nombre] = {"versiones": ["valor"], "instancia": None}
         for modulo in amb.MODULOS_BD:
-            cadena = f"postgresql://{modulo}:clave-{modulo}@/solventa?host=/cloudsql/x"
+            cadena = (
+                f"postgresql://{modulo}:clave-{modulo}@/solventa"
+                f"?host=/cloudsql/{PROYECTO}:{REGION}:{instancia}"
+            )
             self.secretos[f"{modulo}-database-url"] = {
                 "versiones": [cadena],
                 "instancia": instancia,
             }
-        self.buckets.add(f"gs://{PROYECTO}-solventa-evidencias")
-        for servicio in amb.SERVICIOS:
-            self.servicios[servicio] = {"cloudsql": f"{PROYECTO}:{REGION}:{instancia}"}
+        self.buckets[BUCKET] = {"ciclo": amb.CICLO_BUCKET, "roles": set(ROLES_BUCKET)}
+        conexion = f"{PROYECTO}:{REGION}:{instancia}"
+        nucleo = {v: ("secreto", s) for v, s in amb.SECRETOS_NUCLEO.items()}
+        nucleo.update(
+            ALMACENAMIENTO_EVIDENCIAS="gcs",
+            EVIDENCIAS_BUCKET=BUCKET[5:],
+            POLIZAS_SEMILLA=amb.SEMILLA_POLIZAS,
+        )
+        self.servicios = {
+            "solventa-nucleo": {"cloudsql": conexion, "env": nucleo},
+            "solventa-bff": {"cloudsql": None, "env": {}},
+            "solventa-web": {"cloudsql": None, "env": {}},
+        }
         self.paquetes.update(amb.SERVICIOS)
 
     def comandos(self, *prefijo: str) -> list[list[str]]:
@@ -54,14 +90,28 @@ class NubeSimulada:
         self.llamadas.append(args)
         if entrada is not None:
             self.valores.append(entrada)
+        for prefijo, error in self.fallas.items():
+            if tuple(args[: len(prefijo)]) == prefijo:
+                return amb.Salida(1, error=f"ERROR: (gcloud.{'.'.join(args[:3])}) {error}")
         return self._responder(args, entrada)
 
+    def _falta(self, args) -> amb.Salida:
+        clave = (args[0], args[1] if args[0] != "secrets" or args[1] == "versions" else "describe")
+        return amb.Salida(
+            1,
+            error=f"ERROR: (gcloud.{'.'.join(args[:3])}) {self.NO_EXISTE.get(clave, 'NOT_FOUND')}",
+        )
+
     @staticmethod
-    def _opcion(args, nombre):
-        return next(a.split("=", 1)[1] for a in args if a.startswith(f"--{nombre}="))
+    def _opcion(args, nombre, defecto=None):
+        return next((a.split("=", 1)[1] for a in args if a.startswith(f"--{nombre}=")), defecto)
+
+    @staticmethod
+    def _pares(texto):
+        return dict(par.split("=", 1) for par in texto.split(",")) if texto else {}
 
     def _responder(self, args, entrada):  # noqa: C901 - un caso por comando
-        ok, falta = amb.Salida(0), amb.Salida(1, error="ERROR: NOT_FOUND")
+        ok, falta = amb.Salida(0), self._falta(args)
         grupo, recurso, verbo = (args + ["", "", ""])[:3]
         objetivo = args[3] if len(args) > 3 else ""
         if (grupo, recurso, verbo) == ("iam", "service-accounts", "describe"):
@@ -104,41 +154,82 @@ class NubeSimulada:
             self.usuarios.add((instancia, objetivo))
             return ok
         if grupo == "secrets":
-            return self._secretos(args, recurso, verbo, objetivo, entrada)
+            return self._secretos(args, recurso, verbo, entrada)
         if (grupo, recurso) == ("storage", "buckets"):
-            if verbo == "create":
-                self.buckets.add(objetivo)
-                return ok
-            return ok if objetivo in self.buckets else falta
+            return self._bucket(args, verbo, objetivo)
         if (grupo, recurso) == ("storage", "rm"):
-            self.buckets.discard(args[3])
+            self.buckets.pop(args[3], None)
             return ok
         if (grupo, recurso) == ("run", "services"):
-            if objetivo not in self.servicios:
-                return falta
-            servicio = self.servicios[objetivo]
-            if verbo == "delete":
-                del self.servicios[objetivo]
-                return ok
-            if verbo == "update":
-                servicio["cloudsql"] = self._opcion(args, "set-cloudsql-instances")
-                return ok
-            if "--format=value(status.url)" in args:
-                return amb.Salida(0, f"https://{objetivo}-abc.run.app\n")
-            anotaciones = {"run.googleapis.com/cloudsql-instances": servicio["cloudsql"]}
-            plantilla = {"metadata": {"annotations": anotaciones}}
-            return amb.Salida(0, json.dumps({"spec": {"template": plantilla}}))
+            return self._servicio(args, verbo, objetivo)
         if (grupo, recurso) == ("run", "deploy"):
-            nombre = args[2]
-            self.servicios[nombre] = {"cloudsql": next(
-                (a.split("=", 1)[1] for a in args if a.startswith("--add-cloudsql-instances=")),
-                None,
-            )}  # fmt: skip
+            self.servicios[args[2]] = {
+                "cloudsql": self._opcion(args, "add-cloudsql-instances"),
+                "env": {
+                    **{v: ("secreto", s.split(":")[0])
+                       for v, s in self._pares(self._opcion(args, "set-secrets", "")).items()},
+                    **self._pares(self._opcion(args, "set-env-vars", "")),
+                },
+            }  # fmt: skip
             return ok
         raise AssertionError(f"comando no simulado: {args}")
 
-    def _secretos(self, args, recurso, verbo, objetivo, entrada):
-        ok, falta = amb.Salida(0), amb.Salida(1, error="ERROR: NOT_FOUND")
+    def _bucket(self, args, verbo, objetivo):
+        if verbo == "create":
+            self.buckets[objetivo] = {"ciclo": None, "roles": set()}
+            return amb.Salida(0)
+        bucket = self.buckets.get(objetivo)
+        if bucket is None:
+            return self._falta(args)
+        if verbo == "describe" and "--format=json(lifecycle_config)" in args:
+            descripcion = {"lifecycle_config": bucket["ciclo"]} if bucket["ciclo"] else {}
+            return amb.Salida(0, json.dumps(descripcion))
+        if verbo == "update":
+            with open(self._opcion(args, "lifecycle-file"), encoding="utf-8") as archivo:
+                bucket["ciclo"] = json.load(archivo)
+        elif verbo == "get-iam-policy":
+            miembro = f"serviceAccount:run-nucleo@{PROYECTO}.iam.gserviceaccount.com"
+            vinculos = [{"role": r, "members": [miembro]} for r in sorted(bucket["roles"])]
+            vinculos.append(
+                {"role": "roles/storage.legacyBucketOwner", "members": ["projectOwner:x"]}
+            )
+            return amb.Salida(0, json.dumps({"bindings": vinculos}))
+        elif verbo == "add-iam-policy-binding":
+            bucket["roles"].add(self._opcion(args, "role"))
+        return amb.Salida(0)
+
+    def _servicio(self, args, verbo, objetivo):
+        if objetivo not in self.servicios:
+            return self._falta(args)
+        servicio = self.servicios[objetivo]
+        if verbo == "delete":
+            del self.servicios[objetivo]
+            return amb.Salida(0)
+        if verbo == "update":
+            servicio["cloudsql"] = self._opcion(
+                args, "set-cloudsql-instances", servicio["cloudsql"]
+            )
+            for v, s in self._pares(self._opcion(args, "update-secrets", "")).items():
+                servicio["env"][v] = ("secreto", s.split(":")[0])
+            servicio["env"].update(self._pares(self._opcion(args, "update-env-vars", "")))
+            return amb.Salida(0)
+        if "--format=value(status.url)" in args:
+            return amb.Salida(0, f"https://{objetivo}-abc.run.app\n")
+        variables = [
+            {"name": v, "valueFrom": {"secretKeyRef": {"key": "latest", "name": x[1]}}}
+            if isinstance(x, tuple)
+            else {"name": v, "value": x}
+            for v, x in servicio["env"].items()
+        ]
+        anotaciones = {"run.googleapis.com/cloudsql-instances": servicio["cloudsql"]}
+        plantilla = {
+            "metadata": {"annotations": anotaciones},
+            "spec": {"containers": [{"env": variables}]},
+        }
+        return amb.Salida(0, json.dumps({"spec": {"template": plantilla}}))
+
+    def _secretos(self, args, recurso, verbo, entrada):
+        ok = amb.Salida(0)
         if recurso == "versions":
             nombre = self._opcion(args, "secret") if verbo != "add" else args[3]
             secreto = self.secretos.get(nombre)
@@ -146,7 +237,7 @@ class NubeSimulada:
                 secreto["versiones"].append(entrada)
                 return ok
             if not secreto or not secreto["versiones"]:
-                return falta
+                return self._falta(args)
             return amb.Salida(0, secreto["versiones"][-1]) if verbo == "access" else ok
         nombre = verbo
         secreto = self.secretos.get(nombre)
@@ -154,7 +245,7 @@ class NubeSimulada:
             self.secretos[nombre] = {"versiones": [], "instancia": None}
             return ok
         if secreto is None:
-            return falta
+            return self._falta(args)
         if recurso == "describe":
             if "--format=value(labels.instancia)" in args:
                 return amb.Salida(0, (secreto["instancia"] or "") + "\n")
@@ -224,7 +315,7 @@ class TestAprovisionarDesdeCero:
         assert list(nube.instancias) == ["solventa-20261102-0930"]
         assert ("solventa-20261102-0930", "solventa") in nube.bases
         assert set(nube.secretos) == set(amb.SECRETOS)
-        assert nube.buckets == {f"gs://{PROYECTO}-solventa-evidencias"}
+        assert set(nube.buckets) == {BUCKET}
         assert [c[2] for c in nube.comandos("run", "deploy")] == list(amb.SERVICIOS)
         assert ambiente.servicios_creados == list(amb.SERVICIOS)
         assert conexion.cerrada
@@ -312,13 +403,8 @@ class TestAprovisionarLoQueYaExiste:
         ambiente = _ambiente(nube, entorno)
         ambiente.aprovisionar()
 
-        escrituras = [
-            c
-            for c in nube.llamadas
-            if c[-1] != "--role=roles/secretmanager.secretAccessor"
-            and any(v in c[:3] for v in ("create", "deploy", "add", "update", "patch", "delete"))
-        ]
-        assert escrituras == []
+        assert _escrituras(nube) == []
+        assert not nube.comandos("secrets", "versions", "access")  # ni siquiera lee las claves
         assert ambiente.conexiones == []
         assert ambiente.servicios_creados == []
         assert sum("ya existe, se omite" in linea for linea in ambiente.informe.lineas) >= 10
@@ -443,7 +529,7 @@ class TestDestruir:
         assert amb.main([*argumentos, "--confirmar", PROYECTO], _ambiente(nube)) == 0
 
         assert nube.servicios == {} and nube.instancias == {} and nube.secretos == {}
-        assert nube.buckets == set() and nube.paquetes == set()
+        assert nube.buckets == {} and nube.paquetes == set()
         assert len(nube.cuentas) == 3 and nube.repositorio
         borrados = [c for c in nube.llamadas if "delete" in c[:3] or c[:2] == ["storage", "rm"]]
         assert not any(c[0] == "iam" or c[1] == "repositories" for c in borrados)
@@ -493,3 +579,209 @@ def test_aprovisionar_informa_los_servicios_creados_al_workflow(tmp_path, entorn
     nube = NubeSimulada()
     assert amb.main([*argumentos, f"--github-output={salida}"], _ambiente(nube, entorno)) == 0
     assert salida.read_text() == f"servicios_creados={','.join(amb.SERVICIOS)}\n"
+
+
+ESCRITURAS = ("create", "deploy", "add", "update", "patch", "delete", "set-password")
+
+
+def _escrituras(nube):
+    """Comandos que cambian algo; los permisos sobre secretos son idempotentes y no cuentan."""
+    return [
+        c
+        for c in nube.llamadas
+        if c[-1] != "--role=roles/secretmanager.secretAccessor"
+        and (any(v in c[:3] for v in ESCRITURAS) or "add-iam-policy-binding" in c[:3])
+    ]
+
+
+class TestNoEncontradoContraOtrosErrores:
+    """Hallazgo 3: solo un "no encontrado" significa que el recurso no existe."""
+
+    @pytest.mark.parametrize(
+        ("args", "error"),
+        [
+            (("run", "services", "describe", "x"), "Cannot find service [x]"),
+            (("secrets", "describe", "x"), "NOT_FOUND: Secret [projects/1/secrets/x] not found."),
+            (("storage", "buckets", "describe", "gs://x"), "gs://x not found: 404."),
+            (("sql", "databases", "describe", "x"), "HTTPError 404: Not Found"),
+            (("iam", "service-accounts", "describe", "x"), "NOT_FOUND: Unknown service account."),
+        ],
+    )
+    def test_el_404_de_cada_comando_es_no_existe(self, args, error):
+        gcloud = amb.Gcloud(PROYECTO, lambda a, e=None: amb.Salida(1, error=f"ERROR: {error}"))
+        assert gcloud.existe(*args) is False
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            "ERROR: (gcloud.run.services.describe) 503 Service Unavailable",
+            "ERROR: (gcloud.secrets.describe) PERMISSION_DENIED: Permission denied on resource "
+            "(or it may not exist).",
+            "ERROR: (gcloud.sql.databases.describe) HTTPError 400: Invalid request since instance "
+            "is not running.",
+        ],
+    )
+    def test_otro_error_no_es_no_existe(self, error):
+        gcloud = amb.Gcloud(PROYECTO, lambda a, e=None: amb.Salida(1, error=error))
+        with pytest.raises(amb.GcloudError) as fallo:
+            gcloud.existe("run", "services", "describe", "--password=secreta")
+        assert "secreta" not in str(fallo.value)
+
+    def test_un_503_al_consultar_un_servicio_no_lo_reemplaza(self, entorno, capsys):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("run", "services", "describe")] = "503 Service Unavailable"
+        argumentos = ["aprovisionar", "--proyecto", PROYECTO, "--region", REGION]
+        assert amb.main(argumentos, _ambiente(nube, entorno)) == 1
+        assert not nube.comandos("run", "deploy")
+        assert "::error::gcloud run services describe: " in capsys.readouterr().out
+
+    def test_un_403_al_consultar_las_llaves_no_las_regenera(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("secrets", "versions", "describe")] = "PERMISSION_DENIED: Permission denied"
+        with pytest.raises(amb.GcloudError):
+            _ambiente(nube, entorno).aprovisionar()
+        assert not nube.comandos("secrets", "versions", "add")
+
+    def test_con_la_instancia_apagada_no_crea_otra_base(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("sql", "databases", "describe")] = (
+            "HTTPError 400: Invalid request since instance is not running."
+        )
+        with pytest.raises(amb.GcloudError):
+            _ambiente(nube, entorno).aprovisionar()
+        assert not nube.comandos("sql", "databases", "create")
+
+    def test_un_error_al_leer_la_etiqueta_de_un_secreto_no_lo_rota(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("secrets", "describe")] = "503 Service Unavailable"
+        with pytest.raises(amb.GcloudError):
+            _ambiente(nube, entorno).aprovisionar()
+        assert not nube.comandos("secrets", "versions", "add")
+        assert not nube.comandos("sql", "users")
+
+
+class TestRotacionDeCredenciales:
+    """Hallazgo 4: un secreto de la misma instancia no se rota, y uno rotado reinicia el núcleo."""
+
+    def test_un_secreto_sin_etiqueta_de_la_misma_instancia_se_adopta_sin_rotar(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.secretos["cotizacion-database-url"]["instancia"] = None
+        ambiente = _ambiente(nube, entorno)
+        ambiente.aprovisionar()
+
+        assert nube.secretos["cotizacion-database-url"]["instancia"] == "solventa-auditoria"
+        assert len(nube.secretos["cotizacion-database-url"]["versiones"]) == 1
+        assert ambiente.conexiones == []
+        assert not nube.comandos("run", "services", "update")
+        assert any("se etiqueta sin rotar" in linea for linea in ambiente.informe.lineas)
+
+    def test_un_secreto_sin_etiqueta_de_otra_instancia_se_rota(self, entorno):
+        nube = NubeSimulada(completa=True)
+        secreto = nube.secretos["cotizacion-database-url"]
+        secreto["instancia"] = None
+        secreto["versiones"] = ["postgresql://cotizacion:x@/solventa?host=/cloudsql/p:r:vieja"]
+        _ambiente(nube, entorno).aprovisionar()
+        assert len(secreto["versiones"]) == 2
+        assert secreto["instancia"] == "solventa-auditoria"
+
+    @pytest.mark.parametrize("caso", ["otra instancia", "faltante"])
+    def test_una_clave_rotada_reinicia_el_nucleo(self, entorno, caso):
+        nube = NubeSimulada(completa=True)
+        if caso == "faltante":
+            del nube.secretos["siniestros-database-url"]
+        else:
+            nube.secretos["siniestros-database-url"]["instancia"] = "solventa-vieja"
+        _ambiente(nube, entorno, ConexionSimulada(roles={"siniestros"})).aprovisionar()
+
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        assert "--update-env-vars=CREDENCIALES_ROTADAS=20261102T093000Z" in actualizacion
+        assert not nube.comandos("run", "services", "update", "solventa-bff")
+
+    def test_llaves_nuevas_reinician_el_nucleo_y_el_bff(self, entorno):
+        nube = NubeSimulada(completa=True)
+        del nube.secretos["tokens-llave-privada"]
+        del nube.secretos["tokens-llave-publica"]
+        _ambiente(nube, entorno).aprovisionar()
+        actualizados = [c[3] for c in nube.comandos("run", "services", "update")]
+        assert actualizados == ["solventa-nucleo", "solventa-bff"]
+
+
+class TestReconciliarNucleoExistente:
+    """Hallazgo 5: el núcleo que ya existe recibe los secretos y las variables que le falten."""
+
+    def test_agrega_lo_que_falta_sin_borrar_lo_demas(self, entorno):
+        nube = NubeSimulada(completa=True)
+        env = nube.servicios["solventa-nucleo"]["env"]
+        for variable in ("SINIESTROS_DATABASE_URL", "HUMO_CORREO", "ALMACENAMIENTO_EVIDENCIAS"):
+            del env[variable]
+        env["OTRA_VARIABLE"] = "se conserva"
+        _ambiente(nube, entorno).aprovisionar()
+
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        assert (
+            "--update-secrets=SINIESTROS_DATABASE_URL=siniestros-database-url:latest,"
+            "HUMO_CORREO=humo-correo:latest"
+        ) in actualizacion
+        assert "--update-env-vars=ALMACENAMIENTO_EVIDENCIAS=gcs" in actualizacion
+        assert not any(a.startswith("--set-") for a in actualizacion)
+        assert env["OTRA_VARIABLE"] == "se conserva"
+        assert env["SINIESTROS_DATABASE_URL"] == ("secreto", "siniestros-database-url")
+
+    def test_corrige_un_valor_distinto(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.servicios["solventa-nucleo"]["env"]["POLIZAS_SEMILLA"] = "C:/Program Files/Git/opt/x"
+        _ambiente(nube, entorno).aprovisionar()
+        assert nube.servicios["solventa-nucleo"]["env"]["POLIZAS_SEMILLA"] == amb.SEMILLA_POLIZAS
+
+    def test_monta_un_secreto_existente_aunque_no_haya_cuenta_de_prueba_en_el_entorno(self):
+        nube = NubeSimulada(completa=True)
+        del nube.servicios["solventa-nucleo"]["env"]["HUMO_CLAVE"]
+        _ambiente(nube).aprovisionar()
+        assert nube.servicios["solventa-nucleo"]["env"]["HUMO_CLAVE"] == ("secreto", "humo-clave")
+
+
+class TestRepararBucket:
+    """Hallazgo 6: un bucket que existe sin ciclo de vida ni permisos se repara."""
+
+    def test_bucket_existente_sin_configurar_queda_reparado(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.buckets[BUCKET] = {"ciclo": None, "roles": set()}
+        ambiente = _ambiente(nube, entorno)
+        ambiente.aprovisionar()
+
+        assert nube.buckets[BUCKET] == {"ciclo": amb.CICLO_BUCKET, "roles": set(ROLES_BUCKET)}
+        assert not nube.comandos("storage", "buckets", "create")
+        assert any("se completó el ciclo de vida" in linea for linea in ambiente.informe.lineas)
+
+        nube.llamadas.clear()
+        _ambiente(nube, entorno).aprovisionar()
+        assert _escrituras(nube) == []
+
+    def test_solo_agrega_el_permiso_que_falta(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.buckets[BUCKET]["roles"] = {"roles/storage.objectCreator"}
+        _ambiente(nube, entorno).aprovisionar()
+        roles = [c[-1] for c in nube.comandos("storage", "buckets", "add-iam-policy-binding")]
+        assert roles == ["--role=roles/storage.objectViewer"]
+        assert not nube.comandos("storage", "buckets", "update")
+
+
+class TestVerificarSoloAvisa:
+    """Hallazgo 7: un fallo al consultar no pone el CD en rojo; aprovisionar sí falla."""
+
+    def test_si_falla_la_lista_de_instancias_verificar_devuelve_cero(self, capsys):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("sql", "instances", "list")] = "503 Service Unavailable"
+        argumentos = ["verificar", "--proyecto", PROYECTO, "--region", REGION]
+        codigo = amb.main(argumentos, _ambiente(nube))
+        salida = capsys.readouterr().out
+        assert codigo == 0
+        assert "::warning::No se pudo verificar el ambiente: gcloud sql instances list: " in salida
+        assert "::error::" not in salida
+
+    @pytest.mark.parametrize("accion", ["aprovisionar", "destruir"])
+    def test_aprovisionar_y_destruir_siguen_fallando(self, accion, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.fallas[("sql", "instances", "list")] = "503 Service Unavailable"
+        argumentos = [accion, "--proyecto", PROYECTO, "--region", REGION, "--confirmar", PROYECTO]
+        assert amb.main(argumentos, _ambiente(nube, entorno)) == 1
