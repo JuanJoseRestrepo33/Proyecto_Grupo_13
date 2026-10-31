@@ -51,5 +51,7 @@ describe('validarReporte', () => {
   it('rechaza un monto que no es un número entero de pesos', () => {
     expect(validar({ montoEstimado: 'mucho' }).montoEstimado).toBe('siniestro.errores.montoInvalido')
     expect(validar({ montoEstimado: '-200' }).montoEstimado).toBe('siniestro.errores.montoInvalido')
+    // Con decimales no se adivina el monto: quitar la coma lo multiplicaría por cien.
+    expect(validar({ montoEstimado: '1500000,50' }).montoEstimado).toBe('siniestro.errores.montoInvalido')
   })
 })
