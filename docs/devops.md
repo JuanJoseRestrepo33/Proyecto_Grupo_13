@@ -435,7 +435,7 @@ Además, sin que el despliegue dependa de ellas:
 
 | En cada environment | Tipo | Para qué |
 |---|---|---|
-| `BFF_BASE_URL` | Variable | URL del router móvil del BFF del ambiente (`<URL de solventa-bff>/api/v1/movil/`). La app la recibe en el build con `-PBFF_BASE_URL=...`; la usan las E2E móviles contra el ambiente (MOB-F02, #162) |
+| `BFF_BASE_URL` | Variable | URL del router móvil del BFF del ambiente (`<URL de solventa-bff>/api/v1/movil/`). La app la recibe en el build con `-PBFF_MOCK=false -PBFF_BASE_URL=...`. En cada push a `develop`, el job *APK contra staging* de [`mobile-android.yml`](../.github/workflows/mobile-android.yml) publica el artefacto `solventa-staging`: un APK que se instala en cualquier Android y habla con el BFF de staging. La usan también las E2E móviles contra el ambiente (MOB-F02, #162) |
 | `HUMO_CORREO`, `HUMO_CLAVE` | **Secretos** | Cuenta de prueba con la que el humo inicia sesión en el router móvil (MOB-F02). Es la única credencial que ve el pipeline y solo da acceso a esa cuenta, sin datos reales. Sin ellos, las filas con sesión se omiten con un aviso |
 
 Si falta alguna, el job de despliegue termina sin error, deja un aviso con las que faltan y no toca

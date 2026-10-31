@@ -128,3 +128,55 @@ jobs:
           name: solventa-debug
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  apk-staging:
+    # La app que se instala en un celular para probarla contra la nube (MOB-F02, #161): habla con el
+    # router móvil del BFF de staging, no con el mock. Solo en develop, porque la URL es una variable
+    # del environment staging.
+    name: Android · APK contra staging
+    needs: android
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    defaults:
+      run:
+        working-directory: mobile/android
+    env:
+      BFF_BASE_URL: ${{ vars.BFF_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verificar la URL del ambiente
+        run: |
+          if [ -z "$BFF_BASE_URL" ]; then
+            echo "::error::El environment staging no tiene la variable BFF_BASE_URL."
+            exit 1
+          fi
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar plataforma y herramientas Android
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;34.0.0"'
+      - name: Configurar cache Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c  # v5.0.2
+        with:
+          cache-read-only: true
+      - name: Assemble debug contra staging
+        run: ./gradlew --no-daemon :app:assembleDebug -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
+      - name: Resumen
+        run: |
+          {
+            echo "## APK contra staging"
+            echo "Habla con \`$BFF_BASE_URL\`. Descárgalo en **Artifacts → solventa-staging**, descomprímelo"
+            echo "e instálalo en un Android 8 o superior (permitir apps de origen desconocido)."
+            echo "Staging debe estar encendido para que la app funcione."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar APK contra staging
+        uses: actions/upload-artifact@v6
+        with:
+          name: solventa-staging
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
