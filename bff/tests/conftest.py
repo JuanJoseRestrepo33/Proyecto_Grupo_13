@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import httpx
 import jwt
@@ -21,6 +22,7 @@ from fastapi.testclient import TestClient
 from app.comun.configuracion import Configuracion
 from app.comun.tokens import EMISOR, huella_jwk
 from app.main import crear_app
+from app.web.dependencias import COOKIE_SESION
 
 CLIENTE = "CLI-2026-000318"
 
@@ -78,6 +80,11 @@ class NucleoFalso:
         return json.loads(solicitud.content)
 
 
+def al_nucleo(nucleo: NucleoFalso) -> list[httpx.Request]:
+    """Lo que el BFF le pidió al núcleo, sin las sondas de `/salud`."""
+    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
+
+
 class Firmante:
     """Hace las veces del núcleo emitiendo tokens con su propia llave privada ES256."""
 
@@ -133,3 +140,29 @@ def configuracion(firmante) -> Configuracion:
 @pytest.fixture
 def cliente(nucleo, configuracion) -> TestClient:
     return TestClient(crear_app(configuracion, nucleo.transporte))
+
+
+@dataclass(frozen=True)
+class Canal:
+    nombre: str
+    prefijo: str
+
+
+WEB = Canal("web", "/api/v1/web")
+MOVIL = Canal("movil", "/api/v1/movil")
+
+
+@pytest.fixture(params=[WEB, MOVIL], ids=lambda c: c.nombre)
+def canal(request) -> Canal:
+    """Por defecto la prueba corre en los dos canales; un módulo de un solo canal la redefine."""
+    return request.param
+
+
+@pytest.fixture
+def con_sesion(cliente, firmante, canal):
+    token = firmante.emitir(canal=canal.nombre)
+    if canal is WEB:
+        cliente.cookies.set(COOKIE_SESION, token)
+    else:
+        cliente.headers["Authorization"] = f"Bearer {token}"
+    return cliente

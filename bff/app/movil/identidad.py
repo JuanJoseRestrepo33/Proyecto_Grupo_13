@@ -10,8 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, status
 
-from app.comun.errores import ErrorBff
-from app.comun.sesion import sesion_no_vigente
+from app.comun.sesion import cuenta_vigente
 
 from .dependencias import CANAL, DESAFIO, ClienteMovil, Nucleo
 from .sesiones import RUTA_NUCLEO
@@ -50,14 +49,10 @@ def obtener(cliente: ClienteMovil, nucleo: Nucleo) -> dict[str, object]:
     summary="Envía los datos del registro al proveedor KYC/AML",
 )
 def solicitar(cliente: ClienteMovil, nucleo: Nucleo) -> dict[str, object]:
-    """409 `identidad_ya_verificada` o `verificacion_en_curso`: la app vuelve a consultar. Si
-    la cuenta ya no existe en el núcleo, la sesión no es vigente, como en `/sesion`."""
-    try:
+    """Todo 409 lleva a la app a volver a consultar. Si la cuenta ya no existe en el núcleo,
+    la sesión no es vigente, como en `/sesion`."""
+    with cuenta_vigente(DESAFIO):
         verificacion = nucleo.post(
             f"{RUTA_NUCLEO}/clientes/{cliente.id_cliente}/verificaciones", canal=CANAL
         )
-    except ErrorBff as error:
-        if error.estado == status.HTTP_404_NOT_FOUND:
-            raise sesion_no_vigente(DESAFIO) from error
-        raise
     return a_verificacion(verificacion)

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.comun.errores import ErrorBff
 from app.comun.nucleo import segmento
-from app.comun.sesion import sesion_no_vigente
+from app.comun.sesion import cuenta_vigente
 
 from .dependencias import CANAL, DESAFIO, ClienteMovil, Nucleo
 
@@ -170,10 +170,6 @@ def renovar_sesion(solicitud: SolicitudRenovacion, nucleo: Nucleo) -> dict[str, 
 def obtener_sesion(cliente: ClienteMovil, nucleo: Nucleo) -> dict[str, object]:
     """Si la cuenta ya no existe en el núcleo, la sesión no es vigente: la app renueva o
     vuelve al inicio de sesión."""
-    try:
+    with cuenta_vigente(DESAFIO):
         cuenta = nucleo.get(f"{RUTA_NUCLEO}/clientes/{cliente.id_cliente}")
-    except ErrorBff as error:
-        if error.estado == status.HTTP_404_NOT_FOUND:
-            raise sesion_no_vigente(DESAFIO) from error
-        raise
     return a_cliente(cuenta)

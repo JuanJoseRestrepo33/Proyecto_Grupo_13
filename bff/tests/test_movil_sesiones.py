@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, al_nucleo, problema
 
 RUTA = "/api/v1/movil"
 NUCLEO = "/v1/identidad"
@@ -120,7 +120,7 @@ def test_un_codigo_que_no_son_6_digitos_no_llega_al_nucleo(cliente, nucleo):
     respuesta = cliente.post(f"{RUTA}/registros/REG-1/otp/verificacion", json={"codigo": "12a"})
 
     assert respuesta.status_code == 422
-    assert [s for s in nucleo.solicitudes if s.url.path != "/salud"] == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_reenviar_el_codigo(cliente, nucleo):
@@ -223,6 +223,16 @@ def test_si_la_cuenta_ya_no_existe_la_app_vuelve_a_iniciar_sesion(cliente, nucle
     assert respuesta.headers["WWW-Authenticate"] == "Bearer"
 
 
+def test_otro_404_del_nucleo_no_vence_la_sesion_de_la_app(cliente, nucleo, firmante):
+    nucleo.responder("GET", f"{NUCLEO}/clientes/{CLIENTE}", problema(404, "recurso_no_encontrado"))
+    token = firmante.emitir(canal="movil")
+
+    respuesta = cliente.get(f"{RUTA}/sesion", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "recurso_no_encontrado"
+
+
 def test_un_error_del_nucleo_en_la_sesion_de_la_app_no_se_disfraza(cliente, nucleo, firmante):
     nucleo.responder("GET", f"{NUCLEO}/clientes/{CLIENTE}", problema(503, "dependencia_caida"))
     token = firmante.emitir(canal="movil")
@@ -238,4 +248,4 @@ def test_un_registro_con_forma_insegura_es_404_sin_tocar_el_nucleo(cliente, nucl
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "registro_no_encontrado"
-    assert [s for s in nucleo.solicitudes if s.url.path != "/salud"] == []
+    assert al_nucleo(nucleo) == []

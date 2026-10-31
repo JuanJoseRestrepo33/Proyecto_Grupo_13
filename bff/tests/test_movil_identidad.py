@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, MOVIL, Canal, al_nucleo, problema
 
 RUTA = "/api/v1/movil/identidad/verificacion"
 NUCLEO = f"/v1/identidad/clientes/{CLIENTE}/verificaciones"
@@ -22,13 +22,8 @@ RECHAZO = {"motivo": "datos_no_coinciden", "reintento_permitido": True}
 
 
 @pytest.fixture
-def con_sesion(cliente, firmante):
-    cliente.headers["Authorization"] = f"Bearer {firmante.emitir(canal='movil')}"
-    return cliente
-
-
-def _al_nucleo(nucleo) -> list:
-    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
+def canal() -> Canal:
+    return MOVIL
 
 
 @pytest.mark.parametrize("metodo", ["GET", "POST"])
@@ -38,7 +33,7 @@ def test_sin_sesion_es_401_sin_tocar_el_nucleo(cliente, nucleo, metodo):
     assert respuesta.status_code == 401
     assert respuesta.json()["codigo"] == "sesion_no_vigente"
     assert respuesta.headers["WWW-Authenticate"] == "Bearer"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_consultar_responde_la_forma_del_contrato_sin_datos_internos(con_sesion, nucleo):
@@ -80,7 +75,16 @@ def test_solicitar_es_202_y_no_envia_el_documento(con_sesion, nucleo):
     assert nucleo.ultima.headers["X-Canal"] == "movil"
 
 
-@pytest.mark.parametrize("codigo", ["identidad_ya_verificada", "verificacion_en_curso"])
+@pytest.mark.parametrize(
+    "codigo",
+    [
+        "correo_no_verificado",
+        "identidad_ya_verificada",
+        "verificacion_en_curso",
+        "reintento_no_permitido",
+        "reintento_sin_cambios",
+    ],
+)
 def test_los_conflictos_llegan_con_su_codigo(con_sesion, nucleo, codigo):
     nucleo.responder("POST", NUCLEO, problema(409, codigo))
 
@@ -100,10 +104,20 @@ def test_si_la_cuenta_ya_no_existe_la_app_vuelve_a_iniciar_sesion(con_sesion, nu
     assert respuesta.headers["WWW-Authenticate"] == "Bearer"
 
 
-def test_el_proveedor_caido_no_se_disfraza(con_sesion, nucleo):
-    nucleo.responder("POST", NUCLEO, problema(503, "proveedor_kyc_no_disponible"))
+def test_otro_404_del_nucleo_no_se_ve_como_una_sesion_vencida(con_sesion, nucleo):
+    nucleo.responder("POST", NUCLEO, problema(404, "recurso_no_encontrado"))
 
     respuesta = con_sesion.post(RUTA)
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "recurso_no_encontrado"
+
+
+@pytest.mark.parametrize(("metodo", "ruta_nucleo"), [("POST", NUCLEO), ("GET", f"{NUCLEO}/ultima")])
+def test_el_proveedor_caido_no_se_disfraza(con_sesion, nucleo, metodo, ruta_nucleo):
+    nucleo.responder(metodo, ruta_nucleo, problema(503, "proveedor_kyc_no_disponible"))
+
+    respuesta = con_sesion.request(metodo, RUTA)
 
     assert respuesta.status_code == 503
     assert respuesta.json()["codigo"] == "proveedor_kyc_no_disponible"

@@ -6,13 +6,10 @@ Cada prueba corre en la web y en la app: el reporte es el mismo en los dos canal
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 
 import pytest
 
-from app.web.dependencias import COOKIE_SESION
-
-from .conftest import CLIENTE, problema
+from .conftest import CLIENTE, al_nucleo, problema
 
 NUCLEO = f"/v1/siniestros/clientes/{CLIENTE}/siniestros"
 CLAVE = str(uuid.uuid4())
@@ -46,33 +43,6 @@ POLIZA = {
 }
 
 
-@dataclass
-class Canal:
-    nombre: str
-    prefijo: str
-
-
-@pytest.fixture(
-    params=[Canal("web", "/api/v1/web"), Canal("movil", "/api/v1/movil")], ids=lambda c: c.nombre
-)
-def canal(request) -> Canal:
-    return request.param
-
-
-@pytest.fixture
-def con_sesion(cliente, firmante, canal):
-    token = firmante.emitir(canal=canal.nombre)
-    if canal.nombre == "web":
-        cliente.cookies.set(COOKIE_SESION, token)
-    else:
-        cliente.headers["Authorization"] = f"Bearer {token}"
-    return cliente
-
-
-def _al_nucleo(nucleo) -> list:
-    return [s for s in nucleo.solicitudes if s.url.path != "/salud"]
-
-
 @pytest.mark.parametrize(
     ("metodo", "ruta"),
     [
@@ -86,7 +56,7 @@ def test_sin_sesion_toda_ruta_es_401(cliente, nucleo, canal, metodo, ruta):
     respuesta = cliente.request(metodo, f"{canal.prefijo}{ruta}", json=SOLICITUD)
 
     assert respuesta.status_code == 401
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_las_polizas_del_cliente_para_el_asistente(con_sesion, nucleo, canal):
@@ -145,14 +115,14 @@ def test_sin_clave_de_idempotencia_valida_es_422_sin_tocar_el_nucleo(
 
     assert respuesta.status_code == 422
     assert respuesta.json()["codigo"] == "clave_idempotencia_invalida"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 @pytest.mark.parametrize(
     "cambio",
     [{"descripcion": "corta"}, {"tipo_evento": "otro_tipo"}, {"ocurrido_el": "ayer"}],
 )
-def test_datos_invalidos_no_llegan_al_nucleo(con_sesion, nucleo, canal, cambio):
+def test_datos_invalidos_no_lleganal_nucleo(con_sesion, nucleo, canal, cambio):
     """Criterio 2: el asistente no avanza sin póliza, tipo, fecha y descripción."""
     respuesta = con_sesion.post(
         f"{canal.prefijo}/siniestros",
@@ -162,7 +132,7 @@ def test_datos_invalidos_no_llegan_al_nucleo(con_sesion, nucleo, canal, cambio):
 
     assert respuesta.status_code == 422
     assert respuesta.json()["campos"]
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
 
 
 def test_una_fecha_futura_es_422_sobre_el_campo_de_la_fecha(con_sesion, nucleo, canal):
@@ -234,4 +204,4 @@ def test_un_identificador_inseguro_es_404_sin_tocar_el_nucleo(con_sesion, nucleo
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "siniestro_no_encontrado"
-    assert _al_nucleo(nucleo) == []
+    assert al_nucleo(nucleo) == []
