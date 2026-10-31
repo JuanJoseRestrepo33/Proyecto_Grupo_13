@@ -615,10 +615,14 @@ class TestNoEncontradoContraOtrosErrores:
         "error",
         [
             "ERROR: (gcloud.run.services.describe) 503 Service Unavailable",
-            "ERROR: (gcloud.secrets.describe) PERMISSION_DENIED: Permission denied on resource "
-            "(or it may not exist).",
-            "ERROR: (gcloud.sql.databases.describe) HTTPError 400: Invalid request since instance "
-            "is not running.",
+            (
+                "ERROR: (gcloud.secrets.describe) PERMISSION_DENIED: Permission denied on resource "
+                "(or it may not exist)."
+            ),
+            (
+                "ERROR: (gcloud.sql.databases.describe) HTTPError 400: Invalid request since "
+                "instance is not running."
+            ),
         ],
     )
     def test_otro_error_no_es_no_existe(self, error):
