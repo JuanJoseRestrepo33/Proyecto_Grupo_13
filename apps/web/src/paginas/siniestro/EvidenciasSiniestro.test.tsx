@@ -120,6 +120,31 @@ describe('Evidencias de un siniestro ya reportado (MOB-F05, criterio 5)', () => 
     expect(await screen.findByText('foto.jpg: no se adjuntó porque el siniestro ya está cerrado.')).toBeInTheDocument()
   })
 
+  it('mientras sube un archivo no deja cambiar de siniestro, y al terminar muestra su resultado', async () => {
+    let responder: () => void = () => {}
+    const respuesta = new Promise<void>((listo) => {
+      responder = listo
+    })
+    servidor.use(
+      http.post(ruta('/siniestros/:id/evidencias'), async () => {
+        await respuesta
+        return HttpResponse.json({ codigo: 'almacenamiento_no_disponible', mensaje: 'Sin almacén' }, { status: 503 })
+      }),
+    )
+    renderizar(`/siniestros/evidencias?siniestro=${DESDE_LA_APP.id}`)
+    await screen.findByRole('list', { name: 'Evidencias adjuntas' })
+
+    await userEvent.upload(selectorArchivos(), new File(['x'], 'foto.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByText('foto.jpg: adjuntando…')).toBeInTheDocument()
+    expect(screen.getByLabelText('Siniestro')).toBeDisabled()
+
+    responder()
+
+    expect(await screen.findByText(/foto\.jpg: no se adjuntó porque el almacén de evidencias no respondió/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Siniestro')).toBeEnabled()
+  })
+
   it('sin siniestros lo explica y ofrece reportar uno', async () => {
     estado.siniestros = []
     renderizar()

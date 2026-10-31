@@ -142,7 +142,13 @@ export function EvidenciasSiniestro() {
       <section className={`${estilosTarjeta.tarjeta} ${estilosTarjeta.pila}`}>
         <div className={estilos.campo}>
           <label htmlFor="siniestro">{t('siniestro.evidencias.siniestro')}</label>
-          <select id="siniestro" value={siniestro ? elegido : ''} onChange={(evento) => elegir(evento.target.value)}>
+          {/* Mientras sube archivos no se cambia de siniestro: se perdería de vista el resultado de cada uno. */}
+          <select
+            id="siniestro"
+            value={siniestro ? elegido : ''}
+            disabled={subiendo}
+            onChange={(evento) => elegir(evento.target.value)}
+          >
             <option value="">{t('siniestro.evidencias.elegir')}</option>
             {siniestros.datos.map((s) => (
               <option key={s.id} value={s.id}>
