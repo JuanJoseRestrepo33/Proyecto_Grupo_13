@@ -40,8 +40,11 @@ permissions:
 jobs:
   ambiente:
     name: Verificar ambiente
+    # Lo que verifica (Cloud SQL, secretos, bucket) solo se aprovisiona en staging. Ningún otro
+    # job depende de este.
+    if: github.ref_name != 'main'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    environment: staging
     permissions:
       contents: read
       id-token: write # para obtener el token de Workload Identity Federation
@@ -210,11 +213,14 @@ jobs:
           ARBOL: ${{ steps.config.outputs.arbol }}
         run: |
           if actual=$(gcloud run services describe "$SERVICIO" --region="$REGION" --project="$PROYECTO" \
-               --format='value[separator="|"](metadata.labels.arbol,status.url)' 2>/dev/null); then
+               --format='value[separator="|"](metadata.labels.arbol,status.url,status.latestCreatedRevisionName,status.latestReadyRevisionName)' \
+               2>/dev/null); then
             echo "existe=true" >> "$GITHUB_OUTPUT"
-            IFS='|' read -r arbol_actual url <<< "$actual"
-            # Si ya corre este árbol, desplegarlo otra vez solo crearía una revisión igual.
-            if [ "$arbol_actual" = "$ARBOL" ]; then
+            IFS='|' read -r arbol_actual url creada lista <<< "$actual"
+            # Si ya corre este árbol, desplegarlo otra vez solo crearía una revisión igual. La
+            # etiqueta sola no basta: una revisión de ese árbol que no arrancó también la lleva, y
+            # Cloud Run sigue sirviendo la anterior. Solo se omite si la última creada está lista.
+            if [ "$arbol_actual" = "$ARBOL" ] && [ -n "$creada" ] && [ "$creada" = "$lista" ]; then
               echo "cambio=false" >> "$GITHUB_OUTPUT"
               echo "url=$url" >> "$GITHUB_OUTPUT"
               echo "::notice::$SERVICIO ya corre el árbol ${ARBOL:0:12}; no se redespliega."
