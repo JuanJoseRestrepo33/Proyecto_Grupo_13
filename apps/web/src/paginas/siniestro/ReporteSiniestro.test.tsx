@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
 import { http, HttpResponse } from 'msw'
@@ -62,12 +62,14 @@ describe('Reporte de siniestro (WEB-F05)', () => {
       await userEvent.type(screen.getByLabelText('Monto estimado (opcional)'), '1.500.000')
       await continuar()
 
-      expect(await screen.findByRole('heading', { level: 2, name: /Evidencias/ })).toHaveFocus()
+      // El foco lo mueve un efecto que puede correr justo después de que aparece el título: se espera.
+      const evidencias = await screen.findByRole('heading', { level: 2, name: /Evidencias/ })
+      await waitFor(() => expect(evidencias).toHaveFocus())
       expect(screen.getByText(/Este paso es opcional/)).toBeInTheDocument()
       await continuar()
 
       const resumen = await screen.findByRole('heading', { level: 2, name: /Revisa tu reporte/ })
-      expect(resumen).toHaveFocus()
+      await waitFor(() => expect(resumen).toHaveFocus())
       const detalle = resumen.closest('section')!
       expect(detalle).toHaveTextContent(`${VIGENTE!.numero} · Auto`)
       expect(detalle).toHaveTextContent('Accidente de vehículo')
@@ -76,7 +78,7 @@ describe('Reporte de siniestro (WEB-F05)', () => {
       await enviar()
 
       const confirmacion = await screen.findByRole('heading', { level: 2, name: 'Reporte enviado' })
-      expect(confirmacion).toHaveFocus()
+      await waitFor(() => expect(confirmacion).toHaveFocus())
       const tarjeta = confirmacion.closest('section')!
       expect(within(tarjeta).getByText(/^SIN-2026-\d{6}$/)).toBeInTheDocument()
       expect(tarjeta).toHaveTextContent('Reportado')
@@ -102,7 +104,8 @@ describe('Reporte de siniestro (WEB-F05)', () => {
       await enviar()
       await userEvent.click(await screen.findByRole('button', { name: 'Reportar otro siniestro' }))
 
-      expect(await screen.findByRole('heading', { level: 2, name: /Información del evento/ })).toHaveFocus()
+      const informacion = await screen.findByRole('heading', { level: 2, name: /Información del evento/ })
+      await waitFor(() => expect(informacion).toHaveFocus())
       expect(screen.getByLabelText('Póliza afectada')).toHaveValue('')
     })
   })
