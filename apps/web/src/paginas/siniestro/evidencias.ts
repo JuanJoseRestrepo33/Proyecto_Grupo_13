@@ -64,9 +64,21 @@ const FALLOS: Record<string, FalloCarga> = {
   almacenamiento_no_disponible: 'almacenamiento',
 }
 
+/**
+ * El archivo con un tipo admitido. El BFF exige que el tipo declarado sea uno de los admitidos y que
+ * coincida con el contenido; si el navegador no lo conoce (HEIC suele llegar sin él), se toma de la
+ * extensión que ya validó `revisarArchivo`. El BFF sigue comprobando el contenido real.
+ */
+function conTipoAdmitido(archivo: File): File {
+  if (archivo.type in FORMATOS) return archivo
+  const extension = archivo.name.split('.').pop()?.toLowerCase() ?? ''
+  const tipo = Object.entries(FORMATOS).find(([, extensiones]) => extensiones.includes(extension))?.[0]
+  return tipo ? new File([archivo], archivo.name, { type: tipo, lastModified: archivo.lastModified }) : archivo
+}
+
 export async function subirEvidencia(idSiniestro: string, archivo: File): Promise<ResultadoCarga> {
   const formulario = new FormData()
-  formulario.append('archivo', archivo, archivo.name)
+  formulario.append('archivo', conTipoAdmitido(archivo), archivo.name)
   try {
     const { data, error } = await bff.POST('/siniestros/{id}/evidencias', {
       params: { path: { id: idSiniestro } },
