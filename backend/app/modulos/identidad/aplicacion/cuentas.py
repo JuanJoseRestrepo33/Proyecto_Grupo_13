@@ -33,7 +33,7 @@ from ..dominio.errores import (
     RegistroYaVerificadoError,
     TokenRefrescoInvalidoError,
 )
-from ..dominio.modelo import EstadoIdentidad, TipoDocumento
+from ..dominio.modelo import DatosDeIdentidad, EstadoIdentidad, TipoDocumento
 from ..dominio.puertos import (
     CanalDeCodigos,
     EmisorDeTokens,
@@ -285,6 +285,15 @@ class ServicioDeCuentas:
         if cuenta is None:
             raise ClienteNoEncontradoError("El cliente no existe", id_cliente=id_cliente)
         return cuenta
+
+    def datos_de_identidad(self, id_cliente: str) -> DatosDeIdentidad:
+        """Lo que el proveedor de KYC/AML necesita, tal como quedó en el registro."""
+        cuenta = self.cliente(id_cliente)
+        return DatosDeIdentidad(
+            nombre_completo=cuenta.nombre_completo,
+            tipo_documento=cuenta.tipo_documento,
+            numero_documento=cuenta.numero_documento,
+        )
 
     def cliente_de_sesion(self, token_acceso: str) -> Cuenta:
         """El cliente de un token de acceso vigente, o `SesionNoVigenteError`."""

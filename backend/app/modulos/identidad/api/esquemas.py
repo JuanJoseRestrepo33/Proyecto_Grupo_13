@@ -1,7 +1,8 @@
 """DTO del contrato v1 de identidad.
 
-`VerificacionIdentidadDto` tiene la misma forma que `VerificacionIdentidad` del contrato
-del BFF móvil (`contratos/bff-movil/openapi.yaml`), para que el BFF la pase tal cual.
+`VerificacionIdentidadDto` tiene los campos de `VerificacionIdentidad` del contrato del BFF
+móvil (`contratos/bff-movil/openapi.yaml`) y además `solicitada_en` y `proveedor`, que el BFF
+no le pasa a la app.
 """
 
 from __future__ import annotations

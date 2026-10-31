@@ -134,8 +134,8 @@ def test_la_salud_reporta_tokens_y_envio_de_codigos(nucleo):
 # -- sesión (WEB-F13) -------------------------------------------------------------------
 
 
-def _verificada(nucleo) -> dict:
-    registro = _registrar(nucleo)
+def _verificada(nucleo, **cambios) -> dict:
+    registro = _registrar(nucleo, **cambios)
     nucleo.post(f"{RUTA}/registros/{registro['id']}/otp/verificacion", json={"codigo": CODIGO})
     return registro
 
@@ -210,6 +210,36 @@ def test_sin_token_o_con_uno_invalido_la_sesion_es_401(nucleo):
 
 def test_un_cliente_inexistente_es_404_por_http(nucleo):
     respuesta = nucleo.get(f"{RUTA}/clientes/CLI-2026-999999")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["title"] == "cliente_no_encontrado"
+
+
+def test_verificar_sin_cuerpo_usa_los_datos_de_la_cuenta(nucleo):
+    id_cliente = _verificada(nucleo, numero_documento="1020304057")["id_cliente"]
+
+    respuesta = nucleo.post(f"{RUTA}/clientes/{id_cliente}/verificaciones")
+
+    assert respuesta.status_code == 202
+    assert respuesta.json()["estado"] == "rechazada"
+    assert respuesta.json()["motivo"] == "datos_no_coinciden"
+    cuenta = nucleo.get(f"{RUTA}/clientes/{id_cliente}").json()
+    assert cuenta["estado_identidad"] == "rechazada"
+
+
+def test_el_cliente_queda_verificado_tras_la_verificacion_sin_cuerpo(nucleo):
+    id_cliente = _verificada(nucleo)["id_cliente"]
+    ruta = f"{RUTA}/clientes/{id_cliente}"
+    assert nucleo.get(f"{ruta}/verificaciones/ultima").status_code == 404
+
+    assert nucleo.post(f"{ruta}/verificaciones").json()["estado"] == "aprobada"
+
+    assert nucleo.get(ruta).json()["estado_identidad"] == "verificada"
+    assert nucleo.post(f"{ruta}/verificaciones").status_code == 409
+
+
+def test_verificar_sin_cuerpo_a_un_cliente_inexistente_es_404(nucleo):
+    respuesta = nucleo.post(f"{RUTA}/clientes/CLI-2026-999999/verificaciones")
 
     assert respuesta.status_code == 404
     assert respuesta.json()["title"] == "cliente_no_encontrado"

@@ -50,20 +50,23 @@ RUTA_CLIENTE = "/clientes/{id_cliente}"
     RUTA_CLIENTE + "/verificaciones",
     response_model=VerificacionIdentidadDto,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Envía los datos del registro al proveedor KYC/AML",
+    summary="Envía al proveedor KYC/AML los datos dados o, sin cuerpo, los de la cuenta",
 )
 def solicitar(
     id_cliente: str,
-    solicitud: SolicitudVerificacionDto,
     servicio: Servicio,
+    cuentas: Cuentas,
+    solicitud: SolicitudVerificacionDto | None = None,
     canal: CanalDep = Canal.MOVIL,
 ) -> VerificacionIdentidadDto:
-    """La respuesta puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o
+    """Sin cuerpo, usa los datos de la cuenta: así el documento no pasa por el BFF.
+
+    La respuesta puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o
     `en_proceso`; en ese caso la app consulta la última verificación en lugar de esperar.
-    409 si la identidad ya está verificada o hay una verificación en curso; 503 si el
-    proveedor no responde."""
-    verificacion = servicio.solicitar(id_cliente, solicitud.a_datos(), str(canal))
-    return a_verificacion_dto(verificacion)
+    409 si la identidad ya está verificada o hay una verificación en curso; 404
+    `cliente_no_encontrado` sin cuerpo y sin cuenta; 503 si el proveedor no responde."""
+    datos = solicitud.a_datos() if solicitud else cuentas.datos_de_identidad(id_cliente)
+    return a_verificacion_dto(servicio.solicitar(id_cliente, datos, str(canal)))
 
 
 @router.get(
