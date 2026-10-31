@@ -40,6 +40,10 @@ class RepositorioVerificaciones(Protocol):
     def guardar(self, verificacion: VerificacionIdentidad) -> None:
         raise NotImplementedError
 
+    def quitar(self, id_verificacion: str) -> None:
+        """Borra una reserva cuyo intento no llegó al proveedor."""
+        raise NotImplementedError
+
     def ultima_del_cliente(self, id_cliente: str) -> VerificacionIdentidad | None:
         raise NotImplementedError
 
@@ -76,7 +80,11 @@ class RepositorioCuentas(Protocol):
         raise NotImplementedError
 
     def siguiente_id(self, anio: int) -> str:
-        """Identificador legible, con el formato CLI-AAAA-NNNNNN."""
+        """Identificador legible, CLI-AAAA-N con al menos 6 dígitos, que nunca se repite.
+
+        Un token de acceso vigente sobrevive a un despliegue: si el id se reutilizara, ese
+        token abriría la cuenta de otra persona.
+        """
         raise NotImplementedError
 
 

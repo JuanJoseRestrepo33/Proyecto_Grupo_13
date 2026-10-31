@@ -27,6 +27,7 @@ from app.modulos import auditoria
 
 from ..aplicacion.cuentas import ServicioDeCuentas
 from ..aplicacion.servicio import ServicioDeVerificacionDeIdentidad
+from ..dominio.modelo import DatosDeIdentidad
 from ..infraestructura.auditoria_nucleo import RegistroDeAccesosEnAuditoria, RegistroEnAuditoria
 from ..infraestructura.codigos_simulados import CanalDeCodigosSimulado
 from ..infraestructura.cuentas_memoria import (
@@ -83,6 +84,11 @@ def crear_emisor(
     return emisor, EstadoDeDependencia("tokens", "ok", f"ES256, kid {emisor.kid}")
 
 
+def _datos_de_identidad(id_cliente: str) -> DatosDeIdentidad:
+    """Se resuelve al usarse: las cuentas también dependen del servicio de verificación."""
+    return obtener_servicio_de_cuentas().datos_de_identidad(id_cliente)
+
+
 @instancia_unica
 def _componentes() -> tuple[ServicioDeVerificacionDeIdentidad, Reloj, ProveedorKYCSimulado]:
     reloj = RelojDelSistema()
@@ -92,6 +98,7 @@ def _componentes() -> tuple[ServicioDeVerificacionDeIdentidad, Reloj, ProveedorK
         proveedor=proveedor,
         auditoria=RegistroEnAuditoria(auditoria.obtener_servicio()),
         reloj=reloj,
+        datos_de_identidad=_datos_de_identidad,
     )
     return servicio, reloj, proveedor
 

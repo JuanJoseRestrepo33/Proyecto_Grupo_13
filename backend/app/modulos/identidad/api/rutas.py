@@ -27,7 +27,6 @@ from .esquemas import (
     SolicitudRegistroDto,
     SolicitudRenovacionDto,
     SolicitudSesionDto,
-    SolicitudVerificacionDto,
     VerificacionIdentidadDto,
     a_cliente_dto,
     a_otp_dto,
@@ -50,23 +49,19 @@ RUTA_CLIENTE = "/clientes/{id_cliente}"
     RUTA_CLIENTE + "/verificaciones",
     response_model=VerificacionIdentidadDto,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Envía al proveedor KYC/AML los datos dados o, sin cuerpo, los de la cuenta",
+    summary="Envía al proveedor KYC/AML los datos de la cuenta",
 )
 def solicitar(
-    id_cliente: str,
-    servicio: Servicio,
-    cuentas: Cuentas,
-    solicitud: SolicitudVerificacionDto | None = None,
-    canal: CanalDep = Canal.MOVIL,
+    id_cliente: str, servicio: Servicio, canal: CanalDep = Canal.MOVIL
 ) -> VerificacionIdentidadDto:
-    """Sin cuerpo, usa los datos de la cuenta: así el documento no pasa por el BFF.
+    """No lleva cuerpo: los datos son los del registro, así el documento no pasa por el BFF.
 
     La respuesta puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o
     `en_proceso`; en ese caso la app consulta la última verificación en lugar de esperar.
-    409 si la identidad ya está verificada o hay una verificación en curso; 404
-    `cliente_no_encontrado` sin cuerpo y sin cuenta; 503 si el proveedor no responde."""
-    datos = solicitud.a_datos() if solicitud else cuentas.datos_de_identidad(id_cliente)
-    return a_verificacion_dto(servicio.solicitar(id_cliente, datos, str(canal)))
+    404 `cliente_no_encontrado`; 409 `correo_no_verificado`, `identidad_ya_verificada`,
+    `verificacion_en_curso`, `reintento_no_permitido` o `reintento_sin_cambios`; 503 si el
+    proveedor no responde."""
+    return a_verificacion_dto(servicio.solicitar(id_cliente, str(canal)))
 
 
 @router.get(

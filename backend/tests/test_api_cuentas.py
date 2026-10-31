@@ -245,6 +245,33 @@ def test_verificar_sin_cuerpo_a_un_cliente_inexistente_es_404(nucleo):
     assert respuesta.json()["title"] == "cliente_no_encontrado"
 
 
+def test_quien_no_confirmo_el_correo_no_puede_verificar_su_identidad(nucleo):
+    id_cliente = _registrar(nucleo)["id_cliente"]
+    ruta = f"{RUTA}/clientes/{id_cliente}/verificaciones"
+    sesion = nucleo.post(
+        f"{RUTA}/sesiones", json={"correo": "ana@ejemplo.co", "contrasena": "Solventa2026"}
+    )
+    assert sesion.status_code == 200
+
+    respuesta = nucleo.post(ruta)
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["title"] == "correo_no_verificado"
+    assert nucleo.get(f"{ruta}/ultima").status_code == 404
+
+
+def test_un_rechazo_por_datos_no_vuelve_al_proveedor_con_los_mismos(nucleo):
+    id_cliente = _verificada(nucleo, numero_documento="1020304057")["id_cliente"]
+    ruta = f"{RUTA}/clientes/{id_cliente}/verificaciones"
+    rechazo = nucleo.post(ruta).json()
+
+    respuesta = nucleo.post(ruta)
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["title"] == "reintento_sin_cambios"
+    assert nucleo.get(f"{ruta}/ultima").json()["id"] == rechazo["id"]
+
+
 def test_con_humo_correo_y_clave_la_cuenta_de_prueba_existe_al_arrancar(monkeypatch):
     monkeypatch.setenv(dependencias.VARIABLE_CORREO_PRUEBA, "humo@solventa.co")
     monkeypatch.setenv(dependencias.VARIABLE_CLAVE_PRUEBA, "Humo2026x")

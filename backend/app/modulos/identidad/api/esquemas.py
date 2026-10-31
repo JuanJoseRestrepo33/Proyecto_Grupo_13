@@ -15,7 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..aplicacion.cuentas import SesionAbierta
 from ..dominio.cuenta import Cuenta, DatosDeRegistro, Registro
 from ..dominio.modelo import (
-    DatosDeIdentidad,
     EstadoIdentidad,
     EstadoVerificacion,
     MotivoRechazo,
@@ -31,19 +30,6 @@ class Canal(StrEnum):
 
 class _Dto(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class SolicitudVerificacionDto(_Dto):
-    nombre_completo: str = Field(min_length=3, max_length=120)
-    tipo_documento: TipoDocumento
-    numero_documento: str = Field(pattern=r"^[A-Za-z0-9]{5,15}$")
-
-    def a_datos(self) -> DatosDeIdentidad:
-        return DatosDeIdentidad(
-            nombre_completo=self.nombre_completo,
-            tipo_documento=self.tipo_documento,
-            numero_documento=self.numero_documento,
-        )
 
 
 class VerificacionIdentidadDto(_Dto):
