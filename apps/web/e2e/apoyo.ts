@@ -6,20 +6,25 @@ const API = '/api/v1/web'
 /** Modo del proveedor de Open Finance simulado en el núcleo del ambiente. */
 export const MODO_OPEN_FINANCE = process.env.E2E_OPEN_FINANCE === 'caido' ? 'caido' : 'sano'
 
-function cuentaDePrueba() {
+export function cuentaDePrueba() {
   const correo = process.env.E2E_CORREO
   const clave = process.env.E2E_CLAVE
   if (!correo || !clave) throw new Error('Faltan E2E_CORREO y E2E_CLAVE: la cuenta de prueba del ambiente.')
   return { correo, clave }
 }
 
+/** Escribe las credenciales en la pantalla de inicio de sesión abierta y las envía. */
+export async function enviarCredenciales(page: Page, correo: string, clave: string) {
+  await page.getByLabel('Correo electrónico').fill(correo)
+  await page.getByLabel('Contraseña').fill(clave)
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+}
+
 /** Entra por la pantalla de inicio de sesión, como el cliente (WEB-F13). */
 export async function iniciarSesion(page: Page) {
   const { correo, clave } = cuentaDePrueba()
   await page.goto('/ingresar')
-  await page.getByLabel('Correo electrónico').fill(correo)
-  await page.getByLabel('Contraseña').fill(clave)
-  await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+  await enviarCredenciales(page, correo, clave)
   await expect(page.getByRole('heading', { level: 1, name: /^Hola, / })).toBeVisible()
 }
 
