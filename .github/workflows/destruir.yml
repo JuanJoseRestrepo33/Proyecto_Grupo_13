@@ -1,0 +1,60 @@
+# Destruir el ambiente de staging en Google Cloud (WEB-F01, #165). Manual e irreversible.
+#
+# Borra los servicios de Cloud Run, Cloud SQL (con todos sus datos), los secretos, el bucket de
+# evidencias y las imágenes de Artifact Registry. Conserva el acceso: Workload Identity, las cuentas
+# de servicio y el repositorio de imágenes, para que "Aprovisionar ambiente" pueda rehacerlo todo.
+# La configuración del repo en GitHub (variables y secretos de los environments) no se toca.
+#
+# Pide escribir el ID del proyecto y la aprobación del environment `staging-infraestructura`.
+# Mientras no se aprovisione de nuevo, el CD de cada merge avisa que falta el ambiente y no despliega.
+name: Destruir ambiente
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Borra staging y sus datos. Para confirmar, escribe el ID del proyecto de GCP"
+        required: true
+        type: string
+
+concurrency:
+  group: ambiente-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  destruir:
+    name: Destruir staging
+    runs-on: ubuntu-latest
+    environment: staging-infraestructura
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+    steps:
+      - name: Confirmación
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          if [ "$CONFIRMAR" != "$PROYECTO" ]; then
+            echo "::error::La confirmación no es el ID del proyecto; no se borra nada."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Destruir
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: >-
+          python3 scripts/ambiente.py destruir --proyecto "$PROYECTO" --region "$REGION"
+          --confirmar "$CONFIRMAR"

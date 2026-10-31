@@ -10,13 +10,38 @@
     "inicio": "Inicio",
     "cotizar": "Cotizar",
     "consentimientos": "Consentimientos",
-    "suscripcion": "Suscripción"
+    "suscripcion": "Suscripción",
+    "reportarSiniestro": "Reportar siniestro",
+    "evidencias": "Evidencias"
   },
   "inicio": {
     "saludo": "Hola, {{nombre}}",
-    "descripcion": "Cotiza tus seguros y gestiona tus consentimientos de Open Finance.",
+    "descripcion": "Cotiza tus seguros y gestiona tus consentimientos de Open Finance."
+  },
+  "sesion": {
     "cargando": "Cargando tu información…",
-    "error": "No pudimos cargar tu información. Intenta de nuevo más tarde."
+    "error": "No pudimos cargar tu información. Intenta de nuevo más tarde.",
+    "reintentar": "Reintentar",
+    "titulo": "Inicia sesión",
+    "descripcion": "Entra con el correo y la contraseña de tu cuenta Solventa. Es la misma cuenta de la app.",
+    "correo": "Correo electrónico",
+    "contrasena": "Contraseña",
+    "boton": "Iniciar sesión",
+    "enviando": "Iniciando sesión…",
+    "cerrar": "Cerrar sesión",
+    "cerrando": "Cerrando sesión…",
+    "avisos": {
+      "vencida": "Tu sesión venció. Inicia sesión de nuevo para continuar.",
+      "cerrada": "Cerraste sesión. ¡Hasta pronto!"
+    },
+    "errores": {
+      "correoRequerido": "Escribe tu correo electrónico.",
+      "correoInvalido": "Escribe un correo válido, por ejemplo nombre@correo.com.",
+      "contrasenaRequerida": "Escribe tu contraseña.",
+      "credenciales": "El correo o la contraseña no son correctos. Revísalos e intenta de nuevo.",
+      "servicio": "No pudimos iniciar sesión en este momento. Intenta de nuevo en unos minutos.",
+      "cerrar": "No pudimos cerrar tu sesión. Intenta de nuevo."
+    }
   },
   "consentimientos": {
     "titulo": "Consentimientos de Open Finance",
@@ -147,7 +172,7 @@
       "deducible": "Deducible",
       "coberturas": "Coberturas",
       "vigencia": "Válida por",
-      "vigenciaHasta": "La oferta es válida hasta las {{hora}}.",
+      "vigenciaHasta": "La oferta es válida hasta las {{hora}}",
       "base": {
         "open_finance": "Precio calculado con tu perfil de Open Finance. El resultado es explicable y auditable.",
         "open_finance_en_cache": "Tu entidad financiera no respondió a tiempo, así que usamos tu perfil financiero guardado. El precio es igual de válido."
@@ -155,7 +180,8 @@
       "estandar": {
         "titulo": "Precio estándar",
         "sin_consentimiento": "No usamos datos financieros porque no tienes un consentimiento vigente para cotización.",
-        "open_finance_desactivado": "No usamos datos financieros porque elegiste cotizar sin ellos."
+        "open_finance_desactivado": "No usamos datos financieros porque elegiste cotizar sin ellos.",
+        "proveedor_no_disponible": "Tu entidad financiera no respondió y no teníamos tu perfil guardado, así que te mostramos el precio estándar. Puedes recotizar en unos minutos para intentarlo con tu perfil."
       },
       "vencida": "La cotización venció.",
       "vencidaDetalle": "Los precios se garantizan por 5 minutos.",
@@ -247,5 +273,157 @@
     "recotizar": "Volver a cotizar",
     "reintentar": "Reintentar",
     "atras": "Atrás"
+  },
+  "siniestro": {
+    "titulo": "Reportar un siniestro",
+    "descripcion": "Cuéntanos qué pasó para iniciar la evaluación de tu caso.",
+    "pasos": {
+      "etiqueta": "Pasos del reporte",
+      "actual": "paso {{actual}} de {{total}}",
+      "informacion": "Información",
+      "evidencia": "Evidencia",
+      "revision": "Revisión"
+    },
+    "informacion": {
+      "titulo": "1. Información del evento",
+      "poliza": "Póliza afectada",
+      "elegirPoliza": "Elige una póliza",
+      "opcionPoliza": "{{numero}} · {{producto}} ({{estado}})",
+      "vigencia": "Cobertura del {{inicio}} al {{fin}}.",
+      "tipoEvento": "Tipo de evento",
+      "elegirTipo": "Elige el tipo de evento",
+      "fecha": "Fecha del evento",
+      "descripcion": "Descripción de lo ocurrido",
+      "descripcionAyuda": "Entre 10 y 2.000 caracteres. Cuenta qué pasó, dónde y cómo.",
+      "monto": "Monto estimado (opcional)",
+      "montoAyuda": "Lo que crees que costó, en pesos."
+    },
+    "evidencia": {
+      "titulo": "2. Evidencias",
+      "opcional": "Este paso es opcional: puedes enviar el reporte sin evidencias.",
+      "app": "Desde la app puedes tomar fotos con la fecha y la ubicación del evento.",
+      "elegir": "Adjuntar fotos, videos o documentos",
+      "limites": "JPEG, PNG, HEIC, MP4 o PDF, hasta {{limite}} cada uno.",
+      "elegidos": "Archivos elegidos",
+      "quitar": "Quitar",
+      "quitarArchivo": "Quitar {{nombre}}",
+      "rechazo": {
+        "formato": "{{nombre}}: este formato no se admite. Usa JPEG, PNG, HEIC, MP4 o PDF.",
+        "tamano": "{{nombre}}: pesa {{tamano}} y el máximo es {{limite}}.",
+        "vacio": "{{nombre}}: el archivo está vacío."
+      },
+      "fallo": {
+        "formato": "{{nombre}}: no se adjuntó porque su contenido no es JPEG, PNG, HEIC, MP4 ni PDF.",
+        "tamano": "{{nombre}}: no se adjuntó porque supera los 10 MB.",
+        "vacio": "{{nombre}}: no se adjuntó porque está vacío.",
+        "cerrado": "{{nombre}}: no se adjuntó porque el siniestro ya está cerrado.",
+        "almacenamiento": "{{nombre}}: no se adjuntó porque el almacén de evidencias no respondió. Intenta de nuevo en unos minutos.",
+        "error": "{{nombre}}: no pudimos adjuntarlo. Intenta de nuevo."
+      }
+    },
+    "revision": {
+      "titulo": "3. Revisa tu reporte",
+      "poliza": "Póliza",
+      "tipoEvento": "Tipo de evento",
+      "fecha": "Fecha del evento",
+      "descripcion": "Descripción",
+      "monto": "Monto estimado",
+      "sinMonto": "No indicado",
+      "evidencias": "Evidencias",
+      "sinEvidencias": "Ninguna",
+      "aviso": "Al enviar, tu reporte quedará registrado y comenzará su evaluación."
+    },
+    "navegacion": {
+      "atras": "Atrás",
+      "continuar": "Continuar",
+      "enviar": "Enviar reporte",
+      "enviando": "Enviando reporte…",
+      "adjuntando": "Adjuntando evidencias…"
+    },
+    "confirmacion": {
+      "titulo": "Reporte enviado",
+      "detalle": "Recibimos tu reporte. Guarda el número de referencia: es el mismo en la web y en la app.",
+      "referencia": "Número de referencia",
+      "estado": "Estado",
+      "siguientePaso": "Siguiente paso",
+      "inicio": "Ir al inicio",
+      "otro": "Reportar otro siniestro",
+      "evidencias": "Evidencias",
+      "adjuntada": "{{nombre}}: adjuntada.",
+      "agregarEvidencia": "Agregar evidencia"
+    },
+    "estados": {
+      "reportado": "Reportado",
+      "en_evaluacion": "En evaluación",
+      "requiere_informacion": "Requiere información",
+      "aprobado": "Aprobado",
+      "rechazado": "Rechazado",
+      "pagado": "Pagado"
+    },
+    "siguientePaso": {
+      "adjuntar_evidencia": "Adjunta las fotos, facturas o documentos que tengas para acelerar la evaluación.",
+      "esperar_evaluacion": "Estamos evaluando tu caso; te avisaremos cuando cambie de estado."
+    },
+    "tiposEvento": {
+      "accidente_vehiculo": "Accidente de vehículo",
+      "hurto": "Hurto",
+      "dano_hogar": "Daño en el hogar",
+      "retraso_vuelo": "Retraso de vuelo",
+      "equipo_danado_o_perdido": "Equipo dañado o perdido",
+      "cancelacion_viaje": "Cancelación de viaje",
+      "otro": "Otro"
+    },
+    "productos": {
+      "auto": "Auto",
+      "hogar": "Hogar",
+      "viaje": "Viaje",
+      "dispositivos": "Dispositivos"
+    },
+    "estadoPoliza": {
+      "vigente": "vigente",
+      "vencida": "vencida",
+      "por_iniciar": "por iniciar"
+    },
+    "sinPolizas": "No tienes pólizas sobre las cuales reportar un siniestro.",
+    "cotizar": "Cotizar un seguro",
+    "errores": {
+      "cargar": "No pudimos cargar tus pólizas.",
+      "reintentar": "Reintentar",
+      "polizaRequerida": "Elige la póliza afectada.",
+      "tipoRequerido": "Elige el tipo de evento.",
+      "fechaRequerida": "Indica la fecha del evento.",
+      "fechaFutura": "La fecha del evento no puede ser posterior a hoy.",
+      "fueraDeVigencia": "El evento debe haber ocurrido entre el {{inicio}} y el {{fin}}, mientras la póliza estaba vigente.",
+      "descripcionCorta": "Describe lo ocurrido con al menos 10 caracteres.",
+      "descripcionLarga": "La descripción admite hasta 2.000 caracteres.",
+      "montoInvalido": "Escribe el monto en pesos, solo con números.",
+      "enviar": "No pudimos confirmar el envío de tu reporte. Intenta de nuevo: si ya había llegado, verás el mismo número de referencia.",
+      "polizaNoEncontrada": "La póliza elegida ya no está disponible. Revisa la información del evento.",
+      "fueraDeVigenciaServidor": "Este evento no está cubierto: ocurrió fuera de la vigencia de la póliza (del {{inicio}} al {{fin}}). No se registró ningún reporte.",
+      "corregir": "Revisar la información"
+    },
+    "evidencias": {
+      "titulo": "Evidencias de tus siniestros",
+      "descripcion": "Adjunta fotos, videos o documentos a un siniestro ya reportado, desde la web o desde la app.",
+      "siniestro": "Siniestro",
+      "elegir": "Elige un siniestro",
+      "opcion": "{{referencia}} · {{tipo}} · {{fecha}} ({{canal}})",
+      "subtitulo": "Evidencias de {{referencia}}",
+      "cargando": "Cargando evidencias…",
+      "ninguna": "Este siniestro aún no tiene evidencias.",
+      "lista": "Evidencias adjuntas",
+      "detalle": "({{tamano}} · desde {{canal}} · {{fecha}})",
+      "descargar": "Descargar",
+      "descargarArchivo": "Descargar {{nombre}}",
+      "subiendo": "{{nombre}}: adjuntando…",
+      "sinSiniestros": "Aún no has reportado siniestros.",
+      "reportar": "Reportar un siniestro",
+      "errorSiniestros": "No pudimos cargar tus siniestros.",
+      "errorEvidencias": "No pudimos cargar las evidencias de este siniestro."
+    },
+    "canales": {
+      "web": "la web",
+      "movil": "la app"
+    }
   }
 }

@@ -1,9 +1,9 @@
-/// <reference types="vitest/config" />
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { configDefaults } from 'vitest/config'
 
 /** El worker de MSW solo sirve en desarrollo: se quita del build para no publicarlo en producción. */
 function sinWorkerDeMocks(): Plugin {
@@ -18,11 +18,18 @@ function sinWorkerDeMocks(): Plugin {
 
 export default defineConfig({
   plugins: [react(), sinWorkerDeMocks()],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    // Con VITE_MOCKS=false, /api llega al BFF local como en staging llega por nginx: mismo origen,
+    // así la cookie `sesion` funciona sin CORS. BFF_URL es el origen del BFF, sin barra final.
+    proxy: { '/api': process.env.BFF_URL ?? 'http://127.0.0.1:8001' },
+  },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Las E2E (Playwright) corren aparte, contra un ambiente con el BFF real: npm run e2e.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     css: { modules: { classNameStrategy: 'non-scoped' } },
     coverage: {
       provider: 'v8',

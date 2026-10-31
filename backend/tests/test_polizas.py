@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -84,6 +85,17 @@ def test_un_archivo_de_semilla_ilegible_se_rechaza(tmp_path):
         semilla.cargar(archivo, HOY)
     with pytest.raises(semilla.SemillaInvalidaError):
         semilla.cargar(tmp_path / "no-existe.json", HOY)
+
+
+def test_la_semilla_de_staging_cubre_los_casos_del_reporte():
+    """La que copia la imagen (#170): vigente y vencida para cualquier cuenta de prueba."""
+    archivo = Path(__file__).parents[1] / "semillas" / "polizas-staging.json"
+    cargada = semilla.cargar(archivo, HOY)
+
+    assert cargada.polizas == ()
+    estados = {p.para(CLIENTE).estado(HOY) for p in cargada.plantillas}
+    assert estados == {EstadoPoliza.VIGENTE, EstadoPoliza.VENCIDA}
+    assert len({p.numero for p in cargada.plantillas}) == len(cargada.plantillas)
 
 
 @pytest.fixture

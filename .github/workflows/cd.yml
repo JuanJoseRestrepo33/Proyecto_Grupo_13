@@ -6,6 +6,16 @@
 # web estática (apps/web/, nginx que reenvía /api/ al BFF). Cada servicio de Cloud Run se llama igual
 # que su imagen. El pipeline publica las imágenes en el registro de GitHub, las copia a Artifact
 # Registry y las despliega en orden: núcleo → BFF → web, porque cada uno depende del anterior.
+# En staging, al final corren las E2E de la web (Playwright) contra lo recién desplegado.
+#
+# Omite lo que no cambió: cada imagen se identifica también por el árbol de git de su componente
+# (`git rev-parse HEAD:<carpeta>`). Si ya existe una imagen de ese árbol, no se vuelve a construir; si
+# el servicio ya corre ese árbol (etiqueta `arbol`), no se vuelve a desplegar, pero sí se repite su
+# prueba de humo. Un merge que solo toca la web no reconstruye ni redespliega el núcleo ni el BFF.
+#
+# El pipeline no crea infraestructura: el job "Verificar ambiente" revisa en segundos que exista
+# (Cloud SQL encendida, secretos, bucket y servicios) y avisa lo que falta. Crearla o destruirla son
+# los workflows manuales "Aprovisionar ambiente" y "Destruir ambiente" (scripts/ambiente.py).
 #
 # Se autentica ante Google Cloud con Workload Identity Federation: no existe ninguna llave de cuenta
 # de servicio, ni en GitHub ni en el código. Las credenciales de bases de datos, las URL entre
@@ -28,6 +38,40 @@ permissions:
   packages: write
 
 jobs:
+  ambiente:
+    name: Verificar ambiente
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+    steps:
+      - id: config
+        run: |
+          if [ -n "$PROYECTO" ] && [ -n "$REGION" ] && [ -n "$PROVEEDOR_IDENTIDAD" ] && [ -n "$CUENTA_SERVICIO" ]; then
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::El environment no tiene configurado el despliegue; no se verifica el ambiente."
+          fi
+      - if: steps.config.outputs.lista == 'true'
+        uses: actions/checkout@v4
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Verificar
+        if: steps.config.outputs.lista == 'true'
+        # Solo lee y nunca falla: lo que falte queda como aviso en el resumen del run.
+        run: python3 scripts/ambiente.py verificar --proyecto "$PROYECTO" --region "$REGION"
+
   publicar:
     name: Publicar ${{ matrix.servicio }}
     runs-on: ubuntu-latest
@@ -46,6 +90,7 @@ jobs:
           CONTEXTO: ${{ matrix.contexto }}
         run: |
           echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${SERVICIO}" >> "$GITHUB_OUTPUT"
+          echo "arbol=$(git rev-parse "HEAD:$CONTEXTO" 2>/dev/null)" >> "$GITHUB_OUTPUT"
           if [ -f "$CONTEXTO/Dockerfile" ]; then
             echo "publicada=true" >> "$GITHUB_OUTPUT"
           else
@@ -60,7 +105,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.nombre.outputs.publicada == 'true'
+      - name: ¿Ya existe la imagen de este árbol?
+        if: steps.nombre.outputs.publicada == 'true'
+        id: previa
+        env:
+          SERVICIO: ${{ matrix.servicio }}
+          IMAGEN: ${{ steps.nombre.outputs.imagen }}
+          ARBOL: ${{ steps.nombre.outputs.arbol }}
+        # Mismo árbol, misma imagen: se le agregan las etiquetas de este commit sin construir.
+        run: |
+          if docker buildx imagetools inspect "$IMAGEN:arbol-$ARBOL" >/dev/null 2>&1; then
+            docker buildx imagetools create --tag "$IMAGEN:$GITHUB_SHA" --tag "$IMAGEN:$GITHUB_REF_NAME" \
+              "$IMAGEN:arbol-$ARBOL"
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$SERVICIO no cambió (árbol ${ARBOL:0:12}); no se reconstruye."
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.previa.outputs.existe == 'false'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: ${{ matrix.contexto }}
@@ -68,6 +130,7 @@ jobs:
           tags: |
             ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
             ${{ steps.nombre.outputs.imagen }}:${{ github.ref_name }}
+            ${{ steps.nombre.outputs.imagen }}:arbol-${{ steps.nombre.outputs.arbol }}
           cache-from: type=gha,scope=${{ matrix.servicio }}
           cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
 
@@ -86,10 +149,13 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - { servicio: solventa-nucleo, humo: nucleo, requiere: backend/Dockerfile }
-          - { servicio: solventa-bff, humo: bff, requiere: bff/Dockerfile }
+          - { servicio: solventa-nucleo, humo: nucleo, contexto: backend, requiere: backend/Dockerfile }
+          - { servicio: solventa-bff, humo: bff, contexto: bff, requiere: bff/Dockerfile }
           # La web sin BFF no tiene a quién reenviar /api/.
-          - { servicio: solventa-web, humo: web, requiere: apps/web/Dockerfile bff/Dockerfile }
+          - servicio: solventa-web
+            humo: web
+            contexto: apps/web
+            requiere: apps/web/Dockerfile bff/Dockerfile
     env:
       SERVICIO: ${{ matrix.servicio }}
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
@@ -103,6 +169,7 @@ jobs:
         id: config
         env:
           REQUIERE: ${{ matrix.requiere }}
+          CONTEXTO: ${{ matrix.contexto }}
         run: |
           for archivo in $REQUIERE; do
             if [ ! -f "$archivo" ]; then
@@ -121,6 +188,7 @@ jobs:
           else
             echo "lista=true" >> "$GITHUB_OUTPUT"
             echo "imagen=${REGION}-docker.pkg.dev/${PROYECTO}/${REPOSITORIO}/${SERVICIO}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "arbol=$(git rev-parse "HEAD:$CONTEXTO")" >> "$GITHUB_OUTPUT"
           fi
       - name: Autenticar en Google Cloud
         if: steps.config.outputs.lista == 'true'
@@ -135,33 +203,44 @@ jobs:
       - name: Verificar que el servicio existe
         if: steps.config.outputs.lista == 'true'
         id: servicio
-        # El primer despliegue de cada servicio es manual (docs/devops.md, "Configuración manual en
-        # GCP"): ahí se fijan su cuenta de servicio, sus variables y sus secretos. Si el pipeline lo
-        # creara, quedaría con la cuenta por defecto y sin configuración.
+        # El primer despliegue de cada servicio lo hace "Aprovisionar ambiente": ahí se fijan su
+        # cuenta de servicio, sus variables y sus secretos. Creado aquí, quedaría con la cuenta por
+        # defecto y sin configuración.
+        env:
+          ARBOL: ${{ steps.config.outputs.arbol }}
         run: |
-          if gcloud run services describe "$SERVICIO" --region="$REGION" --project="$PROYECTO" \
-               --format='value(metadata.name)' >/dev/null 2>&1; then
+          if actual=$(gcloud run services describe "$SERVICIO" --region="$REGION" --project="$PROYECTO" \
+               --format='value[separator="|"](metadata.labels.arbol,status.url)' 2>/dev/null); then
             echo "existe=true" >> "$GITHUB_OUTPUT"
+            IFS='|' read -r arbol_actual url <<< "$actual"
+            # Si ya corre este árbol, desplegarlo otra vez solo crearía una revisión igual.
+            if [ "$arbol_actual" = "$ARBOL" ]; then
+              echo "cambio=false" >> "$GITHUB_OUTPUT"
+              echo "url=$url" >> "$GITHUB_OUTPUT"
+              echo "::notice::$SERVICIO ya corre el árbol ${ARBOL:0:12}; no se redespliega."
+            else
+              echo "cambio=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "existe=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::El servicio $SERVICIO no existe en Cloud Run; haz su primer despliegue manual (docs/devops.md)."
+            echo "::warning::El servicio $SERVICIO no existe en Cloud Run; corre el workflow Aprovisionar ambiente."
           fi
-      - if: steps.servicio.outputs.existe == 'true'
+      - if: steps.servicio.outputs.cambio == 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
-      - if: steps.servicio.outputs.existe == 'true'
+      - if: steps.servicio.outputs.cambio == 'true'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.servicio.outputs.existe == 'true'
+      - if: steps.servicio.outputs.cambio == 'true'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.gcp.outputs.access_token }}
       - name: Copiar la imagen a Artifact Registry
-        if: steps.servicio.outputs.existe == 'true'
+        if: steps.servicio.outputs.cambio == 'true'
         env:
           IMAGEN_GITHUB: ghcr.io/${{ github.repository_owner }}/${{ matrix.servicio }}:${{ github.sha }}
           IMAGEN_GCP: ${{ steps.config.outputs.imagen }}
@@ -169,7 +248,7 @@ jobs:
         # despliega es exactamente lo que el CI probó.
         run: docker buildx imagetools create --tag "$IMAGEN_GCP" "${IMAGEN_GITHUB,,}"
       - name: Desplegar en Cloud Run
-        if: steps.servicio.outputs.existe == 'true'
+        if: steps.servicio.outputs.cambio == 'true'
         id: despliegue
         uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522  # v2.7.6
         with:
@@ -178,14 +257,109 @@ jobs:
           project_id: ${{ env.PROYECTO }}
           image: ${{ steps.config.outputs.imagen }}
           # Las variables de entorno y los secretos del servicio se conservan entre despliegues;
-          # se configuran una vez en la plataforma (docs/devops.md, "Configuración manual en GCP").
+          # los fija su primer despliegue ("Aprovisionar ambiente").
           flags: --allow-unauthenticated
+          # El árbol desplegado, para omitir el próximo despliegue si no cambia.
+          labels: arbol=${{ steps.config.outputs.arbol }}
       - name: Prueba de humo
         if: steps.servicio.outputs.existe == 'true'
         env:
-          URL_AMBIENTE: ${{ steps.despliegue.outputs.url }}
+          URL_AMBIENTE: ${{ steps.despliegue.outputs.url || steps.servicio.outputs.url }}
           HUMO: ${{ matrix.humo }}
           # Cuenta de prueba del environment (MOB-F02); sin ella, las filas con sesión solo avisan.
           HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
           HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
         run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"
+
+  e2e:
+    # Los flujos de la web de punta a punta, después de desplegar (WEB-F01, #166). Solo en staging:
+    # inician sesión con la cuenta de prueba y cambian su estado, cosa que no se hace en producción.
+    name: E2E web en staging
+    needs: desplegar
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write # para leer la URL de la web en Cloud Run con Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar configuración
+        id: config
+        # La cuenta de prueba solo llega a los pasos que la usan, no a npm ni a la instalación de Chromium.
+        env:
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: |
+          faltan=""
+          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO E2E_CORREO E2E_CLAVE; do
+            [ -z "${!variable}" ] && faltan="$faltan $variable"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::notice::El environment no tiene configuradas las E2E (faltan:$faltan); se omiten."
+            echo "lista=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Autenticar en Google Cloud
+        if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: URL de la web en staging
+        if: steps.config.outputs.lista == 'true'
+        id: web
+        run: |
+          url=$(gcloud run services describe solventa-web --region="$REGION" --project="$PROYECTO" \
+                  --format='value(status.url)' 2>/dev/null || true)
+          if [ -z "$url" ]; then
+            echo "::warning::No se encontró solventa-web en Cloud Run; no hay contra qué correr las E2E."
+            echo "url=" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.web.outputs.url != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Instalar dependencias y Chromium
+        if: steps.web.outputs.url != ''
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: E2E (Playwright)
+        if: steps.web.outputs.url != ''
+        env:
+          E2E_URL_WEB: ${{ steps.web.outputs.url }}
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+          # El núcleo de staging tiene Open Finance sano: el flujo con el proveedor caído se omite.
+          E2E_OPEN_FINANCE: sano
+        run: npm run e2e
+      - name: Avisar los flujos de la parte B
+        if: steps.web.outputs.url != ''
+        run: >-
+          echo "::notice::E2E: cotizar con Open Finance caído es de la parte B de WEB-F01 (#123) y aún no
+          corre en staging: el núcleo no permite provocar la caída del proveedor sin redesplegarlo."
+      - name: Capturas de las pruebas fallidas
+        if: failure() && steps.web.outputs.url != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-e2e
+          # Solo las capturas: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba.
+          path: apps/web/test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7

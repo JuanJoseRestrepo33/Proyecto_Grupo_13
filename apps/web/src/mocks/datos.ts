@@ -1,7 +1,22 @@
 /** Catálogos de los mocks del BFF. Datos ficticios y deterministas, aptos para aserciones. */
-import type { Entidad, FactorPrecio, Finalidad, Producto, Sesion } from '../api/tipos'
+import type { Credenciales, Entidad, FactorPrecio, Finalidad, PolizaResumen, Producto, Sesion } from '../api/tipos'
+import { diaRelativo } from '../formato'
 
 export const SESION: Sesion = { cliente: { id: 'cli-001', nombre: 'Ana' } }
+
+/**
+ * Pólizas del cliente, con fechas relativas a hoy como la semilla de staging (`POLIZAS_SEMILLA`):
+ * una vigente y una que venció hace 30 días tras un año de cobertura (WEB-F05, criterio 3).
+ */
+export function polizasDePrueba(): PolizaResumen[] {
+  return [
+    { numero: 'POL-2026-000101', producto: 'auto', inicio: diaRelativo(-30), fin: diaRelativo(335), estado: 'vigente' },
+    { numero: 'POL-2026-000102', producto: 'hogar', inicio: diaRelativo(-395), fin: diaRelativo(-30), estado: 'vencida' },
+  ]
+}
+
+/** Cuenta de prueba de los mocks: con estas credenciales se inicia sesión como `SESION`. */
+export const CREDENCIALES_PRUEBA: Credenciales = { correo: 'ana@solventa.test', contrasena: 'Solventa-2026' }
 
 export const ENTIDADES: Entidad[] = [
   { id: 'ent-andes', nombre: 'Banco Andes S.A.' },
