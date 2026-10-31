@@ -115,3 +115,24 @@ export async function siniestrosConMarca(page: Page, marca: string) {
   expect(respuesta.ok()).toBe(true)
   return ((await respuesta.json()) as SiniestroResumen[]).filter((s) => s.descripcion.includes(marca))
 }
+
+/** Reporta un siniestro completo y devuelve el que quedó registrado, según el BFF. */
+export async function reportarSiniestro(page: Page, marca: string) {
+  await llenarReporteHastaRevision(page, `Siniestro de prueba (${marca}).`)
+  await page.getByRole('button', { name: 'Enviar reporte' }).click()
+  await expect(page.getByRole('region', { name: 'Reporte enviado' })).toBeVisible()
+  const [siniestro] = await siniestrosConMarca(page, marca)
+  expect(siniestro).toBeDefined()
+  return siniestro!
+}
+
+interface EvidenciaResumen {
+  nombre_original: string | null
+}
+
+/** Nombres de los archivos que el BFF tiene como evidencia del siniestro. */
+export async function evidenciasDe(page: Page, idSiniestro: string) {
+  const respuesta = await page.request.get(`${API}/siniestros/${encodeURIComponent(idSiniestro)}/evidencias`)
+  expect(respuesta.ok()).toBe(true)
+  return ((await respuesta.json()) as EvidenciaResumen[]).map((e) => e.nombre_original)
+}
