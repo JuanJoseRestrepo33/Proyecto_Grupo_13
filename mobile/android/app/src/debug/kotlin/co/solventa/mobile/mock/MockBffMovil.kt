@@ -11,6 +11,7 @@ private val RUTA_OTP = Regex("^registros/([^/]+)/otp/(verificacion|reenvio)$")
 private val RUTA_CON_ACCION = Regex(
     "^consentimientos/([^/]+)/(revocacion|renovacion)$",
 )
+private val RUTA_EVIDENCIAS = Regex("^siniestros/([^/]+)/evidencias$")
 
 /**
  * Implementación en memoria de contratos/bff-movil/openapi.yaml para el build debug.
@@ -23,6 +24,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
     private val identidad = MockIdentidad(estado)
     private val consentimiento = MockConsentimiento(estado)
     private val siniestros = MockSiniestros(estado)
+    private val evidencias = MockEvidencias(estado, siniestros)
 
     /**
      * @param ruta relativa al prefijo del BFF, sin "/" inicial (p. ej. "registros").
@@ -38,6 +40,12 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         enrutar(metodo, ruta, cuerpo, autorizacion, claveIdempotencia)
     } catch (invalida: SerializationException) {
         respuesta(422, ErrorBff("solicitud_invalida", invalida.message.orEmpty()))
+    }
+
+    /** `multipart/form-data`: el interceptor ya separó el archivo y sus campos. */
+    fun responderCarga(ruta: String, autorizacion: String?, carga: CargaMock): RespuestaMock {
+        val id = RUTA_EVIDENCIAS.matchEntire(ruta)?.groupValues?.get(1) ?: return fallo(404, "ruta_no_simulada")
+        return evidencias.adjuntar(autorizacion, id, carga)
     }
 
     @Suppress("ReturnCount")
@@ -87,6 +95,8 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         if (conMatch != null && metodo == "POST") {
             return enrutarConAccion(conMatch.component1(), conMatch.component2(), autorizacion)
         }
+        val evidencia = RUTA_EVIDENCIAS.matchEntire(ruta)?.groupValues?.get(1)
+        if (evidencia != null && metodo == "GET") return evidencias.listar(autorizacion, evidencia)
         return fallo(404, "ruta_no_simulada")
     }
 

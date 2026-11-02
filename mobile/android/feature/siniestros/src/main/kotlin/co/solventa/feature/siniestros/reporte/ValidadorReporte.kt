@@ -58,12 +58,12 @@ data class DatosReporte(
 
 /**
  * Pasos del asistente. La web junta la póliza con la información; en la app va aparte porque la
- * lista no cabe cómoda junto al formulario. El paso de evidencia de #137 (MOB-F05) se inserta entre
- * [INFORMACION] y [REVISION]: basta con agregarlo aquí y su pantalla en `PantallaReporte`.
+ * lista no cabe cómoda junto al formulario. La evidencia (MOB-F05) es opcional y no tiene campos.
  */
 enum class PasoReporte(val campos: List<Campo>) {
     POLIZA(listOf(Campo.POLIZA)),
     INFORMACION(listOf(Campo.TIPO, Campo.FECHA, Campo.DESCRIPCION, Campo.MONTO)),
+    EVIDENCIA(emptyList()),
     REVISION(emptyList()),
     ;
 

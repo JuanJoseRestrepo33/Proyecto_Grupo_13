@@ -17,6 +17,8 @@ import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.TipoEventoSiniestro
 import co.solventa.core.network.llamarBff
 import co.solventa.feature.siniestros.R
+import co.solventa.feature.siniestros.evidencia.FuentesEvidencia
+import co.solventa.feature.siniestros.evidencia.GestorEvidencia
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -87,6 +89,7 @@ class ReporteViewModel(
     private val borrador: SavedStateHandle = SavedStateHandle(),
     private val hoy: () -> LocalDate = LocalDate::now,
     private val nuevaClave: () -> String = { UUID.randomUUID().toString() },
+    fuentes: FuentesEvidencia = FuentesEvidencia(),
 ) : ViewModel() {
     private var actual by mutableStateOf(restaurar(borrador, hoy()))
 
@@ -97,8 +100,12 @@ class ReporteViewModel(
             guardar(borrador, valor)
         }
 
+    /** El paso de evidencia y su carga, que empieza cuando el siniestro queda reportado (MOB-F05). */
+    val evidencia = GestorEvidencia(api, fuentes, viewModelScope, borrador)
+
     init {
-        if (estado.siniestro == null) cargarPolizas()
+        val reportado = estado.siniestro
+        if (reportado == null) cargarPolizas() else evidencia.reanudar(reportado.id)
     }
 
     fun cargarPolizas() {
@@ -145,6 +152,7 @@ class ReporteViewModel(
             irAlPrimerPendiente(hasta = paso) -> Unit
             paso == PasoReporte.REVISION -> enviar()
             else -> {
+                if (paso == PasoReporte.EVIDENCIA) evidencia.descartarNoCaben()
                 val siguiente = PasoReporte.entries[paso.ordinal + 1]
                 val clave = estado.claveIdempotencia ?: if (siguiente == PasoReporte.REVISION) nuevaClave() else null
                 estado = estado.copy(paso = siguiente, claveIdempotencia = clave, aviso = null)
@@ -191,7 +199,10 @@ class ReporteViewModel(
         viewModelScope.launch {
             val resultado = llamarBff { api.reportarSiniestro(clave, solicitud) }
             estado = when (resultado) {
-                is Resultado.Exito -> estado.copy(siniestro = resultado.valor, envioPendiente = false)
+                is Resultado.Exito -> estado.copy(siniestro = resultado.valor, envioPendiente = false).also {
+                    // Después del reporte: un fallo de evidencia no lo deshace.
+                    evidencia.subir(resultado.valor.id)
+                }
                 is Resultado.Falla -> rechazado(resultado)
                 Resultado.SinConexion -> estado.copy(aviso = Aviso.SinConexion, envioPendiente = true)
             }.copy(enviando = false)

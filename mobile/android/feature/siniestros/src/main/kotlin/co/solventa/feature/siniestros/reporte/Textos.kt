@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package co.solventa.feature.siniestros.reporte
 
 import androidx.compose.runtime.Composable
@@ -10,6 +12,7 @@ import co.solventa.core.network.TipoEventoSiniestro
 import co.solventa.feature.siniestros.R
 import java.text.NumberFormat
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -17,11 +20,25 @@ import java.util.Locale
 
 private val COLOMBIA: Locale = Locale.forLanguageTag("es-CO")
 private val FECHA_LARGA: DateTimeFormatter = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", COLOMBIA)
+private val FECHA_HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy, HH:mm", COLOMBIA)
+private const val BYTES_KB = 1024L
+private const val BYTES_MB = 1024L * 1024
 
 fun formatoFecha(fecha: LocalDate): String = FECHA_LARGA.format(fecha)
 
 /** La fecha del contrato (ISO) en texto largo; si no se puede leer, tal cual. */
 fun formatoFecha(iso: String): String = runCatching { formatoFecha(LocalDate.parse(iso)) }.getOrDefault(iso)
+
+/** Fecha y hora del contrato en texto largo, en la zona que trae; si no se puede leer, tal cual. */
+fun formatoFechaHora(iso: String): String =
+    runCatching { FECHA_HORA.format(OffsetDateTime.parse(iso)) }.getOrDefault(iso)
+
+/** "2,4 MB", "830 kB" o "45 B". */
+fun formatoTamano(bytes: Long): String = when {
+    bytes >= BYTES_MB -> String.format(COLOMBIA, "%.1f MB", bytes.toDouble() / BYTES_MB)
+    bytes >= BYTES_KB -> "${bytes / BYTES_KB} kB"
+    else -> "$bytes B"
+}
 
 fun formatoPesos(pesos: Long): String = NumberFormat.getIntegerInstance(COLOMBIA).format(pesos)
 
@@ -58,6 +75,7 @@ fun SiguientePaso.explicacion() = when (this) {
 fun PasoReporte.titulo() = when (this) {
     PasoReporte.POLIZA -> R.string.paso_poliza
     PasoReporte.INFORMACION -> R.string.paso_informacion
+    PasoReporte.EVIDENCIA -> R.string.paso_evidencia
     PasoReporte.REVISION -> R.string.paso_revision
 }
 
