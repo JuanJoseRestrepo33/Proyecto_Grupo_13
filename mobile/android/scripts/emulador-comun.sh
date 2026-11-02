@@ -168,7 +168,8 @@ arrancar_emulador() {
         AVD=${AVD:-$("$EMULADOR" -list-avds | tr -d '\r' | head -n1)}
         [[ -n "$AVD" ]] || fallar "No hay AVD; crea uno en Android Studio (API 26+)."
         log "Arrancando emulador $AVD"
-        nohup "$EMULADOR" -avd "$AVD" -no-boot-anim >/dev/null 2>&1 &
+        # DNS explícito: con el del host, el emulador puede quedarse sin resolver nombres.
+        nohup "$EMULADOR" -avd "$AVD" -no-boot-anim -dns-server 8.8.8.8,1.1.1.1 >/dev/null 2>&1 &
     fi
     "$ADB" wait-for-device
     until [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; do sleep 2; done

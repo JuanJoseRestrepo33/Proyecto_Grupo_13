@@ -122,16 +122,20 @@ tocar_sensor() {
 # ── Preparación ──────────────────────────────────────────────────────────────────────────────
 
 arrancar_emulador
-# Recién encendido, el emulador pasa unos segundos sin red y el registro fallaría.
+# Recién encendido, el emulador pasa unos segundos sin red y el registro fallaría. Se prueba un nombre,
+# no una IP: lo que falla es el DNS.
+hay_red() { "$ADB" shell ping -c 1 -W 2 dns.google >/dev/null 2>&1; }
 for _ in $(seq 30); do
-    "$ADB" shell ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1 && break
+    hay_red && break
     sleep 2
 done
+hay_red || fallar "El emulador no resuelve nombres: reinícialo con -dns-server 8.8.8.8."
 hay_huella ||
     fallar "El emulador no tiene huellas registradas (Settings > Security > Fingerprint)."
 log "Instalando el APK"
-"$ADB" install -r "$(ruta_dispositivo "$APK_PROBADO")" >/dev/null
-"$ADB" shell pm clear "$PAQUETE" >/dev/null
+# Se desinstala antes: el APK de CI y un build local tienen firmas distintas y `install -r` fallaría.
+"$ADB" uninstall "$PAQUETE" >/dev/null 2>&1 || true
+"$ADB" install "$(ruta_dispositivo "$APK_PROBADO")" >/dev/null
 "$ADB" logcat -c
 
 # ── Criterio 1: registro y OTP ───────────────────────────────────────────────────────────────
