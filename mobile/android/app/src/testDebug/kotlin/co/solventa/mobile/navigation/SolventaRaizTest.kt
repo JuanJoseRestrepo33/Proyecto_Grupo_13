@@ -4,15 +4,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.EstadoIdentidad
@@ -24,6 +29,7 @@ import co.solventa.feature.onboarding.biometria.DisponibilidadBiometrica
 import co.solventa.feature.onboarding.biometria.PropositoBiometrico
 import co.solventa.feature.onboarding.biometria.ResultadoBiometrico
 import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.siniestros.DependenciasSiniestros
 import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.CODIGO_OTP
@@ -65,7 +71,11 @@ class SolventaRaizTest {
     /** Cambiarlo simula cerrar y volver a abrir la app: se recrea toda la navegación. */
     private var apertura by mutableIntStateOf(0)
 
-    private fun mostrar() = compose.setContent { SolventaTheme { key(apertura) { SolventaRaiz(dependencias) } } }
+    private val siniestros = DependenciasSiniestros(dependencias.api)
+
+    private fun mostrar() = compose.setContent {
+        SolventaTheme { key(apertura) { SolventaRaiz(dependencias, dependenciasSiniestros = siniestros) } }
+    }
 
     private fun escribir(etiqueta: String, texto: String) = compose.onNodeWithTag(etiqueta).performTextInput(texto)
 
@@ -168,6 +178,34 @@ class SolventaRaizTest {
     }
 
     @Test
+    fun `el cliente demo reporta un siniestro desde inicio y ve la referencia`() {
+        biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
+        mostrar()
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("ir-reportar-siniestro"))
+        compose.onNodeWithTag("ir-reportar-siniestro").performClick()
+
+        compose.esperar(hasTestTag("poliza-POL-2026-001101"))
+        compose.onNodeWithTag("poliza-POL-2026-001101").performClick()
+        compose.onNodeWithTag("continuar").performScrollTo().performClick()
+        compose.onNodeWithText("Hurto").performScrollTo().performClick()
+        // El día 1 del mes en curso siempre es elegible y cae en la vigencia de la póliza de auto.
+        compose.onNodeWithTag("abrir-fecha").performScrollTo().performClick()
+        compose.onAllNodes(diaDelMes(1) and hasClickAction()).onFirst().performClick()
+        compose.onNodeWithTag("aceptar-fecha").performClick()
+        escribir("campo-descripcion", "Me robaron el celular en el bus")
+        compose.onNodeWithTag("continuar").performScrollTo().performClick()
+        compose.onNodeWithTag("enviar").performScrollTo().performClick()
+
+        compose.esperar(hasTestTag("referencia"))
+        compose.onNodeWithText("SIN-2026-000001").assertIsDisplayed()
+        compose.onNodeWithText("Volver al inicio").performScrollTo().performClick()
+        compose.onNodeWithTag("screen-home").assertIsDisplayed()
+    }
+
+    @Test
     fun `sin sensor biometrico el cliente verificado va directo al inicio`() {
         biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
         mostrar()
@@ -176,6 +214,14 @@ class SolventaRaizTest {
         compose.onNodeWithText("Iniciar sesión").performClick()
         compose.esperar(hasTestTag("screen-home"))
         compose.onNodeWithTag("oferta").assertDoesNotExist()
+    }
+}
+
+/** Celda del calendario de Material: su texto es la fecha completa («jueves, 1 de octubre de 2026»). */
+private fun diaDelMes(dia: Int): SemanticsMatcher {
+    val patron = Regex("(^|\\D)$dia(\\D|$)")
+    return SemanticsMatcher("día $dia del calendario") { nodo ->
+        nodo.config.getOrNull(SemanticsProperties.Text).orEmpty().any { patron.containsMatchIn(it.text) }
     }
 }
 

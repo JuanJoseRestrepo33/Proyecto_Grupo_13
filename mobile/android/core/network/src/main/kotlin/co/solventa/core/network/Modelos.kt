@@ -106,13 +106,16 @@ data class VerificacionIdentidad(
 @Serializable
 data class ErrorCampo(val campo: String, val codigo: String)
 
-// Cubre Error, ErrorValidacion y ErrorOtp: los campos extra son opcionales.
+// Cubre Error, ErrorValidacion, ErrorOtp y ErrorVigencia: los campos extra son opcionales.
 @Serializable
 data class ErrorBff(
     val codigo: String,
     val mensaje: String,
     val campos: List<ErrorCampo> = emptyList(),
     @SerialName("intentos_restantes") val intentosRestantes: Int? = null,
+    /** Solo con `evento_fuera_de_vigencia` (ErrorVigencia). */
+    @SerialName("vigente_desde") val vigenteDesde: String? = null,
+    @SerialName("vigente_hasta") val vigenteHasta: String? = null,
 ) {
     companion object {
         // null si la respuesta no trae un cuerpo de error del contrato (p. ej. un proxy caído).
@@ -193,4 +196,85 @@ data class EventoConsentimiento(
     @SerialName("ocurrido_en") val ocurridoEn: String,
     val canal: String,
     @SerialName("version_texto") val versionTexto: String,
+)
+
+// ── Modelos de siniestros (WEB-F05) ───────────────────────────────────────────────────────────
+// Las fechas sin hora (`format: date`) llegan como texto ISO (2026-10-26).
+
+@Serializable
+enum class EstadoPoliza {
+    @SerialName("vigente") VIGENTE,
+    @SerialName("vencida") VENCIDA,
+    @SerialName("por_iniciar") POR_INICIAR,
+}
+
+@Serializable
+data class PolizaResumen(
+    val numero: String,
+    val producto: String,
+    val inicio: String,
+    /** Último día de cobertura, incluido. */
+    val fin: String,
+    val estado: EstadoPoliza,
+)
+
+@Serializable
+enum class TipoEventoSiniestro {
+    @SerialName("accidente_vehiculo") ACCIDENTE_VEHICULO,
+    @SerialName("hurto") HURTO,
+    @SerialName("dano_hogar") DANO_HOGAR,
+    @SerialName("retraso_vuelo") RETRASO_VUELO,
+    @SerialName("equipo_danado_o_perdido") EQUIPO_DANADO_O_PERDIDO,
+    @SerialName("cancelacion_viaje") CANCELACION_VIAJE,
+    @SerialName("otro") OTRO,
+}
+
+@Serializable
+enum class EstadoSiniestro {
+    @SerialName("reportado") REPORTADO,
+    @SerialName("en_evaluacion") EN_EVALUACION,
+    @SerialName("requiere_informacion") REQUIERE_INFORMACION,
+    @SerialName("aprobado") APROBADO,
+    @SerialName("rechazado") RECHAZADO,
+    @SerialName("pagado") PAGADO,
+}
+
+@Serializable
+enum class SiguientePaso {
+    @SerialName("adjuntar_evidencia") ADJUNTAR_EVIDENCIA,
+    @SerialName("esperar_evaluacion") ESPERAR_EVALUACION,
+}
+
+/** Monto entero en la unidad mayor de la moneda (pesos para COP). La moneda no tiene valor por defecto:
+ * kotlinx.serialization omitiría el campo y el contrato lo exige. */
+@Serializable
+data class Dinero(val valor: Long, val moneda: String) {
+    companion object {
+        fun pesos(valor: Long) = Dinero(valor, "COP")
+    }
+}
+
+@Serializable
+data class SolicitudSiniestro(
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+)
+
+@Serializable
+data class Siniestro(
+    val id: String,
+    /** SIN-AAAA-NNNNNN: la misma en la web y en la app. */
+    val referencia: String,
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("siguiente_paso") val siguientePaso: SiguientePaso,
+    val canal: String,
+    @SerialName("reportado_en") val reportadoEn: String,
 )

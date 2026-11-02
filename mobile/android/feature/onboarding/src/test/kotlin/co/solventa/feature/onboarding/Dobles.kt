@@ -10,12 +10,15 @@ import co.solventa.core.network.EstadoIdentidad
 import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Otp
+import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
+import co.solventa.core.network.Siniestro
 import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
+import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.VerificacionIdentidad
 import co.solventa.feature.onboarding.biometria.AlmacenToken
 import co.solventa.feature.onboarding.biometria.Biometria
@@ -132,6 +135,11 @@ class BffFalso : BffApi {
         error("no se usa en MOB-F01")
 
     override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en MOB-F01")
+
+    override suspend fun reportarSiniestro(claveIdempotencia: String, solicitud: SolicitudSiniestro): Siniestro =
         error("no se usa en MOB-F01")
 }
 

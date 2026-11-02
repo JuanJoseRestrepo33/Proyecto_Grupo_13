@@ -1,0 +1,87 @@
+<resources>
+    <string name="volver">Volver</string>
+    <string name="cargando">Cargando</string>
+    <string name="error_sin_conexion">No hay conexión. Revisa tu red e inténtalo de nuevo.</string>
+    <string name="error_generico">Algo salió mal. Inténtalo de nuevo en unos minutos.</string>
+    <string name="boton_reintentar">Reintentar</string>
+    <string name="boton_continuar">Continuar</string>
+    <string name="boton_enviar">Enviar reporte</string>
+    <string name="boton_cambiar">Cambiar</string>
+    <string name="boton_volver_inicio">Volver al inicio</string>
+
+    <string name="reporte_titulo">Reportar siniestro</string>
+    <string name="reporte_paso">Paso %1$d de %2$d · %3$s</string>
+    <string name="paso_poliza">Póliza</string>
+    <string name="paso_informacion">Información</string>
+    <string name="paso_revision">Revisión</string>
+    <string name="cargando_polizas">Consultando tus pólizas…</string>
+
+    <string name="sin_polizas_titulo">Necesitas una póliza para reportar</string>
+    <string name="sin_polizas_texto">Un siniestro se reporta sobre una póliza a tu nombre y no encontramos ninguna en tu cuenta. Cuando contrates una, podrás reportar desde aquí.</string>
+
+    <string name="poliza_instrucciones">Elige la póliza afectada. Una póliza vencida admite el reporte si el evento ocurrió mientras estaba vigente.</string>
+    <string name="poliza_vigencia">Vigencia: %1$s al %2$s</string>
+    <string name="poliza_vigente">Vigente</string>
+    <string name="poliza_vencida">Vencida</string>
+    <string name="poliza_por_iniciar">Por iniciar</string>
+    <string name="producto_auto">Seguro de auto</string>
+    <string name="producto_hogar">Seguro de hogar</string>
+    <string name="producto_viaje">Seguro de viaje</string>
+    <string name="producto_otro">Seguro %1$s</string>
+
+    <string name="campo_tipo">¿Qué pasó?</string>
+    <string name="tipo_accidente_vehiculo">Accidente de vehículo</string>
+    <string name="tipo_hurto">Hurto</string>
+    <string name="tipo_dano_hogar">Daño en el hogar</string>
+    <string name="tipo_retraso_vuelo">Retraso de vuelo</string>
+    <string name="tipo_equipo_danado_o_perdido">Equipo dañado o perdido</string>
+    <string name="tipo_cancelacion_viaje">Cancelación de viaje</string>
+    <string name="tipo_otro">Otro</string>
+    <string name="campo_fecha">Fecha del evento</string>
+    <string name="ayuda_fecha">No puede ser posterior a hoy.</string>
+    <string name="elegir_fecha">Elegir la fecha del evento</string>
+    <string name="boton_aceptar">Aceptar</string>
+    <string name="boton_cancelar">Cancelar</string>
+    <string name="campo_descripcion">Descripción</string>
+    <string name="ayuda_descripcion">Cuenta qué pasó, dónde y cómo. Caracteres: %1$d/%2$d</string>
+    <string name="campo_monto">Monto estimado (opcional)</string>
+    <string name="ayuda_monto">En pesos, sin decimales.</string>
+    <string name="prefijo_pesos">"$ "</string>
+
+    <string name="revision_instrucciones">Revisa los datos antes de enviar. Puedes cambiar cualquier paso.</string>
+    <string name="revision_poliza">Póliza</string>
+    <string name="revision_tipo">Evento</string>
+    <string name="revision_fecha">Fecha del evento</string>
+    <string name="revision_descripcion">Descripción</string>
+    <string name="revision_monto">Monto estimado</string>
+    <string name="revision_sin_monto">Sin monto estimado</string>
+    <string name="cambiar_paso">Cambiar %1$s</string>
+
+    <string name="error_poliza">Elige la póliza afectada.</string>
+    <string name="error_tipo">Elige qué tipo de evento ocurrió.</string>
+    <string name="error_fecha">Indica la fecha del evento.</string>
+    <string name="error_fecha_futura">La fecha del evento no puede ser posterior a hoy.</string>
+    <string name="error_descripcion_requerida">Describe qué pasó.</string>
+    <string name="error_descripcion_longitud">La descripción debe tener entre 10 y 2000 caracteres.</string>
+    <string name="error_monto">Escribe el monto en pesos, sin decimales; por ejemplo 1.500.000.</string>
+
+    <string name="aviso_fuera_de_vigencia">El evento ocurrió fuera de la vigencia de la póliza, que cubre del %1$s al %2$s. El reporte no se registró: revisa la fecha o elige otra póliza.</string>
+    <string name="aviso_fuera_de_vigencia_sin_fechas">El evento ocurrió fuera de la vigencia de la póliza. El reporte no se registró: revisa la fecha o elige otra póliza.</string>
+    <string name="aviso_poliza_no_encontrada">No encontramos esa póliza entre las tuyas. Actualizamos la lista: elige de nuevo la póliza afectada.</string>
+    <string name="aviso_confirmar_de_nuevo">Los datos cambiaron desde el último intento de envío. Revisa el resumen y toca «Enviar reporte» para confirmarlo.</string>
+    <string name="aviso_sin_conexion">No pudimos confirmar el envío por falta de conexión. Toca «Enviar reporte» para reintentar con los mismos datos: no se creará un reporte duplicado.</string>
+    <string name="aviso_generico">No pudimos confirmar el envío. Toca «Enviar reporte» para reintentar con los mismos datos: no se creará un reporte duplicado.</string>
+
+    <string name="confirmacion_titulo">Reporte enviado</string>
+    <string name="confirmacion_referencia">Número de referencia</string>
+    <string name="confirmacion_estado">Estado: %1$s</string>
+    <string name="estado_reportado">Reportado</string>
+    <string name="estado_en_evaluacion">En evaluación</string>
+    <string name="estado_requiere_informacion">Requiere información</string>
+    <string name="estado_aprobado">Aprobado</string>
+    <string name="estado_rechazado">Rechazado</string>
+    <string name="estado_pagado">Pagado</string>
+    <string name="confirmacion_siguiente_paso">Siguiente paso</string>
+    <string name="siguiente_adjuntar_evidencia">Adjunta fotos o documentos del evento para que podamos evaluar tu caso. Guarda el número de referencia: lo verás también en la web.</string>
+    <string name="siguiente_esperar_evaluacion">Estamos evaluando tu caso y te avisaremos cuando haya novedades. Guarda el número de referencia: lo verás también en la web.</string>
+</resources>

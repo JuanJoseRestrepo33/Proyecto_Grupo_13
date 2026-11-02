@@ -16,7 +16,7 @@ Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :koverXmlReport :koverVerify
 ./gradlew :koverHtmlReport
 ./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
@@ -24,7 +24,7 @@ Desde esta carpeta:
 ./gradlew :app:installDebug
 ```
 
-Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y `feature/onboarding` en la raíz.
+Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y los módulos `feature/*` en la raíz.
 `:koverVerify` falla si la cobertura total de líneas es menor al **70%**; XML:
 `build/reports/kover/report.xml`, HTML: `build/reports/kover/html/index.html`.
 El total incluye las variantes debug y release de Android y el módulo JVM; las tareas
@@ -52,6 +52,8 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
   biometría; ver [su README](feature/onboarding/README.md). Las próximas features se agregan como
   módulos `feature/<nombre>` en `settings.gradle.kts`.
+- `feature/siniestros`: **WEB-F05** en la app. Asistente de reporte (póliza, información, revisión)
+  con envío idempotente; se abre desde Inicio. Ver [su README](feature/siniestros/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -190,6 +192,10 @@ sin interceptor y requiere configurar la URL del ambiente.
 | KYC en proceso → aprobada en la siguiente consulta | Documento que termine en 9 |
 | Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
 | Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
+| Póliza vigente y póliza vencida | Cualquier cliente: auto `POL-2026-NNN101` (desde hace 30 días, por 365) y hogar `POL-2026-NNN102` (venció hace 30 días) |
+| Evento dentro o fuera de la vigencia | Reportar sobre la póliza de hogar con una fecha anterior o posterior a su fin: se acepta o responde 409 `evento_fuera_de_vigencia` |
+| Cuenta sin pólizas | `sinpolizas@ejemplo.co` / `Solventa2026` |
+| Reintento con la misma clave | Descripción con `#sin-respuesta`: el primer envío queda registrado pero la app ve un tiempo agotado; el reintento confirma la misma referencia |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.

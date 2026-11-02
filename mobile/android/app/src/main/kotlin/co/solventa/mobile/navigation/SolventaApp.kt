@@ -1,5 +1,6 @@
 package co.solventa.mobile.navigation
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -37,12 +39,15 @@ import androidx.navigation.compose.rememberNavController
 import co.solventa.core.designsystem.SolventaSpacing
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.consentimiento.RutaConsentimiento
+import co.solventa.feature.siniestros.DependenciasSiniestros
+import co.solventa.feature.siniestros.reporte.RutaReporteSiniestro
 import co.solventa.mobile.R
 
 /**
  * @param identidadVerificada false mientras KYC no apruebe: Inicio lo avisa y las funciones que
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
  * @param dependenciasConsentimiento con ellas, Perfil da acceso al consentimiento (MOB-F02).
+ * @param dependenciasSiniestros con ellas, Inicio da acceso al reporte de siniestros (WEB-F05).
  * @param onSesionVencida flujo de sesión al que se delega un 401 del BFF.
  * @param avisoBiometriaDesactivada el token rotado no se pudo guardar: se avisa que la huella se
  * desactivó y [onAvisoAtendido] lo consume.
@@ -51,6 +56,7 @@ import co.solventa.mobile.R
 fun SolventaApp(
     identidadVerificada: Boolean = true,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
+    dependenciasSiniestros: DependenciasSiniestros? = null,
     onSesionVencida: () -> Unit = {},
     avisoBiometriaDesactivada: Boolean = false,
     onAvisoAtendido: () -> Unit = {},
@@ -62,37 +68,19 @@ fun SolventaApp(
     AvisoBiometriaDesactivada(avisos, avisoBiometriaDesactivada, onAvisoAtendido)
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
-        bottomBar = {
-            NavigationBar {
-                TopLevelDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        modifier = Modifier.sizeIn(
-                            minWidth = SolventaSpacing.touchTarget,
-                            minHeight = SolventaSpacing.touchTarget,
-                        ),
-                        selected = selected == destination,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(destination.icon(), contentDescription = null) },
-                        label = { Text(stringResource(destination.label)) },
-                    )
-                }
-            }
-        },
+        bottomBar = { BarraInferior(selected, navController) },
     ) { padding ->
         NavHost(navController, startDestination = TopLevelDestination.HOME.route, Modifier.padding(padding)) {
             TopLevelDestination.entries.forEach { destination ->
                 composable(destination.route) {
                     val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
-                    val conConsentimiento = destination == TopLevelDestination.PROFILE &&
-                        dependenciasConsentimiento != null
-                    val alConsentimiento = { navController.navigate(RUTA_CONSENTIMIENTO) }.takeIf { conConsentimiento }
-                    PlaceholderScreen(destination, avisoIdentidad = aviso, onConsentimiento = alConsentimiento)
+                    val accion = accionDe(
+                        destination,
+                        conConsentimiento = dependenciasConsentimiento != null,
+                        conSiniestros = dependenciasSiniestros != null,
+                        navegar = { ruta -> navController.navigate(ruta) },
+                    )
+                    PlaceholderScreen(destination, avisoIdentidad = aviso, accion = accion)
                 }
             }
             if (dependenciasConsentimiento != null) {
@@ -104,6 +92,39 @@ fun SolventaApp(
                     )
                 }
             }
+            if (dependenciasSiniestros != null) {
+                composable(RUTA_REPORTE_SINIESTRO) {
+                    RutaReporteSiniestro(
+                        dependencias = dependenciasSiniestros,
+                        onTerminar = { navController.popBackStack() },
+                        onSesionVencida = onSesionVencida,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarraInferior(selected: TopLevelDestination, navController: NavHostController) {
+    NavigationBar {
+        TopLevelDestination.entries.forEach { destination ->
+            NavigationBarItem(
+                modifier = Modifier.sizeIn(
+                    minWidth = SolventaSpacing.touchTarget,
+                    minHeight = SolventaSpacing.touchTarget,
+                ),
+                selected = selected == destination,
+                onClick = {
+                    navController.navigate(destination.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                icon = { Icon(destination.icon(), contentDescription = null) },
+                label = { Text(stringResource(destination.label)) },
+            )
         }
     }
 }
@@ -124,6 +145,26 @@ private fun AvisoBiometriaDesactivada(avisos: SnackbarHostState, activo: Boolean
 /** Anidada bajo Perfil: la barra inferior sigue marcando Perfil. */
 internal const val RUTA_CONSENTIMIENTO = "profile/consentimiento"
 
+/** Anidada bajo Inicio, como la entrada «Reportar siniestro». */
+internal const val RUTA_REPORTE_SINIESTRO = "home/siniestros/reporte"
+
+/** Botón con contenido real en un destino que, por lo demás, aún es un placeholder. */
+private class AccionDestino(@StringRes val texto: Int, val etiqueta: String, val onClick: () -> Unit)
+
+/** Perfil abre el consentimiento (MOB-F02) e Inicio el reporte de siniestros (WEB-F05). */
+private fun accionDe(
+    destination: TopLevelDestination,
+    conConsentimiento: Boolean,
+    conSiniestros: Boolean,
+    navegar: (String) -> Unit,
+): AccionDestino? = when {
+    destination == TopLevelDestination.PROFILE && conConsentimiento ->
+        AccionDestino(R.string.perfil_consentimiento, "ir-consentimiento") { navegar(RUTA_CONSENTIMIENTO) }
+    destination == TopLevelDestination.HOME && conSiniestros ->
+        AccionDestino(R.string.inicio_reportar_siniestro, "ir-reportar-siniestro") { navegar(RUTA_REPORTE_SINIESTRO) }
+    else -> null
+}
+
 private fun TopLevelDestination.icon() = when (this) {
     TopLevelDestination.HOME -> Icons.Default.Home
     TopLevelDestination.POLICIES -> Icons.AutoMirrored.Filled.List
@@ -135,7 +176,7 @@ private fun TopLevelDestination.icon() = when (this) {
 private fun PlaceholderScreen(
     destination: TopLevelDestination,
     avisoIdentidad: Boolean,
-    onConsentimiento: (() -> Unit)? = null,
+    accion: AccionDestino? = null,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(SolventaSpacing.md).testTag("screen-${destination.route}"),
@@ -150,15 +191,15 @@ private fun PlaceholderScreen(
             )
         }
         // Con contenido real, el aviso de "próximamente" parecería referirse a él.
-        if (onConsentimiento != null) {
+        if (accion != null) {
             OutlinedButton(
-                onClick = onConsentimiento,
+                onClick = accion.onClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = SolventaSpacing.touchTarget)
-                    .testTag("ir-consentimiento"),
+                    .testTag(accion.etiqueta),
             ) {
-                Text(stringResource(R.string.perfil_consentimiento))
+                Text(stringResource(accion.texto))
             }
         } else {
             Text(stringResource(R.string.placeholder), style = MaterialTheme.typography.bodyLarge)
