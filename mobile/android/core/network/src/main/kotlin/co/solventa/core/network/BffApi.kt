@@ -1,9 +1,17 @@
 package co.solventa.core.network
 
+import java.io.File
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 
 // Cliente del contrato contratos/bff-movil/openapi.yaml. Las rutas son relativas al prefijo
@@ -66,4 +74,29 @@ interface BffApi {
         @Header("Idempotency-Key") claveIdempotencia: String,
         @Body solicitud: SolicitudSiniestro,
     ): Siniestro
+
+    // ── Evidencia (MOB-F05) ────────────────────────────────────────────────────────────────────
+    // Contrato bff-movil 0.4.0. El BFF toma `nombre_original` del nombre de archivo de [archivo].
+    // Los campos son RequestBody para que el convertidor JSON no les agregue comillas; ver
+    // `parteArchivo` y `parteTexto`.
+
+    @Suppress("LongParameterList")
+    @Multipart
+    @POST("siniestros/{id}/evidencias")
+    suspend fun adjuntarEvidencia(
+        @Path("id") idSiniestro: String,
+        @Part archivo: MultipartBody.Part,
+        @Part("tomada_en") tomadaEn: RequestBody?,
+        @Part("latitud") latitud: RequestBody?,
+        @Part("longitud") longitud: RequestBody?,
+        @Part("lugar") lugar: RequestBody?,
+    ): Evidencia
+
+    @GET("siniestros/{id}/evidencias")
+    suspend fun listarEvidencias(@Path("id") idSiniestro: String): List<Evidencia>
 }
+
+fun parteArchivo(archivo: File, nombre: String, tipoContenido: String): MultipartBody.Part =
+    MultipartBody.Part.createFormData("archivo", nombre, archivo.asRequestBody(tipoContenido.toMediaType()))
+
+fun parteTexto(valor: String?): RequestBody? = valor?.toRequestBody("text/plain".toMediaType())

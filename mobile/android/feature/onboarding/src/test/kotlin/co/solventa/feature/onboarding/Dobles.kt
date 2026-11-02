@@ -5,6 +5,7 @@ import co.solventa.core.network.Cliente
 import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.Credenciales
 import co.solventa.core.network.ErrorBff
+import co.solventa.core.network.Evidencia
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoIdentidad
 import co.solventa.core.network.FinalidadConsentimiento
@@ -32,8 +33,10 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
@@ -136,6 +139,17 @@ class BffFalso : BffApi {
 
     override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
         error("no se usa en MOB-F01")
+
+    override suspend fun adjuntarEvidencia(
+        idSiniestro: String,
+        archivo: MultipartBody.Part,
+        tomadaEn: RequestBody?,
+        latitud: RequestBody?,
+        longitud: RequestBody?,
+        lugar: RequestBody?,
+    ): Evidencia = error("no se usa en MOB-F01")
+
+    override suspend fun listarEvidencias(idSiniestro: String): List<Evidencia> = error("no se usa en MOB-F01")
 
     override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en MOB-F01")
 
