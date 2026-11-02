@@ -1,4 +1,4 @@
-# WEB-F05 · Reporte de siniestros en la app
+# WEB-F05 y MOB-F05 · Reporte de siniestros y evidencia en la app
 
 Asistente para que el cliente asegurado reporte un siniestro desde Android y termine con el número de
 referencia y el siguiente paso de su caso. Usa las mismas rutas, la misma referencia y la misma clave de
@@ -9,18 +9,17 @@ un siniestro reportado en la app se ve igual en la web, con `canal: movil`. En d
 ## Flujo
 
 ```
-Inicio ──Reportar siniestro──▶ 1 · Póliza ──▶ 2 · Información ──▶ 3 · Revisión ──Enviar──▶ Confirmación
-                                  │                                 │  ▲                 (referencia, estado,
-                                  │ sin pólizas                     │  └─ Cambiar         siguiente paso)
-                                  ▼                                 │
+Inicio ──Reportar siniestro──▶ 1 · Póliza ──▶ 2 · Información ──▶ 3 · Evidencia ──▶ 4 · Revisión ──Enviar──▶ Confirmación
+                                  │                                 (opcional)         │  ▲                 (referencia, estado,
+                                  │ sin pólizas                                        │  └─ Cambiar         carga, evidencia)
+                                  ▼                                                    │
                         «Necesitas una póliza»     404 ──▶ paso 1 (lista refrescada)
                                                    422 ──▶ paso 2 (error en su campo)
                                                    409 vigencia ──▶ aviso con las fechas de la póliza
 ```
 
 La web tiene tres pasos (información, evidencia y revisión); en la app la póliza va en un paso propio
-porque la lista no cabe cómoda junto al formulario. El paso de evidencia de #137 (MOB-F05) se inserta
-entre información y revisión: basta con agregarlo a `PasoReporte` y su pantalla en `PantallaReporte`.
+porque la lista no cabe cómoda junto al formulario.
 
 `SolventaApp` (en `app`) abre el asistente desde Inicio; este módulo expone `RutaReporteSiniestro`, que
 crea el ViewModel, y `PantallaReporte`/`PantallaConfirmacion`, sin estado propio, que usan las pruebas.
@@ -47,10 +46,64 @@ crea el ViewModel, y `PantallaReporte`/`PantallaConfirmacion`, sin estado propio
 - Los rechazos con código (`404`, `409 evento_fuera_de_vigencia`, `422`) son definitivos: el núcleo
   valida antes de registrar, así que se pueden corregir los datos y reenviar.
 
+## Evidencia (MOB-F05)
+
+El paso es opcional. Primero se envía `POST /siniestros` y después cada archivo, uno a uno, como en la
+web: un fallo de evidencia no deshace el reporte. La confirmación dice qué se adjuntó, qué no y por qué,
+y desde ahí se reintenta o se agrega más con el mismo paso (`canal: movil`, visible en la web).
+
+```
+Tomar foto ──▶ explicación ──▶ permisos ──┬─ cámara ──▶ foto + tomada_en + lectura única de ubicación
+                                          └─ negada ──▶ galería o PDF (siguen disponibles)
+Sin ubicación o sin señal (8 s) ──▶ campo «Lugar»        Denegación permanente ──▶ aviso y «Abrir ajustes»
+```
+
+| Pieza | Qué resuelve | Criterios |
+|---|---|---|
+| `GestorEvidencia` | Lista de adjuntos, carga, mapeo de errores, reintento y borrador. Lo posee `ReporteViewModel`. | 1–3, 7–10 |
+| `ReglasEvidencia.kt` | Formato por firma de bytes (el criterio de `tipo_real` del núcleo), presupuesto de video, `LimpiadorMp4` y `clasificarPermiso`. JVM puro. | 4–6, 11 |
+| `AlmacenEvidenciasAndroid` | Copia a la caché, normaliza, comprime y limpia. | 5, 6, 11 |
+| `CompresorVideo` | Media3 Transformer a H.264 720p con el presupuesto de bits. | 5 |
+| `LectorUbicacionAndroid` | Una lectura de Play Services con tiempo límite. | 1, 3 |
+| `PantallaCamara` | CameraX dentro de la app. | 1 |
+| `AccionesEvidencia` | Selector de fotos y de documentos (sin permiso de almacenamiento), permisos y ajustes. | 2, 4 |
+| `PasoEvidencia` · `SeccionEvidencia` | Pantallas sin estado propio. | 2–7, 9, 12 |
+
+### Formatos y compresión
+
+| Entra | Sale |
+|---|---|
+| JPEG o PNG de hasta 10 MB | El mismo archivo, sin coordenadas en EXIF ni XMP |
+| JPEG o PNG de más de 10 MB | JPEG reducido (lado de 4096 a 1600 px, calidad 85 o 70) |
+| HEIC | JPEG siempre: ExifInterface no puede reescribir HEIC. Si el dispositivo no lo decodifica (API 26–27), se rechaza como formato no admitido |
+| MP4 de hasta 10 MB | El mismo video, con `udta`, `meta` y `uuid` convertidas en `free` |
+| MP4 de más de 10 MB | H.264 720p con AAC, y la misma limpieza; si no cabe, se explica y se ofrece quitarlo |
+| PDF | Tal cual; si pasa de 10 MB, se explica y se ofrece quitarlo |
+
+Si la limpieza no se puede completar, una imagen se vuelve a codificar y un video se rechaza: nunca se
+envía un archivo sin limpiar.
+
+### Reintentos sin duplicar
+
+`POST /siniestros/{id}/evidencias` no tiene clave de idempotencia. Cada archivo lleva un
+`nombre_original` único y sin datos del cliente (`evidencia-<uuid>.jpg`). Antes de reintentar se consulta
+`listarEvidencias`: lo que ya está no se reenvía, y si no se puede consultar no se reenvía nada. Lo que
+se estaba enviando cuando murió el proceso se trata igual. Solo se ofrece reintentar lo pasajero (503,
+sin red, errores desconocidos); `413`, `422`, `409` y `404` se explican.
+
+La carga usa un cliente con 3 minutos de `callTimeout`, elegido por llamada para los `multipart`
+(`conCargas` en `NetworkClient`); las demás operaciones conservan sus 15 s.
+
+### Archivos temporales
+
+Viven en `cacheDir/evidencias`, fuera de las copias de seguridad. Se borran al enviarse, al quitarlos y
+al salir del reporte. Lo que quede de un reporte abandonado se borra la próxima vez que se abre.
+
 ### Rotación y segundo plano
 
 Lo ingresado, el paso, la clave, el envío pendiente y la confirmación se guardan en el
 `SavedStateHandle`: sobreviven a la rotación y a la muerte del proceso en segundo plano (criterio 6).
+Los adjuntos y el lugar escrito también; sus archivos siguen en la caché.
 Las pólizas se vuelven a consultar al restaurar; una póliza elegida que ya no aparece deja de estarlo.
 
 Todos los textos están en `src/main/res/values/strings.xml`; los controles miden al menos 48 dp y los
@@ -66,11 +119,14 @@ no dependen entre sí; si un tercer módulo los necesita, conviene moverlos a `c
   borrador.
 - **Compose + Robolectric** (`src/testDebug`): el recorrido completo, errores por campo, avisos del BFF,
   botón ocupado, objetivos táctiles de 48 dp y descripciones para TalkBack.
-- **App** (`app/src/testDebug`): escenarios del mock (`MockSiniestrosTest`) y el reporte de punta a
-  punta desde el ingreso (`SolventaRaizTest`).
+- **App** (`app/src/testDebug`): escenarios del mock (`MockSiniestrosTest`, `MockEvidenciasTest`) y el
+  reporte de punta a punta desde el ingreso (`SolventaRaizTest`).
+- **Evidencia:** `ReglasEvidenciaTest` y `GestorEvidenciaTest` en JVM; `LimpiarExifTest` y
+  `PasoEvidenciaTest` con Robolectric. `CompresorVideo`, `PantallaCamara` y `LectorUbicacionAndroid`
+  dependen del dispositivo y se prueban a mano o en el E2E (#179).
 
 ## Fuera de alcance
 
-Servicio de reporte y rutas del BFF (#135, #168), paso de evidencia (#137), reporte sin conexión con
-borrador cifrado (MOB-F05-02), «Mis siniestros» (WEB-F06), E2E en emulador contra *staging* (#172) y el
+Servicio de reporte y rutas del BFF (#135, #168), reporte sin conexión con borrador cifrado
+(MOB-F05-02), «Mis siniestros» (WEB-F06), E2E en emulador contra *staging* (#172) y el
 asistente web (#132).
