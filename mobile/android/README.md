@@ -235,6 +235,29 @@ el reloj del emulador con `adb root` (imágenes Google APIs) y lo restauran al t
 `--sin-reloj`/`-SinReloj` omite esa parte. Las funciones comunes están en `scripts/emulador-comun.sh`
 y `scripts/EmuladorComun.ps1`.
 
+### E2E en emulador contra staging
+
+`app/src/androidTest` recorre la app real, sin mock. `ReporteSiniestroE2eTest` (WEB-F05, #172) inicia
+sesión con la cuenta de prueba, reporta un siniestro sobre `POL-STG-AUTO` con una marca única en la
+descripción y comprueba por el BFF web que hay uno solo con esa marca, con la referencia que mostró la
+app, estado `reportado` y `canal: movil`. Lo hace dos veces para probar que los reportes acumulados de la
+cuenta no estorban. Necesita Cloud SQL encendida.
+
+En local, con un emulador conectado y las credenciales en `E2E_CORREO` y `E2E_CLAVE`:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PBFF_MOCK=false \
+  -PBFF_BASE_URL=https://<solventa-bff>/api/v1/movil/ \
+  -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" \
+  -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE"
+```
+
+En CI: *Actions → Mobile Android → Run workflow* sobre `develop` lanza el job `e2e-emulador`, con la URL
+y las credenciales del environment `staging`, que solo admite esa rama. No corre en push ni en PR, y no
+publica artefactos porque los resultados del runner podrían incluir los argumentos de instrumentación.
+Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
+estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
