@@ -1034,6 +1034,150 @@
       "responseMode": null,
       "streamingMode": null,
       "streamingInterval": 0
+    },
+    {
+      "uuid": "33fd6ea5-34a6-4936-98f6-97ab6a8685b4",
+      "type": "http",
+      "documentation": "Finalidades (solo exige sesión vigente)",
+      "method": "get",
+      "endpoint": "consentimientos/finalidades",
+      "responses": [
+        {
+          "uuid": "9779c8f7-405e-49a1-bbbc-76a401689b80",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Sin sesión vigente (sesion_no_vigente)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{@cli}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "4375035c-941f-4ec6-83a7-e310605de4d2",
+          "body": "[{\"codigo\": \"cotizacion\", \"nombre\": \"Cotización\", \"descripcion\": \"Calcular una prima personalizada.\", \"alcance\": [\"Saldos promedio\"], \"vigencia_meses\": 12, \"entidades_origen\": [{\"id\": \"banco-demo\", \"nombre\": \"Banco Demo\"}], \"version_texto\": \"cotizacion-2026.1\"}]",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Catálogo de finalidades",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
+    },
+    {
+      "uuid": "98185238-d94b-4cfe-bcda-e021758fd41e",
+      "type": "http",
+      "documentation": "Consentimientos (solo exige sesión vigente)",
+      "method": "get",
+      "endpoint": "consentimientos",
+      "responses": [
+        {
+          "uuid": "25110cb4-fb64-427d-bbfa-c040ddf7035d",
+          "body": "{\"codigo\":\"sesion_no_vigente\",\"mensaje\":\"No hay una sesión vigente\"}",
+          "latency": 0,
+          "statusCode": 401,
+          "label": "Sin sesión vigente (sesion_no_vigente)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "WWW-Authenticate",
+              "value": "Bearer realm=\"solventa\""
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "templating",
+              "modifier": "{{setVar 'acceso' (dataRaw 'estado' (concat 'accesos.' (replace (header 'Authorization') 'Bearer ' '')))}}{{setVar 'cli' ''}}{{#if @acceso}}{{#if (gt @acceso.expira (parseInt (now 't')))}}{{setVar 'cli' @acceso.cliente}}{{/if}}{{/if}}{{@cli}}",
+              "value": "",
+              "invert": false,
+              "operator": "null"
+            }
+          ],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "e7d0c08d-2220-43b1-8055-aa73c318b99e",
+          "body": "[]",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Lista vacía",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "AND",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0
     }
   ],
   "rootChildren": [
@@ -1072,6 +1216,14 @@
     {
       "type": "route",
       "uuid": "4f5f97d2-e066-581b-a344-dab42eb1d782"
+    },
+    {
+      "type": "route",
+      "uuid": "33fd6ea5-34a6-4936-98f6-97ab6a8685b4"
+    },
+    {
+      "type": "route",
+      "uuid": "98185238-d94b-4cfe-bcda-e021758fd41e"
     }
   ],
   "proxyMode": false,

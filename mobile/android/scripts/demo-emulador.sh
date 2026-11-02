@@ -37,19 +37,7 @@ source "$(dirname "$0")/emulador-comun.sh"
 
 # ── 1. Emulador ──────────────────────────────────────────────────────────────────────────────
 
-if hay_emulador; then
-    log "Emulador ya en ejecución"
-else
-    AVD=${AVD:-$("$EMULADOR" -list-avds | tr -d '\r' | head -n1)}
-    [[ -n "$AVD" ]] || fallar "No hay AVD; crea uno en Android Studio (API 26+)."
-    log "Arrancando emulador $AVD"
-    nohup "$EMULADOR" -avd "$AVD" -no-boot-anim >/dev/null 2>&1 &
-fi
-"$ADB" wait-for-device
-until [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; do sleep 2; done
-# Con cargador conectado y stayon, la pantalla no entra en reposo durante compilación ni demo.
-"$ADB" emu power ac on >/dev/null
-"$ADB" shell svc power stayon true
+arrancar_emulador
 
 # ── 2. App ───────────────────────────────────────────────────────────────────────────────────
 
@@ -92,7 +80,7 @@ tocar "Continuar"
 esperar_texto "Activar|Inicio"
 if [[ -z "$(centro_de "Activar")" ]]; then
     echo "La app no ofreció la huella: ya estaba activa en este dispositivo." >&2
-elif ((HUELLA)) && "$ADB" shell dumpsys fingerprint | grep '"prints":\[{' >/dev/null; then
+elif ((HUELLA)) && hay_huella; then
     log "Activando la huella"
     tocar "Activar"
     sleep 1.5

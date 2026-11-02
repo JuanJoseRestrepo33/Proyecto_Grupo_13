@@ -3,6 +3,7 @@
 # Variables opcionales:
 #   ANDROID_HOME   SDK de Android. En WSL se usa el SDK de Windows, porque el emulador corre allí.
 #   PIN_EMULADOR   PIN de la pantalla de bloqueo, si la huella no basta para desbloquear.
+#   ANDROID_SERIAL emulador a usar, si hay más de uno en ejecución.
 
 PAQUETE=co.solventa.mobile.debug
 ESPERA_MAX=${ESPERA_MAX:-60}
@@ -22,6 +23,8 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
     ADB="$SDK/platform-tools/adb.exe"
     EMULADOR="$SDK/emulator/emulator.exe"
     ruta_dispositivo() { wslpath -w "$1"; }
+    # Con varios emuladores, ANDROID_SERIAL elige uno; adb.exe solo la ve a través de WSLENV.
+    export WSLENV="${WSLENV:+$WSLENV:}ANDROID_SERIAL"
     # Misma llave debug que Android Studio en Windows; si no, `install -r` falla por firma distinta.
     [[ -f "$WIN_HOME/.android/debug.keystore" ]] && export ANDROID_USER_HOME="$WIN_HOME/.android"
 else
@@ -111,8 +114,12 @@ al_inicio() {
 
 escribir() { # escribir "Etiqueta del campo" "valor"
     tocar "$1"
+    sleep 0.5 # el campo tarda en tomar el foco y se perderían las primeras letras
     "$ADB" shell input text "'${2// /%s}'"
-    "$ADB" shell input keyevent 111 # cierra el teclado para no tapar botones
+    # Cierra el teclado para no tapar botones. Sin teclado en pantalla, esa tecla sería "Atrás".
+    if "$ADB" shell dumpsys input_method | grep 'mInputShown=true' >/dev/null; then
+        "$ADB" shell input keyevent 111
+    fi
     sleep 0.3
 }
 
@@ -148,4 +155,25 @@ desbloquear() {
     fallar "La pantalla sigue bloqueada: desbloquéala a mano o define PIN_EMULADOR."
 }
 
-hay_emulador() { "$ADB" devices | grep -E '^emulator-[0-9]+\s+device' >/dev/null; }
+# Sin huellas, `prints` trae igual una entrada por sensor, con count 0.
+hay_huella() { "$ADB" shell dumpsys fingerprint | grep '"prints":.*"count":[1-9]' >/dev/null; }
+
+hay_emulador() { "$ADB" devices | grep -E "^${ANDROID_SERIAL:-emulator-[0-9]+}\s+device" >/dev/null; }
+
+# Usa el emulador en ejecución o arranca el AVD, y evita que la pantalla entre en reposo.
+arrancar_emulador() {
+    if hay_emulador; then
+        log "Emulador ya en ejecución"
+    else
+        AVD=${AVD:-$("$EMULADOR" -list-avds | tr -d '\r' | head -n1)}
+        [[ -n "$AVD" ]] || fallar "No hay AVD; crea uno en Android Studio (API 26+)."
+        log "Arrancando emulador $AVD"
+        # DNS explícito: con el del host, el emulador puede quedarse sin resolver nombres.
+        nohup "$EMULADOR" -avd "$AVD" -no-boot-anim -dns-server 8.8.8.8,1.1.1.1 >/dev/null 2>&1 &
+    fi
+    "$ADB" wait-for-device
+    until [[ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; do sleep 2; done
+    # Con cargador conectado y stayon, la pantalla no entra en reposo durante compilación ni demo.
+    "$ADB" emu power ac on >/dev/null
+    "$ADB" shell svc power stayon true
+}

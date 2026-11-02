@@ -106,6 +106,27 @@ No guardar tokens/secretos en propiedades ni BuildConfig.
 - Una sola instancia del núcleo: `identidad` guarda las cuentas en memoria, así que cada despliegue las
   borra y, con varias instancias, el ingreso falla de forma intermitente.
 
+### E2E móvil de sesión contra *staging* (#157)
+
+`scripts/prueba-sesion-staging.sh` recorre en el emulador los criterios de #157: registro y OTP, ingreso
+con contraseña, ingreso con huella, token vencido (espera real de 15 minutos), la misma cuenta en la web
+y que la evidencia no filtre secretos. Deja en `EVIDENCIA` el resumen con commit, fecha y URL, las
+grabaciones y las capturas; la grabación se detiene mientras el OTP está en pantalla.
+
+Usa `uiautomator` y no `androidTest` porque la huella se simula desde el host (`adb emu finger touch`).
+
+```bash
+gh run download <run> -n solventa-staging -D /tmp/apk-staging     # el run de develop con ese artefacto
+scripts/registrar-huella.sh                                       # solo en un AVD nuevo; deja PIN 1234
+AVD=<avd> PIN_EMULADOR=<pin> E2E_OTP=<otp> EVIDENCIA=<carpeta> E2E_COMMIT_APK=<sha> \
+  E2E_URL_BFF=<url del BFF> E2E_URL_WEB=<url de la web> \
+  scripts/prueba-sesion-staging.sh --apk /tmp/apk-staging/app-debug.apk
+```
+
+Con varios emuladores en ejecución, `ANDROID_SERIAL` elige uno. Para ensayar sin *staging*: compilar con
+`-PBFF_BASE_URL=http://10.0.2.2:3001/api/v1/movil/`, arrancar Mockoon con `MOCKOON_TTL_ACCESO=2` y usar
+`E2E_OTP=123456 ESPERA_TOKEN=5`.
+
 ### BFF simulado con Mockoon (registro, OTP y sesión)
 
 `mockoon/bff-movil.json` es un ambiente de [Mockoon](https://mockoon.com) 9.9 que implementa, con
