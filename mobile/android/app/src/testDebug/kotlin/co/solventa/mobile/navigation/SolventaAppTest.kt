@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.NetworkClient
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.siniestros.DependenciasSiniestros
 import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.MockBffMovil
@@ -118,6 +119,34 @@ class SolventaAppTest {
         compose.setContent { SolventaTheme { SolventaApp() } }
         compose.onNode(tab("Perfil")).performClick()
         compose.onNodeWithTag("ir-consentimiento").assertDoesNotExist()
+    }
+
+    @Test
+    fun `inicio abre el reporte de siniestro con inicio seleccionado y un 401 va al flujo de sesion`() {
+        val api = NetworkClient.create(
+            BuildConfig.BASE_URL,
+            listOf(DebugMockInterceptor(MockBffMovil { Instant.parse("2026-10-26T15:00:00Z") })),
+            tokenAcceso = { null },
+        )
+        var sesionVencida = false
+        val dependencias = DependenciasSiniestros(api)
+        compose.setContent {
+            SolventaTheme {
+                SolventaApp(dependenciasSiniestros = dependencias, onSesionVencida = { sesionVencida = true })
+            }
+        }
+        compose.onNodeWithText("Esta sección estará disponible próximamente.").assertDoesNotExist()
+        compose.onNodeWithTag("ir-reportar-siniestro").assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithText("Reportar siniestro").assertIsDisplayed()
+        compose.onNode(tab("Inicio")).assertIsSelected()
+        // Sin sesión, la consulta de pólizas responde 401.
+        compose.waitUntil(timeoutMillis = 5_000) { sesionVencida }
+    }
+
+    @Test
+    fun `sin dependencias de siniestros inicio no ofrece el reporte`() {
+        compose.setContent { SolventaTheme { SolventaApp() } }
+        compose.onNodeWithTag("ir-reportar-siniestro").assertDoesNotExist()
     }
 
     private fun tab(label: String): SemanticsMatcher = isSelectable() and hasText(label)

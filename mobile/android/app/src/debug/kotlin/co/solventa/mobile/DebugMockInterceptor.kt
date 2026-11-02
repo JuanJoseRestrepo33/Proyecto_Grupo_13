@@ -1,6 +1,7 @@
 package co.solventa.mobile
 
 import co.solventa.mobile.mock.MockBffMovil
+import java.net.SocketTimeoutException
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
@@ -19,7 +20,10 @@ class DebugMockInterceptor(private val mock: MockBffMovil) : Interceptor {
             ruta = request.url.encodedPath.removePrefix(prefijo),
             cuerpo = cuerpo,
             autorizacion = request.header("Authorization"),
+            claveIdempotencia = request.header("Idempotency-Key"),
         )
+        // Simula que la solicitud llegó pero la respuesta no: la app ve un tiempo agotado.
+        if (respuesta.perdida) throw SocketTimeoutException("Mock: respuesta perdida")
         // Nunca se llama chain.proceed: debug no sale a la red, ni ante rutas desconocidas.
         return Response.Builder()
             .request(request)

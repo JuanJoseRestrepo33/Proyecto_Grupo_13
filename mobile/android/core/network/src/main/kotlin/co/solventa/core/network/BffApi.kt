@@ -2,6 +2,7 @@ package co.solventa.core.network
 
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -52,4 +53,17 @@ interface BffApi {
 
     @POST("consentimientos/{id}/renovacion")
     suspend fun renovarConsentimiento(@Path("id") idConsentimiento: String): Consentimiento
+
+    // ── Siniestros (WEB-F05) ───────────────────────────────────────────────────────────────────
+    // Contrato bff-movil 0.3.0 (#168); las mismas rutas y códigos que la web.
+
+    @GET("polizas")
+    suspend fun listarPolizas(): List<PolizaResumen>
+
+    /** La misma [claveIdempotencia] en un reintento devuelve el mismo siniestro (200), no otro. */
+    @POST("siniestros")
+    suspend fun reportarSiniestro(
+        @Header("Idempotency-Key") claveIdempotencia: String,
+        @Body solicitud: SolicitudSiniestro,
+    ): Siniestro
 }

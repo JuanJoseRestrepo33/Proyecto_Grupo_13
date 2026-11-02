@@ -102,6 +102,74 @@ class NetworkClientTest {
     }
 
     @Test
+    fun `listar polizas lee resumen, vigencia y estado`() = runBlocking {
+        server.enqueue(
+            json(
+                200,
+                """[{"numero":"POL-2026-000101","producto":"auto","inicio":"2026-09-26",
+                "fin":"2027-09-26","estado":"vigente","coberturas":[]}]""",
+            ),
+        )
+        val polizas = api(token = "abc").listarPolizas()
+        val esperada = PolizaResumen("POL-2026-000101", "auto", "2026-09-26", "2027-09-26", EstadoPoliza.VIGENTE)
+        assertEquals(listOf(esperada), polizas)
+        assertEquals("/api/v1/movil/polizas", server.takeRequest().path)
+    }
+
+    @Test
+    fun `reportar un siniestro envia la clave de idempotencia y el monto como Dinero`() = runBlocking {
+        server.enqueue(
+            json(
+                201,
+                """{"id":"SIN-1","referencia":"SIN-2026-000123","numero_poliza":"POL-2026-000101",
+                "tipo_evento":"hurto","ocurrido_el":"2026-10-20","descripcion":"Me robaron el celular",
+                "monto_estimado":{"valor":1500000,"moneda":"COP"},"estado":"reportado",
+                "siguiente_paso":"adjuntar_evidencia","canal":"movil","reportado_en":"2026-10-26T15:00:00Z"}""",
+            ),
+        )
+        val solicitud = SolicitudSiniestro(
+            numeroPoliza = "POL-2026-000101",
+            tipoEvento = TipoEventoSiniestro.HURTO,
+            ocurridoEl = "2026-10-20",
+            descripcion = "Me robaron el celular",
+            montoEstimado = Dinero.pesos(1_500_000),
+        )
+        val siniestro = api(token = "abc").reportarSiniestro("6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b", solicitud)
+        assertEquals("SIN-2026-000123", siniestro.referencia)
+        assertEquals(SiguientePaso.ADJUNTAR_EVIDENCIA, siniestro.siguientePaso)
+        assertEquals(Dinero(1_500_000, "COP"), siniestro.montoEstimado)
+        val request = server.takeRequest()
+        assertEquals("/api/v1/movil/siniestros", request.path)
+        assertEquals("6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b", request.getHeader("Idempotency-Key"))
+        val cuerpo = request.body.readUtf8()
+        assertTrue(cuerpo.contains(""""tipo_evento":"hurto""""))
+        assertTrue(cuerpo.contains(""""ocurrido_el":"2026-10-20""""))
+        assertTrue(cuerpo.contains(""""monto_estimado":{"valor":1500000,"moneda":"COP"}"""))
+    }
+
+    @Test
+    fun `un evento fuera de vigencia trae las fechas de la poliza`() {
+        server.enqueue(
+            json(
+                409,
+                """{"codigo":"evento_fuera_de_vigencia","mensaje":"x","vigente_desde":"2025-09-26",
+                "vigente_hasta":"2026-09-26"}""",
+            ),
+        )
+        val falla = assertThrows(HttpException::class.java) {
+            runBlocking {
+                api().reportarSiniestro(
+                    "6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b",
+                    SolicitudSiniestro("POL-1", TipoEventoSiniestro.OTRO, "2026-10-20", "Descripción larga"),
+                )
+            }
+        }
+        val error = ErrorBff.desde(falla)
+        assertEquals("2025-09-26", error?.vigenteDesde)
+        assertEquals("2026-09-26", error?.vigenteHasta)
+    }
+
+    @Test
     fun `los secretos no aparecen al imprimir solicitudes ni sesiones`() {
         val sesion = Sesion("acceso-secreto", "refresco-secreto", "2026-10-17T10:15:00Z",
             Cliente("CLI-1", "Ana", "a@b.co", EstadoIdentidad.VERIFICADA))

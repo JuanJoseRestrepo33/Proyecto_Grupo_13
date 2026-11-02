@@ -13,12 +13,15 @@ import co.solventa.core.network.EstadoIdentidad
 import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Otp
+import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
+import co.solventa.core.network.Siniestro
 import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
+import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.VerificacionIdentidad
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -220,6 +223,11 @@ class BffFalso : BffApi {
         llamadas += "renovar:$id"
         return renovarC(id)
     }
+
+    override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en consentimiento")
+
+    override suspend fun reportarSiniestro(claveIdempotencia: String, solicitud: SolicitudSiniestro): Siniestro =
+        error("no se usa en consentimiento")
 }
 
 fun sesionesPorDefecto(api: BffFalso) {

@@ -18,6 +18,8 @@ import co.solventa.feature.onboarding.identidad.RutaIdentidad
 import co.solventa.feature.onboarding.ingreso.RutaIngreso
 import co.solventa.feature.onboarding.otp.RutaOtp
 import co.solventa.feature.onboarding.registro.RutaRegistro
+import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.siniestros.DependenciasSiniestros
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -25,17 +27,11 @@ import java.time.OffsetDateTime
 fun SolventaRaiz(
     dependencias: DependenciasOnboarding,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
+    dependenciasSiniestros: DependenciasSiniestros? = null,
 ) {
     val nav = rememberNavController()
     val sesion = dependencias.sesion
-    // Vencida la sesión (el cliente del BFF no pudo renovarla), se vacía la pila protegida y se vuelve
-    // a Ingreso, que ofrece la huella si sigue activa (WEB-F13).
-    LaunchedEffect(sesion.vencida) {
-        if (sesion.vencida) {
-            sesion.vencimientoAtendido()
-            nav.reiniciarEn(RutasEntrada.INGRESO)
-        }
-    }
+    VolverAlIngresoAlVencer(sesion, nav)
     val alIngresar = { cliente: Cliente -> nav.reiniciarEn(destinoTrasIngreso(cliente, dependencias)) }
     val alAprobar = { nav.reiniciarEn(destinoTrasAprobacion(dependencias)) }
     val alInicio = { nav.reiniciarEn(RutasEntrada.INICIO) }
@@ -80,11 +76,26 @@ fun SolventaRaiz(
             SolventaApp(
                 identidadVerificada = sesion.identidadVerificada,
                 dependenciasConsentimiento = dependenciasConsentimiento,
+                dependenciasSiniestros = dependenciasSiniestros,
                 // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
                 onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
                 avisoBiometriaDesactivada = sesion.biometriaDesactivada,
                 onAvisoAtendido = sesion::avisoBiometriaAtendido,
             )
+        }
+    }
+}
+
+/**
+ * Vencida la sesión (el cliente del BFF no pudo renovarla), se vacía la pila protegida y se vuelve a
+ * Ingreso, que ofrece la huella si sigue activa (WEB-F13).
+ */
+@Composable
+private fun VolverAlIngresoAlVencer(sesion: GestorSesion, nav: NavHostController) {
+    LaunchedEffect(sesion.vencida) {
+        if (sesion.vencida) {
+            sesion.vencimientoAtendido()
+            nav.reiniciarEn(RutasEntrada.INGRESO)
         }
     }
 }

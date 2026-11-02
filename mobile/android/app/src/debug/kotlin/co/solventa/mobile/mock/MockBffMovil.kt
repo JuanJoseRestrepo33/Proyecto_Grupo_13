@@ -22,17 +22,33 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
     private val sesiones = MockSesiones(estado)
     private val identidad = MockIdentidad(estado)
     private val consentimiento = MockConsentimiento(estado)
+    private val siniestros = MockSiniestros(estado)
 
-    /** @param ruta relativa al prefijo del BFF, sin "/" inicial (p. ej. "registros"). */
-    fun responder(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock = try {
-        enrutar(metodo, ruta, cuerpo, autorizacion)
+    /**
+     * @param ruta relativa al prefijo del BFF, sin "/" inicial (p. ej. "registros").
+     * @param claveIdempotencia el encabezado `Idempotency-Key`, que exige el reporte de siniestros.
+     */
+    fun responder(
+        metodo: String,
+        ruta: String,
+        cuerpo: String,
+        autorizacion: String?,
+        claveIdempotencia: String? = null,
+    ): RespuestaMock = try {
+        enrutar(metodo, ruta, cuerpo, autorizacion, claveIdempotencia)
     } catch (invalida: SerializationException) {
         respuesta(422, ErrorBff("solicitud_invalida", invalida.message.orEmpty()))
     }
 
     @Suppress("ReturnCount")
-    private fun enrutar(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock {
-        val fija = enrutarFija(metodo, ruta, cuerpo, autorizacion)
+    private fun enrutar(
+        metodo: String,
+        ruta: String,
+        cuerpo: String,
+        autorizacion: String?,
+        claveIdempotencia: String?,
+    ): RespuestaMock {
+        val fija = enrutarFija(metodo, ruta, cuerpo, autorizacion, claveIdempotencia)
         if (fija != null) return fija
         return enrutarConSegmentos(metodo, ruta, cuerpo, autorizacion)
     }
@@ -42,6 +58,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         ruta: String,
         cuerpo: String,
         autorizacion: String?,
+        claveIdempotencia: String?,
     ): RespuestaMock? = when ("$metodo $ruta") {
         "POST registros" -> registro.crear(cuerpo)
         "POST sesiones" -> sesiones.iniciar(cuerpo)
@@ -52,6 +69,8 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         "GET consentimientos/finalidades" -> consentimiento.finalidades(autorizacion)
         "GET consentimientos" -> consentimiento.listar(autorizacion)
         "POST consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
+        "GET polizas" -> siniestros.polizas(autorizacion)
+        "POST siniestros" -> siniestros.reportar(autorizacion, cuerpo, claveIdempotencia)
         else -> null
     }
 

@@ -181,7 +181,7 @@ class MockBffMovilTest {
     @Test
     fun `rutas desconocidas y cuerpos invalidos responden sin salir a la red`() {
         val mock = MockBffMovil { ahora }
-        assertEquals(404, mock.responder("GET", "polizas", "", null).codigo)
+        assertEquals(404, mock.responder("GET", "cotizaciones", "", null).codigo)
         assertEquals(404, mock.responder("GET", "registros/REG-1/otp/reenvio", "", null).codigo)
         val invalida = mock.responder("POST", "sesiones", """{"correo":1}""", null)
         assertEquals(422, invalida.codigo)

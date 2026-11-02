@@ -77,6 +77,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:consentimiento"))
+    implementation(project(":feature:siniestros"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
