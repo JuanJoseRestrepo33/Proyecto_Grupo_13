@@ -197,6 +197,8 @@ class SolventaRaizTest {
         compose.onNodeWithTag("aceptar-fecha").performClick()
         escribir("campo-descripcion", "Me robaron el celular en el bus")
         compose.onNodeWithTag("continuar").performScrollTo().performClick()
+        // Evidencia: es opcional.
+        compose.onNodeWithTag("continuar").performScrollTo().performClick()
         compose.onNodeWithTag("enviar").performScrollTo().performClick()
 
         compose.esperar(hasTestTag("referencia"))

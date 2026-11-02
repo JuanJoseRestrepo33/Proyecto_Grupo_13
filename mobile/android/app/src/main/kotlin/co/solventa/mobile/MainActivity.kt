@@ -12,6 +12,8 @@ import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import co.solventa.feature.siniestros.DependenciasSiniestros
+import co.solventa.feature.siniestros.evidencia.AlmacenEvidenciasAndroid
+import co.solventa.feature.siniestros.evidencia.LectorUbicacionAndroid
 import co.solventa.mobile.navigation.SolventaRaiz
 
 // FragmentActivity: BiometricPrompt la requiere para mostrar el diálogo del sistema.
@@ -28,7 +30,11 @@ class MainActivity : FragmentActivity() {
         val dependenciasConsentimiento = DependenciasConsentimiento(
             api = proceso.bffApi,
         )
-        val dependenciasSiniestros = DependenciasSiniestros(api = proceso.bffApi)
+        val dependenciasSiniestros = DependenciasSiniestros(
+            api = proceso.bffApi,
+            almacen = AlmacenEvidenciasAndroid(applicationContext),
+            ubicacion = LectorUbicacionAndroid(applicationContext),
+        )
         setContent {
             SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento, dependenciasSiniestros) }
         }

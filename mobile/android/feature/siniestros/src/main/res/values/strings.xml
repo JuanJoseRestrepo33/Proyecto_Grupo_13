@@ -13,6 +13,7 @@
     <string name="reporte_paso">Paso %1$d de %2$d · %3$s</string>
     <string name="paso_poliza">Póliza</string>
     <string name="paso_informacion">Información</string>
+    <string name="paso_evidencia">Evidencia</string>
     <string name="paso_revision">Revisión</string>
     <string name="cargando_polizas">Consultando tus pólizas…</string>
 
@@ -55,6 +56,8 @@
     <string name="revision_descripcion">Descripción</string>
     <string name="revision_monto">Monto estimado</string>
     <string name="revision_sin_monto">Sin monto estimado</string>
+    <string name="revision_evidencia">Evidencia</string>
+    <string name="revision_sin_evidencia">Sin evidencia adjunta</string>
     <string name="cambiar_paso">Cambiar %1$s</string>
 
     <string name="error_poliza">Elige la póliza afectada.</string>
@@ -84,4 +87,60 @@
     <string name="confirmacion_siguiente_paso">Siguiente paso</string>
     <string name="siguiente_adjuntar_evidencia">Adjunta fotos o documentos del evento para que podamos evaluar tu caso. Guarda el número de referencia: lo verás también en la web.</string>
     <string name="siguiente_esperar_evaluacion">Estamos evaluando tu caso y te avisaremos cuando haya novedades. Guarda el número de referencia: lo verás también en la web.</string>
+
+    <string name="evidencia_instrucciones">Adjunta fotos, videos o documentos del evento. Es opcional: puedes continuar sin adjuntar nada y agregarlos después.</string>
+    <string name="evidencia_formatos">Se admiten fotos JPEG, PNG o HEIC, videos MP4 y documentos PDF, de hasta 10 MB.</string>
+    <string name="evidencia_tomar_foto">Tomar foto</string>
+    <string name="evidencia_galeria">Elegir de la galería</string>
+    <string name="evidencia_documento">Elegir un documento PDF</string>
+    <string name="evidencia_preparando">Preparando el archivo…</string>
+    <string name="evidencia_comprimiendo">Comprimiendo el archivo: %1$d %%</string>
+    <string name="evidencia_foto">Foto %1$d</string>
+    <string name="evidencia_video">Video %1$d</string>
+    <string name="evidencia_pdf">Documento %1$d</string>
+    <string name="evidencia_tomada">Tomada el %1$s</string>
+    <string name="evidencia_sin_fecha">Sin fecha de captura</string>
+    <string name="evidencia_quitar">Quitar %1$s</string>
+    <string name="evidencia_miniatura">Vista previa de %1$s</string>
+    <string name="evidencia_lugar">Lugar (opcional)</string>
+    <string name="evidencia_lugar_ayuda">Escribe dónde ocurrió. Caracteres: %1$d/%2$d</string>
+    <string name="evidencia_no_cabe">Este archivo no cabe en 10 MB y no se enviará. Puedes quitarlo o continuar sin él.</string>
+    <string name="evidencia_enviando">Enviando la evidencia…</string>
+    <string name="evidencia_reintentar">Reintentar lo que falló</string>
+    <string name="evidencia_agregar">Agregar evidencia</string>
+    <string name="evidencia_enviar">Enviar evidencia</string>
+    <string name="evidencia_error_consulta">No pudimos consultar la evidencia del siniestro. Inténtalo de nuevo.</string>
+
+    <string name="permisos_explicacion">Para documentar tu caso usamos la cámara, que toma la foto aquí mismo, y la ubicación, que registra dónde la tomaste. La ubicación solo se lee al tomar la foto. Si prefieres no darlos, puedes elegir archivos o escribir el lugar.</string>
+    <string name="permisos_entendido">Entendido</string>
+    <string name="permisos_ahora_no">Ahora no</string>
+    <string name="permisos_abrir_ajustes">Abrir ajustes de la app</string>
+    <string name="camara_capturar">Capturar</string>
+    <string name="camara_negada">Sin la cámara no podemos tomar la foto desde aquí. Puedes elegirla de la galería o adjuntar un PDF.</string>
+    <string name="camara_permanente">La cámara está desactivada para Solventa. Para usarla, entra a los ajustes de la app y actívala en Permisos. Mientras tanto, puedes elegir de la galería o adjuntar un PDF.</string>
+    <string name="camara_no_disponible">No pudimos usar la cámara. Puedes elegir de la galería o adjuntar un PDF.</string>
+    <string name="ubicacion_negada">Sin la ubicación, las fotos van sin coordenadas. Puedes escribir el lugar en cada archivo.</string>
+    <string name="ubicacion_permanente">La ubicación está desactivada para Solventa. Para usarla, entra a los ajustes de la app y actívala en Permisos. Mientras tanto, puedes escribir el lugar en cada archivo.</string>
+
+    <string name="rechazo_vacio">El archivo está vacío. Elige otro.</string>
+    <string name="rechazo_formato">Ese formato no se admite. Elige una foto JPEG, PNG o HEIC, un video MP4 o un documento PDF.</string>
+    <string name="rechazo_ilegible">No pudimos leer el archivo. Elige otro o inténtalo de nuevo.</string>
+    <string name="rechazo_no_cabe">No logramos dejar el archivo en 10 MB, el límite por archivo.</string>
+
+    <string name="confirmacion_adjuntos">Archivos de este envío</string>
+    <string name="confirmacion_evidencia">Evidencia del siniestro</string>
+    <string name="carga_enviada">%1$s: adjuntado</string>
+    <string name="carga_enviando">%1$s: enviando…</string>
+    <string name="carga_fallida">%1$s: no se adjuntó. %2$s</string>
+    <string name="fallo_tamano">Supera el límite de 10 MB.</string>
+    <string name="fallo_formato">Su formato no se admite o no coincide con el contenido.</string>
+    <string name="fallo_vacio">El archivo está vacío.</string>
+    <string name="fallo_ubicacion">La ubicación registrada no es válida.</string>
+    <string name="fallo_fecha">La fecha de captura no es válida; revisa la fecha y hora del teléfono.</string>
+    <string name="fallo_cerrado">Este caso ya está cerrado y no recibe evidencia.</string>
+    <string name="fallo_no_encontrado">No encontramos el siniestro.</string>
+    <string name="fallo_archivo_perdido">El archivo ya no está en el teléfono; adjúntalo de nuevo.</string>
+    <string name="fallo_almacenamiento">El almacenamiento no está disponible por ahora. Reintenta en unos minutos.</string>
+    <string name="fallo_sin_red">No hubo respuesta; revisa tu conexión y reintenta. No se duplicará.</string>
+    <string name="fallo_generico">Algo salió mal. Reintenta: no se duplicará.</string>
 </resources>

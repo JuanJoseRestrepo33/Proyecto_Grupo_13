@@ -31,6 +31,8 @@ import co.solventa.feature.siniestros.R
 import co.solventa.feature.siniestros.comun.BotonTexto
 import co.solventa.feature.siniestros.comun.CampoTexto
 import co.solventa.feature.siniestros.comun.Mensaje
+import co.solventa.feature.siniestros.evidencia.Adjunto
+import co.solventa.feature.siniestros.evidencia.etiqueta
 
 // ── Paso 1 · Póliza ───────────────────────────────────────────────────────────────────────────
 
@@ -161,6 +163,22 @@ internal fun PasoRevision(estado: EstadoReporte, viewModel: ReporteViewModel) {
     informacion.forEach { (titulo, valor) ->
         Resumen(titulo, valor, PasoReporte.INFORMACION, viewModel, habilitado = estado.puedeCorregir)
     }
+    Resumen(
+        titulo = R.string.revision_evidencia,
+        valor = resumenEvidencia(viewModel.evidencia.estado.listos),
+        paso = PasoReporte.EVIDENCIA,
+        viewModel = viewModel,
+        habilitado = estado.puedeCorregir,
+    )
+}
+
+/** Lo que irá con el reporte, un archivo por línea. */
+@Composable
+private fun resumenEvidencia(adjuntos: List<Adjunto>): String {
+    if (adjuntos.isEmpty()) return stringResource(R.string.revision_sin_evidencia)
+    return adjuntos.mapIndexed { indice, adjunto ->
+        "${stringResource(adjunto.formato.etiqueta(), indice + 1)} · ${formatoTamano(adjunto.tamano)}"
+    }.joinToString("\n")
 }
 
 @Composable

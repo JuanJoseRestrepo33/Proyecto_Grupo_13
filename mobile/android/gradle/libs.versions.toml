@@ -18,6 +18,11 @@ fragment = "1.8.5"
 appcompat = "1.7.0"
 androidx-test-runner = "1.6.2"
 androidx-test-junit = "1.2.1"
+camerax = "1.4.1"
+media3 = "1.5.1"
+exifinterface = "1.3.7"
+play-location = "21.3.0"
+core = "1.13.1"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
@@ -46,6 +51,15 @@ fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment"
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+media3-transformer = { module = "androidx.media3:media3-transformer", version.ref = "media3" }
+media3-effect = { module = "androidx.media3:media3-effect", version.ref = "media3" }
+media3-common = { module = "androidx.media3:media3-common", version.ref = "media3" }
+exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
+play-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-location" }
+core = { module = "androidx.core:core", version.ref = "core" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

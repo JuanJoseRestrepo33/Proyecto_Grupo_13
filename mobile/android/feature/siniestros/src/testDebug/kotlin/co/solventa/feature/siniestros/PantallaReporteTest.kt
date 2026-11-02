@@ -66,12 +66,14 @@ class PantallaReporteTest {
         compose.onNodeWithTag("campo-descripcion").performTextInput("Me robaron el celular en el bus")
         compose.onNodeWithTag("campo-monto").performTextInput("1.500.000")
         continuar()
+        compose.onNodeWithText("Paso 3 de 4 · Evidencia").assertIsDisplayed()
+        continuar()
     }
 
     @Test
-    fun `el asistente recorre los tres pasos y confirma con la referencia y el siguiente paso`() {
+    fun `el asistente recorre los cuatro pasos y confirma con la referencia y el siguiente paso`() {
         hastaRevision()
-        compose.onNodeWithText("Paso 3 de 3 · Revisión").assertIsDisplayed()
+        compose.onNodeWithText("Paso 4 de 4 · Revisión").assertIsDisplayed()
         compose.onNodeWithText("Seguro de auto · POL-2026-000101").assertIsDisplayed()
         compose.onNodeWithText("23 de octubre de 2026").assertIsDisplayed()
         compose.onNodeWithText("$ 1.500.000").assertIsDisplayed()
@@ -89,7 +91,7 @@ class PantallaReporteTest {
     @Test
     fun `la lista de polizas muestra producto, numero, vigencia y estado`() {
         mostrar()
-        compose.onNodeWithText("Paso 1 de 3 · Póliza").assertIsDisplayed()
+        compose.onNodeWithText("Paso 1 de 4 · Póliza").assertIsDisplayed()
         compose.onNodeWithText("Seguro de hogar").assertIsDisplayed()
         compose.onNodeWithText("POL-2026-000102").assertIsDisplayed()
         compose.onNodeWithText("Vigencia: 26 de septiembre de 2025 al 26 de septiembre de 2026").assertIsDisplayed()
@@ -101,7 +103,7 @@ class PantallaReporteTest {
     fun `sin elegir poliza no avanza e indica que falta`() {
         mostrar()
         continuar()
-        compose.onNodeWithText("Paso 1 de 3 · Póliza").assertIsDisplayed()
+        compose.onNodeWithText("Paso 1 de 4 · Póliza").assertIsDisplayed()
         compose.onNodeWithText("Elige la póliza afectada.").assertIsDisplayed()
     }
 
@@ -133,7 +135,7 @@ class PantallaReporteTest {
         }
         hastaRevision()
         compose.onNodeWithTag("enviar").performScrollTo().performClick()
-        compose.onNodeWithText("Paso 2 de 3 · Información").assertIsDisplayed()
+        compose.onNodeWithText("Paso 2 de 4 · Información").assertIsDisplayed()
         compose.onNodeWithText("La fecha del evento no puede ser posterior a hoy.")
             .performScrollTo()
             .assertIsDisplayed()
@@ -193,11 +195,12 @@ class PantallaReporteTest {
     fun `desde la revision se puede volver a cada paso`() {
         hastaRevision()
         compose.onNodeWithContentDescription("Cambiar póliza").performScrollTo().performClick()
-        compose.onNodeWithText("Paso 1 de 3 · Póliza").assertIsDisplayed()
+        compose.onNodeWithText("Paso 1 de 4 · Póliza").assertIsDisplayed()
+        continuar()
         continuar()
         continuar()
         compose.onNodeWithContentDescription("Cambiar descripción").performScrollTo().performClick()
-        compose.onNodeWithText("Paso 2 de 3 · Información").assertIsDisplayed()
+        compose.onNodeWithText("Paso 2 de 4 · Información").assertIsDisplayed()
     }
 
     @Test
@@ -224,7 +227,7 @@ class PantallaReporteTest {
         hastaRevision()
         compose.onNodeWithTag("enviar").assertHeightIsAtLeast(48.dp)
         val cambiar = compose.onAllNodesWithContentDescription("Cambiar", substring = true).fetchSemanticsNodes()
-        assertEquals(5, cambiar.size)
+        assertEquals(6, cambiar.size)
         cambiar.forEach { assertTrue(it.size.height >= with(compose.density) { 48.dp.roundToPx() }) }
         compose.onNodeWithContentDescription("Volver").assertHeightIsAtLeast(48.dp)
         compose.onNodeWithContentDescription("Cambiar póliza").performClick()

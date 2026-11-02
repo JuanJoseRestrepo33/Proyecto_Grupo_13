@@ -52,8 +52,8 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
   biometría; ver [su README](feature/onboarding/README.md). Las próximas features se agregan como
   módulos `feature/<nombre>` en `settings.gradle.kts`.
-- `feature/siniestros`: **WEB-F05** en la app. Asistente de reporte (póliza, información, revisión)
-  con envío idempotente; se abre desde Inicio. Ver [su README](feature/siniestros/README.md).
+- `feature/siniestros`: **WEB-F05** y **MOB-F05** en la app. Asistente de reporte (póliza, información,
+  evidencia, revisión) con envío idempotente; se abre desde Inicio. Ver [su README](feature/siniestros/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -217,6 +217,9 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Evento dentro o fuera de la vigencia | Reportar sobre la póliza de hogar con una fecha anterior o posterior a su fin: se acepta o responde 409 `evento_fuera_de_vigencia` |
 | Cuenta sin pólizas | `sinpolizas@ejemplo.co` / `Solventa2026` |
 | Reintento con la misma clave | Descripción con `#sin-respuesta`: el primer envío queda registrado pero la app ve un tiempo agotado; el reintento confirma la misma referencia |
+| Evidencia aceptada | Cualquier foto, video o PDF del paso de evidencia |
+| Rechazos de evidencia | Lugar con `#413`, `#422`, `#409` o `#503` (el lugar se pide en archivos sin coordenadas) |
+| Evidencia con respuesta perdida | Lugar con `#perdida`: el archivo queda guardado, la app ve un tiempo agotado y el reintento no lo duplica |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.

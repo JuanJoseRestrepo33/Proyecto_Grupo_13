@@ -47,6 +47,7 @@ class ReporteViewModelTest {
             continuar()
             completarInformacion(fecha)
             continuar()
+            continuar()
         }
 
     // ── Pasos y validación ────────────────────────────────────────────────────────────────────
@@ -157,6 +158,8 @@ class ReporteViewModelTest {
     @Test
     fun `atras retrocede un paso y en el primero indica salir del asistente`() {
         val vm = enRevision()
+        assertTrue(vm.atras())
+        assertEquals(PasoReporte.EVIDENCIA, vm.estado.paso)
         assertTrue(vm.atras())
         assertEquals(PasoReporte.INFORMACION, vm.estado.paso)
         assertTrue(vm.atras())
@@ -344,6 +347,7 @@ class ReporteViewModelTest {
         vm.continuar()
         assertEquals(PasoReporte.INFORMACION, vm.estado.paso)
         vm.actualizar(Campo.MONTO) { it.copy(monto = "") }
+        vm.continuar()
         vm.continuar()
         assertEquals(PasoReporte.REVISION, vm.estado.paso)
     }

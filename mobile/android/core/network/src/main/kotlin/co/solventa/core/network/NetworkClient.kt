@@ -3,6 +3,7 @@ package co.solventa.core.network
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
+import okhttp3.Call
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -47,9 +48,28 @@ object NetworkClient {
 
     private fun retrofit(baseUrl: String, client: OkHttpClient) = Retrofit.Builder()
         .baseUrl(baseUrl)
-        .client(client)
+        .callFactory(conCargas(client))
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
+}
+
+private const val MINUTOS_CARGA = 3L
+
+/**
+ * 15 s no alcanzan para subir 10 MB por red móvil: solo los `multipart` (la evidencia) usan un
+ * cliente con más tiempo. Se elige por llamada porque un interceptor ya no puede alargar
+ * `callTimeout`; el pool y los interceptores son los mismos.
+ */
+internal fun conCargas(cliente: OkHttpClient): Call.Factory {
+    val cargas = cliente.newBuilder()
+        .callTimeout(MINUTOS_CARGA, TimeUnit.MINUTES)
+        .writeTimeout(MINUTOS_CARGA, TimeUnit.MINUTES)
+        .readTimeout(1, TimeUnit.MINUTES)
+        .build()
+    return Call.Factory { solicitud ->
+        val carga = solicitud.body?.contentType()?.type == "multipart"
+        (if (carga) cargas else cliente).newCall(solicitud)
+    }
 }
 
 internal class TokenAccesoInterceptor(private val tokenAcceso: () -> String?) : Interceptor {

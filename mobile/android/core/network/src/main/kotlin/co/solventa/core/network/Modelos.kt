@@ -278,3 +278,20 @@ data class Siniestro(
     val canal: String,
     @SerialName("reportado_en") val reportadoEn: String,
 )
+
+// ── Modelos de evidencia (MOB-F05) ────────────────────────────────────────────────────────────
+
+@Serializable
+data class Evidencia(
+    val id: String,
+    @SerialName("tipo_contenido") val tipoContenido: String,
+    val tamano: Long,
+    /** Nombre único que puso la app: permite saber si una carga sin respuesta sí llegó. */
+    @SerialName("nombre_original") val nombreOriginal: String? = null,
+    val canal: String,
+    @SerialName("cargada_en") val cargadaEn: String,
+    @SerialName("tomada_en") val tomadaEn: String? = null,
+    val latitud: Double? = null,
+    val longitud: Double? = null,
+    val lugar: String? = null,
+)

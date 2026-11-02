@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 android {
     namespace = "co.solventa.feature.siniestros"
@@ -43,6 +44,17 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     // SavedStateHandle: el borrador y la clave sobreviven a la muerte del proceso (criterio 6).
     implementation(libs.lifecycle.viewmodel.savedstate)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.core)
+    // Evidencia (MOB-F05): cámara, ubicación, EXIF y compresión de video.
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.play.location)
+    implementation(libs.exifinterface)
+    implementation(libs.media3.common)
+    implementation(libs.media3.effect)
+    implementation(libs.media3.transformer)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.compose.ui.test.junit4)

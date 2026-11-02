@@ -1,5 +1,6 @@
 package co.solventa.feature.siniestros.reporte
 
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -21,7 +22,12 @@ import co.solventa.feature.siniestros.comun.PlantillaPantalla
 
 /** Confirmación del reporte: referencia (la misma que ve la web), estado y siguiente paso. */
 @Composable
-fun PantallaConfirmacion(siniestro: Siniestro, onTerminar: () -> Unit) {
+fun PantallaConfirmacion(
+    siniestro: Siniestro,
+    onTerminar: () -> Unit,
+    puedeSalir: Boolean = true,
+    evidencia: @Composable ColumnScope.() -> Unit = {},
+) {
     PlantillaPantalla(stringResource(R.string.confirmacion_titulo), onVolver = null) {
         Icon(
             Icons.Default.CheckCircle,
@@ -46,6 +52,7 @@ fun PantallaConfirmacion(siniestro: Siniestro, onTerminar: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.testTag("siguiente-paso"),
         )
-        BotonPrincipal(stringResource(R.string.boton_volver_inicio), onClick = onTerminar)
+        evidencia()
+        BotonPrincipal(stringResource(R.string.boton_volver_inicio), onClick = onTerminar, habilitado = puedeSalir)
     }
 }

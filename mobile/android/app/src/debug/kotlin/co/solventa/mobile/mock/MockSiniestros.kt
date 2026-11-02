@@ -78,6 +78,11 @@ internal class MockSiniestros(private val estado: EstadoMock) {
         }
     }
 
+    fun delCliente(idCuenta: String, idSiniestro: String): Siniestro? =
+        reportes.entries.firstOrNull { (clave, reporte) ->
+            clave.first == idCuenta && reporte.siniestro.id == idSiniestro
+        }?.value?.siniestro
+
     private fun registrar(idCuenta: String, clave: String, solicitud: SolicitudSiniestro): RespuestaMock {
         secuencia += 1
         val ahora = estado.reloj()
