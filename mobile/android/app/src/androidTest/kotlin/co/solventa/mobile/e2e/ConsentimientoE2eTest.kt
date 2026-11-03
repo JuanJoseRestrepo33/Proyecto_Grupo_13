@@ -3,6 +3,7 @@ package co.solventa.mobile.e2e
 import android.os.SystemClock
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isEnabled
@@ -44,6 +45,7 @@ class ConsentimientoE2eTest {
     private val argumentos = InstrumentationRegistry.getArguments()
     private val correo = argumentos.getString("correo").orEmpty()
     private val clave = argumentos.getString("clave").orEmpty()
+    private var paso = "preparación"
 
     @Before
     fun exigirModoReal() {
@@ -58,10 +60,12 @@ class ConsentimientoE2eTest {
         // Preparación: sin consentimiento vigente de cotización, para que la app pueda otorgarlo.
         web.consentimientoVigente(cookie, FINALIDAD)?.let { web.revocar(cookie, it.getString("id")) }
 
+        paso = "iniciar sesión y abrir Consentimientos"
         iniciarSesion()
         abrirConsentimientos()
 
         // Otorgar en la app (criterios 2 y 3): la web lo ve vigente, con el canal de la app.
+        paso = "otorgar en la app"
         otorgarEnLaApp()
         val otorgado = web.consentimientoVigente(cookie, FINALIDAD)
         assertNotNull("La web no ve vigente el consentimiento otorgado en la app", otorgado)
@@ -69,6 +73,7 @@ class ConsentimientoE2eTest {
         assertEquals("personalizada", web.cotizarAuto(cookie).getString("tipo_tarifa"))
 
         // Revocar en la app (criterios 2 y 4): la web lo ve revocado y la siguiente cotización es estándar.
+        paso = "revocar en la app"
         revocarEnLaApp()
         assertNull("La web aún ve vigente el consentimiento revocado", web.consentimientoVigente(cookie, FINALIDAD))
         val revocado = web.consentimientos(cookie).single { it.getString("id") == otorgado.getString("id") }
@@ -78,6 +83,7 @@ class ConsentimientoE2eTest {
         assertEquals("sin_consentimiento", cotizacion.getString("motivo_tarifa"))
 
         // Otorgar en la web (criterio 2, al revés): la app lo muestra vigente al volver a consultar.
+        paso = "ver en la app lo otorgado en la web"
         web.otorgar(cookie, FINALIDAD)
         compose.onNodeWithTag("boton-volver").performClick()
         abrirConsentimientos()
@@ -100,11 +106,11 @@ class ConsentimientoE2eTest {
 
     /** Desde Inicio o desde Perfil. Espera a que la tarjeta de cotización tenga su acción. */
     private fun abrirConsentimientos() {
-        esperar { hay("ir-consentimiento") || hay("ir-reportar-siniestro") }
+        esperar("Inicio o Perfil") { hay("ir-consentimiento") || hay("ir-reportar-siniestro") }
         if (!hay("ir-consentimiento")) compose.onNodeWithText("Perfil").performClick()
         esperar("ir-consentimiento")
         compose.onNodeWithTag("ir-consentimiento").performClick()
-        esperar { ACCIONES.any { hay("boton-$it-$FINALIDAD") } }
+        esperar("una acción en la tarjeta de $FINALIDAD") { ACCIONES.any { hay("boton-$it-$FINALIDAD") } }
     }
 
     private fun otorgarEnLaApp() {
@@ -133,13 +139,13 @@ class ConsentimientoE2eTest {
     private fun conReintento(listo: () -> Boolean, accion: () -> Unit) {
         repeat(INTENTOS) {
             accion()
-            esperar { listo() || hay("mensaje") }
+            esperar("respuesta o mensaje") { listo() || hay("mensaje") }
             if (listo()) return
             SystemClock.sleep(PAUSA_MS)
             compose.waitForIdle()
             if (listo()) return
         }
-        esperar(listo)
+        esperar("el resultado tras reintentar", listo)
     }
 
     private fun tocar(etiqueta: String) {
@@ -148,16 +154,37 @@ class ConsentimientoE2eTest {
 
     /** Tras otorgar o revocar, la pantalla recarga y deja las acciones deshabilitadas hasta terminar. */
     private fun tocarHabilitado(etiqueta: String) {
-        esperar { compose.onAllNodes(hasTestTag(etiqueta) and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        esperar("$etiqueta habilitado") {
+            compose.onAllNodes(hasTestTag(etiqueta) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
         tocar(etiqueta)
     }
 
     private fun hay(etiqueta: String) = compose.onAllNodesWithTag(etiqueta).fetchSemanticsNodes().isNotEmpty()
 
-    private fun esperar(etiqueta: String) = esperar { hay(etiqueta) }
+    private fun esperar(etiqueta: String) = esperar(etiqueta) { hay(etiqueta) }
 
-    // Las llamadas al BFF no cuentan como trabajo pendiente para Compose: hay que esperar lo que se ve.
-    private fun esperar(condicion: () -> Boolean) = compose.waitUntil(ESPERA_MS, condicion)
+    /**
+     * Las llamadas al BFF no cuentan como trabajo pendiente para Compose: hay que esperar lo que se ve.
+     * Si no llega, el error dice el paso, lo que se esperaba y las etiquetas en pantalla: el job no
+     * publica artefactos y su traza no trae la línea de la prueba. Solo etiquetas, nunca textos, que
+     * podrían traer datos de la cuenta.
+     */
+    private fun esperar(que: String, condicion: () -> Boolean) {
+        try {
+            compose.waitUntil(ESPERA_MS, condicion)
+        } catch (error: ComposeTimeoutException) {
+            val segundos = ESPERA_MS / 1000
+            throw AssertionError("Paso «$paso»: sin «$que» tras $segundos s. En pantalla: ${etiquetas()}", error)
+        }
+    }
+
+    private fun etiquetas(): List<String> =
+        compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.TestTag), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.TestTag] }
+            .distinct()
+            .sorted()
 
     private companion object {
         const val FINALIDAD = "cotizacion"
