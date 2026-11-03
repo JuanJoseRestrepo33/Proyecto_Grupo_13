@@ -186,6 +186,40 @@ despliega. **Aquí nace el servicio BFF** que usan todas las historias siguiente
 - **Prueba de humo** en [`scripts/humo.py`](../scripts/humo.py): núcleo, BFF y web a través del
   proxy.
 
+**Verificación del criterio 3 (Open Finance degradado o caído)**
+
+En *staging* la prueba E2E del criterio 3 (`apps/web/e2e/cotizacion.spec.ts`, la de Open Finance
+caído) sale como *skipped* en cada CD. El proveedor simulado solo cambia de modo con
+`PERFILAMIENTO_OPEN_FINANCE_MODO` al arrancar el núcleo, y en *staging* eso exige redesplegarlo. Por
+eso el criterio se aceptó con la evidencia local que sigue, más las pruebas unitarias.
+
+Corrida local del 3 nov 2026 sobre `develop` (`46ce2c3`): núcleo, BFF y web (`VITE_MOCKS=false`) en
+la máquina, con la cuenta de `HUMO_CORREO` y el consentimiento de cotización vigente. Se usó
+Node 20.19 y Playwright 1.64.
+
+| Prueba | Modo del proveedor | Resultado |
+|---|---|---|
+| E2E `cotizacion.spec.ts` con `E2E_OPEN_FINANCE=caido` | `caido` | El criterio 3 y el 2 pasan. El 1 se omite porque requiere el modo `sano` |
+| 53 cotizaciones por el BFF web | `caido` | Todas con `tipo_tarifa=estandar` y `motivo_tarifa=proveedor_no_disponible`. p50 4 ms, p95 4 ms, máx. 12 ms |
+| 53 cotizaciones por el BFF web | `degradado` | Todas con tarifa estándar y `proveedor_no_disponible`, porque la caché estaba vacía. La primera tarda 142 ms, que es el corte del presupuesto de 120 ms. Con el circuito abierto, el p95 baja a 7 ms |
+| Pruebas unitarias del núcleo (`test_perfilamiento`, `test_servicio_cotizacion`, `test_tarificador`, `test_api_cotizacion`) | Simulado | 72 pasan. Entre ellas: presupuesto, *circuit breaker*, oferta desde la caché con el proveedor degradado y tarifa estándar con el proveedor caído |
+| Pruebas del BFF (`test_web_cotizaciones.py`) | Simulado | 25 pasan. Cubren la tarifa personalizada con `open_finance_en_cache` y los tres motivos de la tarifa estándar |
+| Pruebas de la web (`Cotizacion.test.tsx`, `manejadores.test.ts`) | Mocks `degradado` y `caido` | 45 pasan. Cubren los avisos de "datos guardados" y de "tu entidad no respondió" |
+
+Todas las cotizaciones quedaron muy por debajo de RC-01 (p95 ≤ 250 ms). Son tiempos locales, sin la
+red de Cloud Run.
+
+El camino con datos guardados (`open_finance_en_cache`) solo tiene pruebas unitarias en las tres
+capas, no una de punta a punta. La caché de perfiles vive en memoria y el modo del proveedor se fija
+al arrancar: cambiar de `sano` a `degradado` reinicia el núcleo y vacía la caché. Probar ese camino,
+y el criterio 3 en *staging*, requiere poder cambiar el modo sin reiniciar el núcleo. Eso queda como
+trabajo del Sprint 3.
+
+Para repetirla, sigue los pasos de [`apps/web/README.md`](../apps/web/README.md) con el núcleo
+arrancado con `PERFILAMIENTO_OPEN_FINANCE_MODO=caido` (o `degradado`). Después corre
+`E2E_OPEN_FINANCE=caido E2E_CORREO=... E2E_CLAVE=... npx playwright test e2e/cotizacion.spec.ts`
+desde `apps/web`.
+
 **Patrones de interfaz.** P04 Asistente paso a paso con puertas de validación · P05 Tarjetas de
 opción · P06 Validación en línea · P14 Degradación elegante · P15 Oferta con vigencia · P16
 Explicabilidad del precio.
