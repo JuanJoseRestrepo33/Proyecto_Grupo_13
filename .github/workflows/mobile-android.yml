@@ -191,6 +191,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: staging
+    # Mismo grupo que el E2E web de cd.yml: los dos cambian el estado de la cuenta de prueba.
+    concurrency:
+      group: e2e-cuenta-staging
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: mobile/android

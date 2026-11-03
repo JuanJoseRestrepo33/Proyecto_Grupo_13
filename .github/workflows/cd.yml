@@ -285,6 +285,11 @@ jobs:
     if: github.ref_name == 'develop'
     runs-on: ubuntu-latest
     environment: staging
+    # Mismo grupo que el E2E en emulador de mobile-android.yml: los dos cambian el estado de la cuenta
+    # de prueba (por ejemplo, su consentimiento de cotización) y no deben correr a la vez.
+    concurrency:
+      group: e2e-cuenta-staging
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write # para leer la URL de la web en Cloud Run con Workload Identity Federation
