@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -129,13 +130,11 @@ class EvidenciaE2eTest {
             compose.onAllNodes(hasTestTag("tomar-foto") and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
         tocar("tomar-foto")
-        esperar("el botón Capturar") { compose.onAllNodesWithText(CAPTURAR).fetchSemanticsNodes().isNotEmpty() }
-        // La vista previa tarda en enlazar la cámara: si la captura falla, se vuelve a intentar.
-        conReintento(listo = { hay("adjunto-0") }) {
-            if (compose.onAllNodesWithText(CAPTURAR).fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithText(CAPTURAR).performClick()
-            }
+        // «Capturar» se habilita cuando CameraX enlazó la cámara. Un solo clic: reintentar podría dejar dos fotos.
+        esperar("«$CAPTURAR» habilitado") {
+            compose.onAllNodes(hasText(CAPTURAR) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithText(CAPTURAR).performClick()
         esperar("adjunto-0")
         assertFalse("Se adjuntó más de una foto", hay("adjunto-1"))
     }
