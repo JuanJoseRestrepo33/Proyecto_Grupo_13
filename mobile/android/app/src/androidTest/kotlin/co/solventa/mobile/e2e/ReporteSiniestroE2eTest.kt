@@ -62,7 +62,7 @@ class ReporteSiniestroE2eTest {
         val fecha = LocalDate.now()
 
         iniciarSesion()
-        llenarReporte("Siniestro de prueba ($marca).")
+        val poliza = llenarReporte("Siniestro de prueba ($marca).")
         val referencia = enviarYLeerConfirmacion()
 
         val web = BffWeb(BuildConfig.BASE_URL.removeSuffix("movil/") + "web/")
@@ -71,7 +71,7 @@ class ReporteSiniestroE2eTest {
         assertEquals("Siniestros con la marca de esta ejecución", 1, encontrados.size)
         val siniestro = encontrados.single()
         assertEquals(referencia, siniestro.getString("referencia"))
-        assertEquals(POLIZA, siniestro.getString("numero_poliza"))
+        assertEquals(poliza, siniestro.getString("numero_poliza"))
         assertEquals("reportado", siniestro.getString("estado"))
         assertEquals("movil", siniestro.getString("canal"))
 
@@ -97,13 +97,16 @@ class ReporteSiniestroE2eTest {
         }
     }
 
-    private fun llenarReporte(descripcion: String) {
+    /** Devuelve el número de la póliza elegida, que el núcleo deriva de la semilla para cada cliente. */
+    private fun llenarReporte(descripcion: String): String {
         compose.onNodeWithTag("ir-reportar-siniestro").performClick()
-        esperar { hay("poliza-$POLIZA") || hayReintentar() }
+        esperar { hayPoliza() || hayReintentar() }
         if (hayReintentar()) {
-            conReintento(listo = { hay("poliza-$POLIZA") }) { compose.onNodeWithText(REINTENTAR).performClick() }
+            conReintento(listo = { hayPoliza() }) { compose.onNodeWithText(REINTENTAR).performClick() }
         }
-        tocar("poliza-$POLIZA")
+        val nodo = compose.onAllNodes(polizaSembrada()).onFirst()
+        val poliza = nodo.fetchSemanticsNode().config[SemanticsProperties.TestTag].removePrefix("poliza-")
+        nodo.performScrollTo().performClick()
         tocar("continuar")
         esperar("tipo-accidente_vehiculo")
         tocar("tipo-accidente_vehiculo")
@@ -111,12 +114,24 @@ class ReporteSiniestroE2eTest {
         compose.onNodeWithTag("campo-descripcion").performScrollTo().performTextInput(descripcion)
         // Sin fijar cuántos pasos hay: el de evidencia (#137) se inserta antes de la revisión.
         repeat(PASOS_MAXIMOS) {
-            if (hay("enviar")) return
+            if (hay("enviar")) return poliza
             tocar("continuar")
             compose.waitForIdle()
         }
         esperar("enviar")
+        return poliza
     }
+
+    /**
+     * La semilla de staging da `POL-STG-AUTO` a cualquier cliente, y el núcleo la entrega con el sufijo
+     * de su id (`POL-STG-AUTO-000001`). Se acepta también el número sin sufijo.
+     */
+    private fun polizaSembrada() = SemanticsMatcher("póliza $POLIZA del cliente") { nodo ->
+        val etiqueta = nodo.config.getOrNull(SemanticsProperties.TestTag).orEmpty()
+        etiqueta == "poliza-$POLIZA" || etiqueta.startsWith("poliza-$POLIZA-")
+    }
+
+    private fun hayPoliza() = compose.onAllNodes(polizaSembrada()).fetchSemanticsNodes().isNotEmpty()
 
     private fun elegirHoy() {
         val hoy = LocalDate.now()
