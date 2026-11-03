@@ -37,6 +37,11 @@ internal class BffWeb(private val raiz: String) {
 
     fun siniestro(cookie: String, id: String): JSONObject = JSONObject(obtener("siniestros/$id", cookie))
 
+    fun evidencias(cookie: String, idSiniestro: String): List<JSONObject> {
+        val lista = JSONArray(obtener("siniestros/$idSiniestro/evidencias", cookie))
+        return List(lista.length(), lista::getJSONObject)
+    }
+
     fun consentimientos(cookie: String): List<JSONObject> {
         val lista = JSONArray(obtener("consentimientos", cookie))
         return List(lista.length(), lista::getJSONObject)
