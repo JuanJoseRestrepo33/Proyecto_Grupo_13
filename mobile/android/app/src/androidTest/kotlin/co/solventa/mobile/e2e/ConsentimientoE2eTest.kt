@@ -4,6 +4,8 @@ import android.os.SystemClock
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -106,18 +108,18 @@ class ConsentimientoE2eTest {
     }
 
     private fun otorgarEnLaApp() {
-        esperar("boton-otorgar-$FINALIDAD")
-        tocar("boton-otorgar-$FINALIDAD")
+        tocarHabilitado("boton-otorgar-$FINALIDAD")
         esperar("boton-confirmar-otorgar")
         // Ninguna entidad viene marcada (criterio 3): se elige una y se acepta la versión del texto legal.
-        compose.onAllNodes(etiquetaQueEmpiezaPor("entidad-")).onFirst().performClick()
-        compose.onNodeWithTag("check-version").performClick()
+        // El contenido del diálogo se desplaza: con poca altura, la casilla puede quedar fuera de la vista.
+        compose.onAllNodes(etiquetaQueEmpiezaPor("entidad-")).onFirst().performScrollTo().performClick()
+        tocar("check-version")
         compose.onNodeWithTag("boton-confirmar-otorgar").performClick()
         esperar("boton-revocar-$FINALIDAD")
     }
 
     private fun revocarEnLaApp() {
-        tocar("boton-revocar-$FINALIDAD")
+        tocarHabilitado("boton-revocar-$FINALIDAD")
         esperar("advertencia-cotizacion")
         compose.onNodeWithTag("boton-confirmar-revocar").performClick()
         esperar("boton-otorgar-$FINALIDAD")
@@ -142,6 +144,12 @@ class ConsentimientoE2eTest {
 
     private fun tocar(etiqueta: String) {
         compose.onNodeWithTag(etiqueta).performScrollTo().performClick()
+    }
+
+    /** Tras otorgar o revocar, la pantalla recarga y deja las acciones deshabilitadas hasta terminar. */
+    private fun tocarHabilitado(etiqueta: String) {
+        esperar { compose.onAllNodes(hasTestTag(etiqueta) and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        tocar(etiqueta)
     }
 
     private fun hay(etiqueta: String) = compose.onAllNodesWithTag(etiqueta).fetchSemanticsNodes().isNotEmpty()
