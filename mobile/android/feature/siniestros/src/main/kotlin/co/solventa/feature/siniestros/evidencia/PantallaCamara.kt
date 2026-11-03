@@ -39,6 +39,8 @@ fun PantallaCamara(destino: () -> File, onCapturada: (String) -> Unit, onCancela
     val ciclo = LocalLifecycleOwner.current
     val captura = remember { ImageCapture.Builder().build() }
     var disparando by remember { mutableStateOf(false) }
+    // Capturar antes de que el proveedor enlace la cámara falla y cierra la pantalla.
+    var enlazada by remember { mutableStateOf(false) }
     // El ciclo de vida es el de la navegación, que sigue activo al cerrar esta pantalla: hay que
     // soltar la cámara a mano, y no enlazarla si el proveedor responde cuando ya se salió.
     val enlace = remember { EnlaceCamara() }
@@ -59,6 +61,7 @@ fun PantallaCamara(destino: () -> File, onCapturada: (String) -> Unit, onCancela
                                 proveedor.unbindAll()
                                 proveedor.bindToLifecycle(ciclo, CameraSelector.DEFAULT_BACK_CAMERA, previa, captura)
                                 enlace.recordar(proveedor, previa, captura)
+                                enlazada = true
                             }.onFailure { onError() }
                         },
                         ContextCompat.getMainExecutor(ctx),
@@ -72,6 +75,7 @@ fun PantallaCamara(destino: () -> File, onCapturada: (String) -> Unit, onCancela
         ) {
             BotonPrincipal(
                 texto = stringResource(R.string.camara_capturar),
+                habilitado = enlazada,
                 cargando = disparando,
                 onClick = {
                     disparando = true

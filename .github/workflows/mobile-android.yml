@@ -236,7 +236,10 @@ jobs:
           target: google_apis
           arch: x86_64
           working-directory: mobile/android
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          # Cámara trasera emulada: la prueba de evidencia toma una foto con CameraX (#179).
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+            -camera-back emulated
           disable-animations: true
           script: >-
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
