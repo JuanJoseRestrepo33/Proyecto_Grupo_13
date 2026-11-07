@@ -316,13 +316,17 @@ pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni
 
 ### Aprovisionar y destruir el ambiente
 
-Dos workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
+Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
 [`scripts/ambiente.py`](../scripts/ambiente.py), con la misma lista de recursos que verifica el CD:
 
 | Workflow | Qué hace | Cuánto tarda |
 |---|---|---|
 | [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el bucket de evidencias y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
 | [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, el bucket con las evidencias y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
+| [Encender o apagar Cloud SQL](../.github/workflows/cloud-sql.yml) | Solo cambia la política de activación de la instancia: `encender` (`ALWAYS`) o `apagar` (`NEVER`). Apagada **conserva los datos** y no cobra CPU ni memoria, solo el disco; mientras tanto el núcleo responde 500 en auditoría, cotización y siniestros y su `/salud` dice `caido`. Al encender, espera a que el `/salud` del núcleo vuelva a `ok` y lo muestra en el resumen. Si no hay instancia, falla y pide Aprovisionar. **Además se apaga sola cada noche a las 23:00 de Bogotá** (04:00 UTC), sin aprobación, en el environment `staging-apagado`; para trabajar de noche, enciéndela a mano después de esa hora | 1-3 minutos, más hasta 10 de espera al encender |
+
+Con `gcloud` autenticado también se puede desde la terminal:
+`python3 scripts/ambiente.py encender --proyecto <GCP_PROJECT_ID> --region <GCP_REGION>` (o `apagar`).
 
 **Lo que destruir conserva** es el acceso, que se configura a mano una sola vez (pasos 3 y 4 de
 [Configuración manual en GCP](#configuración-manual-en-gcp)): Workload Identity, las cuentas
@@ -661,10 +665,13 @@ cerrarlo y reabrirlo a mano para que corra.
   | `staging` | Selected branches → solo `develop` | - |
   | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
   | `staging-infraestructura` | Selected branches → solo `develop` | *Required reviewers*: quien administra Cloud aprueba cada Aprovisionar o Destruir |
+  | `staging-apagado` | Selected branches → solo `develop` | **Sin** *required reviewers*: lo usa el apagado nocturno de Cloud SQL, que no puede esperar una aprobación |
 
   En cada uno se cargan, como **variables** del environment, las cinco de la tabla de
   [despliegue continuo](#despliegue-continuo). En `staging-infraestructura`, `GCP_SERVICE_ACCOUNT`
-  es la cuenta `infraestructura` (paso 3) y además van los secretos `HUMO_CORREO` y `HUMO_CLAVE`.
+  es la cuenta `infraestructura` (paso 3) y además van los secretos `HUMO_CORREO` y `HUMO_CLAVE`. En
+  `staging-apagado` van `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER` y, como
+  `GCP_SERVICE_ACCOUNT`, la cuenta `apagado` (paso 3).
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
 
@@ -776,6 +783,24 @@ gcloud iam service-accounts add-iam-policy-binding "$INFRA" \
 
 No recibe permisos de IAM sobre el proyecto: no puede crear cuentas ni darse más roles. Por eso las
 cuentas `run-*` y sus roles (paso 4) son parte del acceso y se crean a mano.
+
+**Cuenta `apagado`** (apagado nocturno de Cloud SQL). Como corre sin aprobación, solo puede leer la
+instancia y cambiar su política de activación: no puede crearla, borrarla ni tocar sus usuarios, y no
+tiene acceso a secretos, Storage ni Cloud Run. Solo la puede suplantar un job del environment
+`staging-apagado`:
+
+```bash
+gcloud iam roles create apagarCloudSql --project=<GCP_PROJECT_ID> \
+  --title="Encender y apagar Cloud SQL" \
+  --permissions=cloudsql.instances.get,cloudsql.instances.list,cloudsql.instances.update,cloudsql.operations.get
+gcloud iam service-accounts create apagado --display-name="Apagado nocturno de Cloud SQL"
+APAGADO="apagado@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$APAGADO" \
+  --role="projects/<GCP_PROJECT_ID>/roles/apagarCloudSql"
+gcloud iam service-accounts add-iam-policy-binding "$APAGADO" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/staging-apagado"
+```
 
 ### 4. Cuentas de servicio de ejecución
 

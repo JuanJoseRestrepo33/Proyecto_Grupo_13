@@ -9,11 +9,15 @@
 - `destruir`: borra todo lo que cuesta o guarda datos (servicios, Cloud SQL, secretos, bucket e
   imágenes) **menos el acceso**: Workload Identity, las cuentas de servicio y el repositorio de
   Artifact Registry se conservan, para poder volver a aprovisionar desde GitHub.
+- `encender` / `apagar`: cambian solo la política de activación de la instancia de Cloud SQL
+  (`ALWAYS` / `NEVER`). Apagada no cobra CPU ni memoria, solo el disco, y conserva los datos;
+  mientras tanto el núcleo responde 500 en todo lo que persiste. No crean ni borran nada.
 
 Nunca imprime contraseñas, llaves ni cadenas de conexión: se generan en memoria y llegan a Secret
 Manager por la entrada estándar de gcloud.
 
-Uso: ambiente.py {verificar,aprovisionar,destruir} --proyecto P --region R [--confirmar P]
+Uso: ambiente.py {verificar,aprovisionar,destruir,encender,apagar} --proyecto P --region R
+     [--confirmar P]
 """
 
 from __future__ import annotations
@@ -67,6 +71,10 @@ class GcloudError(RuntimeError):
 
 class FaltaAccesoError(RuntimeError):
     """Falta algo del acceso, que este script no crea (docs/devops.md, pasos 3 y 4)."""
+
+
+class SinInstanciaError(RuntimeError):
+    """No hay instancia de Cloud SQL que encender o apagar: la crea `aprovisionar`."""
 
 
 @dataclass(frozen=True)
@@ -346,12 +354,7 @@ class Ambiente:
             self.informe.creado(f"Cloud SQL {nombre}")
             return nombre
         nombre = instancia["name"]
-        if instancia["settings"]["activationPolicy"] != "ALWAYS":
-            operacion = self.gcloud(
-                "sql", "instances", "patch", nombre, "--activation-policy=ALWAYS",
-                "--async", "--format=value(name)",
-            )  # fmt: skip
-            self.esperar(operacion)
+        if self.activar(instancia, "ALWAYS"):
             self.informe.nota(f"Cloud SQL {nombre} estaba apagada: encendida")
         else:
             self.informe.existe(f"Cloud SQL {nombre}")
@@ -641,6 +644,44 @@ class Ambiente:
         args.append("--set-env-vars=" + ",".join(f"{v}={x}" for v, x in variables.items()))
         return args
 
+    # --- Encender y apagar Cloud SQL -------------------------------------------------------------
+
+    def activar(self, instancia: dict, politica: str) -> bool:
+        """Deja la instancia en `ALWAYS` (encendida) o `NEVER` (apagada). False si ya lo estaba."""
+        if instancia["settings"]["activationPolicy"] == politica:
+            return False
+        operacion = self.gcloud(
+            "sql", "instances", "patch", instancia["name"], f"--activation-policy={politica}",
+            "--async", "--format=value(name)",
+        )  # fmt: skip
+        self.esperar(operacion)
+        return True
+
+    def _instancia_existente(self) -> dict:
+        instancia = self.instancia()
+        if instancia is None:
+            raise SinInstanciaError(
+                "No hay instancia de Cloud SQL: créala con «Aprovisionar ambiente»"
+            )
+        return instancia
+
+    def encender(self) -> None:
+        instancia = self._instancia_existente()
+        if self.activar(instancia, "ALWAYS"):
+            self.informe.nota(f"Cloud SQL {instancia['name']}: encendida")
+        else:
+            self.informe.nota(f"Cloud SQL {instancia['name']}: ya estaba encendida, no se cambia")
+
+    def apagar(self) -> None:
+        instancia = self._instancia_existente()
+        if self.activar(instancia, "NEVER"):
+            self.informe.nota(f"Cloud SQL {instancia['name']}: apagada (conserva los datos)")
+        else:
+            self.informe.nota(f"Cloud SQL {instancia['name']}: ya estaba apagada, no se cambia")
+        self.informe.aviso(
+            "Con Cloud SQL apagada el núcleo responde 500 en auditoría, cotización y siniestros"
+        )
+
     # --- Destruir --------------------------------------------------------------------------------
 
     def destruir(self) -> None:
@@ -687,7 +728,9 @@ class Ambiente:
 
 def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("accion", choices=["verificar", "aprovisionar", "destruir"])
+    parser.add_argument(
+        "accion", choices=["verificar", "aprovisionar", "destruir", "encender", "apagar"]
+    )
     parser.add_argument("--proyecto", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--confirmar", default="", help="destruir: el ID del proyecto")
@@ -706,12 +749,16 @@ def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int
                 with open(args.github_output, "a", encoding="utf-8") as salida:
                     creados = ",".join(ambiente.servicios_creados)
                     salida.write(f"servicios_creados={creados}\n")
+        elif args.accion == "encender":
+            ambiente.encender()
+        elif args.accion == "apagar":
+            ambiente.apagar()
         else:
             if args.confirmar != args.proyecto:
                 print("::error::Para destruir, --confirmar debe ser el ID del proyecto.")
                 return 2
             ambiente.destruir()
-    except (GcloudError, FaltaAccesoError) as error:
+    except (GcloudError, FaltaAccesoError, SinInstanciaError) as error:
         if args.accion == "verificar":
             # Verificar solo avisa: un fallo al consultar no debe poner el CD en rojo.
             print(f"::warning::No se pudo verificar el ambiente: {error}")
