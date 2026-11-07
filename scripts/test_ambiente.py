@@ -555,6 +555,53 @@ class TestDestruir:
         assert all(not linea.startswith("-") for linea in ambiente.informe.lineas)
 
 
+class TestEncenderYApagar:
+    def _main(self, accion, nube):
+        return amb.main([accion, "--proyecto", PROYECTO, "--region", REGION], _ambiente(nube))
+
+    def test_apaga_y_espera_la_operacion(self):
+        nube = NubeSimulada(completa=True)
+        assert self._main("apagar", nube) == 0
+        assert nube.instancias == {"solventa-auditoria": "NEVER"}
+        assert nube.comandos("sql", "operations", "wait")
+
+    def test_enciende_y_espera_la_operacion(self):
+        nube = NubeSimulada(completa=True)
+        nube.instancias["solventa-auditoria"] = "NEVER"
+        assert self._main("encender", nube) == 0
+        assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
+        assert nube.comandos("sql", "operations", "wait")
+
+    @pytest.mark.parametrize(("accion", "politica"), [("encender", "ALWAYS"), ("apagar", "NEVER")])
+    def test_si_ya_esta_asi_no_cambia_nada(self, accion, politica):
+        nube = NubeSimulada(completa=True)
+        nube.instancias["solventa-auditoria"] = politica
+        assert self._main(accion, nube) == 0
+        assert not nube.comandos("sql", "instances", "patch")
+
+    @pytest.mark.parametrize("accion", ["encender", "apagar"])
+    def test_solo_cambia_la_politica_de_activacion(self, accion):
+        nube = NubeSimulada(completa=True)
+        nube.instancias["solventa-auditoria"] = "NEVER" if accion == "encender" else "ALWAYS"
+        self._main(accion, nube)
+        parches = [c for c in nube.llamadas if c[:3] == ["sql", "instances", "patch"]]
+        assert _escrituras(nube) == parches
+        assert ["sql", "instances", "patch", "otra-app"] not in [c[:4] for c in nube.llamadas]
+
+    @pytest.mark.parametrize("accion", ["encender", "apagar"])
+    def test_sin_instancia_falla_sin_crear_nada(self, accion, capsys):
+        nube = NubeSimulada()
+        assert self._main(accion, nube) == 1
+        assert "créala con «Aprovisionar ambiente»" in capsys.readouterr().out
+        assert _escrituras(nube) == []
+
+    def test_apagar_avisa_que_el_nucleo_no_persiste(self):
+        nube = NubeSimulada(completa=True)
+        ambiente = _ambiente(nube)
+        ambiente.apagar()
+        assert "el núcleo responde 500" in ambiente.informe.avisos[0]
+
+
 def test_un_error_de_gcloud_no_muestra_los_argumentos():
     def falla(args, entrada=None):
         return amb.Salida(1, error="ERROR: (gcloud.sql.users.create) PERMISSION_DENIED")

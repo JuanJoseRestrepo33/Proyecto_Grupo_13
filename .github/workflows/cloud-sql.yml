@@ -1,0 +1,89 @@
+# Encender o apagar Cloud SQL de staging. Manual.
+#
+# Solo cambia la política de activación de la instancia (ALWAYS / NEVER): no crea ni borra nada.
+# Apagada conserva los datos y deja de cobrar CPU y memoria (sigue el disco); mientras tanto el núcleo
+# responde 500 en auditoría, cotización y siniestros, y su /salud dice `caido`. Si la instancia no
+# existe, falla y pide correr "Aprovisionar ambiente".
+#
+# Al encender, espera a que el /salud del núcleo vuelva a `ok` (hasta 10 minutos) y lo muestra en el
+# resumen.
+#
+# Dos formas de correr:
+# - A mano (encender o apagar): environment `staging-infraestructura`, que pide aprobación, con la
+#   cuenta `infraestructura`, como Aprovisionar y Destruir.
+# - Cada noche, a las 23:00 de Bogotá (04:00 UTC), solo apagar: environment `staging-apagado`, sin
+#   aprobación, con la cuenta `apagado`, que solo puede leer y actualizar la instancia (no crearla,
+#   borrarla ni tocar sus usuarios). docs/devops.md, "Configuración manual en GCP", paso 3.
+name: Encender o apagar Cloud SQL
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "encender: ALWAYS · apagar: NEVER (conserva los datos)"
+        required: true
+        type: choice
+        options:
+          - encender
+          - apagar
+  schedule:
+    - cron: "0 4 * * *" # 23:00 en Bogotá (UTC-5)
+
+concurrency:
+  group: ambiente-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cloud-sql:
+    name: Cloud SQL · ${{ inputs.accion || 'apagado nocturno' }}
+    runs-on: ubuntu-latest
+    # El apagado nocturno no puede esperar una aprobación: usa su propio environment y su cuenta mínima.
+    environment: ${{ github.event_name == 'schedule' && 'staging-apagado' || 'staging-infraestructura' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      ACCION: ${{ inputs.accion || 'apagar' }}
+    steps:
+      - name: Configuración del environment
+        env:
+          CUENTA: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$PROYECTO" ] || [ -z "$REGION" ] || [ -z "$CUENTA" ]; then
+            echo "::error::Faltan variables del environment (GCP_PROJECT_ID, GCP_REGION o GCP_SERVICE_ACCOUNT): docs/devops.md, paso 5."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Cloud SQL · ${{ inputs.accion || 'apagar' }}
+        run: python3 scripts/ambiente.py "$ACCION" --proyecto "$PROYECTO" --region "$REGION"
+      - name: Esperar a que el núcleo responda
+        if: env.ACCION == 'encender'
+        run: |
+          url=$(gcloud run services describe solventa-nucleo --region="$REGION" --project="$PROYECTO" \
+            --format='value(status.url)' 2>/dev/null || true)
+          if [ -z "$url" ]; then
+            echo "::warning::No se encontró solventa-nucleo en Cloud Run; no se verifica su salud."
+            exit 0
+          fi
+          for _ in $(seq 40); do
+            estado=$(curl -s -m 15 "$url/salud" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("estado",""))' 2>/dev/null || true)
+            [ "$estado" = "ok" ] && break
+            sleep 15
+          done
+          echo "### Cloud SQL encendida" >> "$GITHUB_STEP_SUMMARY"
+          echo "/salud del núcleo: \`${estado:-sin respuesta}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$estado" != "ok" ]; then
+            echo "::warning::Cloud SQL quedó encendida, pero el núcleo sigue en '${estado:-sin respuesta}' tras 10 minutos. Si no se recupera, despliega una revisión nueva (CD) para que reconecte."
+          fi
