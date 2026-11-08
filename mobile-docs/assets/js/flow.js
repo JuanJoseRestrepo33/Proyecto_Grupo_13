@@ -10,6 +10,10 @@
   /* ---------- utilidades ---------- */
   function rd(k, d) { try { var v = sessionStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function wr(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } }
+  // Las claves llegan de la URL (?p=, ?id=) o de sessionStorage: nunca se usan para leer o
+  // escribir una propiedad heredada (__proto__, constructor…), solo las propias del objeto.
+  function propia(obj, k) { return typeof k === "string" && Object.prototype.hasOwnProperty.call(obj, k); }
+  function claveSegura(k) { return typeof k === "string" && k !== "__proto__" && k !== "constructor" && k !== "prototype"; }
   function qa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function lang() {
     try { if (localStorage.getItem("solventa_locale") === "en") return "en"; } catch (e) { /* noop */ }
@@ -93,15 +97,20 @@
       extra: [["Enfermedades graves", "cobertura adicional", 6000]] }
   };
   // Pólizas emitidas durante la demo (flujo cotizar → suscribir): se suman al catálogo
-  rd("solv_issued", []).forEach(function (p) { POL[p.id] = p; });
+  rd("solv_issued", []).forEach(function (p) { if (p && claveSegura(p.id) && !propia(POL, p.id)) POL[p.id] = p; });
   var STATUS = {
     activa: ["success", "✓ Activa", "Activa"],
     porvencer: ["warning", "Vence pronto", "Vence pronto"],
     cancelada: ["error", "Cancelada", "Cancelada"]
   };
 
-  function pstate(id) { return rd("solv_pol", {})[id] || {}; }
-  function psave(id, patch) { var all = rd("solv_pol", {}); all[id] = Object.assign(all[id] || {}, patch); wr("solv_pol", all); }
+  function pstate(id) { var all = rd("solv_pol", {}); return propia(all, id) ? all[id] : {}; }
+  function psave(id, patch) {
+    if (!claveSegura(id) || !propia(POL, id)) return;
+    var all = rd("solv_pol", {});
+    all[id] = Object.assign(propia(all, id) ? all[id] : {}, patch);
+    wr("solv_pol", all);
+  }
   function view(id) {
     var b = POL[id], s = pstate(id);
     var sel = s.sel || { base: b.cov.map(function () { return 1; }), extra: b.extra.map(function () { return 0; }) };
@@ -114,7 +123,7 @@
     return Math.round(p / 100) * 100;
   }
   function renewPrice(v) { return Math.round(v.price * 1.075 / 100) * 100; }
-  function currentId() { var p = params.get("p"); return POL[p] ? p : "1234"; }
+  function currentId() { var p = params.get("p"); return claveSegura(p) && propia(POL, p) ? p : "1234"; }
 
   function fill(root, id) {
     var v = view(id);
@@ -141,8 +150,13 @@
       el.setAttribute("data-i18n", ""); el.textContent = txt;
     });
     qa("[data-pol-href]", root).forEach(function (a) {
+      // Solo rutas de este mismo sitio: el destino nunca puede ser un javascript: ni otro dominio.
+      var destino = new URL(a.getAttribute("data-pol-href"), location.href);
+      if (destino.origin !== location.origin) return;
+      destino.searchParams.set("p", id);
       var ok = a.getAttribute("data-pol-ok");
-      a.setAttribute("href", a.getAttribute("data-pol-href") + "?p=" + id + (ok ? "&ok=" + ok : ""));
+      if (ok) destino.searchParams.set("ok", ok);
+      a.setAttribute("href", destino.pathname + destino.search);
     });
     qa("[data-pol-pdf]", root).forEach(function (el) { el.setAttribute("data-mock-download", v.b.num + ".pdf"); });
     qa("[data-pol-only]", root).forEach(function (el) { el.hidden = el.getAttribute("data-pol-only") !== id; });
@@ -351,7 +365,7 @@
     });
 
     // Detalle de un reclamo de demostración ya existente (pagado o paramétrico)
-    var wanted = params.get("id"), fixed = CLAIMS[wanted];
+    var wanted = params.get("id"), fixed = claveSegura(wanted) && propia(CLAIMS, wanted) ? CLAIMS[wanted] : null;
     if (fixed && document.getElementById("claimTimeline")) {
       qa("[data-claim-detail='tipo']").forEach(function (el) { el.textContent = fixed.tipo; });
       qa("[data-claim-detail='id']").forEach(function (el) { el.textContent = wanted; });
