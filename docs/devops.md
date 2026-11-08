@@ -385,8 +385,9 @@ credenciales ni el token. Si la cuenta no puede iniciar sesión, el despliegue f
 El humo **no crea datos**: pide los siniestros, las evidencias, las pólizas y la compra
 (aceptar, pagar, firmar) sin sesión (401), y nunca reporta, acepta, paga ni emite. Con la sesión de
 la cuenta de prueba solo lee: la lista de pólizas y el detalle de una vigente con sus coberturas
-(WEB-F04), la lista de siniestros (WEB-F06) y una póliza y un siniestro que no existen, que deben
-dar 404 y no 5xx. Los recorridos completos (comprar, emitir, cambiar el estado) los prueban los E2E.
+(WEB-F04), la lista de siniestros (WEB-F06), la de notificaciones (MOB-F06) y una póliza, un
+siniestro, una notificación y un dispositivo que no existen, que deben dar 404 y no 5xx. Las rutas
+de push existen solo en el router móvil: en el web deben dar 404. Los recorridos completos (comprar, emitir, cambiar el estado) los prueban los E2E.
 
 **Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Mientras
 las cuentas vivan en memoria (WEB-F13), **el núcleo la siembra al arrancar** con `HUMO_CORREO` y
@@ -480,7 +481,7 @@ lados.
 | Firma electrónica simulada | `FIRMA_MODO` = `sana` (por defecto) o `caida` | `solventa-nucleo` | WEB-F03 |
 | Operación interna de cambio de estado del siniestro, solo en *staging* | `SINIESTROS_TOKEN_INTERNO` ← secreto `siniestros-token-interno`; sin ella, `POST /v1/siniestros/{id}/estado` responde 404. Se envía en `X-Token-Interno` | `solventa-nucleo` (y los E2E de seguimiento) | WEB-F06 |
 | Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
-| Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto) o `caido` | `solventa-nucleo` | MOB-F06 |
+| Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
 | Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
 | Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo | `solventa-nucleo` | ARQ-05 |
 

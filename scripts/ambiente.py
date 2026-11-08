@@ -620,6 +620,9 @@ class Ambiente:
             "EVIDENCIAS_BUCKET": self.bucket,
             "ALMACENAMIENTO_DOCUMENTOS": "gcs",
             "DOCUMENTOS_BUCKET": self.bucket_documentos,
+            # Proveedor de push simulado (MOB-F06): sano en staging; `caido` solo para probar que
+            # un cambio de estado no falla si el push no sale.
+            "PUSH_MODO": "sano",
             "POLIZAS_SEMILLA": SEMILLA_POLIZAS,
         }
         return montados, variables
