@@ -34,19 +34,11 @@ DEL_NUCLEO = {
     "reportado_en": "2026-10-26T15:00:00Z",
 }
 PARA_EL_CANAL = {**DEL_NUCLEO, "monto_estimado": {"valor": 1500000, "moneda": "COP"}}
-POLIZA = {
-    "numero": "POL-2026-000101-000318",
-    "producto": "auto",
-    "inicio": "2026-09-26",
-    "fin": "2027-09-26",
-    "estado": "vigente",
-}
 
 
 @pytest.mark.parametrize(
     ("metodo", "ruta"),
     [
-        ("GET", "/polizas"),
         ("GET", "/siniestros"),
         ("POST", "/siniestros"),
         ("GET", "/siniestros/x"),
@@ -57,12 +49,6 @@ def test_sin_sesion_toda_ruta_es_401(cliente, nucleo, canal, metodo, ruta):
 
     assert respuesta.status_code == 401
     assert al_nucleo(nucleo) == []
-
-
-def test_las_polizas_del_cliente_para_el_asistente(con_sesion, nucleo, canal):
-    nucleo.responder("GET", f"/v1/polizas/clientes/{CLIENTE}/polizas", 200, [POLIZA])
-
-    assert con_sesion.get(f"{canal.prefijo}/polizas").json() == [POLIZA]
 
 
 def test_reportar_responde_201_con_la_referencia(con_sesion, nucleo, canal):

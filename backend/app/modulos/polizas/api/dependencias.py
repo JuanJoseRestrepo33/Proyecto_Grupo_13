@@ -27,6 +27,7 @@ from ..infraestructura.almacen_documentos import (
     AlmacenDeDocumentosGcs,
 )
 from ..infraestructura.auditoria_nucleo import RegistroEnAuditoria
+from ..infraestructura.catalogo_nucleo import CatalogoDelNucleo
 from ..infraestructura.documento_pdf import GeneradorPdf
 from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
 
@@ -114,6 +115,7 @@ def _componentes() -> tuple[ServicioDePolizas, Reloj, EstadoDeDependencia, Repos
         almacen=crear_almacen_de_documentos(),
         generador=GeneradorPdf(),
         auditoria=RegistroEnAuditoria(auditoria.obtener_servicio()),
+        catalogo=CatalogoDelNucleo(),
     )
     return servicio, reloj, estado, repositorio
 

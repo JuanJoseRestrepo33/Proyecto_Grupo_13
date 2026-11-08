@@ -4,13 +4,14 @@ RepositorioPolizas   → persistencia del propio módulo
 AlmacenDeDocumentos  → documento PDF de la póliza (memoria o Cloud Storage)
 GeneradorDeDocumento → arma el PDF a partir de la póliza
 RegistroDeAuditoria  → log de auditoría (ARQ-03), por su interfaz pública
+CatalogoDeProductos  → catálogo del módulo de cotización, por su interfaz pública
 """
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from .modelo import Poliza
+from .modelo import CondicionesDeCatalogo, Poliza
 
 
 class RepositorioPolizas(Protocol):
@@ -57,4 +58,10 @@ class GeneradorDeDocumento(Protocol):
 
 class RegistroDeAuditoria(Protocol):
     def registrar_emision(self, poliza: Poliza) -> str:
+        raise NotImplementedError
+
+
+class CatalogoDeProductos(Protocol):
+    def condiciones(self, producto: str) -> CondicionesDeCatalogo | None:
+        """Las condiciones del producto, o None si el catálogo no lo tiene."""
         raise NotImplementedError

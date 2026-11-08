@@ -322,6 +322,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/polizas/{numero}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalle de una póliza con coberturas, deducible y límites
+         * @description WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+         *     igual que una que no existe.
+         */
+        get: operations["obtenerPoliza"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/polizas/{numero}/documento": {
         parameters: {
             query?: never;
@@ -353,9 +374,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Pólizas del cliente, para elegir la afectada en el reporte de siniestro
-         * @description Resumen de cada póliza con su vigencia y estado. La consulta completa, con coberturas,
-         *     deducibles y documento, llega con WEB-F04 y amplía esta misma respuesta.
+         * Pólizas del cliente, de la más reciente a la más antigua
+         * @description "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+         *     (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+         *     estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+         *     emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+         *     viene vacía y la interfaz lleva a cotizar (criterio 3).
          */
         get: operations["listarPolizas"];
         put?: never;
@@ -730,6 +754,20 @@ export interface components {
              */
             fin: string;
             estado: components["schemas"]["EstadoPoliza"];
+            /** @description Nombre comercial del producto; `null` si el catálogo no lo tiene */
+            nombre_producto?: string | null;
+            /** @description Prima mensual; `null` si no se conoce */
+            prima_mensual?: components["schemas"]["Dinero"] | null;
+            /** @description Ruta del PDF en este BFF; `null` si la póliza no tiene documento */
+            documento_url?: string | null;
+        };
+        PolizaDetalle: components["schemas"]["PolizaResumen"] & {
+            /** @description Coberturas con su límite */
+            coberturas: components["schemas"]["Cobertura"][];
+            deducible: string | null;
+            valor_asegurado: string | null;
+            /** @description Cuándo se emitió; `null` en una póliza de prueba */
+            emitida_en: string | null;
         };
         /** @enum {string} */
         TipoEventoSiniestro: "accidente_vehiculo" | "hurto" | "dano_hogar" | "retraso_vuelo" | "equipo_danado_o_perdido" | "cancelacion_viaje" | "otro";
@@ -1390,6 +1428,30 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    obtenerPoliza: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                numero: components["parameters"]["NumeroPoliza"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La póliza con sus condiciones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolizaDetalle"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
         };
     };
     descargarDocumentoPoliza: {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Móvil
-  version: 0.5.0
+  version: 0.6.0
   description: |
     Contrato entre la app Android y su Backend for Frontend (BFF).
 
@@ -19,6 +19,8 @@ info:
       web: el mismo siniestro se ve en los dos canales.
     - **MOB-F05** · Evidencia del siniestro con la fecha de la cámara y la ubicación, o el
       lugar escrito si no hay permiso.
+    - **WEB-F04** · Mis pólizas: lista, detalle con coberturas y documento, iguales a los de la
+      web. Una póliza comprada en la web aparece en la app sin hacer nada más.
 
     **Biometría.** Solventa nunca recibe el dato biométrico. Tras el primer ingreso con contraseña,
     la app guarda el `token_refresco` cifrado con una llave del Android Keystore que solo se
@@ -48,6 +50,8 @@ tags:
     description: Verificación de identidad KYC/AML (MOB-F01)
   - name: consentimientos
     description: Consentimiento de Open Finance, igual que en la web (MOB-F02)
+  - name: polizas
+    description: Pólizas del cliente, iguales a las de la web (WEB-F04)
   - name: siniestros
     description: Reporte de siniestros (WEB-F05)
 
@@ -362,12 +366,15 @@ paths:
 
   /polizas:
     get:
-      tags: [siniestros]
+      tags: [polizas]
       operationId: listarPolizas
-      summary: Pólizas del cliente, para elegir la afectada en el reporte de siniestro
+      summary: Pólizas del cliente, de la más reciente a la más antigua
       description: |
-        Resumen de cada póliza con su vigencia y estado. La consulta completa, con coberturas,
-        deducibles y documento, llega con WEB-F04 y amplía esta misma respuesta.
+        "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+        (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+        estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+        emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+        viene vacía y la interfaz lleva a cotizar (criterio 3).
       responses:
         "200":
           description: Pólizas del cliente, de la más reciente a la más antigua
@@ -377,6 +384,46 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/PolizaResumen" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /polizas/{numero}:
+    get:
+      tags: [polizas]
+      operationId: obtenerPoliza
+      summary: Detalle de una póliza con coberturas, deducible y límites
+      description: |
+        WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: La póliza con sus condiciones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolizaDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas/{numero}/documento:
+    get:
+      tags: [polizas]
+      operationId: descargarDocumentoPoliza
+      summary: Documento PDF de una póliza emitida
+      description: |
+        El documento de la póliza (WEB-F03, criterio 4; WEB-F04, criterio 4). Sale con la sesión
+        del cliente; el almacén es privado. Una póliza de otro cliente responde 404
+        `poliza_no_encontrada`, igual que una que no existe; una póliza sin documento (las de
+        prueba), 404 `documento_no_disponible`.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: "El PDF, como adjunto (`Content-Disposition: attachment`)"
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
 
   /siniestros:
     get:
@@ -561,6 +608,11 @@ components:
       description: Token de acceso del canal móvil, emitido al abrir o renovar la sesión.
 
   parameters:
+    NumeroPoliza:
+      name: numero
+      in: path
+      required: true
+      schema: { type: string, examples: [POL-2026-000001] }
     IdSiniestro:
       name: id
       in: path
@@ -869,6 +921,13 @@ components:
       type: string
       enum: [vigente, vencida, por_iniciar]
 
+    Cobertura:
+      type: object
+      required: [nombre, limite]
+      properties:
+        nombre: { type: string }
+        limite: { type: string }
+
     PolizaResumen:
       type: object
       required: [numero, producto, inicio, fin, estado]
@@ -878,6 +937,45 @@ components:
         inicio: { type: string, format: date, description: Primer día de cobertura }
         fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
         estado: { $ref: "#/components/schemas/EstadoPoliza" }
+        nombre_producto:
+          description: Nombre comercial del producto; `null` si el catálogo no lo tiene
+          oneOf:
+            - { type: string, examples: ["Seguro de Auto — Plan Full"] }
+            - type: "null"
+        prima_mensual:
+          description: Prima mensual; `null` si no se conoce
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        documento_url:
+          description: Ruta del PDF en este BFF; `null` si la póliza no tiene documento
+          oneOf:
+            - { type: string, examples: [/api/v1/movil/polizas/POL-2026-000001/documento] }
+            - type: "null"
+
+    PolizaDetalle:
+      allOf:
+        - $ref: "#/components/schemas/PolizaResumen"
+        - type: object
+          required: [coberturas, deducible, valor_asegurado, emitida_en]
+          properties:
+            coberturas:
+              type: array
+              description: Coberturas con su límite
+              items: { $ref: "#/components/schemas/Cobertura" }
+            deducible:
+              oneOf:
+                - { type: string, examples: ["5% del valor asegurado"] }
+                - type: "null"
+            valor_asegurado:
+              oneOf:
+                - { type: string, examples: ["$60.000.000"] }
+                - type: "null"
+            emitida_en:
+              description: Cuándo se emitió; `null` en una póliza de prueba
+              oneOf:
+                - { type: string, format: date-time }
+                - type: "null"
 
     TipoEventoSiniestro:
       type: string

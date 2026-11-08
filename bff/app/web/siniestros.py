@@ -10,35 +10,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Response, status
 
-from app.comun import polizas as polizas_comun
 from app.comun import siniestros
 from app.comun.siniestros import SolicitudSiniestro
 
 from .dependencias import CANAL, ClienteWeb, Nucleo
 
 router = APIRouter(prefix="/siniestros", tags=["siniestros"])
-router_polizas = APIRouter(prefix="/polizas", tags=["polizas"])
 
 Clave = Annotated[str | None, Header(alias="Idempotency-Key")]
-
-
-@router_polizas.get("", summary="Pólizas del cliente, para elegir la afectada")
-def polizas(cliente: ClienteWeb, nucleo: Nucleo) -> list[dict[str, object]]:
-    return siniestros.polizas(nucleo, cliente.id_cliente)
-
-
-@router_polizas.get(
-    "/{numero}/documento",
-    response_class=Response,
-    summary="Documento PDF de una póliza emitida (WEB-F03)",
-)
-def documento_poliza(numero: str, cliente: ClienteWeb, nucleo: Nucleo) -> Response:
-    contenido, disposicion = polizas_comun.documento(nucleo, cliente.id_cliente, numero)
-    return Response(
-        content=contenido,
-        media_type="application/pdf",
-        headers={"Content-Disposition": disposicion, "X-Content-Type-Options": "nosniff"},
-    )
 
 
 @router.get("", summary="Siniestros del cliente, del más reciente al más antiguo")
