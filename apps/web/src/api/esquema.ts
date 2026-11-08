@@ -295,6 +295,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/suscripciones/{id}/firma": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Firma electrónicamente y emite la póliza
+         * @description Con el pago aprobado, el cliente firma con el proveedor simulado y la póliza queda
+         *     emitida con su número y un documento descargable (criterio 4). Si el último pago estaba
+         *     `pendiente`, el BFF lo consulta antes de decidir.
+         *
+         *     Es idempotente: firmar una suscripción ya `emitida` responde 200 con la misma póliza.
+         *     Sin un pago aprobado responde 409 `pago_no_aprobado`; sin `acepta_condiciones: true`,
+         *     422 `aceptacion_requerida`. Si el proveedor de firma no responde, 503 y no se emite
+         *     nada: firmar otra vez es seguro.
+         */
+        post: operations["firmarSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/polizas/{numero}/documento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Documento PDF de una póliza emitida
+         * @description El documento de la póliza (WEB-F03, criterio 4). Sale con la sesión del cliente; el
+         *     almacén es privado. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+         *     igual que una que no existe; una póliza sin documento (las de prueba), 404
+         *     `documento_no_disponible`.
+         */
+        get: operations["descargarDocumentoPoliza"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/polizas": {
         parameters: {
             query?: never;
@@ -600,14 +650,42 @@ export interface components {
             nombre_producto: string;
             prima_mensual: components["schemas"]["Dinero"];
             /**
-             * @description `pagada` cuando la pasarela aprobó el pago
+             * @description `pagada` cuando la pasarela aprobó el pago; `emitida` cuando el cliente firmó y la
+             *     póliza quedó emitida.
              * @enum {string}
              */
-            estado: "aceptada" | "pagada";
+            estado: "aceptada" | "pagada" | "emitida";
             /** Format: date-time */
             aceptada_en: string;
             /** @description Último intento de pago; `null` si aún no se ha pagado */
             pago: components["schemas"]["Pago"] | null;
+            /** @description Cuándo firmó el cliente; `null` hasta firmar */
+            firmada_en?: string | null;
+            /** @description La póliza emitida; `null` hasta firmar */
+            poliza?: components["schemas"]["PolizaEmitida"] | null;
+        };
+        SolicitudFirma: {
+            /** @description El cliente acepta expresamente las condiciones que firma; debe ser `true` */
+            acepta_condiciones: boolean;
+        };
+        PolizaEmitida: {
+            /** @example POL-2026-000001 */
+            numero: string;
+            /**
+             * Format: date
+             * @description Primer día de cobertura
+             */
+            inicio: string;
+            /**
+             * Format: date
+             * @description Último día de cobertura, incluido
+             */
+            fin: string;
+            /**
+             * @description Ruta del documento PDF en este BFF
+             * @example /api/v1/web/polizas/POL-2026-000001/documento
+             */
+            documento_url: string;
         };
         /** @enum {string} */
         MedioPago: "tarjeta_credito" | "pse";
@@ -789,6 +867,7 @@ export interface components {
         IdSiniestro: string;
         IdConsentimiento: string;
         IdSuscripcion: string;
+        NumeroPoliza: string;
     };
     requestBodies: never;
     headers: never;
@@ -1251,6 +1330,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Pago"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    firmarSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudFirma"];
+            };
+        };
+        responses: {
+            /** @description Ya estaba emitida; es la misma póliza */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            /** @description Firmada y emitida */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `pago_no_aprobado`: la suscripción no tiene un pago aprobado */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+            /** @description `dependencia_no_disponible`: el proveedor de firma no respondió */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    descargarDocumentoPoliza: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                numero: components["parameters"]["NumeroPoliza"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El PDF, como adjunto (`Content-Disposition: attachment`) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
             401: components["responses"]["NoAutenticado"];
