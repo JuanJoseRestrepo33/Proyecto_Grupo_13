@@ -2,6 +2,7 @@
 
 Interfaz pública del módulo. El reporte de siniestros (WEB-F05) valida aquí que la póliza
 sea del cliente y cubra la fecha del evento, con `obtener_servicio().poliza_del_cliente(...)`.
+Suscripción emite la póliza pagada y firmada con `obtener_servicio().emitir(...)` (WEB-F03).
 """
 
 from app.compartido.modulo import DescriptorDeModulo
@@ -9,7 +10,7 @@ from app.compartido.modulo import DescriptorDeModulo
 from .api.dependencias import estado_dependencias, obtener_servicio
 from .api.rutas import router
 from .aplicacion.servicio import ServicioDePolizas
-from .dominio.modelo import EstadoPoliza, Poliza
+from .dominio.modelo import CoberturaPoliza, EstadoPoliza, Poliza, SolicitudDeEmision
 
 MODULO = DescriptorDeModulo(
     nombre="polizas",
@@ -21,8 +22,10 @@ MODULO = DescriptorDeModulo(
 
 __all__ = [
     "MODULO",
+    "CoberturaPoliza",
     "EstadoPoliza",
     "Poliza",
     "ServicioDePolizas",
+    "SolicitudDeEmision",
     "obtener_servicio",
 ]
