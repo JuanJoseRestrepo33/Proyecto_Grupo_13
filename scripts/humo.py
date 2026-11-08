@@ -265,6 +265,45 @@ RUTAS = (
         caso="con sesión",
         autenticada=True,
     ),
+    # MOB-F06 (#208): dispositivo y notificaciones push exigen sesión en el router móvil y no
+    # existen en el web (el push es propio de la app).
+    *(
+        _ruta("bff", metodo, f"{_MOVIL}{ruta}", 401, caso="sin token")
+        for metodo, ruta in (
+            ("POST", "/dispositivos"),
+            ("DELETE", f"/dispositivos/{_INEXISTENTE}"),
+            ("GET", "/notificaciones"),
+            ("POST", f"/notificaciones/{_INEXISTENTE}/lectura"),
+        )
+    ),
+    _ruta("bff", "GET", f"{_WEB}/notificaciones", 404, caso="solo móvil"),
+    # Con sesión: la lista responde (núcleo, base de notificaciones y proveedor simulado), y
+    # marcar o dar de baja algo que no existe da 404, sin escribir nada.
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/notificaciones",
+        200,
+        caso="con sesión",
+        autenticada=True,
+        validar=_lista,
+    ),
+    _ruta(
+        "bff",
+        "POST",
+        f"{_MOVIL}/notificaciones/{_INEXISTENTE}/lectura",
+        404,
+        caso="con sesión",
+        autenticada=True,
+    ),
+    _ruta(
+        "bff",
+        "DELETE",
+        f"{_MOVIL}/dispositivos/{_INEXISTENTE}",
+        404,
+        caso="con sesión",
+        autenticada=True,
+    ),
     # A través del proxy de nginx: un 502 o 504 significa que la web no llega al BFF.
     _ruta("web", "GET", "/", 200),
     _ruta("web", "GET", "/api/v1/web/cotizaciones/productos", 200, 401),

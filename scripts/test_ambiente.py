@@ -76,6 +76,7 @@ class NubeSimulada:
             ALMACENAMIENTO_EVIDENCIAS="gcs",
             EVIDENCIAS_BUCKET=BUCKET[5:],
             ALMACENAMIENTO_DOCUMENTOS="gcs",
+            PUSH_MODO="sano",
             DOCUMENTOS_BUCKET=BUCKET_DOCUMENTOS[5:],
             POLIZAS_SEMILLA=amb.SEMILLA_POLIZAS,
         )
@@ -405,6 +406,7 @@ class TestAprovisionarDesdeCero:
         nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
         variables = next(a for a in nucleo if a.startswith("--set-env-vars="))
         assert "ALMACENAMIENTO_DOCUMENTOS=gcs" in variables
+        assert "PUSH_MODO=sano" in variables
         assert f"DOCUMENTOS_BUCKET={BUCKET_DOCUMENTOS[5:]}" in variables
 
     def test_crea_el_token_interno_de_siniestros_sin_imprimirlo(self, nube, entorno, capsys):

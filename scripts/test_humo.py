@@ -14,12 +14,15 @@ CATALOGO = json.dumps(
 POLIZAS = json.dumps([{"numero": "POL-1", "estado": "vigente"}]).encode()
 CREDENCIALES = humo.Credenciales("humo@solventa.test", "clave-de-prueba")
 AUTENTICADAS = (
-    "/movil/consentimientos/finalidades",
-    "/movil/polizas",
-    "/movil/polizas/{poliza_vigente}",
-    "/movil/polizas/humo-no-existe",
-    "/movil/siniestros",
-    "/movil/siniestros/humo-no-existe",
+    ("GET", "/movil/consentimientos/finalidades"),
+    ("GET", "/movil/polizas"),
+    ("GET", "/movil/polizas/{poliza_vigente}"),
+    ("GET", "/movil/polizas/humo-no-existe"),
+    ("GET", "/movil/siniestros"),
+    ("GET", "/movil/siniestros/humo-no-existe"),
+    ("GET", "/movil/notificaciones"),
+    ("POST", "/movil/notificaciones/humo-no-existe/lectura"),
+    ("DELETE", "/movil/dispositivos/humo-no-existe"),
 )
 
 
@@ -59,6 +62,11 @@ BFF_SANO = {
     "/pagos": 401,
     "/pagos/humo-no-existe": 401,
     "/firma": 401,
+    "/dispositivos": 401,
+    "/dispositivos/humo-no-existe": 401,
+    "/movil/notificaciones": 401,
+    "/lectura": 401,
+    "/web/notificaciones": 404,
 }
 DETALLE = json.dumps({"numero": "POL-1", "coberturas": [{"nombre": "RC", "limite": "$1"}]}).encode()
 # Lo que responde el BFF sano con la sesión de la cuenta de prueba, además del catálogo.
@@ -66,6 +74,7 @@ CON_SESION = {
     "/polizas/POL-1": DETALLE,
     "/polizas": POLIZAS,
     "/siniestros": b"[]",
+    "/notificaciones": b"[]",
 }
 SESION = humo.Respuesta(200, json.dumps({"token_acceso": "tok-123"}).encode())
 
@@ -77,7 +86,7 @@ def _con_sesion(pedir, cuerpos: dict[str, bytes]):
 
     def pedir_con_sesion(metodo, url, encabezados, datos=None):
         if encabezados.get("Authorization") == "Bearer tok-123":
-            if url.endswith("/humo-no-existe"):
+            if "/humo-no-existe" in url:
                 pedir.pedidas.append((metodo, url, encabezados, datos))
                 return humo.Respuesta(404)
             for ruta, cuerpo in cuerpos.items():
@@ -209,8 +218,8 @@ class TestConsentimientoMovil:
         resultado = humo.fallas("bff", "https://bff.run.app", _respondiendo(BFF_SANO))
         assert resultado.errores == []
         assert resultado.avisos == [
-            f"GET /api/v1{ruta} (con sesión): se omite, faltan HUMO_CORREO y HUMO_CLAVE"
-            for ruta in AUTENTICADAS
+            f"{metodo} /api/v1{ruta} (con sesión): se omite, faltan HUMO_CORREO y HUMO_CLAVE"
+            for metodo, ruta in AUTENTICADAS
         ]
 
     def test_con_sesion_el_catalogo_trae_las_tres_finalidades(self):
@@ -246,7 +255,8 @@ class TestConsentimientoMovil:
         pedir = _respondiendo({**BFF_SANO, "/sesiones": respuesta})
         errores = humo.fallas("bff", "https://x", pedir, CREDENCIALES).errores
         assert errores == [
-            f"GET /api/v1{ruta} (con sesión): no se pudo iniciar sesión" for ruta in AUTENTICADAS
+            f"{metodo} /api/v1{ruta} (con sesión): no se pudo iniciar sesión"
+            for metodo, ruta in AUTENTICADAS
         ]
         assert "clave-de-prueba" not in " ".join(errores)
 
@@ -393,6 +403,44 @@ class TestPolizasCompraYSeguimiento:
         ]
 
 
+class TestPush:
+    """MOB-F06 (#208): dispositivo y notificaciones push en staging."""
+
+    def test_las_rutas_de_push_exigen_sesion_y_solo_existen_en_el_movil(self):
+        pedir = _respondiendo(BFF_SANO)
+        assert humo.fallas("bff", "https://b", pedir).errores == []
+        pedidas = [(m, u.removeprefix("https://b")) for m, u, _, _ in pedir.pedidas]
+        assert [p for p in pedidas if "/dispositivos" in p[1] or "/notificaciones" in p[1]] == [
+            ("POST", "/api/v1/movil/dispositivos"),
+            ("DELETE", "/api/v1/movil/dispositivos/humo-no-existe"),
+            ("GET", "/api/v1/movil/notificaciones"),
+            ("POST", "/api/v1/movil/notificaciones/humo-no-existe/lectura"),
+            ("GET", "/api/v1/web/notificaciones"),
+        ]
+
+    def test_si_el_router_web_expone_el_push_detiene_el_despliegue(self):
+        pedir = _respondiendo({**BFF_SANO, "/web/notificaciones": 401})
+        errores = humo.fallas("bff", "https://b", pedir).errores
+        assert errores == [
+            "GET /api/v1/web/notificaciones (solo móvil): se esperaba 404, llegó 401"
+        ]
+
+    def test_con_sesion_lee_las_notificaciones_sin_registrar_dispositivos(self):
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": SESION})
+        con_sesion = _con_sesion(pedir, {"/finalidades": CATALOGO})
+        assert humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores == []
+        con_token = [
+            (m, u.removeprefix("https://x"))
+            for m, u, e, _ in pedir.pedidas
+            if e.get("Authorization") and ("/notificaciones" in u or "/dispositivos" in u)
+        ]
+        assert con_token == [
+            ("GET", "/api/v1/movil/notificaciones"),
+            ("POST", "/api/v1/movil/notificaciones/humo-no-existe/lectura"),
+            ("DELETE", "/api/v1/movil/dispositivos/humo-no-existe"),
+        ]
+
+
 def test_reintenta_hasta_que_la_revision_arranca():
     estados = iter([None, 503, 200])
     esperas = []
@@ -444,6 +492,8 @@ class _Manejador(http.server.BaseHTTPRequestHandler):
             or "/siniestros" in self.path
             or "/polizas/" in self.path
             or "/suscripciones" in self.path
+            or "/movil/dispositivos" in self.path
+            or "/movil/notificaciones" in self.path
         )
         estado = 401 if protegida else rutas.get(self.path, 404)
         if self.path == "/eco" and self.headers.get("Authorization") == "Bearer x":
@@ -460,6 +510,7 @@ class _Manejador(http.server.BaseHTTPRequestHandler):
 
     do_GET = _responder  # noqa: N815 (nombre fijado por http.server)
     do_POST = _responder  # noqa: N815
+    do_DELETE = _responder  # noqa: N815
 
     def log_message(self, *args):
         pass
