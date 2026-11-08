@@ -104,12 +104,12 @@
     cancelada: ["error", "Cancelada", "Cancelada"]
   };
 
-  function pstate(id) { var all = rd("solv_pol", {}); return propia(all, id) ? all[id] : {}; }
+  // El estado de cada póliza va en su propia clave de sessionStorage: así nunca se escribe una
+  // propiedad cuyo nombre venga de la URL.
+  function pstate(id) { return claveSegura(id) && propia(POL, id) ? rd("solv_pol:" + id, {}) : {}; }
   function psave(id, patch) {
     if (!claveSegura(id) || !propia(POL, id)) return;
-    var all = rd("solv_pol", {});
-    all[id] = Object.assign(propia(all, id) ? all[id] : {}, patch);
-    wr("solv_pol", all);
+    wr("solv_pol:" + id, Object.assign(pstate(id), patch));
   }
   function view(id) {
     var b = POL[id], s = pstate(id);
@@ -124,6 +124,10 @@
   }
   function renewPrice(v) { return Math.round(v.price * 1.075 / 100) * 100; }
   function currentId() { var p = params.get("p"); return claveSegura(p) && propia(POL, p) ? p : "1234"; }
+
+  var PAGINAS_POLIZA = ["poliza-detalle.html", "poliza-modificar.html", "poliza-renovar.html",
+    "poliza-cancelar.html", "billetera-detalle.html"];
+  var AVISOS_POLIZA = ["modificada", "renovada"];
 
   function fill(root, id) {
     var v = view(id);
@@ -150,13 +154,13 @@
       el.setAttribute("data-i18n", ""); el.textContent = txt;
     });
     qa("[data-pol-href]", root).forEach(function (a) {
-      // Solo rutas de este mismo sitio: el destino nunca puede ser un javascript: ni otro dominio.
-      var destino = new URL(a.getAttribute("data-pol-href"), location.href);
-      if (destino.origin !== location.origin) return;
-      destino.searchParams.set("p", id);
-      var ok = a.getAttribute("data-pol-ok");
-      if (ok) destino.searchParams.set("ok", ok);
-      a.setAttribute("href", destino.pathname + destino.search);
+      // El destino, el aviso y la póliza salen de listas fijas, nunca del texto del DOM ni de la
+      // URL: el enlace solo puede ir a una de estas páginas del prototipo.
+      var pagina = PAGINAS_POLIZA[PAGINAS_POLIZA.indexOf(a.getAttribute("data-pol-href"))];
+      var ok = AVISOS_POLIZA[AVISOS_POLIZA.indexOf(a.getAttribute("data-pol-ok"))];
+      var claves = Object.keys(POL), poliza = claves[claves.indexOf(id)];
+      if (!pagina || !poliza) return;
+      a.setAttribute("href", pagina + "?p=" + encodeURIComponent(poliza) + (ok ? "&ok=" + ok : ""));
     });
     qa("[data-pol-pdf]", root).forEach(function (el) { el.setAttribute("data-mock-download", v.b.num + ".pdf"); });
     qa("[data-pol-only]", root).forEach(function (el) { el.hidden = el.getAttribute("data-pol-only") !== id; });
