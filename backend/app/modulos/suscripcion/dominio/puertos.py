@@ -10,6 +10,7 @@ RegistroDeAuditoria       → log de auditoría (ARQ-03)
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
@@ -41,10 +42,15 @@ class CobroDePrimas(Protocol):
     def ultimo(self, suscripcion: Suscripcion) -> PagoDeLaPrima | None:
         raise NotImplementedError
 
+    def ultimos(self, suscripciones: Sequence[Suscripcion]) -> dict[str, PagoDeLaPrima]:
+        """El último pago de cada suscripción, por id, en una sola consulta."""
+        raise NotImplementedError
+
 
 class EmisionDePolizas(Protocol):
-    def emitir(self, suscripcion: Suscripcion, firma: Firma) -> PolizaEmitida:
-        """Emite la póliza. Es idempotente por suscripción."""
+    def emitir(self, suscripcion: Suscripcion) -> PolizaEmitida:
+        """Emite la póliza de una suscripción pagada y firmada. Es idempotente por
+        suscripción."""
         raise NotImplementedError
 
 
@@ -59,7 +65,10 @@ class RepositorioSuscripciones(Protocol):
         sin guardar nada. Es atómico."""
         raise NotImplementedError
 
-    def actualizar(self, suscripcion: Suscripcion) -> None:
+    def actualizar(self, suscripcion: Suscripcion) -> Suscripcion | None:
+        """Guarda los cambios si la versión guardada sigue siendo `suscripcion.version`, y
+        devuelve la suscripción con su versión nueva. None si otra réplica escribió antes:
+        quien llama relee y decide de nuevo."""
         raise NotImplementedError
 
     def obtener(self, id_suscripcion: str) -> Suscripcion | None:

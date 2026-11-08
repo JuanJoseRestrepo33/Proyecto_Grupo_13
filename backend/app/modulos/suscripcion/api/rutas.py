@@ -78,7 +78,9 @@ def aceptar(
     summary="Suscripciones del cliente, de la más reciente a la más antigua",
 )
 def listar(id_cliente: str, servicio: Servicio) -> tuple[SuscripcionDto, ...]:
-    return tuple(_dto(servicio, s) for s in servicio.del_cliente(id_cliente))
+    suscripciones = servicio.del_cliente(id_cliente)
+    pagos = servicio.ultimos_pagos(suscripciones)
+    return tuple(a_suscripcion_dto(s, pagos.get(s.id_suscripcion)) for s in suscripciones)
 
 
 @router.get(

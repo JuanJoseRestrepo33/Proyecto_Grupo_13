@@ -10,7 +10,7 @@ from app.compartido.modulo import DescriptorDeModulo
 from .api.dependencias import estado_dependencias, obtener_servicio
 from .api.rutas import router
 from .aplicacion.servicio import ServicioDeCotizacion
-from .dominio.modelo import Cotizacion, EstadoCotizacion
+from .dominio.modelo import Cotizacion, EstadoCotizacion, OfertaVencidaError
 
 MODULO = DescriptorDeModulo(
     nombre="cotizacion",
@@ -24,6 +24,7 @@ __all__ = [
     "MODULO",
     "Cotizacion",
     "EstadoCotizacion",
+    "OfertaVencidaError",
     "ServicioDeCotizacion",
     "obtener_servicio",
 ]

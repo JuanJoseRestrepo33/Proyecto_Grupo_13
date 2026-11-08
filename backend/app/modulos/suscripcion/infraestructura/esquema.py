@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS suscripcion.suscripciones (
     CONSTRAINT suscripciones_una_por_cotizacion UNIQUE (id_cotizacion)
 );
 
+-- Control optimista entre réplicas; se agrega aparte por si la tabla ya existía.
+ALTER TABLE suscripcion.suscripciones ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS suscripciones_por_cliente
     ON suscripcion.suscripciones (id_cliente, aceptada_en DESC);
 """
@@ -39,26 +42,28 @@ CREATE INDEX IF NOT EXISTS suscripciones_por_cliente
 COLUMNAS = """
     id_suscripcion, id_cotizacion, id_cliente, condiciones, canal, aceptada_en, estado, id_pago,
     pagada_en, id_firma, firmada_en, numero_poliza, poliza_inicio, poliza_fin, emitida_en,
-    trazabilidad
+    trazabilidad, version
 """
 
 INSERTAR_SI_NUEVA = f"""
 INSERT INTO suscripcion.suscripciones ({COLUMNAS}) VALUES (
     %(id_suscripcion)s, %(id_cotizacion)s, %(id_cliente)s, %(condiciones)s, %(canal)s,
     %(aceptada_en)s, %(estado)s, %(id_pago)s, %(pagada_en)s, %(id_firma)s, %(firmada_en)s,
-    %(numero_poliza)s, %(poliza_inicio)s, %(poliza_fin)s, %(emitida_en)s, %(trazabilidad)s
+    %(numero_poliza)s, %(poliza_inicio)s, %(poliza_fin)s, %(emitida_en)s, %(trazabilidad)s,
+    %(version)s
 )
 ON CONFLICT ON CONSTRAINT suscripciones_una_por_cotizacion DO NOTHING
 RETURNING {COLUMNAS}
 """
 
-ACTUALIZAR = """
+ACTUALIZAR = f"""
 UPDATE suscripcion.suscripciones SET
     estado = %(estado)s, id_pago = %(id_pago)s, pagada_en = %(pagada_en)s,
     id_firma = %(id_firma)s, firmada_en = %(firmada_en)s, numero_poliza = %(numero_poliza)s,
     poliza_inicio = %(poliza_inicio)s, poliza_fin = %(poliza_fin)s,
-    emitida_en = %(emitida_en)s, trazabilidad = %(trazabilidad)s
-WHERE id_suscripcion = %(id_suscripcion)s
+    emitida_en = %(emitida_en)s, trazabilidad = %(trazabilidad)s, version = version + 1
+WHERE id_suscripcion = %(id_suscripcion)s AND version = %(version)s
+RETURNING {COLUMNAS}
 """
 
 POR_ID = f"""

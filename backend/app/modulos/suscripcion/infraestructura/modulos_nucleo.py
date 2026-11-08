@@ -6,6 +6,7 @@ el dominio de suscripción no dependa de los tipos de otro módulo.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from app.compartido.dinero import Dinero
@@ -16,7 +17,6 @@ from ..dominio.errores import CotizacionNoEncontradaError, CotizacionVencidaErro
 from ..dominio.modelo import (
     CoberturaOfertada,
     CondicionesDeOferta,
-    Firma,
     PagoDeLaPrima,
     PolizaEmitida,
     Suscripcion,
@@ -38,12 +38,15 @@ class OfertasDelNucleo:
             raise CotizacionNoEncontradaError(
                 "La cotización no existe", id_cotizacion=id_cotizacion
             )
-        if cotizada.estado(ahora) is cotizacion.EstadoCotizacion.VENCIDA:
+        # La regla de vigencia es de cotización; aquí solo se traduce al código del checkout.
+        try:
+            cotizada.exigir_vigente(ahora)
+        except cotizacion.OfertaVencidaError as error:
             raise CotizacionVencidaError(
                 "La oferta venció; hay que recotizar",
                 id_cotizacion=id_cotizacion,
                 vencio_en=cotizada.expira_en.isoformat(),
-            )
+            ) from error
         oferta = cotizada.oferta
         return CondicionesDeOferta(
             id_cotizacion=cotizada.id_cotizacion,
@@ -93,12 +96,18 @@ class CobrosDelNucleo:
         pago = self._pagos.ultimo(suscripcion.id_suscripcion)
         return None if pago is None else _a_pago(pago)
 
+    def ultimos(self, suscripciones: Sequence[Suscripcion]) -> dict[str, PagoDeLaPrima]:
+        pagos_ = self._pagos.ultimos([s.id_suscripcion for s in suscripciones])
+        return {concepto: _a_pago(pago) for concepto, pago in pagos_.items()}
+
 
 class EmisionDelNucleo:
     def __init__(self, servicio: polizas.ServicioDePolizas) -> None:
         self._polizas = servicio
 
-    def emitir(self, suscripcion: Suscripcion, firma: Firma) -> PolizaEmitida:
+    def emitir(self, suscripcion: Suscripcion) -> PolizaEmitida:
+        if suscripcion.id_firma is None:
+            raise ValueError(f"La suscripción {suscripcion.id_suscripcion} no está firmada")
         condiciones = suscripcion.condiciones
         poliza, _ = self._polizas.emitir(
             polizas.SolicitudDeEmision(
@@ -112,7 +121,7 @@ class EmisionDelNucleo:
                 deducible=condiciones.deducible,
                 valor_asegurado=condiciones.valor_asegurado,
                 prima_mensual=condiciones.prima_mensual,
-                id_firma=firma.id_firma,
+                id_firma=suscripcion.id_firma,
                 canal=suscripcion.canal,
             )
         )
