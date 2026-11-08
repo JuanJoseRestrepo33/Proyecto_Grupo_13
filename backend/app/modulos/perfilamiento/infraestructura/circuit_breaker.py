@@ -105,4 +105,7 @@ class CircuitBreaker:
                 "tasa_error_en_ventana": round(fallos / total, 3) if total else 0.0,
                 "aperturas": self.aperturas,
                 "cierres": self.cierres,
+                "umbral_fallos": self._umbral,
+                "ventana_s": self._ventana,
+                "minimo_llamadas": self._minimo,
             }
