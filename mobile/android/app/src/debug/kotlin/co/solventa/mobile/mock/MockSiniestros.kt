@@ -23,6 +23,13 @@ const val CORREO_SIN_POLIZAS = "sinpolizas@ejemplo.co"
  */
 const val MARCA_RESPUESTA_PERDIDA = "#sin-respuesta"
 
+/**
+ * Rechazo tras un intento incierto (MOB-F05-02): el primer envío registra el siniestro y agota el tiempo
+ * (contiene [MARCA_RESPUESTA_PERDIDA]); el siguiente con la misma clave responde 404
+ * `poliza_no_encontrada`, como si la póliza hubiera dejado de estar. La app concilia con `GET /siniestros`.
+ */
+const val MARCA_LUEGO_404 = "#sin-respuesta-luego-404"
+
 private val DESCRIPCION = 10..2000
 private const val DIGITOS_CLIENTE = 3
 private const val ENCABEZADO = "Idempotency-Key"
@@ -50,7 +57,7 @@ internal class MockSiniestros(private val estado: EstadoMock) {
     }
 
     /** Mismo orden que el BFF y el núcleo: clave, datos, fecha futura, póliza, vigencia, idempotencia. */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "CyclomaticComplexMethod")
     fun reportar(autorizacion: String?, cuerpo: String, clave: String?): RespuestaMock {
         val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
         val claveValida = clave?.let { runCatching { UUID.fromString(it).toString() }.getOrNull() }
@@ -66,6 +73,9 @@ internal class MockSiniestros(private val estado: EstadoMock) {
         }
         val poliza = polizasDe(cuenta).firstOrNull { it.numero == solicitud.numeroPoliza }
             ?: return fallo(404, "poliza_no_encontrada")
+        if (MARCA_LUEGO_404 in solicitud.descripcion && claveValida in enviosPerdidos) {
+            return fallo(404, "poliza_no_encontrada")
+        }
         if (ocurrido.isBefore(LocalDate.parse(poliza.inicio)) || ocurrido.isAfter(LocalDate.parse(poliza.fin))) {
             val error = ErrorBff("evento_fuera_de_vigencia", "Mock BFF móvil: evento_fuera_de_vigencia")
             return respuesta(409, error.copy(vigenteDesde = poliza.inicio, vigenteHasta = poliza.fin))
@@ -76,6 +86,13 @@ internal class MockSiniestros(private val estado: EstadoMock) {
             previo.huella != solicitud -> fallo(409, "clave_idempotencia_en_uso")
             else -> respuesta(200, previo.siniestro)
         }
+    }
+
+    /** `GET /siniestros`: los del cliente, del más reciente al más antiguo. */
+    fun listar(autorizacion: String?): RespuestaMock {
+        val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
+        val propios = reportes.filterKeys { it.first == cuenta.id }.values.map { it.siniestro }
+        return respuesta(200, propios.sortedByDescending { it.reportadoEn })
     }
 
     fun delCliente(idCuenta: String, idSiniestro: String): Siniestro? =

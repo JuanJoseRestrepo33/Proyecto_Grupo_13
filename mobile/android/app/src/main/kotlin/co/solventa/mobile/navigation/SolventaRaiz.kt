@@ -81,6 +81,7 @@ fun SolventaRaiz(
                 onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
                 avisoBiometriaDesactivada = sesion.biometriaDesactivada,
                 onAvisoAtendido = sesion::avisoBiometriaAtendido,
+                onCerrarSesion = sesion::cerrar,
             )
         }
     }

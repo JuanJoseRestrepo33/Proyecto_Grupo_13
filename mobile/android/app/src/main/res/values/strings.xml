@@ -10,4 +10,12 @@
     <string name="aviso_identidad_pendiente">Tu identidad aún no está verificada. Podrás cotizar y contratar pólizas cuando terminemos de validarla.</string>
     <string name="aviso_biometria_desactivada">No pudimos guardar de forma segura tu ingreso con huella y lo desactivamos. Puedes activarlo de nuevo la próxima vez que entres con tu contraseña.</string>
     <string name="aviso_entendido">Entendido</string>
+    <string name="inicio_reporte_por_confirmar">Tienes un reporte por confirmar. Podrás reportar otro cuando sepamos si quedó registrado; así no se duplica.</string>
+    <string name="perfil_cerrar_sesion">Cerrar sesión</string>
+    <string name="cerrar_cancelar">Cancelar</string>
+    <plurals name="cerrar_pendientes_titulo">
+        <item quantity="one">Tienes %1$d reporte sin enviar</item>
+        <item quantity="other">Tienes %1$d reportes sin enviar</item>
+    </plurals>
+    <string name="cerrar_pendientes_texto">Seguirá guardado y cifrado en este teléfono y se enviará cuando vuelvas a ingresar. Otra cuenta no podrá verlo.</string>
 </resources>
