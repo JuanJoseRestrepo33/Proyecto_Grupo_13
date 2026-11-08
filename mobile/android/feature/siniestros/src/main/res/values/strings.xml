@@ -72,8 +72,9 @@
     <string name="aviso_fuera_de_vigencia_sin_fechas">El evento ocurrió fuera de la vigencia de la póliza. El reporte no se registró: revisa la fecha o elige otra póliza.</string>
     <string name="aviso_poliza_no_encontrada">No encontramos esa póliza entre las tuyas. Actualizamos la lista: elige de nuevo la póliza afectada.</string>
     <string name="aviso_confirmar_de_nuevo">Los datos cambiaron desde el último intento de envío. Revisa el resumen y toca «Enviar reporte» para confirmarlo.</string>
-    <string name="aviso_sin_conexion">No pudimos confirmar el envío por falta de conexión. Toca «Enviar reporte» para reintentar con los mismos datos: no se creará un reporte duplicado.</string>
-    <string name="aviso_generico">No pudimos confirmar el envío. Toca «Enviar reporte» para reintentar con los mismos datos: no se creará un reporte duplicado.</string>
+    <string name="aviso_generico">El reporte no se registró. Revisa los datos y toca «Enviar reporte» para enviarlo de nuevo.</string>
+    <string name="aviso_archivo_perdido">Un archivo de evidencia ya no estaba en el teléfono y lo quitamos. Adjúntalo de nuevo si lo necesitas y vuelve a enviar.</string>
+    <string name="aviso_no_guardado">No pudimos guardar tu reporte en el teléfono, así que no se envió. Libera espacio e inténtalo de nuevo; tus datos siguen aquí.</string>
 
     <string name="confirmacion_titulo">Reporte enviado</string>
     <string name="confirmacion_referencia">Número de referencia</string>
@@ -143,4 +144,65 @@
     <string name="fallo_almacenamiento">El almacenamiento no está disponible por ahora. Reintenta en unos minutos.</string>
     <string name="fallo_sin_red">No hubo respuesta; revisa tu conexión y reintenta. No se duplicará.</string>
     <string name="fallo_generico">Algo salió mal. Reintenta: no se duplicará.</string>
+
+    <!-- Reporte sin conexión (MOB-F05-02) -->
+    <string name="sin_conexion">Sin conexión</string>
+    <string name="polizas_actualizacion">Última actualización: %1$s</string>
+    <string name="polizas_sin_confirmar">Sin conexión no podemos confirmar la vigencia; la revisaremos al enviar.</string>
+    <string name="necesita_conexion_titulo">Necesitas conexión una vez</string>
+    <string name="necesita_conexion_texto">Para reportar sin señal, la app debe haber consultado tus pólizas al menos una vez en este teléfono.</string>
+    <string name="revision_sin_conexion">No tienes conexión. Al enviar, guardaremos el reporte cifrado en tu teléfono y lo enviaremos cuando vuelva la red.</string>
+    <string name="borrador_no_disponible">Este reporte ya no se puede corregir. Vuelve al inicio para ver su estado.</string>
+
+    <string name="guardado_titulo">Reporte guardado en tu teléfono</string>
+    <string name="guardado_sin_conexion">No hay conexión. Guardamos tu reporte de forma cifrada y lo enviaremos cuando vuelva la red mientras tengas la sesión abierta.</string>
+    <plurals name="guardado_sin_conexion_archivos">
+        <item quantity="one">No hay conexión. Guardamos tu reporte y %1$d archivo de evidencia de forma cifrada y los enviaremos cuando vuelva la red mientras tengas la sesión abierta.</item>
+        <item quantity="other">No hay conexión. Guardamos tu reporte y %1$d archivos de evidencia de forma cifrada y los enviaremos cuando vuelva la red mientras tengas la sesión abierta.</item>
+    </plurals>
+    <string name="guardado_sin_confirmar">No pudimos confirmar el envío. Guardamos tu reporte cifrado y lo intentaremos de nuevo; no se creará un reporte duplicado.</string>
+    <string name="guardado_referencia_envio">Verás el número de referencia en Inicio cuando se envíe.</string>
+    <string name="guardado_referencia_confirmar">Verás el número de referencia en Inicio cuando se confirme.</string>
+
+    <string name="tarjeta_poliza">Póliza …%1$s</string>
+    <string name="tarjeta_pendiente_titulo">Reporte pendiente de envío</string>
+    <string name="tarjeta_esperando">Esperando conexión</string>
+    <string name="tarjeta_reintentando">Lo intentaremos de nuevo en unos minutos; no se creará un reporte duplicado.</string>
+    <string name="tarjeta_guardado_el">Guardado el %1$s</string>
+    <string name="tarjeta_enviando">Enviando tu reporte…</string>
+    <string name="tarjeta_progreso">Reporte ✓ · Evidencia %1$d de %2$d</string>
+    <string name="tarjeta_enviado_titulo">Reporte enviado</string>
+    <string name="tarjeta_referencia">Número de referencia</string>
+    <string name="tarjeta_enviado_web">Lo verás también en la web.</string>
+    <string name="tarjeta_entendido">Entendido</string>
+    <plurals name="tarjeta_evidencia_parcial">
+        <item quantity="one">Evidencia: %1$d de %2$d archivo adjunto</item>
+        <item quantity="other">Evidencia: %1$d de %2$d archivos adjuntos</item>
+    </plurals>
+    <string name="tarjeta_evidencia_pendiente">Falta enviar la evidencia: se enviará cuando vuelva la red.</string>
+    <string name="tarjeta_archivo">%1$s: %2$s</string>
+    <string name="tarjeta_quitar">Quitar %1$s</string>
+    <string name="tarjeta_revision_titulo">Tu reporte necesita revisión</string>
+    <string name="tarjeta_no_registro">El reporte no se registró.</string>
+    <string name="tarjeta_datos_invalidos">Hay datos por corregir.</string>
+    <string name="tarjeta_revisar">Revisar</string>
+    <string name="tarjeta_descartar">Descartar</string>
+    <string name="tarjeta_conciliar_titulo">Estamos confirmando tu reporte</string>
+    <string name="tarjeta_conciliar_texto">Un envío anterior pudo quedar registrado. Lo estamos revisando para no duplicarlo.</string>
+    <string name="tarjeta_ya_existe">Ya existe %1$s.</string>
+    <string name="tarjeta_ingresar_titulo">Ingresa para enviar tu reporte pendiente</string>
+    <string name="tarjeta_ingresar_texto">Tu sesión terminó. El reporte sigue guardado y se enviará al ingresar.</string>
+    <string name="tarjeta_ingresar">Ingresar</string>
+    <string name="tarjeta_ilegible_titulo">No podemos leer un reporte guardado</string>
+    <string name="tarjeta_ilegible_texto">La protección del teléfono cambió y este borrador ya no se puede abrir. Si no llegó a enviarse, repórtalo de nuevo.</string>
+    <string name="tarjeta_ilegible_temporal">No pudimos abrir un reporte guardado. Lo intentaremos de nuevo.</string>
+    <string name="tarjeta_eliminar">Eliminar del teléfono</string>
+    <string name="tarjeta_reportar_nuevo">Reportar de nuevo</string>
+
+    <string name="descartar_titulo">¿Descartar el reporte?</string>
+    <string name="descartar_texto">Se borrará del teléfono con su evidencia y no se enviará. Esta acción no se puede deshacer.</string>
+    <string name="eliminar_titulo">¿Eliminar del teléfono?</string>
+    <string name="eliminar_texto">Es posible que el reporte ya se haya registrado. Eliminarlo del teléfono no cancela un siniestro registrado.</string>
+    <string name="boton_descartar">Descartar</string>
+    <string name="boton_eliminar">Eliminar</string>
 </resources>

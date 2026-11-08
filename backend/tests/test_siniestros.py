@@ -331,7 +331,11 @@ def test_el_detalle_de_un_siniestro_por_http(nucleo):
     detalle = nucleo.get(f"{RUTA}/{creado['id']}")
     ajeno = nucleo.get(f"/v1/siniestros/clientes/CLI-OTRO/siniestros/{creado['id']}")
 
-    assert detalle.json() == creado
+    # WEB-F06: el detalle suma el historial (empieza por el reporte) y los requerimientos.
+    cuerpo = detalle.json()
+    assert {k: v for k, v in cuerpo.items() if k in creado} == creado
+    assert [e["estado"] for e in cuerpo["historial"]] == ["reportado"]
+    assert cuerpo["requerimientos"] == []
     assert ajeno.status_code == 404
     assert ajeno.json()["title"] == "siniestro_no_encontrado"
 

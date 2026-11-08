@@ -220,6 +220,8 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Evidencia aceptada | Cualquier foto, video o PDF del paso de evidencia |
 | Rechazos de evidencia | Lugar con `#413`, `#422`, `#409` o `#503` (el lugar se pide en archivos sin coordenadas) |
 | Evidencia con respuesta perdida | Lugar con `#perdida`: el archivo queda guardado, la app ve un tiempo agotado y el reintento no lo duplica |
+| Rechazo tras un intento incierto (MOB-F05-02) | Descripción con `#sin-respuesta-luego-404`: el primer envío registra y agota el tiempo, el siguiente responde 404 `poliza_no_encontrada`, y la app concilia con `GET /siniestros` (M10) |
+| Reporte sin conexión (MOB-F05-02) | Modo avión en el emulador: el mock no simula la falta de red; en las pruebas JVM se usa un `MonitorConectividad` falso |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.

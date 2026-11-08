@@ -11,9 +11,11 @@ from app.modulos.auditoria import EventoAuditable, ServicioDeAuditoria
 
 from ..dominio.evidencias import EvidenciaDelSiniestro
 from ..dominio.modelo import Siniestro
+from ..dominio.seguimiento import EventoDeSeguimiento
 
 TIPO = "siniestro_reportado"
 TIPO_EVIDENCIA = "evidencia_agregada"
+TIPO_CAMBIO_DE_ESTADO = "siniestro_estado_cambiado"
 
 
 class RegistroEnAuditoria:
@@ -60,6 +62,36 @@ class RegistroEnAuditoria:
                     "id_siniestro": siniestro.id_siniestro,
                     "id_evidencia": evidencia.id_evidencia,
                     "id_cliente": siniestro.id_cliente,
+                },
+            )
+        )
+
+    def registrar_cambio_de_estado(
+        self,
+        siniestro: Siniestro,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[str, ...],
+    ) -> str:
+        """WEB-F06, criterio 3. Los requerimientos quedan contados, no transcritos."""
+        return self._auditoria.registrar(
+            EventoAuditable(
+                tipo=TIPO_CAMBIO_DE_ESTADO,
+                actor=evento.actor,
+                canal="nucleo",
+                ocurrido_en=evento.ocurrido_en,
+                variables_entrada={
+                    "estado_anterior": None
+                    if evento.estado_anterior is None
+                    else str(evento.estado_anterior),
+                    "motivo": evento.motivo,
+                    "requerimientos": len(requerimientos),
+                },
+                resultado={"estado": str(evento.estado_nuevo), "id_evento": evento.id_evento},
+                referencias={
+                    "id_siniestro": siniestro.id_siniestro,
+                    "referencia": siniestro.referencia,
+                    "id_cliente": siniestro.id_cliente,
+                    "id_evento": evento.id_evento,
                 },
             )
         )

@@ -11,6 +11,8 @@ import co.solventa.core.network.Resultado
 import co.solventa.core.network.llamarBff
 import co.solventa.core.network.parteArchivo
 import co.solventa.core.network.parteTexto
+import co.solventa.feature.siniestros.borrador.AdjuntoBorrador
+import co.solventa.feature.siniestros.borrador.AdjuntoNuevo
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -292,6 +294,44 @@ class GestorEvidencia(
         alcance.launch { consultarAhora(idSiniestro) }
     }
 
+    /**
+     * Quita de la lista lo listo cuyo archivo ya no está en la caché (el sistema puede liberarla).
+     * @return cuántos se quitaron: el asistente lo avisa antes de guardar, para no perderlos en silencio.
+     */
+    fun quitarPerdidos(): Int {
+        val perdidos = estado.listos.filter { almacen.archivo(it.ruta) == null }
+        if (perdidos.isNotEmpty()) estado = estado.copy(adjuntos = estado.adjuntos - perdidos.toSet())
+        return perdidos.size
+    }
+
+    /**
+     * Lo listo, con su manifiesto completo, para el borrador cifrado (MOB-F05-02). Lo que ya no está en
+     * la caché no se puede guardar y queda fuera.
+     */
+    fun paraBorrador(): List<AdjuntoNuevo> = estado.listos.mapNotNull { adjunto ->
+        val archivo = almacen.archivo(adjunto.ruta) ?: return@mapNotNull null
+        val formato = adjunto.formato ?: return@mapNotNull null
+        AdjuntoNuevo(
+            AdjuntoBorrador(
+                id = adjunto.id,
+                nombre = adjunto.nombre,
+                formato = formato,
+                tamano = archivo.length(),
+                tomadaEn = adjunto.tomadaEn,
+                latitud = adjunto.latitud,
+                longitud = adjunto.longitud,
+                lugar = adjunto.lugar.trim(),
+            ),
+            archivo,
+        )
+    }
+
+    /** El borrador ya tiene los archivos (y los borró de la caché): el asistente los suelta sin borrarlos. */
+    fun transferidos() {
+        cancelarPreparacion()
+        estado = estado.copy(adjuntos = emptyList(), rechazo = null)
+    }
+
     /** Sale del reporte: ningún archivo temporal se queda en el dispositivo. */
     fun descartar() {
         cancelarPreparacion()
@@ -360,7 +400,7 @@ private val SERIALIZADOR = ListSerializer(Adjunto.serializer())
 private val FECHA_CON_ZONA: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
 /** Traduce el rechazo del BFF; lo desconocido se trata como incierto y se puede reintentar. */
-private fun falloDe(falla: Resultado.Falla): FalloCarga = when {
+internal fun falloDe(falla: Resultado.Falla): FalloCarga = when {
     falla.codigo == "archivo_demasiado_grande" -> FalloCarga.TAMANO
     falla.codigo == "formato_no_admitido" -> FalloCarga.FORMATO
     falla.codigo == "archivo_vacio" -> FalloCarga.VACIO

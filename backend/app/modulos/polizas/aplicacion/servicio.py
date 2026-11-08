@@ -1,18 +1,31 @@
-"""Consulta de pólizas por su interfaz pública.
+"""Casos de uso de pólizas: consultar y emitir.
 
 Otros módulos preguntan aquí, nunca leyendo los datos de pólizas directamente (ARQ-01). El
-reporte de siniestros valida la vigencia con `poliza_del_cliente`.
+reporte de siniestros valida la vigencia con `poliza_del_cliente`; suscripción emite la
+póliza con `emitir` cuando la oferta está pagada y firmada (WEB-F03, criterio 4).
 """
 
 from __future__ import annotations
 
+import threading
+import zlib
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date
 
 from app.compartido.reloj import Reloj
 
-from ..dominio.modelo import PlantillaDePoliza, Poliza
-from ..dominio.puertos import RepositorioPolizas
+from ..dominio.errores import DocumentoNoDisponibleError, PolizaNoEncontradaError
+from ..dominio.modelo import PlantillaDePoliza, Poliza, SolicitudDeEmision, vigencia_anual
+from ..dominio.puertos import (
+    AlmacenDeDocumentos,
+    CatalogoDeProductos,
+    GeneradorDeDocumento,
+    RegistroDeAuditoria,
+    RepositorioPolizas,
+)
+
+_CERROJOS = 64
 
 
 class ServicioDePolizas:
@@ -21,16 +34,33 @@ class ServicioDePolizas:
         repositorio: RepositorioPolizas,
         reloj: Reloj,
         plantillas: Sequence[PlantillaDePoliza] = (),
+        *,
+        almacen: AlmacenDeDocumentos | None = None,
+        generador: GeneradorDeDocumento | None = None,
+        auditoria: RegistroDeAuditoria | None = None,
+        catalogo: CatalogoDeProductos | None = None,
     ) -> None:
         self._repositorio = repositorio
         self._reloj = reloj
         self._plantillas = tuple(plantillas)
+        self._almacen = almacen
+        self._generador = generador
+        self._auditoria = auditoria
+        self._catalogo = catalogo
+        self._cerrojos = tuple(threading.Lock() for _ in range(_CERROJOS))
+
+    # -- consulta ------------------------------------------------------------------------
 
     def del_cliente(self, id_cliente: str) -> tuple[Poliza, ...]:
-        """Las pólizas del cliente, de la más reciente a la más antigua."""
+        """Las pólizas del cliente, de la más reciente a la más antigua (WEB-F04, criterio 1).
+
+        Una póliza emitida en la web es la misma que ve la app: las dos leen de aquí
+        (criterio 2). Sin pólizas, la tupla vacía; el canal muestra el estado vacío.
+        """
         propias = self._repositorio.del_cliente(id_cliente)
         de_plantilla = tuple(p.para(id_cliente) for p in self._plantillas)
-        return tuple(sorted(propias + de_plantilla, key=lambda p: p.inicio, reverse=True))
+        todas = sorted(propias + de_plantilla, key=lambda p: p.inicio, reverse=True)
+        return tuple(self._completar(p) for p in todas)
 
     def poliza_del_cliente(self, numero: str, id_cliente: str) -> Poliza | None:
         """La póliza si existe y es del cliente; si no, None, sin distinguir los dos casos."""
@@ -39,6 +69,109 @@ class ServicioDePolizas:
             return poliza if poliza.id_cliente == id_cliente else None
         return next((p for p in self.del_cliente(id_cliente) if p.numero == numero), None)
 
+    def exigir_del_cliente(self, numero: str, id_cliente: str) -> Poliza:
+        poliza = self.poliza_del_cliente(numero, id_cliente)
+        if poliza is None:
+            raise PolizaNoEncontradaError("La póliza no existe", numero=numero)
+        return poliza
+
+    def detalle(self, numero: str, id_cliente: str) -> Poliza:
+        """La póliza con coberturas, deducible y límites (WEB-F04, criterio 4)."""
+        return self._completar(self.exigir_del_cliente(numero, id_cliente))
+
+    def tiene_documento(self, poliza: Poliza) -> bool:
+        return poliza.id_documento is not None and self._almacen is not None
+
+    def _completar(self, poliza: Poliza) -> Poliza:
+        """Una póliza de prueba toma las condiciones del catálogo, sin prima (queda en None);
+        una emitida ya trae las de su oferta y no se toca."""
+        if poliza.emitida or poliza.coberturas or self._catalogo is None:
+            return poliza
+        condiciones = self._catalogo.condiciones(poliza.producto)
+        if condiciones is None:
+            return poliza
+        return replace(
+            poliza,
+            nombre_producto=condiciones.nombre_producto,
+            coberturas=condiciones.coberturas,
+            deducible=condiciones.deducible,
+            valor_asegurado=condiciones.valor_asegurado,
+        )
+
+    def documento(self, numero: str, id_cliente: str) -> tuple[Poliza, bytes]:
+        """El PDF de una póliza del cliente (WEB-F03, criterio 4)."""
+        poliza = self.exigir_del_cliente(numero, id_cliente)
+        contenido = None
+        if poliza.id_documento is not None and self._almacen is not None:
+            contenido = self._almacen.leer(poliza.id_documento)
+        if contenido is None:
+            raise DocumentoNoDisponibleError("La póliza no tiene documento", numero=numero)
+        return poliza, contenido
+
     def hoy(self) -> date:
         """El día de hoy según el reloj del módulo, para calcular el estado de una póliza."""
         return self._reloj.ahora().date()
+
+    # -- emisión (WEB-F03) ---------------------------------------------------------------
+
+    def emitir(self, solicitud: SolicitudDeEmision) -> tuple[Poliza, bool]:
+        """Emite la póliza anual de la suscripción, con su documento. Devuelve si es nueva.
+
+        Es idempotente por suscripción: emitir otra vez devuelve la misma póliza, con el mismo
+        número, sin otro documento. Así un reintento de la firma, o un fallo justo después de
+        emitir, nunca deja dos pólizas. Si la emisión anterior quedó guardada pero sin su
+        entrada en la auditoría (falló justo después), el reintento la registra.
+        """
+        if self._almacen is None or self._generador is None or self._auditoria is None:
+            raise RuntimeError("El servicio de pólizas no está armado para emitir")
+        # Dentro del proceso, una emisión por suscripción a la vez: el reintento que encuentra
+        # la póliza sin auditar no la audita en paralelo con quien la está emitiendo.
+        with self._cerrojos[zlib.crc32(solicitud.id_suscripcion.encode()) % len(self._cerrojos)]:
+            return self._emitir(solicitud, self._almacen, self._generador)
+
+    def _emitir(
+        self,
+        solicitud: SolicitudDeEmision,
+        almacen: AlmacenDeDocumentos,
+        generador: GeneradorDeDocumento,
+    ) -> tuple[Poliza, bool]:
+        existente = self._repositorio.por_suscripcion(solicitud.id_suscripcion)
+        if existente is not None:
+            return self._auditada(existente), False
+
+        ahora = self._reloj.ahora()
+        inicio = ahora.date()
+        poliza = Poliza(
+            numero=self._repositorio.siguiente_numero(ahora.year),
+            id_cliente=solicitud.id_cliente,
+            producto=solicitud.producto,
+            inicio=inicio,
+            fin=vigencia_anual(inicio),
+            nombre_producto=solicitud.nombre_producto,
+            coberturas=solicitud.coberturas,
+            deducible=solicitud.deducible,
+            valor_asegurado=solicitud.valor_asegurado,
+            prima_mensual=solicitud.prima_mensual,
+            id_suscripcion=solicitud.id_suscripcion,
+            id_firma=solicitud.id_firma,
+            emitida_en=ahora,
+            canal=solicitud.canal,
+        )
+        id_documento = almacen.guardar(
+            poliza.numero, solicitud.id_suscripcion, generador.generar(poliza)
+        )
+        guardada = self._repositorio.emitir_si_nueva(replace(poliza, id_documento=id_documento))
+        if guardada.numero != poliza.numero:
+            # Otra réplica emitió primero: esa es la póliza de la suscripción (y es quien la
+            # audita), y el documento que se acaba de guardar no queda ligado a nada.
+            almacen.borrar(id_documento)
+            return guardada, False
+        return self._auditada(guardada), True
+
+    def _auditada(self, poliza: Poliza) -> Poliza:
+        """La póliza con su entrada de emisión en el log; la registra si todavía no la tiene."""
+        if poliza.id_decision is not None or self._auditoria is None:
+            return poliza
+        auditada = replace(poliza, id_decision=self._auditoria.registrar_emision(poliza))
+        self._repositorio.guardar(auditada)
+        return auditada

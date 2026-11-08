@@ -1,4 +1,4 @@
-"""Casos de uso de siniestros: reportar y consultar (WEB-F05).
+"""Casos de uso de siniestros: reportar, consultar y seguir (WEB-F05, WEB-F06).
 
 El reporte es el mismo en los dos canales: mismo servicio, misma referencia, misma clave de
 idempotencia. La vigencia se valida contra el módulo de pólizas por su interfaz pública,
@@ -8,6 +8,7 @@ nunca leyendo sus datos (ARQ-01).
 from __future__ import annotations
 
 import uuid
+from dataclasses import replace
 
 from app.compartido.eventos import BusDeEventos, Evento
 from app.compartido.reloj import Reloj
@@ -23,12 +24,29 @@ from ..dominio.errores import (
     SiniestroNoEncontradoError,
 )
 from ..dominio.evidencias import Captura, EvidenciaDelSiniestro, exigir_evidencia_valida
-from ..dominio.modelo import ESTADOS_CERRADOS, DatosDeReporte, Siniestro
+from ..dominio.modelo import ESTADOS_CERRADOS, DatosDeReporte, EstadoSiniestro, Siniestro
 from ..dominio.puertos import ConsultaDePolizas, RegistroDeAuditoria, RepositorioSiniestros
+from ..dominio.seguimiento import (
+    ACTOR_CLIENTE,
+    ACTOR_OPERADOR,
+    LARGO_MAXIMO_MOTIVO,
+    CambioConcurrenteError,
+    EventoDeSeguimiento,
+    Requerimiento,
+    RequerimientoNoEncontradoError,
+    RequerimientosNoAdmitidosError,
+    RequerimientosObligatoriosError,
+    RequerimientoYaAtendidoError,
+    exigir_transicion,
+    limpiar_requerimientos,
+)
 
 #: Evento que publica un reporte nuevo. El seguimiento (WEB-F06) y las notificaciones
 #: (MOB-F06) se suscriben a los eventos de siniestro.
 EVENTO_SINIESTRO_REPORTADO = "siniestro-reportado"
+#: Evento que publica cada cambio de estado (WEB-F06, criterio 3). Lo consume MOB-F06 para
+#: el push. La carga trae el cliente, la referencia y los dos estados.
+EVENTO_SINIESTRO_ESTADO_CAMBIADO = "siniestro-estado-cambiado"
 
 
 class ServicioDeSiniestros:
@@ -138,17 +156,25 @@ class ServicioDeSiniestros:
         nombre_original: str | None,
         canal: str,
         captura: Captura | None = None,
+        id_requerimiento: str | None = None,
     ) -> EvidenciaDelSiniestro:
         """Guarda la evidencia en el almacén y la asocia al siniestro.
 
         Se puede agregar en el reporte o después, desde cualquiera de los dos canales, y se
-        ve en ambos (criterio 5). Los límites se validan antes de tocar el almacén.
+        ve en ambos (criterio 5). Los límites se validan antes de tocar el almacén. Con
+        `id_requerimiento`, la evidencia responde un requerimiento pendiente (WEB-F06,
+        criterio 5): la evidencia y el requerimiento atendido se guardan en la misma
+        transacción, y de dos respuestas simultáneas la que llega segunda recibe
+        `requerimiento_ya_atendido` sin dejar una evidencia suelta. Su archivo sí queda en el
+        almacén, que no borra, pero ningún siniestro lo nombra.
         """
         siniestro = self.obtener(id_cliente, id_siniestro)
         if siniestro.estado in ESTADOS_CERRADOS:
             raise SiniestroCerradoError(
                 "El siniestro ya está cerrado", estado=str(siniestro.estado)
             )
+        if id_requerimiento is not None:
+            self._exigir_pendiente(siniestro.id_siniestro, id_requerimiento)
         tipo = exigir_evidencia_valida(tipo_contenido, contenido)
         ahora = self._reloj.ahora()
         captura = (captura or Captura()).validada(ahora)
@@ -166,7 +192,12 @@ class ServicioDeSiniestros:
             cargada_en=ahora,
             captura=captura,
         )
-        self._repositorio.agregar_evidencia(evidencia)
+        if id_requerimiento is None:
+            self._repositorio.agregar_evidencia(evidencia)
+        elif not self._repositorio.responder_requerimiento(evidencia, id_requerimiento):
+            raise RequerimientoYaAtendidoError(
+                "El requerimiento ya no está pendiente", id_requerimiento=id_requerimiento
+            )
         self._auditoria.registrar_evidencia(siniestro, evidencia)
         return evidencia
 
@@ -192,3 +223,137 @@ class ServicioDeSiniestros:
         if evidencia is None or archivo is None:
             raise EvidenciaNoEncontradaError("La evidencia no existe", id_evidencia=id_evidencia)
         return evidencia, archivo.contenido
+
+    # -- seguimiento (WEB-F06) -----------------------------------------------------------
+
+    def cambiar_estado(
+        self,
+        id_siniestro: str,
+        estado_nuevo: EstadoSiniestro,
+        motivo: str | None = None,
+        requerimientos: tuple[str, ...] | list[str] = (),
+        actor: str = ACTOR_OPERADOR,
+    ) -> Siniestro:
+        """Cambia el estado del siniestro (operación interna, sin cliente en la ruta).
+
+        Valida la transición, deja el evento en el historial, audita y publica
+        `siniestro-estado-cambiado`. Pasar a `requiere_informacion` exige al menos un
+        requerimiento, y ningún otro estado los admite (`requerimientos_no_admitidos`). Si
+        otro cambio llega primero, `cambio_de_estado_concurrente`.
+
+        El estado, el evento, los requerimientos nuevos y el cierre de los que seguían
+        pendientes se guardan en una sola transacción del repositorio. La auditoría va antes,
+        porque es otro módulo y no entra en esa transacción: si ella falla, no cambia nada; si
+        falla la transacción, queda una decisión en el log cuyo `id_evento` no aparece en el
+        historial, y el reintento la vuelve a registrar. En ningún caso queda un estado sin su
+        evento ni un `requiere_informacion` sin requerimientos que bloquee el reintento.
+        """
+        siniestro = self._repositorio.por_id(id_siniestro)
+        if siniestro is None:
+            raise SiniestroNoEncontradoError("El siniestro no existe", id_siniestro=id_siniestro)
+        exigir_transicion(siniestro.estado, estado_nuevo)
+        pedidos = limpiar_requerimientos(tuple(requerimientos))
+        if estado_nuevo is EstadoSiniestro.REQUIERE_INFORMACION and not pedidos:
+            raise RequerimientosObligatoriosError("Para pedir información hay que decir qué falta")
+        if estado_nuevo is not EstadoSiniestro.REQUIERE_INFORMACION and pedidos:
+            raise RequerimientosNoAdmitidosError(
+                "Solo se piden requerimientos al pasar a requiere_informacion",
+                estado_pedido=str(estado_nuevo),
+            )
+        motivo = (motivo or "").strip()[:LARGO_MAXIMO_MOTIVO] or None
+
+        ahora = self._reloj.ahora()
+        anterior = siniestro.estado
+        actualizado = replace(siniestro, estado=estado_nuevo, estado_actualizado_en=ahora)
+        evento = EventoDeSeguimiento(
+            id_evento=f"EVS-{uuid.uuid4().hex}",
+            id_siniestro=id_siniestro,
+            estado_anterior=anterior,
+            estado_nuevo=estado_nuevo,
+            ocurrido_en=ahora,
+            actor=actor,
+            motivo=motivo,
+        )
+        evento = replace(
+            evento,
+            id_decision=self._auditoria.registrar_cambio_de_estado(actualizado, evento, pedidos),
+        )
+        nuevos = tuple(
+            Requerimiento(
+                id_requerimiento=f"REQ-{uuid.uuid4().hex}",
+                id_siniestro=id_siniestro,
+                descripcion=descripcion,
+                creado_en=ahora,
+                id_evento=evento.id_evento,
+            )
+            for descripcion in pedidos
+        )
+        if not self._repositorio.aplicar_cambio_de_estado(anterior, evento, nuevos):
+            raise CambioConcurrenteError(
+                "Otro cambio de estado llegó primero", id_siniestro=id_siniestro
+            )
+        self._bus.publicar(
+            Evento(
+                nombre=EVENTO_SINIESTRO_ESTADO_CAMBIADO,
+                carga={
+                    "id_siniestro": id_siniestro,
+                    "referencia": siniestro.referencia,
+                    "id_cliente": siniestro.id_cliente,
+                    "estado_anterior": str(anterior),
+                    "estado_nuevo": str(estado_nuevo),
+                    "id_evento": evento.id_evento,
+                    "requerimientos": len(pedidos),
+                },
+                ocurrido_en=ahora,
+            )
+        )
+        return actualizado
+
+    def detalle(
+        self, id_cliente: str, id_siniestro: str
+    ) -> tuple[Siniestro, tuple[EventoDeSeguimiento, ...], tuple[Requerimiento, ...]]:
+        """El siniestro con su historial y sus requerimientos, leyendo el siniestro una vez."""
+        siniestro = self.obtener(id_cliente, id_siniestro)
+        return (
+            siniestro,
+            self._historial(siniestro),
+            self._repositorio.requerimientos(siniestro.id_siniestro),
+        )
+
+    def historial(self, id_cliente: str, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
+        """Los eventos del siniestro con su fecha, empezando por el reporte (criterio 4)."""
+        return self._historial(self.obtener(id_cliente, id_siniestro))
+
+    def _historial(self, siniestro: Siniestro) -> tuple[EventoDeSeguimiento, ...]:
+        inicial = EventoDeSeguimiento(
+            id_evento=f"EVS-{siniestro.id_siniestro}-reporte",
+            id_siniestro=siniestro.id_siniestro,
+            estado_anterior=None,
+            estado_nuevo=EstadoSiniestro.REPORTADO,
+            ocurrido_en=siniestro.reportado_en,
+            actor=ACTOR_CLIENTE,
+        )
+        return (inicial, *self._repositorio.eventos(siniestro.id_siniestro))
+
+    def requerimientos(self, id_cliente: str, id_siniestro: str) -> tuple[Requerimiento, ...]:
+        siniestro = self.obtener(id_cliente, id_siniestro)
+        return self._repositorio.requerimientos(siniestro.id_siniestro)
+
+    def _exigir_pendiente(self, id_siniestro: str, id_requerimiento: str) -> Requerimiento:
+        requerimiento = next(
+            (
+                r
+                for r in self._repositorio.requerimientos(id_siniestro)
+                if r.id_requerimiento == id_requerimiento
+            ),
+            None,
+        )
+        if requerimiento is None:
+            raise RequerimientoNoEncontradoError(
+                "El requerimiento no existe", id_requerimiento=id_requerimiento
+            )
+        if not requerimiento.pendiente:
+            raise RequerimientoYaAtendidoError(
+                "El requerimiento ya no está pendiente", id_requerimiento=id_requerimiento
+            )
+        return requerimiento

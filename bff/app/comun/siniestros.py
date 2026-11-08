@@ -18,7 +18,6 @@ from .errores import ErrorBff
 from .nucleo import ClienteNucleo, segmento
 
 RUTA_NUCLEO = "/v1/siniestros"
-RUTA_POLIZAS = "/v1/polizas"
 NO_ENCONTRADO = "siniestro_no_encontrado"
 MONEDA = "COP"
 
@@ -59,16 +58,6 @@ def exigir_clave(clave: str | None) -> str:
         ) from None
 
 
-def a_poliza(poliza: dict[str, Any]) -> dict[str, object]:
-    return {
-        "numero": poliza["numero"],
-        "producto": poliza["producto"],
-        "inicio": poliza["inicio"],
-        "fin": poliza["fin"],
-        "estado": poliza["estado"],
-    }
-
-
 def a_siniestro(siniestro: dict[str, Any]) -> dict[str, object]:
     monto = siniestro["monto_estimado"]
     return {
@@ -83,6 +72,35 @@ def a_siniestro(siniestro: dict[str, Any]) -> dict[str, object]:
         "siguiente_paso": siniestro["siguiente_paso"],
         "canal": siniestro["canal"],
         "reportado_en": siniestro["reportado_en"],
+        "estado_actualizado_en": siniestro.get("estado_actualizado_en"),
+    }
+
+
+def a_detalle(siniestro: dict[str, Any]) -> dict[str, object]:
+    """El siniestro con su historial y sus requerimientos (WEB-F06, criterios 4 y 5)."""
+    return {
+        **a_siniestro(siniestro),
+        "historial": [
+            {
+                "id": e["id"],
+                "estado_anterior": e["estado_anterior"],
+                "estado": e["estado"],
+                "ocurrido_en": e["ocurrido_en"],
+                "motivo": e["motivo"],
+            }
+            for e in siniestro.get("historial", [])
+        ],
+        "requerimientos": [
+            {
+                "id": r["id"],
+                "descripcion": r["descripcion"],
+                "creado_en": r["creado_en"],
+                "pendiente": r["pendiente"],
+                "atendido_en": r["atendido_en"],
+                "id_evidencia": r["id_evidencia"],
+            }
+            for r in siniestro.get("requerimientos", [])
+        ],
     }
 
 
@@ -95,18 +113,13 @@ def ruta_siniestro(id_cliente: str, id_siniestro: str) -> str:
     return f"{_ruta_cliente(id_cliente)}/{segmento(id_siniestro, NO_ENCONTRADO)}"
 
 
-def polizas(nucleo: ClienteNucleo, id_cliente: str) -> list[dict[str, object]]:
-    """Las pólizas del cliente, para elegir la afectada en el asistente."""
-    return [a_poliza(p) for p in nucleo.get(f"{RUTA_POLIZAS}/clientes/{id_cliente}/polizas")]
-
-
 def listar(nucleo: ClienteNucleo, id_cliente: str) -> list[dict[str, object]]:
     return [a_siniestro(s) for s in nucleo.get(_ruta_cliente(id_cliente))]
 
 
 def obtener(nucleo: ClienteNucleo, id_cliente: str, id_siniestro: str) -> dict[str, object]:
     siniestro = nucleo.get(ruta_siniestro(id_cliente, id_siniestro), si_no_existe=NO_ENCONTRADO)
-    return a_siniestro(siniestro)
+    return a_detalle(siniestro)
 
 
 def reportar(

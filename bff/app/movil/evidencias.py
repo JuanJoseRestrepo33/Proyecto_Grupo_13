@@ -28,6 +28,9 @@ async def adjuntar(
     latitud: Annotated[float | None, Form()] = None,
     longitud: Annotated[float | None, Form()] = None,
     lugar: Annotated[str | None, Form(max_length=200)] = None,
+    id_requerimiento: Annotated[
+        str | None, Form(max_length=64, description="Requerimiento que responde (WEB-F06)")
+    ] = None,
 ) -> dict[str, object]:
     """413 `archivo_demasiado_grande`; 422 `formato_no_admitido` o `archivo_vacio` sobre el
     campo `archivo`; 409 `siniestro_cerrado`; 503 `almacenamiento_no_disponible`."""
@@ -44,6 +47,7 @@ async def adjuntar(
         latitud=latitud,
         longitud=longitud,
         lugar=lugar,
+        id_requerimiento=id_requerimiento,
     )
 
 

@@ -6,6 +6,10 @@ cliente responde 404, igual que si no existiera.
 
 La evidencia llega como el cuerpo crudo de la solicitud, con su `Content-Type`: el BFF ya
 desarmó el formulario del canal. El núcleo deja de leer pasados los 10 MB.
+
+El cambio de estado (WEB-F06) es una operación interna, sin cliente en la ruta y sin
+interfaz: la usan *staging* y las pruebas. Exige `X-Token-Interno` igual a
+`SINIESTROS_TOKEN_INTERNO`; si la variable no está definida, la ruta no existe (404).
 """
 
 from __future__ import annotations
@@ -19,12 +23,15 @@ from starlette.concurrency import run_in_threadpool
 
 from ..aplicacion.servicio import ServicioDeSiniestros
 from ..dominio.evidencias import TAMANO_MAXIMO, ArchivoDemasiadoGrandeError, Captura
-from .dependencias import obtener_servicio
+from .dependencias import exigir_token_interno, obtener_servicio
 from .esquemas import (
+    CambioDeEstadoDto,
     Canal,
     EvidenciaDto,
+    SiniestroDetalleDto,
     SiniestroDto,
     SolicitudReporteDto,
+    a_detalle_dto,
     a_evidencia_dto,
     a_siniestro_dto,
 )
@@ -80,11 +87,35 @@ def listar(id_cliente: str, servicio: Servicio) -> tuple[SiniestroDto, ...]:
 
 @router.get(
     RUTA_CLIENTE + "/{id_siniestro}",
-    response_model=SiniestroDto,
-    summary="Detalle de un siniestro",
+    response_model=SiniestroDetalleDto,
+    summary="Detalle de un siniestro con su historial y sus requerimientos",
 )
-def obtener(id_cliente: str, id_siniestro: str, servicio: Servicio) -> SiniestroDto:
-    return a_siniestro_dto(servicio.obtener(id_cliente, id_siniestro))
+def obtener(id_cliente: str, id_siniestro: str, servicio: Servicio) -> SiniestroDetalleDto:
+    """WEB-F06: el estado actual (criterio 1), el historial de eventos con su fecha
+    (criterio 4) y los requerimientos, pendientes o atendidos (criterio 5)."""
+    return a_detalle_dto(*servicio.detalle(id_cliente, id_siniestro))
+
+
+@router.post(
+    "/{id_siniestro}/estado",
+    response_model=SiniestroDto,
+    summary="Cambia el estado de un siniestro (operación interna de staging y pruebas)",
+    dependencies=[Depends(exigir_token_interno)],
+)
+def cambiar_estado(
+    id_siniestro: str, cambio: CambioDeEstadoDto, servicio: Servicio
+) -> SiniestroDto:
+    """409 `transicion_no_permitida` o `cambio_de_estado_concurrente`; 422
+    `requerimientos_obligatorios` al pedir información sin decir qué falta y
+    `requerimientos_no_admitidos` si llegan requerimientos para otro estado; 404
+    `siniestro_no_encontrado`. Audita y publica `siniestro-estado-cambiado`."""
+    siniestro = servicio.cambiar_estado(
+        id_siniestro,
+        cambio.estado,
+        motivo=cambio.motivo,
+        requerimientos=[r.descripcion for r in cambio.requerimientos],
+    )
+    return a_siniestro_dto(siniestro)
 
 
 # -- evidencia (MOB-F05) -----------------------------------------------------------------
@@ -120,11 +151,16 @@ async def adjuntar_evidencia(
     latitud: Annotated[float | None, Query()] = None,
     longitud: Annotated[float | None, Query()] = None,
     lugar: Annotated[str | None, Query(max_length=200)] = None,
+    id_requerimiento: Annotated[
+        str | None, Query(max_length=64, description="Requerimiento pendiente que responde")
+    ] = None,
 ) -> EvidenciaDto:
     """El cuerpo es el archivo y `Content-Type` su tipo. 400 `formato_no_admitido`,
     `archivo_demasiado_grande` o `archivo_vacio`; 409 `siniestro_cerrado`; 503
     `almacenamiento_no_disponible`. La fecha de la cámara y la ubicación son opcionales; sin
-    permiso de ubicación, el cliente puede escribir el `lugar`."""
+    permiso de ubicación, el cliente puede escribir el `lugar`. Con `id_requerimiento`
+    responde un requerimiento pendiente (WEB-F06): 404 `requerimiento_no_encontrado`, 409
+    `requerimiento_ya_atendido`."""
     contenido = await _leer_con_tope(request)
     evidencia = await run_in_threadpool(
         servicio.adjuntar_evidencia,
@@ -135,6 +171,7 @@ async def adjuntar_evidencia(
         nombre_original,
         str(canal),
         Captura(tomada_en, latitud, longitud, lugar),
+        id_requerimiento,
     )
     return a_evidencia_dto(evidencia)
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.8.0
+  version: 0.11.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -12,11 +12,14 @@ info:
     - **WEB-F02** · Gestión del consentimiento Open Finance.
     - **WEB-F01** · Asistente de cotización con tarifa personalizada o estándar,
       explicación del precio y vigencia de la oferta.
-    - **WEB-F03** (rebanada) · Checkout: aceptar la oferta y pagarla contra la pasarela
-      simulada, sin cobro doble. La firma y la emisión llegan con el resto de WEB-F03.
+    - **WEB-F03** · Checkout: aceptar la oferta, pagarla contra la pasarela simulada sin
+      cobro doble, firmarla y recibir la póliza emitida con su documento.
     - **WEB-F13** · Inicio y cierre de sesión con la misma cuenta del registro en la app.
     - **WEB-F05** · Reporte de siniestros en tres pasos, idempotente, igual que en la app.
     - **MOB-F05** · Evidencia del siniestro: adjuntar, listar y descargar, igual que en la app.
+    - **WEB-F06** · Seguir el siniestro: estado actual, historial de eventos con su fecha y
+      requerimientos pendientes que se responden adjuntando evidencia, igual en los dos canales.
+    - **WEB-F04** · Mis pólizas: lista, detalle con coberturas y documento, igual que en la app.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -37,6 +40,8 @@ tags:
     description: Asistente de cotización (WEB-F01)
   - name: suscripciones
     description: Checkout de la oferta aceptada (WEB-F03)
+  - name: polizas
+    description: Pólizas del cliente y su documento (WEB-F03, WEB-F04)
   - name: siniestros
     description: Reporte de siniestros (WEB-F05)
 
@@ -408,14 +413,103 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /suscripciones/{id}/firma:
+    post:
+      tags: [suscripciones]
+      operationId: firmarSuscripcion
+      summary: Firma electrónicamente y emite la póliza
+      description: |
+        Con el pago aprobado, el cliente firma con el proveedor simulado y la póliza queda
+        emitida con su número y un documento descargable (criterio 4). Si el último pago estaba
+        `pendiente`, el BFF lo consulta antes de decidir.
+
+        Es idempotente: firmar una suscripción ya `emitida` responde 200 con la misma póliza.
+        Sin un pago aprobado responde 409 `pago_no_aprobado`; sin `acepta_condiciones: true`,
+        422 `aceptacion_requerida`. Si el proveedor de firma no responde, 503 y no se emite
+        nada: firmar otra vez es seguro.
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudFirma" }
+      responses:
+        "200":
+          description: Ya estaba emitida; es la misma póliza
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "201":
+          description: Firmada y emitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`pago_no_aprobado`: la suscripción no tiene un pago aprobado"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+        "503":
+          description: "`dependencia_no_disponible`: el proveedor de firma no respondió"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /polizas/{numero}:
+    get:
+      tags: [polizas]
+      operationId: obtenerPoliza
+      summary: Detalle de una póliza con coberturas, deducible y límites
+      description: |
+        WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: La póliza con sus condiciones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolizaDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas/{numero}/documento:
+    get:
+      tags: [polizas]
+      operationId: descargarDocumentoPoliza
+      summary: Documento PDF de una póliza emitida
+      description: |
+        El documento de la póliza (WEB-F03, criterio 4). Sale con la sesión del cliente; el
+        almacén es privado. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe; una póliza sin documento (las de prueba), 404
+        `documento_no_disponible`.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: "El PDF, como adjunto (`Content-Disposition: attachment`)"
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
   /polizas:
     get:
-      tags: [siniestros]
+      tags: [polizas]
       operationId: listarPolizas
-      summary: Pólizas del cliente, para elegir la afectada en el reporte de siniestro
+      summary: Pólizas del cliente, de la más reciente a la más antigua
       description: |
-        Resumen de cada póliza con su vigencia y estado. La consulta completa, con coberturas,
-        deducibles y documento, llega con WEB-F04 y amplía esta misma respuesta.
+        "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+        (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+        estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+        emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+        viene vacía y la interfaz lleva a cotizar (criterio 3).
       responses:
         "200":
           description: Pólizas del cliente, de la más reciente a la más antigua
@@ -502,15 +596,20 @@ paths:
     get:
       tags: [siniestros]
       operationId: obtenerSiniestro
-      summary: Detalle de un siniestro
+      summary: Detalle de un siniestro con su historial y sus requerimientos
+      description: |
+        WEB-F06. El estado actual es el mismo en la web y en la app (criterio 1) y un cambio en
+        el núcleo se ve al refrescar (criterio 2). `historial` trae los eventos con su fecha,
+        empezando por el reporte (criterio 4). `requerimientos` dice qué falta; el cliente
+        responde uno adjuntando evidencia con `id_requerimiento` (criterio 5).
       parameters:
         - $ref: "#/components/parameters/IdSiniestro"
       responses:
         "200":
-          description: Siniestro con su estado y siguiente paso
+          description: Siniestro con su estado, siguiente paso, historial y requerimientos
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Siniestro" }
+              schema: { $ref: "#/components/schemas/SiniestroDetalle" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
@@ -625,6 +724,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    NumeroPoliza:
+      name: numero
+      in: path
+      required: true
+      schema: { type: string, examples: [POL-2026-000001] }
 
   responses:
     NoAutenticado:
@@ -935,14 +1039,46 @@ components:
         prima_mensual: { $ref: "#/components/schemas/Dinero" }
         estado:
           type: string
-          enum: [aceptada, pagada]
-          description: "`pagada` cuando la pasarela aprobó el pago"
+          enum: [aceptada, pagada, emitida]
+          description: |
+            `pagada` cuando la pasarela aprobó el pago; `emitida` cuando el cliente firmó y la
+            póliza quedó emitida.
         aceptada_en: { type: string, format: date-time }
         pago:
           description: Último intento de pago; `null` si aún no se ha pagado
           oneOf:
             - $ref: "#/components/schemas/Pago"
             - type: "null"
+        firmada_en:
+          description: Cuándo firmó el cliente; `null` hasta firmar
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        poliza:
+          description: La póliza emitida; `null` hasta firmar
+          oneOf:
+            - $ref: "#/components/schemas/PolizaEmitida"
+            - type: "null"
+
+    SolicitudFirma:
+      type: object
+      required: [acepta_condiciones]
+      properties:
+        acepta_condiciones:
+          type: boolean
+          description: El cliente acepta expresamente las condiciones que firma; debe ser `true`
+
+    PolizaEmitida:
+      type: object
+      required: [numero, inicio, fin, documento_url]
+      properties:
+        numero: { type: string, examples: [POL-2026-000001] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        documento_url:
+          type: string
+          description: Ruta del documento PDF en este BFF
+          examples: [/api/v1/web/polizas/POL-2026-000001/documento]
 
     MedioPago:
       type: string
@@ -989,6 +1125,45 @@ components:
         inicio: { type: string, format: date, description: Primer día de cobertura }
         fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
         estado: { $ref: "#/components/schemas/EstadoPoliza" }
+        nombre_producto:
+          description: Nombre comercial del producto; `null` si el catálogo no lo tiene
+          oneOf:
+            - { type: string, examples: ["Seguro de Auto — Plan Full"] }
+            - type: "null"
+        prima_mensual:
+          description: Prima mensual; `null` si no se conoce
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        documento_url:
+          description: Ruta del PDF en este BFF; `null` si la póliza no tiene documento
+          oneOf:
+            - { type: string, examples: [/api/v1/web/polizas/POL-2026-000001/documento] }
+            - type: "null"
+
+    PolizaDetalle:
+      allOf:
+        - $ref: "#/components/schemas/PolizaResumen"
+        - type: object
+          required: [coberturas, deducible, valor_asegurado, emitida_en]
+          properties:
+            coberturas:
+              type: array
+              description: Coberturas con su límite
+              items: { $ref: "#/components/schemas/Cobertura" }
+            deducible:
+              oneOf:
+                - { type: string, examples: ["5% del valor asegurado"] }
+                - type: "null"
+            valor_asegurado:
+              oneOf:
+                - { type: string, examples: ["$60.000.000"] }
+                - type: "null"
+            emitida_en:
+              description: Cuándo se emitió; `null` en una póliza de prueba
+              oneOf:
+                - { type: string, format: date-time }
+                - type: "null"
 
     TipoEventoSiniestro:
       type: string
@@ -1003,12 +1178,18 @@ components:
 
     EstadoSiniestro:
       type: string
-      description: En el Sprint 2 todo siniestro está `reportado`; el seguimiento llega con WEB-F06.
+      description: |
+        Estado del caso (WEB-F06). `rechazado` y `pagado` son finales. Cada canal lo muestra con
+        su texto, nunca solo con color.
       enum: [reportado, en_evaluacion, requiere_informacion, aprobado, rechazado, pagado]
 
     SiguientePaso:
       type: string
-      description: Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+      description: |
+        Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+        `adjuntar_evidencia` en `reportado` y en `requiere_informacion` (ahí, para responder
+        los requerimientos pendientes); `esperar_evaluacion` en los demás. Un caso cerrado lo
+        explica su `estado`.
       enum: [adjuntar_evidencia, esperar_evaluacion]
 
     SolicitudSiniestro:
@@ -1060,6 +1241,65 @@ components:
         siguiente_paso: { $ref: "#/components/schemas/SiguientePaso" }
         canal: { type: string, enum: [web, movil] }
         reportado_en: { type: string, format: date-time }
+        estado_actualizado_en:
+          description: Último cambio de estado (WEB-F06); `null` mientras siga como se reportó
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+
+    SiniestroDetalle:
+      allOf:
+        - $ref: "#/components/schemas/Siniestro"
+        - type: object
+          required: [historial, requerimientos]
+          properties:
+            historial:
+              type: array
+              description: Eventos del caso, del más antiguo al más reciente; el primero es el reporte
+              items: { $ref: "#/components/schemas/EventoSiniestro" }
+            requerimientos:
+              type: array
+              description: Lo que se le pidió al cliente, pendiente o ya atendido
+              items: { $ref: "#/components/schemas/Requerimiento" }
+
+    EventoSiniestro:
+      type: object
+      required: [id, estado_anterior, estado, ocurrido_en, motivo]
+      properties:
+        id: { type: string }
+        estado_anterior:
+          description: "`null` en el evento del reporte"
+          oneOf:
+            - $ref: "#/components/schemas/EstadoSiniestro"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        ocurrido_en: { type: string, format: date-time }
+        motivo:
+          description: Explicación del cambio, si la hay
+          oneOf:
+            - type: string
+            - type: "null"
+
+    Requerimiento:
+      type: object
+      required: [id, descripcion, creado_en, pendiente, atendido_en, id_evidencia]
+      properties:
+        id: { type: string }
+        descripcion:
+          type: string
+          description: Qué falta, en palabras del ajustador
+          examples: [Factura de la reparación]
+        creado_en: { type: string, format: date-time }
+        pendiente: { type: boolean }
+        atendido_en:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        id_evidencia:
+          description: La evidencia con la que se respondió; `null` si sigue pendiente
+          oneOf:
+            - type: string
+            - type: "null"
 
     ErrorVigencia:
       allOf:
@@ -1093,6 +1333,13 @@ components:
           type: string
           maxLength: 200
           description: El lugar escrito por el cliente cuando no hay ubicación
+        id_requerimiento:
+          type: string
+          maxLength: 64
+          description: |
+            Requerimiento pendiente que esta evidencia responde (WEB-F06, criterio 5). Lo deja
+            atendido. 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+            `requerimiento_ya_atendido` si ya se respondió.
 
     Evidencia:
       type: object

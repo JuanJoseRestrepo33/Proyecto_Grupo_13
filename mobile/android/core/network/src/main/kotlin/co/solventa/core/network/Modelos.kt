@@ -116,6 +116,11 @@ data class ErrorBff(
     /** Solo con `evento_fuera_de_vigencia` (ErrorVigencia). */
     @SerialName("vigente_desde") val vigenteDesde: String? = null,
     @SerialName("vigente_hasta") val vigenteHasta: String? = null,
+    /**
+     * Con `clave_idempotencia_en_uso`, si el BFF la informa: el reporte que ya tiene la clave. El
+     * contrato 0.4.0 aún no la publica, así que puede faltar.
+     */
+    val referencia: String? = null,
 ) {
     companion object {
         // null si la respuesta no trae un cuerpo de error del contrato (p. ej. un proxy caído).

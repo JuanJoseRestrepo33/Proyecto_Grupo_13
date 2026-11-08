@@ -29,7 +29,7 @@ class TipoEvento(StrEnum):
 
 
 class EstadoSiniestro(StrEnum):
-    """Los estados del seguimiento (WEB-F06). En el Sprint 2 solo existe `reportado`."""
+    """Los estados del seguimiento (WEB-F06). Las transiciones están en `seguimiento.py`."""
 
     REPORTADO = "reportado"
     EN_EVALUACION = "en_evaluacion"
@@ -44,7 +44,11 @@ ESTADOS_CERRADOS = frozenset({EstadoSiniestro.RECHAZADO, EstadoSiniestro.PAGADO}
 
 
 class SiguientePaso(StrEnum):
-    """Qué le toca al cliente ahora. Cada canal lo dice con su propio texto."""
+    """Qué le toca al cliente ahora. Cada canal lo dice con su propio texto.
+
+    No se agregan valores: la app los deserializa como un enum cerrado. Un caso cerrado
+    (`aprobado`, `rechazado`, `pagado`) lo explica el estado mismo.
+    """
 
     ADJUNTAR_EVIDENCIA = "adjuntar_evidencia"
     ESPERAR_EVALUACION = "esperar_evaluacion"
@@ -84,9 +88,12 @@ class Siniestro:
     reportado_en: datetime
     estado: EstadoSiniestro = EstadoSiniestro.REPORTADO
     clave_idempotencia: str | None = None
+    #: Último cambio de estado (WEB-F06); None mientras siga como se reportó.
+    estado_actualizado_en: datetime | None = None
 
     @property
     def siguiente_paso(self) -> SiguientePaso:
-        if self.estado is EstadoSiniestro.REPORTADO:
+        """`requiere_informacion` también es adjuntar evidencia: es como se responde."""
+        if self.estado in (EstadoSiniestro.REPORTADO, EstadoSiniestro.REQUIERE_INFORMACION):
             return SiguientePaso.ADJUNTAR_EVIDENCIA
         return SiguientePaso.ESPERAR_EVALUACION

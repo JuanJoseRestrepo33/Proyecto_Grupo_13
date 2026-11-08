@@ -4,6 +4,9 @@ El reporte valida la vigencia contra el módulo de pólizas por su interfaz púb
 `SINIESTROS_DATABASE_URL` los siniestros viven en PostgreSQL, en el esquema propio del
 módulo; sin ella, en memoria (desarrollo y pruebas).
 
+`SINIESTROS_TOKEN_INTERNO` habilita la operación interna de cambio de estado (WEB-F06): sin
+ella, la ruta responde 404 como si no existiera. Se define en *staging*, nunca en producción.
+
 El almacén de evidencias se elige por `ALMACENAMIENTO_EVIDENCIAS`: `gcs` usa Cloud Storage con el
 bucket de `EVIDENCIAS_BUCKET`; `local` (por defecto) usa memoria, que es lo que usan el
 desarrollo local y las pruebas.
@@ -11,10 +14,14 @@ desarrollo local y las pruebas.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from collections.abc import Mapping
 
+from fastapi import Header
+
+from app.compartido.errores import NoAutenticado, RecursoNoEncontrado
 from app.compartido.eventos import obtener_bus
 from app.compartido.modulo import EstadoDeDependencia
 from app.compartido.reloj import Reloj, RelojDelSistema
@@ -32,6 +39,7 @@ from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
 VARIABLE_ALMACENAMIENTO = "ALMACENAMIENTO_EVIDENCIAS"
 VARIABLE_BUCKET = "EVIDENCIAS_BUCKET"
 VARIABLE_DSN = "SINIESTROS_DATABASE_URL"
+VARIABLE_TOKEN_INTERNO = "SINIESTROS_TOKEN_INTERNO"
 
 log = logging.getLogger(__name__)
 
@@ -124,3 +132,14 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
         EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
         _estado_almacen(),
     )
+
+
+def exigir_token_interno(
+    token: str | None = Header(default=None, alias="X-Token-Interno"),
+) -> None:
+    """La operación interna existe solo con la variable definida, y exige el mismo token."""
+    esperado = os.environ.get(VARIABLE_TOKEN_INTERNO)
+    if not esperado:
+        raise RecursoNoEncontrado("La operación no existe")
+    if not token or not hmac.compare_digest(token.encode(), esperado.encode()):
+        raise NoAutenticado("Token interno inválido")

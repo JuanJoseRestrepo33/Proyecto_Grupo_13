@@ -175,6 +175,17 @@ fun Mensaje(texto: String, modifier: Modifier = Modifier, esError: Boolean = tru
     )
 }
 
+/** «Sin conexión», arriba de la pantalla: se anuncia al aparecer. */
+@Composable
+fun AvisoSinConexion(modifier: Modifier = Modifier) {
+    Text(
+        stringResource(R.string.sin_conexion),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.testTag("sin-conexion").semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}
+
 @Composable
 fun Cargando(texto: String, modifier: Modifier = Modifier) {
     Column(

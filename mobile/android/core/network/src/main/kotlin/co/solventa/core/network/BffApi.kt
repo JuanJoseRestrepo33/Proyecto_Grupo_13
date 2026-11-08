@@ -13,6 +13,7 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Tag
 
 // Cliente del contrato contratos/bff-movil/openapi.yaml. Las rutas son relativas al prefijo
 // /api/v1/movil/ de BuildConfig.BASE_URL. Un error HTTP llega como retrofit2.HttpException;
@@ -68,12 +69,20 @@ interface BffApi {
     @GET("polizas")
     suspend fun listarPolizas(): List<PolizaResumen>
 
+    // [duenio] ata la llamada a la cuenta que guardó el borrador (MOB-F05-02): InterceptorDuenio la
+    // aborta si la sesión vigente es de otra. Las pantallas en línea no la pasan.
+
     /** La misma [claveIdempotencia] en un reintento devuelve el mismo siniestro (200), no otro. */
     @POST("siniestros")
     suspend fun reportarSiniestro(
         @Header("Idempotency-Key") claveIdempotencia: String,
         @Body solicitud: SolicitudSiniestro,
+        @Tag duenio: DuenioSolicitud? = null,
     ): Siniestro
+
+    /** Siniestros del cliente desde cualquier canal, del más reciente al más antiguo. */
+    @GET("siniestros")
+    suspend fun listarSiniestros(@Tag duenio: DuenioSolicitud? = null): List<Siniestro>
 
     // ── Evidencia (MOB-F05) ────────────────────────────────────────────────────────────────────
     // Contrato bff-movil 0.4.0. El BFF toma `nombre_original` del nombre de archivo de [archivo].
@@ -90,13 +99,21 @@ interface BffApi {
         @Part("latitud") latitud: RequestBody?,
         @Part("longitud") longitud: RequestBody?,
         @Part("lugar") lugar: RequestBody?,
+        @Tag duenio: DuenioSolicitud? = null,
     ): Evidencia
 
     @GET("siniestros/{id}/evidencias")
-    suspend fun listarEvidencias(@Path("id") idSiniestro: String): List<Evidencia>
+    suspend fun listarEvidencias(
+        @Path("id") idSiniestro: String,
+        @Tag duenio: DuenioSolicitud? = null,
+    ): List<Evidencia>
 }
 
 fun parteArchivo(archivo: File, nombre: String, tipoContenido: String): MultipartBody.Part =
     MultipartBody.Part.createFormData("archivo", nombre, archivo.asRequestBody(tipoContenido.toMediaType()))
+
+/** Archivo cuyo contenido escribe [cuerpo] (p. ej. descifrándolo en flujo, sin copia en claro). */
+fun parteArchivo(cuerpo: RequestBody, nombre: String): MultipartBody.Part =
+    MultipartBody.Part.createFormData("archivo", nombre, cuerpo)
 
 fun parteTexto(valor: String?): RequestBody? = valor?.toRequestBody("text/plain".toMediaType())

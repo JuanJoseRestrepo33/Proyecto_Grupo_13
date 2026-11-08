@@ -129,7 +129,7 @@ class SolventaAppTest {
             tokenAcceso = { null },
         )
         var sesionVencida = false
-        val dependencias = DependenciasSiniestros(api)
+        val dependencias = DependenciasSiniestros(api, enviadorDePrueba(api) { null })
         compose.setContent {
             SolventaTheme {
                 SolventaApp(dependenciasSiniestros = dependencias, onSesionVencida = { sesionVencida = true })

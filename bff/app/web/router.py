@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import consentimientos, cotizaciones, evidencias, sesion, siniestros
+from . import consentimientos, cotizaciones, evidencias, polizas, sesion, siniestros, suscripciones
 from .dependencias import PREFIJO
 
 router = APIRouter(prefix=PREFIJO)
 router.include_router(sesion.router)
 router.include_router(cotizaciones.router)
+router.include_router(suscripciones.router)
 router.include_router(consentimientos.router)
 router.include_router(siniestros.router)
-router.include_router(siniestros.router_polizas)
+router.include_router(polizas.router)
 router.include_router(evidencias.router)

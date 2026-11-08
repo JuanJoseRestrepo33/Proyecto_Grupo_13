@@ -21,9 +21,22 @@ class GestorSesion(private val almacen: AlmacenToken? = null) : SesionBff {
     // este candado para que una copia vieja no restaure un token de refresco ya consumido.
     private val candado = Any()
 
+    /**
+     * Avisa cuando cambia la cuenta (otra cuenta, cierre o vencimiento), no en cada renovación. [antes]
+     * corre antes de reemplazar la sesión: el envío en segundo plano se detiene sin ver la nueva.
+     */
+    var observador: ObservadorCuenta? = null
+
     @Volatile
     var sesion: Sesion? = null
-        set(valor) = synchronized(candado) { field = valor }
+        set(valor) {
+            val anterior = field?.cliente?.id
+            val nuevo = valor?.cliente?.id
+            val cambia = anterior != nuevo
+            if (cambia) observador?.antes(nuevo)
+            synchronized(candado) { field = valor }
+            if (cambia) observador?.despues(nuevo)
+        }
 
     /** La sesión venció y no se pudo renovar: la navegación vuelve a Ingreso y lo consume. */
     var vencida by mutableStateOf(false)
@@ -36,6 +49,8 @@ class GestorSesion(private val almacen: AlmacenToken? = null) : SesionBff {
     override val tokenAcceso: String? get() = sesion?.tokenAcceso
 
     override val tokenRefresco: String? get() = sesion?.tokenRefresco
+
+    override val clienteId: String? get() = sesion?.cliente?.id
 
     val identidadVerificada: Boolean get() = sesion?.cliente?.estadoIdentidad == EstadoIdentidad.VERIFICADA
 
@@ -60,6 +75,12 @@ class GestorSesion(private val almacen: AlmacenToken? = null) : SesionBff {
         vencida = true
     }
 
+    /** El cliente cierra sesión: la navegación vuelve a Ingreso. La huella sigue activa para volver a entrar. */
+    fun cerrar() {
+        sesion = null
+        vencida = true
+    }
+
     fun vencimientoAtendido() {
         vencida = false
     }
@@ -71,4 +92,11 @@ class GestorSesion(private val almacen: AlmacenToken? = null) : SesionBff {
     fun avisoBiometriaAtendido() {
         biometriaDesactivada = false
     }
+}
+
+/** Lo que la app hace al cambiar de cuenta; [antes] y [despues] reciben el `cliente.id` nuevo o null. */
+interface ObservadorCuenta {
+    fun antes(nuevoCliente: String?)
+
+    fun despues(cliente: String?)
 }

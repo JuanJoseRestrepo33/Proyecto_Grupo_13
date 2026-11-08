@@ -1,4 +1,4 @@
-# WEB-F05 y MOB-F05 · Reporte de siniestros y evidencia en la app
+# WEB-F05, MOB-F05 y MOB-F05-02 · Reporte de siniestros, evidencia y reporte sin conexión en la app
 
 Asistente para que el cliente asegurado reporte un siniestro desde Android y termine con el número de
 referencia y el siguiente paso de su caso. Usa las mismas rutas, la misma referencia y la misma clave de
@@ -42,9 +42,8 @@ crea el ViewModel, y `PantallaReporte`/`PantallaConfirmacion`, sin estado propio
   **pendiente**. El reintento usa la misma clave y los mismos datos, y el BFF responde con el mismo
   siniestro. Mientras está pendiente no se pueden cambiar los datos: con otros datos, la misma clave
   daría `clave_idempotencia_en_uso` y una clave nueva crearía un duplicado si el primer envío sí llegó.
-- `409 clave_idempotencia_en_uso`: se genera una clave nueva y se pide confirmar el envío otra vez.
-- Los rechazos con código (`404`, `409 evento_fuera_de_vigencia`, `422`) son definitivos: el núcleo
-  valida antes de registrar, así que se pueden corregir los datos y reenviar.
+- Desde MOB-F05-02 todo envío pasa por un borrador cifrado: el detalle de los reintentos, la clave en
+  uso y los rechazos está en [Reporte sin conexión](#reporte-sin-conexión-mob-f05-02).
 
 ## Evidencia (MOB-F05)
 
@@ -125,8 +124,150 @@ no dependen entre sí; si un tercer módulo los necesita, conviene moverlos a `c
   `PasoEvidenciaTest` con Robolectric. `CompresorVideo`, `PantallaCamara` y `LectorUbicacionAndroid`
   dependen del dispositivo y se prueban a mano o en el E2E (#179).
 
+## Reporte sin conexión (MOB-F05-02)
+
+El cliente reporta aunque no tenga señal. «Enviar reporte» guarda primero un **borrador cifrado** en el
+teléfono, con o sin red, y después lo envía. Si no hay red, o si la respuesta no llega, la app lo
+reintenta sola con la **misma** `Idempotency-Key`: un reenvío nunca crea un segundo siniestro. El
+resultado es el de un reporte en línea: una referencia `SIN-AAAA-NNNNNN` que también se ve en la web.
+
+```text
+Revisión ──Enviar──▶ guardar borrador cifrado (clave + datos + manifiesto)
+                        │ falla la escritura ──▶ M15 «No pudimos guardar» (sigue en la revisión)
+                        ▼
+                  ¿hay red? ──no──▶ M4a «Guardado» ──▶ Inicio: ESPERANDO_CONEXION (M5)
+                        │ sí                                  │ vuelve la red · ingreso · abrir la app
+                        ▼                                     ▼
+                     ENVIANDO (uno a la vez, con la sesión del dueño) ◀┘
+     ┌──────────────┬──────────────────┬──────────────────┬───────────────────────────┐
+  201 / 200     sin red · timeout    401 sin renovar   404 · 409 vigencia · 422    409 clave en uso
+     ▼          · 5xx (incierto)         ▼                   │                          │
+ REPORTADO          ▼              M12 «Ingresa…»   ¿hubo intento incierto?             │
+ (id + ref)    M4b / espera,                        no ─▶ REQUIERE_ATENCION (M9)        │
+     ▼         misma clave                          sí ─▶ POR_CONCILIAR (M10) ◀─────────┘
+ SUBIENDO_EVIDENCIA                                        listarSiniestros:
+ (concilia con listarEvidencias)                            encontrado ─▶ REPORTADO
+     ▼                                                      no ─▶ REQUIERE_ATENCION
+ ENVIADO ─▶ se borra el borrador; queda {referencia, enviado_en} ─▶ M7 hasta «Entendido»
+```
+
+| Pieza | Qué resuelve | Criterios |
+|---|---|---|
+| `AlmacenBorradoresCifrado` | Borradores en `noBackupFilesDir/borradores/<cliente.id>/<id>/`: `borrador.bin` (manifiesto) y un `<adjunto>.bin` por archivo, más la caché de pólizas y los registros enviados. Escritura atómica (temporal, `fsync` y `rename`). JVM puro. | 1, 6, 10–12 |
+| `CifradoAesGcm` · `LlaveKeystore` | AES-256-GCM en flujo, con un IV por archivo, y la llave `solventa.borradores` del Android Keystore. | 6, 11 |
+| `EnviadorBorradores` | Estados, envío al reconectar, esperas, conciliación, evidencia y tarjetas de Inicio. Alcance de aplicación (vive en `Proceso`, en `MainActivity`). | 1, 3–5, 7–9, 12 |
+| `MonitorConectividad` | `NetworkCallback` de la red por defecto con `NET_CAPABILITY_VALIDATED`, detrás de un puerto. | 3 |
+| `Conciliacion.kt` | Clasifica la respuesta del `POST` y busca en `listarSiniestros` el reporte de un intento anterior. | 4, 8 |
+| `TarjetasBorradores` · `PantallaGuardado` | Tarjetas de Inicio (M5–M14) y «Reporte guardado» (M4a y M4b). | 1, 3, 5, 7–9, 11, 13 |
+| `InterceptorDuenio` (`core/network`) | Cada solicitud del borrador lleva la etiqueta `DuenioSolicitud`; si la sesión vigente es de otra cuenta, no sale. | 9 |
+
+### Estados
+
+`ESPERANDO_CONEXION` → `ENVIANDO` → `REPORTADO` (el id y la referencia se guardan **antes** de subir la
+evidencia) → `SUBIENDO_EVIDENCIA` → `ENVIADO`. Además: `REQUIERE_ATENCION`, `POR_CONCILIAR` e `ILEGIBLE`
+(este último no se guarda: es lo que se muestra de un borrador que no se puede descifrar). Cada
+transición se escribe en disco antes de seguir, así que tras la muerte del proceso o un reinicio se
+retoma desde donde quedó:
+
+- Un borrador en `ENVIANDO` es un intento que quizá llegó: se reintenta como incierto, con su clave.
+- Un borrador en `SUBIENDO_EVIDENCIA` se concilia con `listarEvidencias` antes de seguir, con los mismos
+  `nombre_original`.
+
+### Envío, esperas y exclusión mutua
+
+- El enviador procesa los borradores del cliente con sesión al volver la red, al ingresar y al abrir la
+  app con sesión. Uno a la vez y en orden de creación; un solo `Mutex` serializa el envío, la subida de
+  evidencia, el descarte y la corrección (por eso la tarjeta no ofrece «Descartar» mientras envía).
+- Sin red, con tiempo agotado o con un 5xx sin código del contrato, el intento queda **incierto** y se
+  reintenta con la misma clave y los mismos datos tras 30 s, 1, 2, 5 y 10 min, mientras la red siga
+  arriba. La espera vuelve a empezar cuando la red regresa.
+- El primer envío desde el asistente corre en el alcance de la app y reserva su borrador: si hay red y el
+  BFF responde 201/200 se muestra la confirmación de #169 y la evidencia sigue subiendo con el enviador,
+  aunque el cliente salga.
+
+### Rechazos y conciliación
+
+El núcleo valida fecha, póliza y vigencia **antes** de resolver la idempotencia
+(`backend/app/modulos/siniestros/aplicacion/servicio.py`). Un rechazo no prueba que un intento anterior
+no haya registrado el siniestro:
+
+- **Sin intento incierto previo** → `REQUIERE_ATENCION`. «Revisar» abre el asistente en el paso afectado
+  con el aviso de #169, y al enviar se reemplazan los datos del mismo borrador con una **clave nueva**.
+- **Con intento incierto previo** → `POR_CONCILIAR`. Se conservan la clave y los datos, y se busca en
+  `listarSiniestros` uno con la misma póliza, tipo, fecha, descripción y monto, `canal: movil`, reportado
+  desde la creación del borrador (con un día de margen por el reloj del teléfono). Si lo encuentra, pasa
+  a `REPORTADO` con esa referencia; si no, a `REQUIERE_ATENCION`; si no puede consultar, sigue por
+  conciliar y lo vuelve a intentar. Mientras tanto no se ofrece corregir con una clave nueva.
+- **`409 clave_idempotencia_en_uso`**: no se rota la clave; el borrador pasa a `POR_CONCILIAR`. Si el BFF
+  informa la `referencia`, la tarjeta la muestra (el contrato 0.4.0 aún no la publica: el campo es
+  opcional en `ErrorBff`).
+
+### Cifrado en reposo (RC-04)
+
+- Llave AES-256-GCM `solventa.borradores` del Android Keystore. No exige autenticación del usuario ni
+  `setUnlockedDeviceRequired`: el envío puede ocurrir con la pantalla bloqueada, y la misma política vale
+  desde API 26. La protección viene del aislamiento de la app, de la llave ligada al Keystore (por
+  hardware cuando el equipo lo tiene) y de que `noBackupFilesDir` queda fuera de las copias de seguridad.
+- Cada archivo lleva su IV: `versión · largo del IV · IV · texto cifrado y etiqueta`. Un archivo alterado
+  no se descifra.
+- Al confirmarse el guardado, los archivos de `cacheDir/evidencias` pasan al almacén cifrado y se borran
+  de la caché, y el `SavedStateHandle` del asistente queda solo con el identificador opaco del borrador
+  (la confirmación guarda referencia, estado y siguiente paso, sin póliza ni descripción).
+- La evidencia se sube con un `RequestBody` que descifra en flujo mientras escribe en el socket: no queda
+  copia en claro en disco. Antes de subir un archivo se verifica que se pueda descifrar entero.
+- Errores **temporales** (`KeyStoreException`, E/S): el borrador se conserva y se reintenta. Errores
+  **permanentes** (sin llave, `KeyPermanentlyInvalidatedException`, `AEADBadTagException`): queda
+  ilegible, Inicio lo explica (M14) y solo se elimina si el cliente lo decide.
+
+### Pólizas sin conexión
+
+Se guarda cifrada la última lista de `GET /polizas` que cargó bien, por cliente y con su fecha. Sin red,
+el paso 1 la muestra con «Última actualización: …» (M1); si no hay lista, explica que hace falta
+conexión una vez (M2). La vigencia la valida el BFF al enviar.
+
+### Sesión y aislamiento
+
+- Borradores, caché de pólizas y registros enviados están separados por `cliente.id`.
+- `GestorSesion` avisa a su `ObservadorCuenta` cuando cambia la cuenta: el enviador se detiene **antes**
+  de reemplazar la sesión y empieza con la cuenta nueva **después**. Además, cada solicitud lleva la
+  etiqueta `DuenioSolicitud`, e `InterceptorDuenio` la compara con la sesión vigente antes de enviarla y
+  otra vez en el intento que repite el autenticador tras renovar.
+- Perfil ofrece «Cerrar sesión»; con borradores pendientes avisa que siguen guardados y cifrados para esa
+  cuenta (M13).
+
+### Límite de la evidencia
+
+`POST /siniestros/{id}/evidencias` no tiene clave de idempotencia y el backend no valida que el nombre
+sea único. Si un `POST` anterior sigue en proceso cuando el `GET` todavía no lo muestra, podría quedar un
+duplicado. Una garantía estricta necesita soporte del servidor (fuera de alcance).
+
+### Por qué el envío depende de la sesión (y no de WorkManager)
+
+Mientras el proceso vive, la sesión está en memoria (`GestorSesion`) y `RenovadorSesion` renueva el token
+sin interacción. Si el proceso muere, la sesión se pierde, y el token de refresco guardado solo se lee con
+biometría (`AlmacenTokenKeystore`): un *worker* en un proceso nuevo no tendría sesión. Por eso el envío
+autónomo se garantiza **mientras la app tiene sesión**, aunque esté en segundo plano. Si el proceso murió,
+se reanuda en cuanto el cliente vuelve a ingresar, sin reescribir ni reenviar el reporte. Ningún texto de
+la app promete un envío con la app cerrada.
+
+### Pruebas del reporte sin conexión
+
+- **JVM** (`src/test/.../borrador`): `AlmacenBorradoresCifradoTest` (AES-GCM de la JCA, texto alterado,
+  sin llave, error temporal, escritura fallida, orden y separación por cliente), `ConciliacionTest` y
+  `EnviadorBorradoresTest` con `BffApi`, `MonitorConectividad` y un puerto criptográfico falsos: guardado
+  antes del primer `POST`, fallo de escritura, misma clave en cada reintento, muerte del proceso en
+  `ENVIANDO` y en `SUBIENDO_EVIDENCIA`, rechazos con y sin intento incierto, conciliación (encontrado, no
+  encontrado y sin red), clave en uso sin rotar, esperas, orden, exclusión mutua y cambio de cuenta.
+- **Compose + Robolectric**: «Reporte guardado» (las dos variantes), «No pudimos guardar», pólizas sin
+  conexión y tarjetas de Inicio (`TarjetasBorradoresTest`); en `app`, el recorrido sin red → al volver la
+  red Inicio muestra la referencia, y cerrar sesión con un pendiente (`SolventaRaizTest`).
+- **Instrumentada** (`src/androidTest`): `AlmacenKeystoreTest` con el Keystore real (cifrar y descifrar,
+  archivo alterado, pantalla bloqueada y caché sin archivos en claro). Correr en emulador con API 26 y 34:
+  `./gradlew :feature:siniestros:connectedDebugAndroidTest`.
+
 ## Fuera de alcance
 
-Servicio de reporte y rutas del BFF (#135, #168), reporte sin conexión con borrador cifrado
-(MOB-F05-02), «Mis siniestros» (WEB-F06), E2E en emulador contra *staging* (#172) y el
-asistente web (#132).
+Servicio de reporte y rutas del BFF (#135, #168), «Mis siniestros» (WEB-F06), E2E en emulador contra
+*staging* (#172, y el del reporte sin conexión en #213), el asistente web (#132), la guía de usuario del
+reporte sin conexión (#214), el envío con la app cerrada y sin sesión, una pantalla de detalle del
+borrador y una clave de idempotencia para la evidencia.
