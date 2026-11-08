@@ -77,6 +77,7 @@ def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
         "consentimiento",
         "cotizacion",
         "identidad",
+        "pagos",
         "perfilamiento",
         "polizas",
         "siniestros",
@@ -99,7 +100,7 @@ def test_salud_reporta_cada_modulo_y_cada_dependencia(cliente):
     assert cuerpo["estado"] == "ok"
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["cotizacion"]["estado"] == "ok"
-    assert cuerpo["modulos"]["pagos"]["estado"] == "esqueleto"
+    assert cuerpo["modulos"]["socios"]["estado"] == "esqueleto"
     dependencias = cuerpo["modulos"]["cotizacion"]["dependencias"]
     assert dependencias["repositorio_cotizaciones"]["estado"] == "simulado"
     assert cuerpo["dependencias"]["perfilamiento"]["usada_por"] == ["cotizacion"]
