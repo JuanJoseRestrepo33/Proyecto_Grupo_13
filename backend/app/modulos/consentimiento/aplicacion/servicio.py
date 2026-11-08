@@ -115,6 +115,20 @@ class ServicioDeConsentimiento:
                 return EstadoDeConsentimiento(True, consentimiento.id_consentimiento)
         return EstadoDeConsentimiento(False)
 
+    def esta_vigente(self, id_cliente: str, id_consentimiento: str) -> bool:
+        """Si ese consentimiento del cliente sigue vigente ahora (ARQ-05).
+
+        Lo pregunta perfilamiento antes de servir un perfil de su caché local. Es una sola
+        lectura por id, sin cerrojo ni escritura, para que su costo en el camino de la
+        cotización sea el mínimo; con PostgreSQL, todas las réplicas ven la misma respuesta.
+        """
+        consentimiento = self._repositorio.obtener(id_consentimiento)
+        return (
+            consentimiento is not None
+            and consentimiento.id_cliente == id_cliente
+            and consentimiento.vigente(self._reloj.ahora())
+        )
+
     # --- transiciones -------------------------------------------------------------------
 
     def otorgar(
