@@ -53,6 +53,12 @@ def _componentes() -> tuple[ServicioDePagos, RepositorioPagos, PasarelaSimulada]
     return servicio, repositorio, pasarela
 
 
+def validar_configuracion() -> None:
+    """Revisa las variables `PASARELA_*` al armar el núcleo: un valor inválido impide arrancar,
+    en vez de fallar en la primera solicitud (y en `/salud`)."""
+    PasarelaSimulada.desde_entorno(os.environ)
+
+
 def obtener_servicio() -> ServicioDePagos:
     return _componentes()[0]
 

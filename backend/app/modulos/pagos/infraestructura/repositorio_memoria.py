@@ -7,6 +7,7 @@ repositorio en PostgreSQL: dos intentos simultáneos no pueden quedar los dos ac
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 
 from ..dominio.modelo import Pago
 
@@ -43,3 +44,9 @@ class RepositorioEnMemoria:
         # Los dict conservan el orden de inserción: es el orden de llegada de los intentos.
         with self._cerrojo:
             return tuple(p for p in self._por_id.values() if p.concepto == concepto)
+
+    def ultimos(self, conceptos: Sequence[str]) -> dict[str, Pago]:
+        buscados = set(conceptos)
+        with self._cerrojo:
+            # El último en el orden de inserción pisa a los anteriores.
+            return {p.concepto: p for p in self._por_id.values() if p.concepto in buscados}
