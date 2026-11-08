@@ -1002,8 +1002,8 @@ gcloud run services update solventa-nucleo --region=<GCP_REGION>   --update-env-
 
 *Aprovisionar ambiente* hace todo esto. Sin permiso de borrar: si dos réplicas emiten a la vez la
 misma suscripción, el núcleo intenta borrar el PDF de la que perdió (`almacen.borrar`). Ese borrado
-falla con 403 y esa solicitud responde error aunque la póliza sí quedó emitida; el reintento la
-devuelve (la emisión es idempotente) y el PDF huérfano queda en el bucket sin ligarse a nada.
+falla con 403, pero es solo limpieza: queda un aviso en el log y la solicitud responde normal con la
+póliza ganadora. El PDF huérfano queda en el bucket sin ligarse a nada.
 
 ### 8. Siniestros y pólizas de prueba (WEB-F05)
 
