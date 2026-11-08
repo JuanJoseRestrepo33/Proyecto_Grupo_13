@@ -174,6 +174,42 @@ def test_la_emision_que_pierde_la_carrera_no_deja_su_pdf(almacen, auditoria):
     assert almacen.leer("polizas/SUS-1/POL-2026-000001.pdf") is None
 
 
+def test_si_el_almacen_no_deja_borrar_el_pdf_huerfano_la_emision_sigue(almacen, auditoria, caplog):
+    """El bucket de documentos no da permiso de borrar: la limpieza falla sin tumbar la firma."""
+
+    def sin_permiso(_id_documento):
+        raise AlmacenDeDocumentosNoDisponibleError("403")
+
+    almacen.borrar = sin_permiso
+    repositorio = RepositorioEnMemoria()
+    servicio = ServicioDePolizas(
+        repositorio,
+        RelojFijo(INSTANTE),
+        almacen=almacen,
+        generador=GeneradorPdf(),
+        auditoria=auditoria,
+    )
+    ganadora = Poliza(
+        "POL-2026-000099",
+        CLIENTE,
+        "auto",
+        date(2026, 11, 8),
+        date(2027, 11, 7),
+        id_suscripcion="SUS-1",
+        id_documento="polizas/SUS-1/POL-2026-000099.pdf",
+    )
+    original = repositorio.por_suscripcion
+    repositorio.por_suscripcion = lambda _id: None
+    repositorio.guardar(ganadora)
+
+    with caplog.at_level("WARNING"):
+        poliza, nueva = servicio.emitir(SOLICITUD)
+    repositorio.por_suscripcion = original
+
+    assert not nueva and poliza.numero == "POL-2026-000099"
+    assert "huérfano" in caplog.text
+
+
 def test_emisiones_simultaneas_dejan_una_sola_poliza(servicio, auditoria):
     with ThreadPoolExecutor(8) as hilos:
         polizas = list(hilos.map(lambda _: servicio.emitir(SOLICITUD)[0], range(8)))
