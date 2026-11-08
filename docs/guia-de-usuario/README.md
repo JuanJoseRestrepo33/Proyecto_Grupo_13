@@ -32,7 +32,7 @@ También puedes abrirla en tu equipo: desde la carpeta del proyecto ejecuta `pyt
 
 **Ambiente de pruebas (*staging*).** Las secciones 1, 3, 4 y 8 describen la web real, desplegada
 en [https://solventa-web-6y7n6dblla-ue.a.run.app](https://solventa-web-6y7n6dblla-ue.a.run.app), y
-las secciones 14, 15 y 16, la app real. Ahí entras con una cuenta creada en la app (sección 14); no
+las secciones 14, 15 y 16 y *Reportar sin señal* (sección 19), la app real. Ahí entras con una cuenta creada en la app (sección 14); no
 hay usuario de ejemplo. La verificación de identidad y las consultas a tu banco siguen siendo
 simuladas.
 
@@ -351,6 +351,34 @@ pulsas dos veces o se cae la conexión, no queda un reporte repetido.
 - **Después del reporte:** agrega evidencia desde el siniestro. La que adjuntes en la app se ve en
   la web, y al revés.
 
+### Reportar sin señal
+
+Puedes reportar aunque no tengas conexión en el lugar del evento. La app guarda el reporte y su
+evidencia **cifrados en tu teléfono** y los envía sola cuando vuelve la red.
+
+1. **Antes, una vez con conexión.** Para reportar sin señal, la app debe haber consultado tus pólizas
+   al menos una vez en ese teléfono. Si no lo ha hecho, verás *Necesitas conexión una vez*.
+2. **Sin conexión.** En la lista de pólizas verás *Sin conexión* y la *Última actualización*. La
+   app no puede confirmar la vigencia en ese momento: la revisamos al enviar.
+3. **Enviar.** En la revisión te avisamos que guardaremos el reporte en tu teléfono. Al pulsar
+   **Enviar reporte** verás *Reporte guardado en tu teléfono*, con cuántos archivos de evidencia se
+   guardaron.
+4. **Cuando vuelve la red.** En **Inicio**, la tarjeta *Reporte pendiente de envío* dice *Esperando
+   conexión* y luego *Enviando tu reporte…*, con el avance de la evidencia. Al final verás **Reporte
+   enviado** con el **número de referencia**, el mismo que verás en la web.
+
+**Nunca queda un reporte repetido.** Si el envío se corta a la mitad, la app lo intenta de nuevo con
+la misma identificación, y si un envío anterior sí llegó, lo reconoce (*Estamos confirmando tu
+reporte*). Mientras haya un reporte por confirmar, no puedes empezar otro.
+
+**Si cierras sesión** con reportes sin enviar, te avisamos: siguen guardados y cifrados en el
+teléfono y se envían cuando vuelvas a ingresar con la misma cuenta. Otra cuenta no puede verlos. Si
+tu sesión vence, la tarjeta te pide **Ingresar** para enviarlo.
+
+**Si el reporte necesita revisión** (por ejemplo, la póliza no cubría la fecha del evento), la
+tarjeta dice *Tu reporte necesita revisión*: pulsa **Revisar** para corregirlo o **Descartar** para
+borrarlo del teléfono sin enviarlo.
+
 ## 20. Asistencia en sitio
 
 | Permiso de ubicación | Asistencia en camino |
@@ -408,6 +436,11 @@ Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punt
 | *…: este formato no se admite.* / *…: pesa … y el máximo es 10 MB.* | La evidencia no es JPEG, PNG, HEIC, MP4 o PDF, o pesa más de 10 MB. | Usa otro archivo o reduce su tamaño. |
 | *…: no se adjuntó porque el almacén de evidencias no respondió.* | No pudimos guardar el archivo en ese momento. El reporte sí quedó. | Agrégala después desde **Evidencias**. |
 | *Requiere conexión* | Estás sin internet. | Vuelve a intentarlo cuando tengas conexión. |
+| *Necesitas conexión una vez* (app) | La app nunca consultó tus pólizas en este teléfono, así que no puede reportar sin señal. | Conéctate un momento y abre el reporte; después podrás reportar sin señal. |
+| *Reporte guardado en tu teléfono* (app) | No hay conexión: el reporte quedó cifrado en el teléfono. | Nada: se envía solo cuando vuelva la red, mientras tengas la sesión abierta. |
+| *Ingresa para enviar tu reporte pendiente* (app) | Tu sesión terminó y hay un reporte guardado. | Pulsa **Ingresar**; el reporte se envía al entrar. |
+| *No podemos leer un reporte guardado* (app) | La protección del teléfono cambió y el borrador ya no se puede abrir. | Si no llegó a enviarse, pulsa **Reportar de nuevo**. |
+| *No pudimos guardar tu reporte en el teléfono…* (app) | El teléfono no tiene espacio. No se envió nada y tus datos siguen en la pantalla. | Libera espacio e inténtalo de nuevo. |
 | *403 · Acceso denegado* (socios) | La póliza no pertenece a tu organización. | Verifica el número; solo ves pólizas de tu canal. |
 | *No tienes permisos para ver esta sección.* | Tu usuario no tiene ese rol. | Ingresa con el usuario correspondiente. |
 

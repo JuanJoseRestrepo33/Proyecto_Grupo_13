@@ -5,6 +5,54 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
+## [0.11.0] · 2026-11-08 · WEB-F06
+
+Compatible: los campos nuevos son opcionales o solo de respuesta, y los enums de estado y de
+siguiente paso no cambian.
+
+### Agregado
+
+- `GET /siniestros/{id}` responde `SiniestroDetalle`: el siniestro con su `historial` (eventos del
+  más antiguo al más reciente; el primero es el reporte) y sus `requerimientos`, pendientes o ya
+  atendidos, con la evidencia que los respondió.
+- `Siniestro.estado_actualizado_en`: último cambio de estado; `null` mientras siga como se reportó.
+- `POST /siniestros/{id}/evidencias` acepta `id_requerimiento` para responder un requerimiento
+  (criterio 5). Errores: 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+  `requerimiento_ya_atendido` si ya se respondió.
+- Esquemas `SiniestroDetalle`, `EventoSiniestro` y `Requerimiento`.
+
+## [0.10.0] · 2026-11-08 · WEB-F04
+
+Compatible: los campos nuevos de `PolizaResumen` son opcionales.
+
+### Agregado
+
+- `GET /polizas/{numero}`: detalle de la póliza (`PolizaDetalle`) con coberturas y su límite,
+  deducible, valor asegurado y fecha de emisión (`null` en una póliza de prueba). Una póliza de
+  otro cliente responde 404 `poliza_no_encontrada`, igual que una que no existe.
+- `PolizaResumen` suma `nombre_producto`, `prima_mensual` y `documento_url` (`null` si la póliza
+  no tiene documento).
+- Esquema `Cobertura`. Las rutas de pólizas pasan a su propia etiqueta, `polizas`.
+
+## [0.9.0] · 2026-11-08 · WEB-F03
+
+Compatible: la suscripción suma un estado y campos opcionales; los mocks de la web siguen siendo
+válidos.
+
+### Agregado
+
+- `POST /suscripciones/{id}/firma` (`SolicitudFirma` con `acepta_condiciones: true`): firma con el
+  proveedor simulado y emite la póliza. Responde 201 con la suscripción emitida, o 200 con la misma
+  póliza si ya estaba emitida. Si el último pago estaba `pendiente`, el BFF lo consulta antes de
+  decidir. Errores: 409 `pago_no_aprobado`; 422 `aceptacion_requerida`; 503
+  `dependencia_no_disponible` si el proveedor de firma no responde (no se emite nada y firmar otra
+  vez es seguro).
+- `GET /polizas/{numero}/documento`: el PDF de la póliza como adjunto, con la sesión del cliente.
+  404 `poliza_no_encontrada` (también si es de otro cliente) o `documento_no_disponible` (las
+  pólizas de prueba no tienen documento).
+- `Suscripcion.estado` admite `emitida`, y la suscripción suma `poliza` (`PolizaEmitida`, con su
+  `documento_url`) y `firmada_en`.
+
 ## [0.8.0] · 2026-10-26 · MOB-F05
 
 ### Agregado
