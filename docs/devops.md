@@ -468,6 +468,13 @@ lados.
 | Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
 | Conexión de siniestros | `SINIESTROS_DATABASE_URL` ← secreto `siniestros-database-url` | `solventa-nucleo` | WEB-F05 |
 | Pólizas de prueba de *staging* | `POLIZAS_SEMILLA`: ruta a un JSON; `id_cliente` `"*"` es una plantilla para cualquier cliente | `solventa-nucleo` | WEB-F05 |
+| Conexión de suscripciones | `SUSCRIPCION_DATABASE_URL` ← secreto `suscripcion-database-url` (esquema `suscripcion`) | `solventa-nucleo` | WEB-F03 |
+| Conexión de pagos | `PAGOS_DATABASE_URL` ← secreto `pagos-database-url` (esquema `pagos`) | `solventa-nucleo` | WEB-F03 |
+| Conexión de pólizas | `POLIZAS_DATABASE_URL` ← secreto `polizas-database-url` (esquema `polizas`) | `solventa-nucleo` | WEB-F03 |
+| Almacén de documentos de póliza | `ALMACENAMIENTO_DOCUMENTOS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | WEB-F03 |
+| Bucket de documentos de póliza | `DOCUMENTOS_BUCKET`; privado, igual que el de evidencias (crear y leer, sin borrar) | `solventa-nucleo` | WEB-F03 |
+| Pasarela simulada | `PASARELA_TARJETA_CREDITO` (`aprobado` por defecto), `PASARELA_PSE` (`pendiente`), `PASARELA_PENDIENTE_SE_RESUELVE_EN` (`aprobado`) y `PASARELA_MODO` (`sana` o `caida`) | `solventa-nucleo` | WEB-F03 |
+| Firma electrónica simulada | `FIRMA_MODO` = `sana` (por defecto) o `caida` | `solventa-nucleo` | WEB-F03 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
