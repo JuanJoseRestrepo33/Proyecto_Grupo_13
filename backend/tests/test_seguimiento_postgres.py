@@ -143,8 +143,14 @@ def test_dos_replicas_que_responden_a_la_vez_dejan_una_evidencia(repositorio):
     servicio.cambiar_estado(siniestro.id_siniestro, E.REQUIERE_INFORMACION, None, ["Factura"])
     [pedido] = servicio.requerimientos(CLIENTE, siniestro.id_siniestro)
 
-    def responder(_):
-        otra = _servicio(RepositorioPostgres(DSN))
+    # Cada réplica aplica el esquema al arrancar, no a mitad de la carrera: el DDL simultáneo
+    # con las escrituras se bloquearía por su cuenta y no es lo que se prueba aquí.
+    replicas = [RepositorioPostgres(DSN) for _ in range(6)]
+    for replica in replicas:
+        replica.preparar()
+
+    def responder(i):
+        otra = _servicio(replicas[i])
         otra._exigir_pendiente = lambda *_: None  # las dos pasan la verificación previa
         try:
             return otra.adjuntar_evidencia(
