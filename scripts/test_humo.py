@@ -13,7 +13,14 @@ CATALOGO = json.dumps(
 ).encode()
 POLIZAS = json.dumps([{"numero": "POL-1", "estado": "vigente"}]).encode()
 CREDENCIALES = humo.Credenciales("humo@solventa.test", "clave-de-prueba")
-AUTENTICADAS = ("/movil/consentimientos/finalidades", "/movil/polizas")
+AUTENTICADAS = (
+    "/movil/consentimientos/finalidades",
+    "/movil/polizas",
+    "/movil/polizas/{poliza_vigente}",
+    "/movil/polizas/humo-no-existe",
+    "/movil/siniestros",
+    "/movil/siniestros/humo-no-existe",
+)
 
 
 def _respondiendo(estados: dict[str, int | None | humo.Respuesta]):
@@ -45,15 +52,34 @@ BFF_SANO = {
     "/polizas": 401,
     "/siniestros": 401,
     "/siniestros/humo-no-existe": 401,
+    "/polizas/humo-no-existe": 401,
+    "/documento": 401,
+    "/suscripciones": 401,
+    "/suscripciones/humo-no-existe": 401,
+    "/pagos": 401,
+    "/pagos/humo-no-existe": 401,
+    "/firma": 401,
+}
+DETALLE = json.dumps({"numero": "POL-1", "coberturas": [{"nombre": "RC", "limite": "$1"}]}).encode()
+# Lo que responde el BFF sano con la sesión de la cuenta de prueba, además del catálogo.
+CON_SESION = {
+    "/polizas/POL-1": DETALLE,
+    "/polizas": POLIZAS,
+    "/siniestros": b"[]",
 }
 SESION = humo.Respuesta(200, json.dumps({"token_acceso": "tok-123"}).encode())
 
 
 def _con_sesion(pedir, cuerpos: dict[str, bytes]):
-    """Envuelve `pedir`: con el token de la cuenta de prueba, las rutas de `cuerpos` dan 200."""
+    """Envuelve `pedir`: con el token de la cuenta de prueba, las rutas de `cuerpos` (y las de
+    CON_SESION que `cuerpos` no cambie) dan 200, y lo que no existe da 404."""
+    cuerpos = {**cuerpos, **{r: c for r, c in CON_SESION.items() if r not in cuerpos}}
 
     def pedir_con_sesion(metodo, url, encabezados, datos=None):
         if encabezados.get("Authorization") == "Bearer tok-123":
+            if url.endswith("/humo-no-existe"):
+                pedir.pedidas.append((metodo, url, encabezados, datos))
+                return humo.Respuesta(404)
             for ruta, cuerpo in cuerpos.items():
                 if url.endswith(ruta):
                     pedir.pedidas.append((metodo, url, encabezados, datos))
@@ -290,7 +316,81 @@ class TestSiniestros:
         pedir = _respondiendo({**BFF_SANO, "/sesiones": SESION})
         con_sesion = _con_sesion(pedir, {"/finalidades": CATALOGO, "/polizas": cuerpo})
         errores = humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores
-        assert errores == [f"GET /api/v1/movil/polizas (con sesión): {problema}"]
+        assert errores == [
+            f"GET /api/v1/movil/polizas (con sesión): {problema}",
+            "GET /api/v1/movil/polizas/{poliza_vigente} (con sesión): "
+            "no hay póliza vigente para probar",
+        ]
+
+
+class TestPolizasCompraYSeguimiento:
+    """WEB-F03 (#183), WEB-F04 (#191) y WEB-F06 (#200) en staging."""
+
+    def _con_sesion(self, cuerpos=None, estados=None):
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": SESION, **(estados or {})})
+        return pedir, _con_sesion(pedir, {"/finalidades": CATALOGO, **(cuerpos or {})})
+
+    def test_la_compra_y_el_detalle_exigen_sesion(self):
+        pedir = _respondiendo(BFF_SANO)
+        assert humo.fallas("bff", "https://bff.run.app", pedir).errores == []
+        pedidas = [(m, u.removeprefix("https://bff.run.app")) for m, u, _, _ in pedir.pedidas]
+        assert [p for p in pedidas if "/suscripciones" in p[1]] == [
+            ("POST", "/api/v1/web/suscripciones"),
+            ("GET", "/api/v1/web/suscripciones/humo-no-existe"),
+            ("POST", "/api/v1/web/suscripciones/humo-no-existe/pagos"),
+            ("GET", "/api/v1/web/suscripciones/humo-no-existe/pagos/humo-no-existe"),
+            ("POST", "/api/v1/web/suscripciones/humo-no-existe/firma"),
+        ]
+        for prefijo in ("/api/v1/web", "/api/v1/movil"):
+            assert ("GET", f"{prefijo}/polizas/humo-no-existe") in pedidas
+            assert ("GET", f"{prefijo}/polizas/humo-no-existe/documento") in pedidas
+
+    def test_el_humo_no_compra_ni_emite(self):
+        pedir, con_sesion = self._con_sesion()
+        assert humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores == []
+        escrituras = [u for m, u, _, d in pedir.pedidas if m == "POST" and d is not None]
+        assert escrituras == ["https://x/api/v1/movil/sesiones"]
+
+    def test_el_detalle_usa_una_poliza_vigente_de_la_cuenta_de_prueba(self):
+        lista = json.dumps(
+            [{"numero": "POL-0", "estado": "vencida"}, {"numero": "POL-1", "estado": "vigente"}]
+        ).encode()
+        pedir, con_sesion = self._con_sesion({"/polizas": lista})
+        assert humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores == []
+        detalle = [e for _, u, e, _ in pedir.pedidas if u == "https://x/api/v1/movil/polizas/POL-1"]
+        assert detalle == [{"Authorization": "Bearer tok-123"}]
+
+    @pytest.mark.parametrize(
+        ("cuerpo", "problema"),
+        [
+            (b'{"numero": "POL-1", "coberturas": []}', "la póliza vigente no tiene coberturas"),
+            (b'{"numero": "POL-1"}', "el detalle no trae coberturas"),
+            (b"<html>", "el detalle no trae coberturas"),
+        ],
+    )
+    def test_un_detalle_sin_coberturas_es_una_falla(self, cuerpo, problema):
+        _, con_sesion = self._con_sesion({"/polizas/POL-1": cuerpo})
+        errores = humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores
+        assert errores == [f"GET /api/v1/movil/polizas/{{poliza_vigente}} (con sesión): {problema}"]
+
+    @pytest.mark.parametrize("ruta", ["/polizas/humo-no-existe", "/siniestros/humo-no-existe"])
+    def test_un_5xx_con_sesion_detiene_el_despliegue(self, ruta):
+        pedir = _respondiendo({**BFF_SANO, "/sesiones": SESION})
+
+        def falla_con_sesion(metodo, url, encabezados, datos=None):
+            if encabezados.get("Authorization") and url.endswith(ruta):
+                return humo.Respuesta(500)
+            return _con_sesion(pedir, {"/finalidades": CATALOGO})(metodo, url, encabezados, datos)
+
+        errores = humo.fallas("bff", "https://x", falla_con_sesion, CREDENCIALES).errores
+        assert errores == [f"GET /api/v1/movil{ruta} (con sesión): se esperaba 404, llegó 500"]
+
+    def test_el_seguimiento_con_sesion_debe_ser_una_lista(self):
+        _, con_sesion = self._con_sesion({"/siniestros": b'{"error": "x"}'})
+        errores = humo.fallas("bff", "https://x", con_sesion, CREDENCIALES).errores
+        assert errores == [
+            "GET /api/v1/movil/siniestros (con sesión): la respuesta no es una lista"
+        ]
 
 
 def test_reintenta_hasta_que_la_revision_arranca():
@@ -342,6 +442,8 @@ class _Manejador(http.server.BaseHTTPRequestHandler):
             self.path.endswith(("/sesion", "/evidencias", "/polizas", "/identidad/verificacion"))
             or "/consentimientos" in self.path
             or "/siniestros" in self.path
+            or "/polizas/" in self.path
+            or "/suscripciones" in self.path
         )
         estado = 401 if protegida else rutas.get(self.path, 404)
         if self.path == "/eco" and self.headers.get("Authorization") == "Bearer x":

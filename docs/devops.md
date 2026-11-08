@@ -297,7 +297,7 @@ funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
 
 | Etapa | Qué hace | Requisito para activarse |
 |---|---|---|
-| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, el bucket y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | Solo fuera de `main` (lo que revisa solo existe en `staging`). Las variables de la tabla de abajo |
+| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | Solo fuera de `main` (lo que revisa solo existe en `staging`). Las variables de la tabla de abajo |
 | **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>`, `:<rama>` y `:arbol-<árbol>` y las publica en el registro de paquetes de GitHub. El árbol es `git rev-parse HEAD:<carpeta>`: si ya existe una imagen de ese árbol, el componente no cambió y solo se le agregan las etiquetas nuevas, sin construir | Que exista el `Dockerfile` del componente. No requiere secretos |
 | **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (lo crea [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente)) |
 | **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen y la etiqueta `arbol`. Si el servicio ya corre ese árbol **y su última revisión creada es también la última lista**, no copia ni despliega nada (no hay qué cambiar), pero sí corre la prueba de humo. Si una revisión de ese árbol no arrancó, se vuelve a desplegar. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
@@ -321,8 +321,8 @@ Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) 
 
 | Workflow | Qué hace | Cuánto tarda |
 |---|---|---|
-| [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el bucket de evidencias y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
-| [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, el bucket con las evidencias y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
+| [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el token interno de siniestros, los buckets de evidencias y de documentos de póliza y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
+| [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, los buckets con las evidencias y los documentos de póliza, y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
 | [Encender o apagar Cloud SQL](../.github/workflows/cloud-sql.yml) | Solo cambia la política de activación de la instancia: `encender` (`ALWAYS`) o `apagar` (`NEVER`). Apagada **conserva los datos** y no cobra CPU ni memoria, solo el disco; mientras tanto el núcleo responde 500 en auditoría, cotización y siniestros y su `/salud` dice `caido`. Al encender, espera a que el `/salud` del núcleo vuelva a `ok` y lo muestra en el resumen. Si no hay instancia, falla y pide Aprovisionar. **Además se apaga sola cada noche a las 23:00 de Bogotá** (04:00 UTC), sin aprobación, en el environment `staging-apagado`; para trabajar de noche, enciéndela a mano después de esa hora | 1-3 minutos, más hasta 10 de espera al encender |
 
 Con `gcloud` autenticado también se puede desde la terminal:
@@ -382,8 +382,11 @@ Puede validar además el cuerpo (que el catálogo de consentimiento traiga sus t
 la cuenta vea al menos una póliza vigente), pero nunca lo imprime, como tampoco imprime las
 credenciales ni el token. Si la cuenta no puede iniciar sesión, el despliegue falla.
 
-El humo **no crea datos**: pide los siniestros y las evidencias sin sesión (401) y nunca envía un
-reporte. El reporte completo lo prueban los E2E.
+El humo **no crea datos**: pide los siniestros, las evidencias, las pólizas y la compra
+(aceptar, pagar, firmar) sin sesión (401), y nunca reporta, acepta, paga ni emite. Con la sesión de
+la cuenta de prueba solo lee: la lista de pólizas y el detalle de una vigente con sus coberturas
+(WEB-F04), la lista de siniestros (WEB-F06) y una póliza y un siniestro que no existen, que deben
+dar 404 y no 5xx. Los recorridos completos (comprar, emitir, cambiar el estado) los prueban los E2E.
 
 **Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Mientras
 las cuentas vivan en memoria (WEB-F13), **el núcleo la siembra al arrancar** con `HUMO_CORREO` y
@@ -979,6 +982,32 @@ Los roles `legacyBucketOwner` y `legacyObjectOwner` que Cloud Storage asigna por
 editores y dueños del proyecto se conservan: son los administradores. Ojo: la cuenta de Compute por
 defecto es editora del proyecto y por eso también los hereda; ningún servicio de Cloud Run corre con
 ella (cada uno usa su `run-*`), y conviene quitarle el rol de editor cuando nada la use.
+
+### 7.1. Bucket de documentos de póliza (WEB-F03)
+
+El PDF de cada póliza emitida, en `polizas/{id_suscripcion}/{numero}.pdf`. Es un bucket aparte del
+de evidencias porque aquel borra todo a los 30 días, y el cliente descarga su póliza mientras
+exista. Igual de privado: el núcleo lee el objeto y el BFF lo entrega en
+`GET /api/v1/{web,movil}/polizas/{numero}/documento` con la sesión del cliente. **No hay URL
+firmada**: el enlace no se puede reenviar ni sirve sin sesión, y `run-nucleo` no necesita permiso
+para firmar (`iam.serviceAccountTokenCreator`).
+
+```bash
+BUCKET="gs://<GCP_PROJECT_ID>-solventa-documentos"
+gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD   --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update "$BUCKET" --update-labels=historia=web-f03
+# Sin ciclo de vida: el documento de una póliza no se borra solo.
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/storage.objectCreator roles/storage.objectViewer; do
+  gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="$NUCLEO" --role="$rol"
+done
+gcloud run services update solventa-nucleo --region=<GCP_REGION>   --update-env-vars=ALMACENAMIENTO_DOCUMENTOS=gcs,DOCUMENTOS_BUCKET=<GCP_PROJECT_ID>-solventa-documentos
+```
+
+*Aprovisionar ambiente* hace todo esto. Sin permiso de borrar: si dos réplicas emiten a la vez la
+misma suscripción, el núcleo intenta borrar el PDF de la que perdió (`almacen.borrar`). Ese borrado
+falla con 403, pero es solo limpieza: queda un aviso en el log y la solicitud responde normal con la
+póliza ganadora. El PDF huérfano queda en el bucket sin ligarse a nada.
 
 ### 8. Siniestros y pólizas de prueba (WEB-F05)
 

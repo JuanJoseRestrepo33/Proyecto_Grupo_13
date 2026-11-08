@@ -6,7 +6,7 @@
 - `aprovisionar`: crea lo que falta, en orden de dependencia, y **omite lo que ya existe**. Correrlo
   dos veces deja lo mismo. Lo que más tarda es crear Cloud SQL (unos 10 minutos); si ya existe, se
   omite y sigue con lo demás.
-- `destruir`: borra todo lo que cuesta o guarda datos (servicios, Cloud SQL, secretos, bucket e
+- `destruir`: borra todo lo que cuesta o guarda datos (servicios, Cloud SQL, secretos, buckets e
   imágenes) **menos el acceso**: Workload Identity, las cuentas de servicio y el repositorio de
   Artifact Registry se conservan, para poder volver a aprovisionar desde GitHub.
 - `encender` / `apagar`: cambian solo la política de activación de la instancia de Cloud SQL
@@ -44,16 +44,26 @@ PREFIJO_INSTANCIA = "solventa-"
 BASE = "solventa"
 # El dueño de la base se crea con gcloud; los demás, con SQL y sin cloudsqlsuperuser.
 DUENO = "auditoria"
-MODULOS_BD = ("auditoria", "cotizacion", "siniestros")
+# Cada módulo con persistencia tiene su usuario, su esquema y su secreto `<modulo>-database-url`.
+MODULOS_BD = (
+    "auditoria",
+    "cotizacion",
+    "siniestros",
+    "suscripcion",  # WEB-F03
+    "pagos",  # WEB-F03
+    "polizas",  # WEB-F03
+    "notificaciones",  # MOB-F06
+    "consentimiento",  # ARQ-05: con él, el núcleo puede tener varias réplicas
+)
 SECRETOS_NUCLEO = {
-    "AUDITORIA_DATABASE_URL": "auditoria-database-url",
-    "COTIZACION_DATABASE_URL": "cotizacion-database-url",
-    "SINIESTROS_DATABASE_URL": "siniestros-database-url",
+    **{f"{m.upper()}_DATABASE_URL": f"{m}-database-url" for m in MODULOS_BD},
     "TOKENS_LLAVE_PRIVADA": "tokens-llave-privada",
     "TOKENS_LLAVE_PUBLICA": "tokens-llave-publica",
     "HUMO_CORREO": "humo-correo",
     "HUMO_CLAVE": "humo-clave",
     "IDENTIDAD_OTP_FIJO": "identidad-otp-fijo",
+    # Habilita la operación interna de cambio de estado del siniestro (WEB-F06).
+    "SINIESTROS_TOKEN_INTERNO": "siniestros-token-interno",
 }
 SECRETOS_BFF = {"TOKENS_LLAVE_PUBLICA": "tokens-llave-publica"}
 # El original de la cuenta de prueba: solo lo leen los administradores.
@@ -63,6 +73,12 @@ SEMILLA_POLIZAS = "/opt/solventa/semillas/polizas-staging.json"
 # Imagen de relleno del primer despliegue; el CD la reemplaza por la real.
 IMAGEN_INICIAL = "us-docker.pkg.dev/cloudrun/container/hello"
 CICLO_BUCKET = {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}
+# Sufijo del bucket → (ciclo de vida, etiqueta historia). La evidencia de un siniestro se borra
+# a los 30 días; el documento de una póliza no, porque el cliente lo descarga mientras exista.
+BUCKETS = {
+    "solventa-evidencias": (CICLO_BUCKET, "mob-f05"),
+    "solventa-documentos": (None, "web-f03"),
+}
 
 
 class GcloudError(RuntimeError):
@@ -220,6 +236,14 @@ class Ambiente:
     def bucket(self) -> str:
         return f"{self.proyecto}-solventa-evidencias"
 
+    @property
+    def bucket_documentos(self) -> str:
+        return f"{self.proyecto}-solventa-documentos"
+
+    def buckets(self) -> dict[str, tuple[dict | None, str]]:
+        """Nombre de cada bucket → (ciclo de vida, etiqueta historia)."""
+        return {f"{self.proyecto}-{sufijo}": valor for sufijo, valor in BUCKETS.items()}
+
     def cuenta(self, nombre: str) -> str:
         return f"{nombre}@{self.proyecto}.iam.gserviceaccount.com"
 
@@ -304,9 +328,10 @@ class Ambiente:
                 if etiqueta and etiqueta != instancia["name"]:
                     faltan += 1
                     self.informe.aviso(f"{secreto} apunta a {etiqueta}, no a {instancia['name']}")
-        if not self.gcloud.existe("storage", "buckets", "describe", f"gs://{self.bucket}"):
-            faltan += 1
-            self.informe.aviso("Falta el bucket de evidencias: corre el workflow Aprovisionar")
+        for bucket in self.buckets():
+            if not self.gcloud.existe("storage", "buckets", "describe", f"gs://{bucket}"):
+                faltan += 1
+                self.informe.aviso(f"Falta el bucket {bucket}: corre el workflow Aprovisionar")
         for servicio in SERVICIOS:
             if not self.servicio_existe(servicio):
                 faltan += 1
@@ -324,6 +349,7 @@ class Ambiente:
         self._usuarios(instancia)
         self._llaves()
         self._cuenta_de_prueba()
+        self._token_interno()
         self._accesos_a_secretos()
         self._bucket()
         self._servicios(instancia)
@@ -490,6 +516,14 @@ class Ambiente:
             self.agregar_version("identidad-otp-fijo", f"{secrets.randbelow(10**6):06d}")
             self.informe.creado("Secreto identidad-otp-fijo")
 
+    def _token_interno(self) -> None:
+        """Token de la operación interna de cambio de estado del siniestro (WEB-F06)."""
+        if self.secreto_existe("siniestros-token-interno"):
+            self.informe.existe("Secreto siniestros-token-interno")
+            return
+        self.agregar_version("siniestros-token-interno", secrets.token_urlsafe(32))
+        self.informe.creado("Secreto siniestros-token-interno")
+
     def _accesos_a_secretos(self) -> None:
         """Acceso por secreto, no por proyecto. Agregar un permiso que ya existe no cambia nada."""
         accesos = [(s, "run-nucleo") for s in dict.fromkeys(SECRETOS_NUCLEO.values())]
@@ -504,8 +538,12 @@ class Ambiente:
         self.informe.nota("Accesos a los secretos al día")
 
     def _bucket(self) -> None:
+        for bucket, (ciclo, historia) in self.buckets().items():
+            self._un_bucket(bucket, ciclo, historia)
+
+    def _un_bucket(self, bucket: str, ciclo: dict | None, historia: str) -> None:
         """Crea el bucket si falta y, exista o no, repara su ciclo de vida y sus permisos."""
-        destino = f"gs://{self.bucket}"
+        destino = f"gs://{bucket}"
         creado = not self.gcloud.existe("storage", "buckets", "describe", destino)
         if creado:
             self.gcloud(
@@ -513,35 +551,43 @@ class Ambiente:
                 "--default-storage-class=STANDARD", "--uniform-bucket-level-access",
                 "--public-access-prevention",
             )  # fmt: skip
-        reparado = self._configurar_bucket(destino)
+            self.gcloud(
+                "storage", "buckets", "update", destino, f"--update-labels=historia={historia}"
+            )
+        reparado = self._configurar_bucket(destino, ciclo, historia)
         if creado:
-            self.informe.creado(f"Bucket {self.bucket}")
+            self.informe.creado(f"Bucket {bucket}")
         elif reparado:
-            self.informe.nota(f"Bucket {self.bucket}: ya existía; se completó {reparado}")
+            self.informe.nota(f"Bucket {bucket}: ya existía; se completó {reparado}")
         else:
-            self.informe.existe(f"Bucket {self.bucket}")
+            self.informe.existe(f"Bucket {bucket}")
 
-    def _configurar_bucket(self, destino: str) -> str:
-        """Aplica solo lo que falte; devuelve qué se completó, o "" si ya estaba."""
+    def _configurar_bucket(self, destino: str, ciclo: dict | None, historia: str) -> str:
+        """Aplica solo lo que falte; devuelve qué se completó, o "" si ya estaba.
+
+        Un bucket sin ciclo de vida esperado (el de documentos) no se revisa: si alguien le
+        agrega uno a mano, se respeta.
+        """
         completado = []
         formato = "--format=json(lifecycle_config)"
         actual = json.loads(self.gcloud("storage", "buckets", "describe", destino, formato) or "{}")
-        if actual.get("lifecycle_config") != CICLO_BUCKET:
-            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as ciclo:
-                json.dump(CICLO_BUCKET, ciclo)
+        if ciclo is not None and actual.get("lifecycle_config") != ciclo:
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as archivo:
+                json.dump(ciclo, archivo)
             try:
                 self.gcloud(
-                    "storage", "buckets", "update", destino, f"--lifecycle-file={ciclo.name}",
-                    "--update-labels=historia=mob-f05",
+                    "storage", "buckets", "update", destino, f"--lifecycle-file={archivo.name}",
+                    f"--update-labels=historia={historia}",
                 )  # fmt: skip
             finally:
-                os.unlink(ciclo.name)
+                os.unlink(archivo.name)
             completado.append("el ciclo de vida")
         politica = json.loads(
             self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json") or "{}"
         )
         miembro = f"serviceAccount:{self.cuenta('run-nucleo')}"
-        # Crear y leer, sin borrar: la evidencia de un siniestro no se elimina desde la aplicación.
+        # Crear y leer, sin borrar: ni la evidencia de un siniestro ni el documento de una póliza
+        # se eliminan desde la aplicación.
         for rol in ("roles/storage.objectCreator", "roles/storage.objectViewer"):
             if any(
                 b.get("role") == rol and miembro in b.get("members", [])
@@ -572,6 +618,8 @@ class Ambiente:
         variables = {
             "ALMACENAMIENTO_EVIDENCIAS": "gcs",
             "EVIDENCIAS_BUCKET": self.bucket,
+            "ALMACENAMIENTO_DOCUMENTOS": "gcs",
+            "DOCUMENTOS_BUCKET": self.bucket_documentos,
             "POLIZAS_SEMILLA": SEMILLA_POLIZAS,
         }
         return montados, variables
@@ -678,9 +726,7 @@ class Ambiente:
             self.informe.nota(f"Cloud SQL {instancia['name']}: apagada (conserva los datos)")
         else:
             self.informe.nota(f"Cloud SQL {instancia['name']}: ya estaba apagada, no se cambia")
-        self.informe.aviso(
-            "Con Cloud SQL apagada el núcleo responde 500 en auditoría, cotización y siniestros"
-        )
+        self.informe.aviso("Con Cloud SQL apagada el núcleo responde 500 en todo lo que persiste")
 
     # --- Destruir --------------------------------------------------------------------------------
 
@@ -707,13 +753,14 @@ class Ambiente:
                 self.informe.borrado(f"Secreto {nombre}")
             else:
                 self.informe.ausente(f"Secreto {nombre}")
-        destino = f"gs://{self.bucket}"
-        if self.gcloud.existe("storage", "buckets", "describe", destino):
-            # Borra los objetos y después el bucket.
-            self.gcloud("storage", "rm", "--recursive", destino)
-            self.informe.borrado(f"Bucket {self.bucket}")
-        else:
-            self.informe.ausente(f"Bucket {self.bucket}")
+        for bucket in self.buckets():
+            destino = f"gs://{bucket}"
+            if self.gcloud.existe("storage", "buckets", "describe", destino):
+                # Borra los objetos y después el bucket.
+                self.gcloud("storage", "rm", "--recursive", destino)
+                self.informe.borrado(f"Bucket {bucket}")
+            else:
+                self.informe.ausente(f"Bucket {bucket}")
         for servicio in SERVICIOS:
             ubicacion = (f"--repository={REPOSITORIO}", f"--location={self.region}")
             if self.gcloud.existe("artifacts", "packages", "describe", servicio, *ubicacion):

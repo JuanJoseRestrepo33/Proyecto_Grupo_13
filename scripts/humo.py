@@ -11,7 +11,11 @@ se escribió antes que el código que la cumple: se prueba igual, pero su falla 
 
 Una fila `autenticada` se pide con la sesión de la cuenta de prueba de *staging*, cuyas
 credenciales llegan en HUMO_CORREO y HUMO_CLAVE (secretos del environment). Sin ellas, la fila
-se omite con un aviso.
+se omite con un aviso. Si su ruta lleva `{poliza_vigente}`, se reemplaza por el número de una
+póliza vigente de la cuenta de prueba (de POLIZAS_SEMILLA), leído de la lista de pólizas.
+
+El humo solo lee: no acepta cotizaciones, no paga, no emite ni reporta siniestros. Esos recorridos
+los prueban los E2E.
 
 Uso: humo.py --servicio <nucleo|bff|web> --url <URL del servicio>
 """
@@ -26,6 +30,7 @@ import secrets
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -108,9 +113,34 @@ def _alguna_vigente(cuerpo: bytes) -> str | None:
     return None if "vigente" in estados else "la cuenta de prueba no tiene pólizas vigentes"
 
 
+def _poliza_vigente(cuerpo: bytes) -> str | None:
+    """Número de la primera póliza vigente de la lista, o None."""
+    try:
+        return next((p["numero"] for p in json.loads(cuerpo) if p.get("estado") == "vigente"), None)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
+def _con_coberturas(cuerpo: bytes) -> str | None:
+    try:
+        coberturas = json.loads(cuerpo)["coberturas"]
+    except (ValueError, TypeError, KeyError):
+        return "el detalle no trae coberturas"
+    return None if coberturas else "la póliza vigente no tiene coberturas"
+
+
+def _lista(cuerpo: bytes) -> str | None:
+    try:
+        return None if isinstance(json.loads(cuerpo), list) else "la respuesta no es una lista"
+    except ValueError:
+        return "la respuesta no es una lista"
+
+
 # ID que no existe, para probar que las rutas con segmento variable piden sesión antes de buscar.
 _INEXISTENTE = "humo-no-existe"
 _MOVIL = "/api/v1/movil"
+_WEB = "/api/v1/web"
+POLIZA_VIGENTE = "{poliza_vigente}"
 
 # 401 cuenta como éxito en las rutas protegidas: prueba que la ruta existe y que exige sesión.
 RUTAS = (
@@ -186,6 +216,55 @@ RUTAS = (
         autenticada=True,
         validar=_alguna_vigente,
     ),
+    # WEB-F04 (#191) y WEB-F03 (#183): detalle y documento de la póliza exigen sesión en los dos
+    # routers; la compra (aceptar, pagar, firmar) solo existe en el web.
+    *(
+        _ruta("bff", "GET", f"{prefijo}/polizas/{_INEXISTENTE}{ruta}", 401, caso=caso)
+        for prefijo, caso in ((_WEB, "sin cookie"), (_MOVIL, "sin token"))
+        for ruta in ("", "/documento")
+    ),
+    *(
+        _ruta("bff", metodo, f"{_WEB}/suscripciones{ruta}", 401, caso="sin cookie")
+        for metodo, ruta in (
+            ("POST", ""),
+            ("GET", f"/{_INEXISTENTE}"),
+            ("POST", f"/{_INEXISTENTE}/pagos"),
+            ("GET", f"/{_INEXISTENTE}/pagos/{_INEXISTENTE}"),
+            ("POST", f"/{_INEXISTENTE}/firma"),
+        )
+    ),
+    # Con sesión: el detalle de una póliza vigente trae las coberturas del catálogo, y una póliza
+    # o un siniestro que no existen dan 404 (no 5xx: el núcleo y su base responden).
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/polizas/{POLIZA_VIGENTE}",
+        200,
+        caso="con sesión",
+        autenticada=True,
+        validar=_con_coberturas,
+    ),
+    _ruta(
+        "bff", "GET", f"{_MOVIL}/polizas/{_INEXISTENTE}", 404, caso="con sesión", autenticada=True
+    ),
+    # WEB-F06 (#200): el seguimiento lee de la base de siniestros con la sesión del cliente.
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/siniestros",
+        200,
+        caso="con sesión",
+        autenticada=True,
+        validar=_lista,
+    ),
+    _ruta(
+        "bff",
+        "GET",
+        f"{_MOVIL}/siniestros/{_INEXISTENTE}",
+        404,
+        caso="con sesión",
+        autenticada=True,
+    ),
     # A través del proxy de nginx: un 502 o 504 significa que la web no llega al BFF.
     _ruta("web", "GET", "/", 200),
     _ruta("web", "GET", "/api/v1/web/cotizaciones/productos", 200, 401),
@@ -257,6 +336,10 @@ def fallas(
     token = None
     if credenciales and any(r.autenticada for r in rutas):
         token = iniciar_sesion(base, credenciales, pedir)
+    poliza = None
+    if token and any(POLIZA_VIGENTE in r.ruta for r in rutas):
+        lista = pedir("GET", f"{base}{_MOVIL}/polizas", {"Authorization": f"Bearer {token}"}, None)
+        poliza = _poliza_vigente(lista.cuerpo) if lista.estado == 200 else None
 
     for r in rutas:
         caso = f" ({r.caso})" if r.caso else ""
@@ -272,8 +355,14 @@ def fallas(
                 destino.append(f"{etiqueta}: no se pudo iniciar sesión{sufijo}")
                 continue
             encabezados["Authorization"] = f"Bearer {token}"
+        ruta = r.ruta
+        if POLIZA_VIGENTE in ruta:
+            if not poliza:
+                destino.append(f"{etiqueta}: no hay póliza vigente para probar{sufijo}")
+                continue
+            ruta = ruta.replace(POLIZA_VIGENTE, urllib.parse.quote(poliza, safe=""))
 
-        respuesta = pedir(r.metodo, base + r.ruta, encabezados, None)
+        respuesta = pedir(r.metodo, base + ruta, encabezados, None)
         if respuesta.estado not in r.esperados:
             esperado = " o ".join(str(e) for e in sorted(r.esperados))
             obtenido = "sin respuesta" if respuesta.estado is None else str(respuesta.estado)
