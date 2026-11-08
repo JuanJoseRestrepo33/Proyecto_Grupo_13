@@ -10,16 +10,32 @@ privado y el canal nunca recibe una URL del almacén.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .nucleo import ClienteNucleo, segmento
 
 RUTA_NUCLEO = "/v1/polizas"
 NO_ENCONTRADA = "poliza_no_encontrada"
+#: Hoy todo se vende en pesos. Si el núcleo manda una prima sin `moneda` se asume esta, pero
+#: queda en el log: el día que haya otra moneda, una prima sin ella es un error del núcleo.
+MONEDA_POR_DEFECTO = "COP"
+
+_log = logging.getLogger(__name__)
 
 
 def _ruta(id_cliente: str) -> str:
     return f"{RUTA_NUCLEO}/clientes/{id_cliente}/polizas"
+
+
+def _moneda(poliza: dict[str, Any]) -> str:
+    moneda = poliza.get("moneda")
+    if moneda:
+        return str(moneda)
+    _log.warning(
+        "La póliza %s trae prima sin moneda; se asume %s", poliza["numero"], MONEDA_POR_DEFECTO
+    )
+    return MONEDA_POR_DEFECTO
 
 
 def a_resumen(poliza: dict[str, Any], prefijo: str) -> dict[str, object]:
@@ -34,9 +50,7 @@ def a_resumen(poliza: dict[str, Any], prefijo: str) -> dict[str, object]:
         "fin": poliza["fin"],
         "estado": poliza["estado"],
         "nombre_producto": poliza.get("nombre_producto"),
-        "prima_mensual": None
-        if prima is None
-        else {"valor": prima, "moneda": poliza.get("moneda") or "COP"},
+        "prima_mensual": None if prima is None else {"valor": prima, "moneda": _moneda(poliza)},
         "documento_url": documento,
     }
 

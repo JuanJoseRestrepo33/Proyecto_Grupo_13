@@ -93,11 +93,7 @@ def listar(id_cliente: str, servicio: Servicio) -> tuple[SiniestroDto, ...]:
 def obtener(id_cliente: str, id_siniestro: str, servicio: Servicio) -> SiniestroDetalleDto:
     """WEB-F06: el estado actual (criterio 1), el historial de eventos con su fecha
     (criterio 4) y los requerimientos, pendientes o atendidos (criterio 5)."""
-    return a_detalle_dto(
-        servicio.obtener(id_cliente, id_siniestro),
-        servicio.historial(id_cliente, id_siniestro),
-        servicio.requerimientos(id_cliente, id_siniestro),
-    )
+    return a_detalle_dto(*servicio.detalle(id_cliente, id_siniestro))
 
 
 @router.post(
@@ -110,7 +106,8 @@ def cambiar_estado(
     id_siniestro: str, cambio: CambioDeEstadoDto, servicio: Servicio
 ) -> SiniestroDto:
     """409 `transicion_no_permitida` o `cambio_de_estado_concurrente`; 422
-    `requerimientos_obligatorios` al pedir información sin decir qué falta; 404
+    `requerimientos_obligatorios` al pedir información sin decir qué falta y
+    `requerimientos_no_admitidos` si llegan requerimientos para otro estado; 404
     `siniestro_no_encontrado`. Audita y publica `siniestro-estado-cambiado`."""
     siniestro = servicio.cambiar_estado(
         id_siniestro,

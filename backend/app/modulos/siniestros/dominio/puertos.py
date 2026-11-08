@@ -9,7 +9,7 @@ AlmacenDeEvidencias   → archivos de evidencia (MOB-F05), en `almacen_evidencia
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Protocol
 
 from .evidencias import EvidenciaDelSiniestro
@@ -64,35 +64,33 @@ class RepositorioSiniestros(Protocol):
         """Sin filtrar por cliente: solo para la operación interna de cambio de estado."""
         raise NotImplementedError
 
-    def cambiar_estado(
+    def aplicar_cambio_de_estado(
         self,
-        id_siniestro: str,
         anterior: EstadoSiniestro,
-        nuevo: EstadoSiniestro,
-        instante: datetime,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[Requerimiento, ...],
     ) -> bool:
-        """Cambia el estado solo si sigue siendo `anterior`. Es atómico: dos cambios
-        simultáneos sobre el mismo estado dejan uno solo."""
-        raise NotImplementedError
-
-    def agregar_evento(self, evento: EventoDeSeguimiento) -> None:
+        """En una sola transacción: cambia el estado solo si sigue siendo `anterior`, deja el
+        evento en el historial, cierra los requerimientos que seguían pendientes y guarda los
+        nuevos. Si el estado ya no es `anterior` no guarda nada y devuelve False: dos cambios
+        simultáneos dejan uno solo, y nunca queda un estado sin su evento o sus
+        requerimientos."""
         raise NotImplementedError
 
     def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
         """Del más antiguo al más reciente."""
         raise NotImplementedError
 
-    def agregar_requerimientos(self, requerimientos: tuple[Requerimiento, ...]) -> None:
-        raise NotImplementedError
-
     def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
         """Del más antiguo al más reciente."""
         raise NotImplementedError
 
-    def atender_requerimiento(
-        self, id_requerimiento: str, id_evidencia: str, instante: datetime
+    def responder_requerimiento(
+        self, evidencia: EvidenciaDelSiniestro, id_requerimiento: str
     ) -> bool:
-        """Lo marca atendido si seguía pendiente. Devuelve si lo atendió."""
+        """En una sola transacción: marca atendido el requerimiento del siniestro de la
+        evidencia y guarda la evidencia. Si ya no estaba pendiente no guarda nada y devuelve
+        False: de dos respuestas simultáneas, una sola queda."""
         raise NotImplementedError
 
 

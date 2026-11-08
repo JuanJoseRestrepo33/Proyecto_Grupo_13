@@ -3,12 +3,15 @@
 Cumple el mismo puerto que el repositorio en memoria. `guardar_si_nuevo` es una sola
 sentencia (`INSERT … ON CONFLICT DO NOTHING`): dos envíos simultáneos con la misma clave no
 pueden dejar dos siniestros, aunque lleguen a instancias distintas del núcleo.
+
+El cambio de estado y la respuesta a un requerimiento escriben varias tablas en una sola
+transacción, que empieza por el `UPDATE` condicional: si otro llegó primero, se deshace y no
+queda nada a medias.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
 
 import psycopg
 from psycopg.rows import dict_row
@@ -62,7 +65,24 @@ def _a_requerimiento(fila: Mapping[str, object]) -> Requerimiento:
         id_evento=str(fila["id_evento"]),
         atendido_en=fila["atendido_en"],  # type: ignore[arg-type]
         id_evidencia=fila["id_evidencia"],  # type: ignore[arg-type]
+        cerrado_en=fila["cerrado_en"],  # type: ignore[arg-type]
     )
+
+
+def _parametros_evidencia(evidencia: EvidenciaDelSiniestro) -> dict[str, object]:
+    return {
+        "id_evidencia": evidencia.id_evidencia,
+        "id_siniestro": evidencia.id_siniestro,
+        "tipo_contenido": evidencia.tipo_contenido,
+        "tamano": evidencia.tamano,
+        "nombre_original": evidencia.nombre_original,
+        "canal": evidencia.canal,
+        "cargada_en": evidencia.cargada_en,
+        "tomada_en": evidencia.captura.tomada_en,
+        "latitud": evidencia.captura.latitud,
+        "longitud": evidencia.captura.longitud,
+        "lugar": evidencia.captura.lugar,
+    }
 
 
 class RepositorioPostgres:
@@ -139,22 +159,7 @@ class RepositorioPostgres:
 
     def agregar_evidencia(self, evidencia: EvidenciaDelSiniestro) -> None:
         with self._conectar() as conexion:
-            conexion.execute(
-                esquema.INSERTAR_EVIDENCIA,
-                {
-                    "id_evidencia": evidencia.id_evidencia,
-                    "id_siniestro": evidencia.id_siniestro,
-                    "tipo_contenido": evidencia.tipo_contenido,
-                    "tamano": evidencia.tamano,
-                    "nombre_original": evidencia.nombre_original,
-                    "canal": evidencia.canal,
-                    "cargada_en": evidencia.cargada_en,
-                    "tomada_en": evidencia.captura.tomada_en,
-                    "latitud": evidencia.captura.latitud,
-                    "longitud": evidencia.captura.longitud,
-                    "lugar": evidencia.captura.lugar,
-                },
-            )
+            conexion.execute(esquema.INSERTAR_EVIDENCIA, _parametros_evidencia(evidencia))
 
     def evidencias(self, id_siniestro: str) -> tuple[EvidenciaDelSiniestro, ...]:
         with self._conectar() as conexion:
@@ -187,27 +192,26 @@ class RepositorioPostgres:
             ).fetchone()
         return _a_siniestro(fila) if fila else None
 
-    def cambiar_estado(
+    def aplicar_cambio_de_estado(
         self,
-        id_siniestro: str,
         anterior: EstadoSiniestro,
-        nuevo: EstadoSiniestro,
-        instante: datetime,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[Requerimiento, ...],
     ) -> bool:
+        instante = evento.ocurrido_en
         with self._conectar() as conexion:
             cursor = conexion.execute(
                 esquema.CAMBIAR_ESTADO,
                 {
-                    "id_siniestro": id_siniestro,
+                    "id_siniestro": evento.id_siniestro,
                     "anterior": str(anterior),
-                    "nuevo": str(nuevo),
+                    "nuevo": str(evento.estado_nuevo),
                     "instante": instante,
                 },
             )
-            return cursor.rowcount == 1
-
-    def agregar_evento(self, evento: EventoDeSeguimiento) -> None:
-        with self._conectar() as conexion:
+            if cursor.rowcount != 1:
+                conexion.rollback()
+                return False
             conexion.execute(
                 esquema.INSERTAR_EVENTO,
                 {
@@ -217,22 +221,16 @@ class RepositorioPostgres:
                     if evento.estado_anterior is None
                     else str(evento.estado_anterior),
                     "estado_nuevo": str(evento.estado_nuevo),
-                    "ocurrido_en": evento.ocurrido_en,
+                    "ocurrido_en": instante,
                     "actor": evento.actor,
                     "motivo": evento.motivo,
                     "id_decision": evento.id_decision,
                 },
             )
-
-    def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
-        with self._conectar() as conexion:
-            filas = conexion.execute(esquema.EVENTOS, {"id_siniestro": id_siniestro}).fetchall()
-        return tuple(_a_evento(f) for f in filas)
-
-    def agregar_requerimientos(self, requerimientos: tuple[Requerimiento, ...]) -> None:
-        if not requerimientos:
-            return
-        with self._conectar() as conexion:
+            conexion.execute(
+                esquema.CERRAR_PENDIENTES,
+                {"id_siniestro": evento.id_siniestro, "instante": instante},
+            )
             for r in requerimientos:
                 conexion.execute(
                     esquema.INSERTAR_REQUERIMIENTO,
@@ -244,8 +242,15 @@ class RepositorioPostgres:
                         "id_evento": r.id_evento,
                         "atendido_en": r.atendido_en,
                         "id_evidencia": r.id_evidencia,
+                        "cerrado_en": r.cerrado_en,
                     },
                 )
+        return True
+
+    def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
+        with self._conectar() as conexion:
+            filas = conexion.execute(esquema.EVENTOS, {"id_siniestro": id_siniestro}).fetchall()
+        return tuple(_a_evento(f) for f in filas)
 
     def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
         with self._conectar() as conexion:
@@ -254,16 +259,21 @@ class RepositorioPostgres:
             ).fetchall()
         return tuple(_a_requerimiento(f) for f in filas)
 
-    def atender_requerimiento(
-        self, id_requerimiento: str, id_evidencia: str, instante: datetime
+    def responder_requerimiento(
+        self, evidencia: EvidenciaDelSiniestro, id_requerimiento: str
     ) -> bool:
         with self._conectar() as conexion:
             cursor = conexion.execute(
                 esquema.ATENDER_REQUERIMIENTO,
                 {
                     "id_requerimiento": id_requerimiento,
-                    "id_evidencia": id_evidencia,
-                    "instante": instante,
+                    "id_siniestro": evidencia.id_siniestro,
+                    "id_evidencia": evidencia.id_evidencia,
+                    "instante": evidencia.cargada_en,
                 },
             )
-            return cursor.rowcount == 1
+            if cursor.rowcount != 1:
+                conexion.rollback()
+                return False
+            conexion.execute(esquema.INSERTAR_EVIDENCIA, _parametros_evidencia(evidencia))
+        return True

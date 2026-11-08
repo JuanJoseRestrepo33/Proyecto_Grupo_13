@@ -117,3 +117,36 @@ def test_salud_reporta_la_base_de_pagos(monkeypatch):
         dependencias.reiniciar()
 
     assert estados["repositorio_pagos"] == "ok"
+
+
+def test_ultimos_trae_el_ultimo_intento_de_cada_concepto_en_una_consulta(repositorio):
+    pasarela = PasarelaSimulada()
+    servicio = _servicio(repositorio, pasarela)
+    pasarela.resultados[MedioPago.TARJETA_CREDITO] = EstadoPago.RECHAZADO
+    servicio.cobrar("SUS-1", "CLI-1", PRIMA, MedioPago.TARJETA_CREDITO, "clave-1", "web")
+    pasarela.resultados[MedioPago.TARJETA_CREDITO] = EstadoPago.APROBADO
+    segundo, _ = servicio.cobrar(
+        "SUS-1", "CLI-1", PRIMA, MedioPago.TARJETA_CREDITO, "clave-2", "web"
+    )
+    otro, _ = servicio.cobrar("SUS-2", "CLI-1", PRIMA, MedioPago.PSE, "clave-3", "web")
+
+    ultimos = repositorio.ultimos(["SUS-1", "SUS-2", "SUS-3"])
+
+    assert {c: p.id_pago for c, p in ultimos.items()} == {
+        "SUS-1": segundo.id_pago,
+        "SUS-2": otro.id_pago,
+    }
+
+
+def test_la_reserva_reintenta_una_sola_vez_ante_una_contencion_anomala(repositorio, monkeypatch):
+    from app.compartido.errores import DependenciaNoDisponible
+
+    intentos = []
+    monkeypatch.setattr(repositorio, "_intentar_reserva", lambda pago: intentos.append(1))
+
+    with pytest.raises(DependenciaNoDisponible):
+        _servicio(repositorio).cobrar(
+            "SUS-1", "CLI-1", PRIMA, MedioPago.TARJETA_CREDITO, "clave-1", "web"
+        )
+
+    assert len(intentos) == 2

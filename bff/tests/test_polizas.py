@@ -138,7 +138,17 @@ def test_el_documento_se_descarga_en_los_dos_canales(con_sesion, nucleo, canal):
     assert respuesta.status_code == 200
     assert respuesta.content == b"%PDF-1.4"
     assert respuesta.headers["content-type"] == "application/pdf"
+    assert respuesta.headers["content-disposition"] == 'attachment; filename="POL-1.pdf"'
     assert respuesta.headers["x-content-type-options"] == "nosniff"
+
+
+def test_el_documento_de_una_poliza_ajena_es_404(con_sesion, nucleo, canal):
+    nucleo.responder("GET", f"{NUCLEO}/POL-9/documento", problema(404, "poliza_no_encontrada"))
+
+    respuesta = con_sesion.get(f"{canal.prefijo}/polizas/POL-9/documento")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["codigo"] == "poliza_no_encontrada"
 
 
 def test_una_poliza_de_prueba_no_tiene_documento(con_sesion, nucleo, canal):
@@ -148,3 +158,15 @@ def test_una_poliza_de_prueba_no_tiene_documento(con_sesion, nucleo, canal):
 
     assert respuesta.status_code == 404
     assert respuesta.json()["codigo"] == "documento_no_disponible"
+
+
+def test_una_prima_sin_moneda_se_asume_en_pesos_y_queda_en_el_log(
+    con_sesion, nucleo, canal, caplog
+):
+    nucleo.responder("GET", NUCLEO, 200, [{**EMITIDA, "moneda": None}])
+
+    with caplog.at_level("WARNING", logger="app.comun.polizas"):
+        respuesta = con_sesion.get(f"{canal.prefijo}/polizas")
+
+    assert respuesta.json()[0]["prima_mensual"] == {"valor": 132900, "moneda": "COP"}
+    assert "sin moneda" in caplog.text

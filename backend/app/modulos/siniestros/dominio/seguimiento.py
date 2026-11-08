@@ -12,7 +12,9 @@ Los estados y las transiciones que admite el núcleo:
 `rechazado` y `pagado` son finales. Todo cambio deja un evento en el historial con su fecha
 (criterio 4), una entrada en el log de auditoría y un evento en el bus que consume MOB-F06
 (criterio 3). Pasar a `requiere_informacion` exige decir qué falta: un requerimiento que el
-cliente ve en los dos canales y responde adjuntando evidencia (criterio 5).
+cliente ve en los dos canales y responde adjuntando evidencia (criterio 5). Solo ese estado
+admite requerimientos, y salir de él cierra los que el cliente no respondió: dejan de estar
+pendientes sin quedar atendidos, porque el ajustador siguió sin esa información.
 
 El cambio de estado lo hace el núcleo, no el cliente: en este prototipo no hay interfaz de
 operador, así que existe una operación interna para *staging* y pruebas.
@@ -62,11 +64,20 @@ class RequerimientosObligatoriosError(DatoInvalido):
     codigo = "requerimientos_obligatorios"
 
 
+class RequerimientosNoAdmitidosError(DatoInvalido):
+    """Solo se pide información al pasar a `requiere_informacion`: en otro estado el cliente
+    no tendría cómo responderla."""
+
+    codigo = "requerimientos_no_admitidos"
+
+
 class RequerimientoNoEncontradoError(RecursoNoEncontrado):
     codigo = "requerimiento_no_encontrado"
 
 
 class RequerimientoYaAtendidoError(ReglaDeNegocioViolada):
+    """Ya no está pendiente: se respondió o se cerró al salir de `requiere_informacion`."""
+
     codigo = "requerimiento_ya_atendido"
 
 
@@ -103,10 +114,12 @@ class Requerimiento:
     id_evento: str
     atendido_en: datetime | None = None
     id_evidencia: str | None = None
+    #: Cuándo se cerró sin respuesta, al salir el siniestro de `requiere_informacion`.
+    cerrado_en: datetime | None = None
 
     @property
     def pendiente(self) -> bool:
-        return self.atendido_en is None
+        return self.atendido_en is None and self.cerrado_en is None
 
 
 def limpiar_requerimientos(descripciones: list[str] | tuple[str, ...]) -> tuple[str, ...]:

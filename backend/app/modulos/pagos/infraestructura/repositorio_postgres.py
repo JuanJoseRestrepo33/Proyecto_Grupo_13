@@ -7,12 +7,13 @@ intento ganador.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
 
 from app.compartido.dinero import Dinero
+from app.compartido.errores import DependenciaNoDisponible
 
 from ..dominio.modelo import EstadoPago, MedioPago, Pago
 from . import esquema
@@ -78,6 +79,17 @@ class RepositorioPostgres:
             conexion.execute("SELECT 1")
 
     def reservar(self, pago: Pago) -> Pago:
+        # Si el pago que impidió la inserción terminó antes de leerlo, se reintenta una sola
+        # vez; si vuelve a pasar, la contención es anómala y se informa en vez de insistir.
+        for _ in range(2):
+            fila = self._intentar_reserva(pago)
+            if fila is not None:
+                return _a_pago(fila)
+        raise DependenciaNoDisponible(
+            "No se pudo reservar el pago por contención", proveedor="repositorio_pagos"
+        )
+
+    def _intentar_reserva(self, pago: Pago) -> Mapping[str, object] | None:
         with self._conectar() as conexion:
             fila = conexion.execute(esquema.INSERTAR_SI_LIBRE, _parametros(pago)).fetchone()
             if fila is None:
@@ -88,10 +100,7 @@ class RepositorioPostgres:
                 fila = conexion.execute(
                     esquema.ACTIVO_DEL_CONCEPTO, {"concepto": pago.concepto}
                 ).fetchone()
-        if fila is None:
-            # El pago que lo impidió terminó entre las dos lecturas: se reintenta una vez.
-            return self.reservar(pago)
-        return _a_pago(fila)
+        return fila
 
     def actualizar(self, pago: Pago) -> None:
         with self._conectar() as conexion:
@@ -110,3 +119,8 @@ class RepositorioPostgres:
         with self._conectar() as conexion:
             filas = conexion.execute(esquema.DEL_CONCEPTO, {"concepto": concepto}).fetchall()
         return tuple(_a_pago(f) for f in filas)
+
+    def ultimos(self, conceptos: Sequence[str]) -> dict[str, Pago]:
+        with self._conectar() as conexion:
+            filas = conexion.execute(esquema.ULTIMOS, {"conceptos": list(conceptos)}).fetchall()
+        return {str(f["concepto"]): _a_pago(f) for f in filas}

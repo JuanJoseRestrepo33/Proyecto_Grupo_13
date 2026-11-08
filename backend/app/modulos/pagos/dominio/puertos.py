@@ -7,6 +7,7 @@ RegistroDeAuditoria → log de auditoría (ARQ-03), por su interfaz pública
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from app.compartido.dinero import Dinero
@@ -30,7 +31,7 @@ class RepositorioPagos(Protocol):
         raise NotImplementedError
 
     def liberar(self, id_pago: str) -> None:
-        """Borra una reserva que nunca llegó a la pasarela (la pasarela no respondió)."""
+        """Borra una reserva que la pasarela nunca cobró."""
         raise NotImplementedError
 
     def obtener(self, id_pago: str) -> Pago | None:
@@ -38,6 +39,11 @@ class RepositorioPagos(Protocol):
 
     def del_concepto(self, concepto: str) -> tuple[Pago, ...]:
         """Los pagos del concepto, del más antiguo al más reciente."""
+        raise NotImplementedError
+
+    def ultimos(self, conceptos: Sequence[str]) -> dict[str, Pago]:
+        """El intento más reciente de cada concepto, en una sola consulta. Un concepto sin
+        intentos no aparece."""
         raise NotImplementedError
 
 
@@ -49,6 +55,11 @@ class PasarelaDePagos(Protocol):
 
     def consultar(self, referencia: str) -> RespuestaPasarela:
         """El estado actual de una transacción, para resolver un pago pendiente."""
+        raise NotImplementedError
+
+    def consultar_pago(self, id_pago: str) -> RespuestaPasarela | None:
+        """La transacción que la pasarela registró para nuestro `id_pago`, o None si nunca
+        lo cobró. Sirve para conciliar un pago que quedó en `procesando`."""
         raise NotImplementedError
 
 

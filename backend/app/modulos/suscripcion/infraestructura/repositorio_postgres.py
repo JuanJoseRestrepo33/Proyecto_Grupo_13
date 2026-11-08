@@ -66,6 +66,7 @@ def _a_suscripcion(fila: Mapping[str, object]) -> Suscripcion:
         poliza_inicio=fila["poliza_inicio"],  # type: ignore[arg-type]
         poliza_fin=fila["poliza_fin"],  # type: ignore[arg-type]
         emitida_en=fila["emitida_en"],  # type: ignore[arg-type]
+        version=int(fila["version"]),  # type: ignore[call-overload]
         trazabilidad=tuple(
             PasoAuditado(
                 Paso(p["paso"]), str(p["id_decision"]), datetime.fromisoformat(p["ocurrido_en"])
@@ -92,6 +93,7 @@ def _parametros(suscripcion: Suscripcion) -> dict[str, object]:
         "poliza_inicio": suscripcion.poliza_inicio,
         "poliza_fin": suscripcion.poliza_fin,
         "emitida_en": suscripcion.emitida_en,
+        "version": suscripcion.version,
         "trazabilidad": Jsonb(
             [
                 {
@@ -138,9 +140,10 @@ class RepositorioPostgres:
                 ).fetchone()
         return _a_suscripcion(fila)  # type: ignore[arg-type]
 
-    def actualizar(self, suscripcion: Suscripcion) -> None:
+    def actualizar(self, suscripcion: Suscripcion) -> Suscripcion | None:
         with self._conectar() as conexion:
-            conexion.execute(esquema.ACTUALIZAR, _parametros(suscripcion))
+            fila = conexion.execute(esquema.ACTUALIZAR, _parametros(suscripcion)).fetchone()
+        return _a_suscripcion(fila) if fila else None
 
     def obtener(self, id_suscripcion: str) -> Suscripcion | None:
         with self._conectar() as conexion:

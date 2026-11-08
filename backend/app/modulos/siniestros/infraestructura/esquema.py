@@ -97,11 +97,25 @@ CREATE TABLE IF NOT EXISTS siniestros.requerimientos (
     creado_en         TIMESTAMPTZ  NOT NULL,
     id_evento         TEXT         NOT NULL,
     atendido_en       TIMESTAMPTZ,
-    id_evidencia      TEXT
+    id_evidencia      TEXT,
+    cerrado_en        TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS requerimientos_por_siniestro
     ON siniestros.requerimientos (id_siniestro, orden);
+
+-- Una tabla de requerimientos anterior al cierre de los no respondidos recibe la columna.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'siniestros' AND table_name = 'requerimientos'
+          AND column_name = 'cerrado_en'
+    ) THEN
+        ALTER TABLE siniestros.requerimientos ADD COLUMN cerrado_en TIMESTAMPTZ;
+    END IF;
+END
+$$;
 """
 
 SIGUIENTE_REFERENCIA = "SELECT nextval('siniestros.referencia') AS consecutivo"
@@ -184,13 +198,14 @@ WHERE id_siniestro = %(id_siniestro)s ORDER BY orden
 """
 
 COLUMNAS_REQUERIMIENTO = """
-    id_requerimiento, id_siniestro, descripcion, creado_en, id_evento, atendido_en, id_evidencia
+    id_requerimiento, id_siniestro, descripcion, creado_en, id_evento, atendido_en, id_evidencia,
+    cerrado_en
 """
 
 INSERTAR_REQUERIMIENTO = f"""
 INSERT INTO siniestros.requerimientos ({COLUMNAS_REQUERIMIENTO}) VALUES (
     %(id_requerimiento)s, %(id_siniestro)s, %(descripcion)s, %(creado_en)s, %(id_evento)s,
-    %(atendido_en)s, %(id_evidencia)s
+    %(atendido_en)s, %(id_evidencia)s, %(cerrado_en)s
 )
 """
 
@@ -202,5 +217,12 @@ WHERE id_siniestro = %(id_siniestro)s ORDER BY orden
 ATENDER_REQUERIMIENTO = """
 UPDATE siniestros.requerimientos
 SET atendido_en = %(instante)s, id_evidencia = %(id_evidencia)s
-WHERE id_requerimiento = %(id_requerimiento)s AND atendido_en IS NULL
+WHERE id_requerimiento = %(id_requerimiento)s AND id_siniestro = %(id_siniestro)s
+  AND atendido_en IS NULL AND cerrado_en IS NULL
+"""
+
+CERRAR_PENDIENTES = """
+UPDATE siniestros.requerimientos
+SET cerrado_en = %(instante)s
+WHERE id_siniestro = %(id_siniestro)s AND atendido_en IS NULL AND cerrado_en IS NULL
 """

@@ -116,6 +116,9 @@ class Suscripcion:
     poliza_fin: date | None = None
     emitida_en: datetime | None = None
     trazabilidad: tuple[PasoAuditado, ...] = ()
+    #: Versión guardada, para el control optimista entre réplicas: una escritura hecha sobre
+    #: una versión vieja no pisa la más reciente.
+    version: int = 0
 
     @property
     def id_cotizacion(self) -> str:
@@ -135,20 +138,23 @@ class Suscripcion:
             self, estado=EstadoSuscripcion.PAGADA, id_pago=pago.id_pago, pagada_en=instante
         ).con_paso(Paso.PAGO, pago.id_decision, instante)
 
-    def emitida(
-        self, firma: Firma, id_decision_firma: str, poliza: PolizaEmitida, instante: datetime
-    ) -> Suscripcion:
-        return (
-            replace(
-                self,
-                estado=EstadoSuscripcion.EMITIDA,
-                id_firma=firma.id_firma,
-                firmada_en=firma.firmada_en,
-                numero_poliza=poliza.numero,
-                poliza_inicio=poliza.inicio,
-                poliza_fin=poliza.fin,
-                emitida_en=instante,
-            )
-            .con_paso(Paso.FIRMA, id_decision_firma, firma.firmada_en)
-            .con_paso(Paso.EMISION, poliza.id_decision, instante)
+    def firmada(self, firma: Firma, id_decision_firma: str) -> Suscripcion:
+        """Guarda la firma antes de emitir, para que un reintento la reutilice y la póliza, la
+        suscripción y el log digan la misma firma. Firmar otra vez no cambia nada."""
+        if self.estado is not EstadoSuscripcion.PAGADA or self.id_firma is not None:
+            return self
+        return replace(self, id_firma=firma.id_firma, firmada_en=firma.firmada_en).con_paso(
+            Paso.FIRMA, id_decision_firma, firma.firmada_en
         )
+
+    def emitida(self, poliza: PolizaEmitida, instante: datetime) -> Suscripcion:
+        if self.estado is not EstadoSuscripcion.PAGADA or self.id_firma is None:
+            return self
+        return replace(
+            self,
+            estado=EstadoSuscripcion.EMITIDA,
+            numero_poliza=poliza.numero,
+            poliza_inicio=poliza.inicio,
+            poliza_fin=poliza.fin,
+            emitida_en=instante,
+        ).con_paso(Paso.EMISION, poliza.id_decision, instante)

@@ -6,6 +6,7 @@ cotización; nunca importa nada más profundo (ARQ-01). Pólizas (WEB-F04) toma 
 condiciones de las pólizas de prueba, que no vienen de una oferta, con `producto_del_catalogo`.
 """
 
+from app.compartido.errores import RecursoNoEncontrado
 from app.compartido.modulo import DescriptorDeModulo
 
 from .api.dependencias import estado_dependencias, obtener_servicio
@@ -13,7 +14,7 @@ from .api.rutas import router
 from .aplicacion.servicio import ServicioDeCotizacion
 from .dominio.catalogo import Producto
 from .dominio.catalogo import obtener as _obtener_producto
-from .dominio.modelo import Cotizacion, EstadoCotizacion, ProductoId
+from .dominio.modelo import Cotizacion, EstadoCotizacion, OfertaVencidaError, ProductoId
 
 MODULO = DescriptorDeModulo(
     nombre="cotizacion",
@@ -25,10 +26,11 @@ MODULO = DescriptorDeModulo(
 
 
 def producto_del_catalogo(producto: str) -> Producto | None:
-    """El producto del catálogo, o None si el código no es de un producto."""
+    """El producto del catálogo, o None si el código no es de un producto o el producto no
+    tiene entrada en el catálogo: una póliza así sale sin condiciones, no tumba la lista."""
     try:
         return _obtener_producto(ProductoId(producto))
-    except ValueError:
+    except (ValueError, RecursoNoEncontrado):
         return None
 
 
@@ -36,6 +38,7 @@ __all__ = [
     "MODULO",
     "Cotizacion",
     "EstadoCotizacion",
+    "OfertaVencidaError",
     "Producto",
     "ServicioDeCotizacion",
     "obtener_servicio",
