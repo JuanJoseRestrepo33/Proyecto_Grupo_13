@@ -279,11 +279,16 @@ def test_el_proveedor_caido_no_impide_cambiar_el_estado(nucleo, monkeypatch):
 
 
 def test_las_rutas_responden_sus_codigos(nucleo):
-    assert nucleo.post(f"{NOTIFICACIONES}/dispositivos", json={"token": "a b"}).status_code == 422
-    assert nucleo.delete(f"{NOTIFICACIONES}/dispositivos/DIS-NO").status_code == 404
-    assert nucleo.post(f"{NOTIFICACIONES}/notificaciones/NOT-NO/lectura").status_code == 404
+    token_invalido = nucleo.post(f"{NOTIFICACIONES}/dispositivos", json={"token": "a b"})
+    baja_inexistente = nucleo.delete(f"{NOTIFICACIONES}/dispositivos/DIS-NO")
+    lectura_inexistente = nucleo.post(f"{NOTIFICACIONES}/notificaciones/NOT-NO/lectura")
     dispositivo = nucleo.post(f"{NOTIFICACIONES}/dispositivos", json={"token": TOKEN}).json()
-    assert nucleo.delete(f"{NOTIFICACIONES}/dispositivos/{dispositivo['id']}").status_code == 204
+    baja = nucleo.delete(f"{NOTIFICACIONES}/dispositivos/{dispositivo['id']}")
+
+    assert token_invalido.status_code == 422
+    assert baja_inexistente.status_code == 404
+    assert lectura_inexistente.status_code == 404
+    assert baja.status_code == 204
 
 
 def test_salud_reporta_el_proveedor_de_push(nucleo):

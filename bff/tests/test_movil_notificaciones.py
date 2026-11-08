@@ -92,7 +92,9 @@ def test_un_token_que_el_nucleo_rechaza_es_422(con_sesion, nucleo):
 def test_dar_de_baja(con_sesion, nucleo):
     nucleo.responder("DELETE", f"{NUCLEO}/dispositivos/DIS-1", 204)
 
-    assert con_sesion.delete(f"{PREFIJO}/dispositivos/DIS-1").status_code == 204
+    respuesta = con_sesion.delete(f"{PREFIJO}/dispositivos/DIS-1")
+
+    assert respuesta.status_code == 204
 
 
 def test_dar_de_baja_uno_ajeno_es_404(con_sesion, nucleo):
