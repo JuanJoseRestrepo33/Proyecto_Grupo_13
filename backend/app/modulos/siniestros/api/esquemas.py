@@ -128,6 +128,9 @@ class EventoDeSeguimientoDto(_Dto):
 
 
 class RequerimientoDto(_Dto):
+    """`pendiente` es falso si se respondió o si se cerró sin respuesta al salir el siniestro
+    de `requiere_informacion`; en ese caso `atendido_en` e `id_evidencia` siguen nulos."""
+
     id: str
     descripcion: str
     creado_en: datetime
@@ -153,7 +156,10 @@ class CambioDeEstadoDto(_Dto):
     requerimientos: tuple[RequerimientoSolicitadoDto, ...] = Field(
         default=(),
         max_length=MAXIMO_REQUERIMIENTOS,
-        description="Obligatorio al pasar a requiere_informacion: qué le falta al cliente",
+        description=(
+            "Obligatorio al pasar a requiere_informacion, qué le falta al cliente; "
+            "no se admite en otro estado"
+        ),
     )
 
 

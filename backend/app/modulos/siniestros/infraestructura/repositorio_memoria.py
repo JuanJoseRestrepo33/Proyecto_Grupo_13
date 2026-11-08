@@ -2,7 +2,8 @@
 
 La unicidad de la clave de idempotencia por cliente se sostiene bajo el mismo cerrojo que
 el alta, igual que la restricción `UNIQUE` del repositorio en PostgreSQL. El cambio de estado
-compara y cambia bajo el mismo cerrojo, como el `UPDATE … WHERE estado = …` de PostgreSQL.
+y la respuesta a un requerimiento comparan y escriben todo bajo el mismo cerrojo, como la
+transacción de PostgreSQL: o queda todo o no queda nada.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ from __future__ import annotations
 import itertools
 import threading
 from dataclasses import replace
-from datetime import datetime
 
 from ..dominio.evidencias import EvidenciaDelSiniestro
 from ..dominio.modelo import EstadoSiniestro, Siniestro
@@ -65,52 +65,48 @@ class RepositorioEnMemoria:
         with self._cerrojo:
             return self._por_id.get(id_siniestro)
 
-    def cambiar_estado(
+    def aplicar_cambio_de_estado(
         self,
-        id_siniestro: str,
         anterior: EstadoSiniestro,
-        nuevo: EstadoSiniestro,
-        instante: datetime,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[Requerimiento, ...],
     ) -> bool:
         with self._cerrojo:
-            siniestro = self._por_id.get(id_siniestro)
+            siniestro = self._por_id.get(evento.id_siniestro)
             if siniestro is None or siniestro.estado is not anterior:
                 return False
-            self._por_id[id_siniestro] = replace(
-                siniestro, estado=nuevo, estado_actualizado_en=instante
+            instante = evento.ocurrido_en
+            self._por_id[evento.id_siniestro] = replace(
+                siniestro, estado=evento.estado_nuevo, estado_actualizado_en=instante
             )
-            return True
-
-    def agregar_evento(self, evento: EventoDeSeguimiento) -> None:
-        with self._cerrojo:
             self._eventos.setdefault(evento.id_siniestro, []).append(evento)
+            lista = self._requerimientos.setdefault(evento.id_siniestro, [])
+            lista[:] = [r if not r.pendiente else replace(r, cerrado_en=instante) for r in lista]
+            lista.extend(requerimientos)
+            return True
 
     def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
         with self._cerrojo:
             return tuple(self._eventos.get(id_siniestro, ()))
 
-    def agregar_requerimientos(self, requerimientos: tuple[Requerimiento, ...]) -> None:
-        with self._cerrojo:
-            for requerimiento in requerimientos:
-                self._requerimientos.setdefault(requerimiento.id_siniestro, []).append(
-                    requerimiento
-                )
-
     def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
         with self._cerrojo:
             return tuple(self._requerimientos.get(id_siniestro, ()))
 
-    def atender_requerimiento(
-        self, id_requerimiento: str, id_evidencia: str, instante: datetime
+    def responder_requerimiento(
+        self, evidencia: EvidenciaDelSiniestro, id_requerimiento: str
     ) -> bool:
         with self._cerrojo:
-            for lista in self._requerimientos.values():
-                for i, requerimiento in enumerate(lista):
-                    if requerimiento.id_requerimiento == id_requerimiento:
-                        if not requerimiento.pendiente:
-                            return False
-                        lista[i] = replace(
-                            requerimiento, atendido_en=instante, id_evidencia=id_evidencia
-                        )
-                        return True
+            lista = self._requerimientos.get(evidencia.id_siniestro, [])
+            for i, requerimiento in enumerate(lista):
+                if requerimiento.id_requerimiento == id_requerimiento:
+                    if not requerimiento.pendiente:
+                        return False
+                    lista[i] = replace(
+                        requerimiento,
+                        atendido_en=evidencia.cargada_en,
+                        id_evidencia=evidencia.id_evidencia,
+                    )
+                    self._evidencias.setdefault(evidencia.id_siniestro, []).append(evidencia)
+                    return True
         return False

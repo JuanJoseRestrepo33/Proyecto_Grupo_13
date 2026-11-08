@@ -19,6 +19,8 @@ from .siniestros import ruta_siniestro
 #: El mismo límite del núcleo; el BFF corta antes para no reenviar lo que se va a rechazar.
 TAMANO_MAXIMO = 10 * 1024 * 1024
 NO_ENCONTRADA = "evidencia_no_encontrada"
+#: El 404 del núcleo cuando lo que falta es el requerimiento, no el siniestro (WEB-F06).
+REQUERIMIENTO_NO_ENCONTRADO = "requerimiento_no_encontrado"
 
 #: Errores de datos que el núcleo responde como 400 y los contratos como 422, con su campo.
 _CAMPO_POR_CODIGO = {
@@ -98,6 +100,7 @@ def adjuntar(
             encabezados={"Content-Type": tipo_contenido or "application/octet-stream"},
             params={k: v for k, v in parametros.items() if v is not None},
             si_no_existe="siniestro_no_encontrado",
+            conservar={REQUERIMIENTO_NO_ENCONTRADO},
         )
     except ErrorBff as error:
         if error.codigo == "archivo_demasiado_grande":

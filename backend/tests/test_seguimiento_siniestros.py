@@ -26,6 +26,7 @@ from app.modulos.siniestros.dominio.seguimiento import (
     TRANSICIONES,
     CambioConcurrenteError,
     RequerimientoNoEncontradoError,
+    RequerimientosNoAdmitidosError,
     RequerimientosObligatoriosError,
     RequerimientoYaAtendidoError,
     TransicionNoPermitidaError,
@@ -137,10 +138,50 @@ def test_dos_cambios_simultaneos_dejan_uno(servicio, reportado):
 
 
 def test_un_cambio_que_pierde_la_carrera_es_concurrente(servicio, reportado, monkeypatch):
-    monkeypatch.setattr(servicio._repositorio, "cambiar_estado", lambda *_: False)
+    monkeypatch.setattr(servicio._repositorio, "aplicar_cambio_de_estado", lambda *_: False)
 
     with pytest.raises(CambioConcurrenteError):
         servicio.cambiar_estado(reportado.id_siniestro, E.EN_EVALUACION)
+
+
+def test_si_falla_la_transaccion_no_cambia_nada_y_el_reintento_completa(
+    servicio, reportado, monkeypatch
+):
+    """El estado, el evento y los requerimientos se guardan juntos: si la escritura falla, el
+    siniestro no queda en `requiere_informacion` sin requerimientos y reintentar no da 409."""
+    repositorio = servicio._repositorio
+    original = repositorio.aplicar_cambio_de_estado
+
+    def falla(*_):
+        raise RuntimeError("se cayó la base")
+
+    monkeypatch.setattr(repositorio, "aplicar_cambio_de_estado", falla)
+    with pytest.raises(RuntimeError):
+        servicio.cambiar_estado(
+            reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+        )
+
+    assert servicio.obtener(CLIENTE, reportado.id_siniestro).estado is E.REPORTADO
+    assert len(servicio.historial(CLIENTE, reportado.id_siniestro)) == 1
+    assert servicio.requerimientos(CLIENTE, reportado.id_siniestro) == ()
+
+    monkeypatch.setattr(repositorio, "aplicar_cambio_de_estado", original)
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    assert len(servicio.requerimientos(CLIENTE, reportado.id_siniestro)) == 1
+
+
+def test_si_falla_la_auditoria_no_cambia_nada(servicio, reportado, monkeypatch):
+    def falla(*_):
+        raise RuntimeError("auditoría caída")
+
+    monkeypatch.setattr(servicio._auditoria, "registrar_cambio_de_estado", falla)
+    with pytest.raises(RuntimeError):
+        servicio.cambiar_estado(reportado.id_siniestro, E.EN_EVALUACION)
+
+    assert servicio.obtener(CLIENTE, reportado.id_siniestro).estado is E.REPORTADO
+    assert len(servicio.historial(CLIENTE, reportado.id_siniestro)) == 1
 
 
 # -- criterio 3: auditoría y evento ---------------------------------------------------------
@@ -222,6 +263,66 @@ def test_pedir_informacion_sin_decir_que_falta_se_rechaza(servicio, reportado):
         )
 
 
+@pytest.mark.parametrize("estado", [E.EN_EVALUACION, E.RECHAZADO])
+def test_requerimientos_para_otro_estado_se_rechazan(servicio, reportado, estado):
+    """Solo `requiere_informacion` admite requerimientos: en otro estado el cliente no
+    podría responderlos."""
+    with pytest.raises(RequerimientosNoAdmitidosError) as error:
+        servicio.cambiar_estado(reportado.id_siniestro, estado, requerimientos=["Factura"])
+
+    assert error.value.detalles["estado_pedido"] == str(estado)
+    assert servicio.obtener(CLIENTE, reportado.id_siniestro).estado is E.REPORTADO
+    assert servicio.requerimientos(CLIENTE, reportado.id_siniestro) == ()
+
+
+@pytest.mark.parametrize("salida", [E.EN_EVALUACION, E.RECHAZADO])
+def test_salir_de_requiere_informacion_cierra_los_pendientes(servicio, reportado, reloj, salida):
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura", "Foto"]
+    )
+    factura, _ = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+    evidencia = _adjuntar(servicio, reportado, id_requerimiento=factura.id_requerimiento)
+    reloj.avanzar(60)
+
+    servicio.cambiar_estado(reportado.id_siniestro, salida)
+
+    atendido, cerrado = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+    assert atendido.id_evidencia == evidencia.id_evidencia and atendido.cerrado_en is None
+    assert not cerrado.pendiente
+    assert cerrado.cerrado_en == reloj.ahora()
+    assert cerrado.atendido_en is None and cerrado.id_evidencia is None
+
+
+def test_un_requerimiento_cerrado_ya_no_se_responde(servicio, reportado):
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    [pedido] = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+    servicio.cambiar_estado(reportado.id_siniestro, E.EN_EVALUACION)
+
+    with pytest.raises(RequerimientoYaAtendidoError):
+        _adjuntar(servicio, reportado, id_requerimiento=pedido.id_requerimiento)
+
+    assert servicio.evidencias(CLIENTE, reportado.id_siniestro) == ()
+
+
+def test_volver_a_pedir_informacion_deja_solo_los_nuevos_pendientes(servicio, reportado):
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    servicio.cambiar_estado(reportado.id_siniestro, E.EN_EVALUACION)
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Peritaje"]
+    )
+
+    requerimientos = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+
+    assert [(r.descripcion, r.pendiente) for r in requerimientos] == [
+        ("Factura", False),
+        ("Peritaje", True),
+    ]
+
+
 def test_demasiados_requerimientos_o_muy_largos_se_rechazan(servicio, reportado):
     with pytest.raises(DatoInvalido):
         servicio.cambiar_estado(
@@ -246,6 +347,78 @@ def test_adjuntar_evidencia_responde_el_requerimiento(servicio, reportado):
     assert atendido.id_evidencia == evidencia.id_evidencia
     with pytest.raises(RequerimientoYaAtendidoError):
         _adjuntar(servicio, reportado, id_requerimiento=pedido.id_requerimiento)
+
+
+def test_la_respuesta_que_pierde_la_carrera_es_409_sin_evidencia_suelta(
+    servicio, reportado, monkeypatch
+):
+    """Las dos respuestas pasan la verificación previa; la segunda en guardar pierde."""
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    [pedido] = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+    primera = _adjuntar(servicio, reportado, id_requerimiento=pedido.id_requerimiento)
+    monkeypatch.setattr(servicio, "_exigir_pendiente", lambda *_: None)
+
+    with pytest.raises(RequerimientoYaAtendidoError):
+        _adjuntar(servicio, reportado, id_requerimiento=pedido.id_requerimiento)
+
+    assert [e.id_evidencia for e in servicio.evidencias(CLIENTE, reportado.id_siniestro)] == [
+        primera.id_evidencia
+    ]
+
+
+def test_respuestas_simultaneas_dejan_una_sola_evidencia(servicio, reportado):
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    [pedido] = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+
+    def responder(_):
+        try:
+            return _adjuntar(servicio, reportado, id_requerimiento=pedido.id_requerimiento)
+        except RequerimientoYaAtendidoError:
+            return None
+
+    with ThreadPoolExecutor(8) as hilos:
+        resultados = [r for r in hilos.map(responder, range(8)) if r is not None]
+
+    assert len(resultados) == 1
+    [atendido] = servicio.requerimientos(CLIENTE, reportado.id_siniestro)
+    assert atendido.id_evidencia == resultados[0].id_evidencia
+    assert len(servicio.evidencias(CLIENTE, reportado.id_siniestro)) == 1
+
+
+def test_un_requerimiento_de_otro_siniestro_no_se_responde(servicio, reportado):
+    otro = servicio.reportar(CLIENTE, DATOS, "web", "clave-0002")[0]
+    servicio.cambiar_estado(otro.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["X"])
+    [ajeno] = servicio.requerimientos(CLIENTE, otro.id_siniestro)
+
+    with pytest.raises(RequerimientoNoEncontradoError):
+        _adjuntar(servicio, reportado, id_requerimiento=ajeno.id_requerimiento)
+
+    assert servicio.requerimientos(CLIENTE, otro.id_siniestro)[0].pendiente
+
+
+def test_el_detalle_lee_el_siniestro_una_sola_vez(servicio, reportado, monkeypatch):
+    servicio.cambiar_estado(
+        reportado.id_siniestro, E.REQUIERE_INFORMACION, requerimientos=["Factura"]
+    )
+    repositorio = servicio._repositorio
+    original = repositorio.obtener
+    lecturas = []
+
+    def contar(*argumentos):
+        lecturas.append(argumentos)
+        return original(*argumentos)
+
+    monkeypatch.setattr(repositorio, "obtener", contar)
+
+    siniestro, historial, requerimientos = servicio.detalle(CLIENTE, reportado.id_siniestro)
+
+    assert len(lecturas) == 1
+    assert siniestro.estado is E.REQUIERE_INFORMACION
+    assert len(historial) == 2 and len(requerimientos) == 1
 
 
 def test_un_requerimiento_inexistente_no_guarda_la_evidencia(servicio, reportado):
@@ -346,6 +519,14 @@ def test_el_cambio_interno_se_ve_en_el_detalle_con_historial_y_requerimientos(nu
     detalle = nucleo.get(f"{RUTA}/{creado['id']}").json()
     assert detalle["requerimientos"][0]["pendiente"] is False
     assert detalle["requerimientos"][0]["id_evidencia"] == respuesta.json()["id"]
+    otra = nucleo.post(
+        f"{RUTA}/{creado['id']}/evidencias",
+        content=FOTO,
+        headers={"Content-Type": "image/jpeg", "X-Canal": "web"},
+        params={"id_requerimiento": requerimiento["id"]},
+    )
+    assert otra.status_code == 409
+    assert otra.json()["title"] == "requerimiento_ya_atendido"
     assert [s["estado"] for s in nucleo.get(RUTA).json()] == ["requiere_informacion"]
 
 
@@ -354,6 +535,11 @@ def test_el_cambio_interno_se_ve_en_el_detalle_con_historial_y_requerimientos(nu
     [
         ({"estado": "pagado"}, 409, "transicion_no_permitida"),
         ({"estado": "requiere_informacion"}, 422, "requerimientos_obligatorios"),
+        (
+            {"estado": "en_evaluacion", "requerimientos": [{"descripcion": "Factura"}]},
+            422,
+            "requerimientos_no_admitidos",
+        ),
     ],
 )
 def test_un_cambio_invalido_responde_su_codigo(nucleo, cuerpo, estado, codigo):

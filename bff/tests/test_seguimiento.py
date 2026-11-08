@@ -6,7 +6,9 @@ El estado, el historial y los requerimientos son los mismos en la web y en la ap
 
 from __future__ import annotations
 
-from .conftest import CLIENTE
+import pytest
+
+from .conftest import CLIENTE, problema
 from .test_siniestros import DEL_NUCLEO, PARA_EL_CANAL
 
 NUCLEO = f"/v1/siniestros/clientes/{CLIENTE}/siniestros"
@@ -142,3 +144,41 @@ def test_sin_requerimiento_la_evidencia_no_lo_manda(con_sesion, nucleo, canal):
     )
 
     assert "id_requerimiento" not in nucleo.ultima.url.params
+
+
+@pytest.mark.parametrize(
+    ("estado", "codigo"),
+    [
+        (404, "requerimiento_no_encontrado"),
+        (404, "siniestro_no_encontrado"),
+        (409, "requerimiento_ya_atendido"),
+    ],
+)
+def test_responder_un_requerimiento_conserva_el_codigo_del_nucleo(
+    con_sesion, nucleo, canal, estado, codigo
+):
+    """Un 404 por el requerimiento no se confunde con uno por el siniestro: los dos
+    contratos documentan `requerimiento_no_encontrado`."""
+    nucleo.responder("POST", f"{NUCLEO}/SIN-1/evidencias", problema(estado, codigo, "no"))
+
+    respuesta = con_sesion.post(
+        f"{canal.prefijo}/siniestros/SIN-1/evidencias",
+        files={"archivo": ("factura.jpg", FOTO, "image/jpeg")},
+        data={"id_requerimiento": "REQ-NO"},
+    )
+
+    assert (respuesta.status_code, respuesta.json()["codigo"]) == (estado, codigo)
+
+
+def test_un_404_generico_al_adjuntar_sigue_siendo_del_siniestro(con_sesion, nucleo, canal):
+    nucleo.responder(
+        "POST", f"{NUCLEO}/SIN-1/evidencias", problema(404, "recurso_no_encontrado", "no")
+    )
+
+    respuesta = con_sesion.post(
+        f"{canal.prefijo}/siniestros/SIN-1/evidencias",
+        files={"archivo": ("factura.jpg", FOTO, "image/jpeg")},
+        data={"id_requerimiento": "REQ-1"},
+    )
+
+    assert (respuesta.status_code, respuesta.json()["codigo"]) == (404, "siniestro_no_encontrado")
