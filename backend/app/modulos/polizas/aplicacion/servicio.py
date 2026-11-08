@@ -7,6 +7,7 @@ póliza con `emitir` cuando la oferta está pagada y firmada (WEB-F03, criterio 
 
 from __future__ import annotations
 
+import logging
 import threading
 import zlib
 from collections.abc import Sequence
@@ -15,7 +16,11 @@ from datetime import date
 
 from app.compartido.reloj import Reloj
 
-from ..dominio.errores import DocumentoNoDisponibleError, PolizaNoEncontradaError
+from ..dominio.errores import (
+    AlmacenDeDocumentosNoDisponibleError,
+    DocumentoNoDisponibleError,
+    PolizaNoEncontradaError,
+)
 from ..dominio.modelo import PlantillaDePoliza, Poliza, SolicitudDeEmision, vigencia_anual
 from ..dominio.puertos import (
     AlmacenDeDocumentos,
@@ -26,6 +31,8 @@ from ..dominio.puertos import (
 )
 
 _CERROJOS = 64
+
+log = logging.getLogger(__name__)
 
 
 class ServicioDePolizas:
@@ -164,7 +171,12 @@ class ServicioDePolizas:
         if guardada.numero != poliza.numero:
             # Otra réplica emitió primero: esa es la póliza de la suscripción (y es quien la
             # audita), y el documento que se acaba de guardar no queda ligado a nada.
-            almacen.borrar(id_documento)
+            # Borrarlo es limpieza, no parte de la emisión: si el almacén no lo permite (el
+            # bucket de documentos se puede crear y leer, pero no borrar), queda en el log.
+            try:
+                almacen.borrar(id_documento)
+            except AlmacenDeDocumentosNoDisponibleError:
+                log.warning("No se pudo borrar el documento huérfano %s", id_documento)
             return guardada, False
         return self._auditada(guardada), True
 
