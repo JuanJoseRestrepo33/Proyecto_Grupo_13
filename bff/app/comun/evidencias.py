@@ -78,6 +78,7 @@ def adjuntar(
     latitud: float | None = None,
     longitud: float | None = None,
     lugar: str | None = None,
+    id_requerimiento: str | None = None,
 ) -> dict[str, object]:
     parametros = {
         "nombre_original": nombre_original,
@@ -85,6 +86,8 @@ def adjuntar(
         "latitud": latitud,
         "longitud": longitud,
         "lugar": lugar,
+        # WEB-F06: la evidencia responde un requerimiento pendiente del siniestro.
+        "id_requerimiento": id_requerimiento,
     }
     try:
         respuesta = nucleo.solicitar(
