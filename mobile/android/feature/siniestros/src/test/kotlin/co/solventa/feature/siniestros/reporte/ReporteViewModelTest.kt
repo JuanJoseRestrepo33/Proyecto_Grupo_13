@@ -7,32 +7,44 @@ import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.TipoEventoSiniestro
 import co.solventa.feature.siniestros.BffFalso
 import co.solventa.feature.siniestros.Claves
+import co.solventa.feature.siniestros.Entorno
+import co.solventa.feature.siniestros.borrador.EstadoBorrador
 import co.solventa.feature.siniestros.HOY
 import co.solventa.feature.siniestros.POLIZA_VENCIDA
 import co.solventa.feature.siniestros.POLIZA_VIGENTE
-import co.solventa.feature.siniestros.R
 import co.solventa.feature.siniestros.ReglaMain
 import co.solventa.feature.siniestros.fallaBff
 import co.solventa.feature.siniestros.siniestroDe
 import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class ReporteViewModelTest {
     @get:Rule
     val main = ReglaMain()
 
+    @get:Rule
+    val carpeta = TemporaryFolder()
+
     private val api = BffFalso()
     private val claves = Claves()
     private val borrador = SavedStateHandle()
+    private val entorno by lazy { Entorno(carpeta.root, api) }
 
-    private fun viewModel(handle: SavedStateHandle = borrador) = ReporteViewModel(api, handle, { HOY }, claves::nueva)
+    @After
+    fun cerrar() = entorno.alcance.cancel()
+
+    private fun viewModel(handle: SavedStateHandle = borrador, idCorregir: String? = null) =
+        ReporteViewModel(api, handle, { HOY }, claves::nueva, enviador = entorno.enviador, idCorregir = idCorregir)
 
     private fun ReporteViewModel.completarInformacion(fecha: LocalDate = HOY.minusDays(3)) {
         actualizar(Campo.TIPO) { it.copy(tipoEvento = TipoEventoSiniestro.HURTO) }
@@ -71,10 +83,11 @@ class ReporteViewModelTest {
     fun `sin red al consultar las polizas se ofrece reintentar`() {
         api.polizas = { throw IOException("sin red") }
         val vm = viewModel()
-        assertEquals(R.string.error_sin_conexion, vm.estado.errorCarga)
+        assertTrue("sin lista guardada hace falta conexión una vez (M2)", vm.estado.necesitaConexion)
         assertFalse(vm.estado.sinPolizas)
         api.polizas = { listOf(POLIZA_VIGENTE) }
         vm.cargarPolizas()
+        assertFalse(vm.estado.necesitaConexion)
         assertNull(vm.estado.errorCarga)
         assertEquals(listOf(POLIZA_VIGENTE), vm.estado.polizas)
     }
@@ -211,70 +224,79 @@ class ReporteViewModelTest {
     }
 
     @Test
-    fun `sin red el reintento usa la misma clave y confirma la misma referencia`() {
+    fun `sin red guarda el reporte cifrado y lo explica sin decir que se envio`() {
+        entorno.monitor.conectado.value = false
+        val vm = enRevision()
+        assertTrue(vm.estado.sinConexion)
+        vm.continuar()
+        assertEquals(ReporteGuardado.SIN_CONEXION, vm.estado.guardado)
+        assertTrue(api.reportes.isEmpty())
+        assertEquals("clave-1", entorno.borradores().single().claveIdempotencia)
+        // Vuelve la red: se envía solo, con la misma clave.
+        entorno.monitor.conectado.value = true
+        assertEquals(listOf("clave-1"), api.reportes.map { it.first })
+    }
+
+    @Test
+    fun `una respuesta perdida deja el reporte guardado y el reintento usa la misma clave`() {
         api.reporte = { _, _ -> throw IOException("tiempo agotado") }
         val vm = enRevision()
         vm.continuar()
-        assertEquals(Aviso.SinConexion, vm.estado.aviso)
+        assertEquals(ReporteGuardado.SIN_CONFIRMAR, vm.estado.guardado)
         assertNull(vm.estado.siniestro)
+        assertTrue(entorno.borradores().single().intentoIncierto)
         api.reporte = { _, solicitud -> siniestroDe(solicitud) }
-        vm.continuar()
+        entorno.monitor.conectado.value = false
+        entorno.monitor.conectado.value = true
         assertEquals(listOf("clave-1", "clave-1"), api.reportes.map { it.first })
-        assertEquals("SIN-2026-000123", vm.estado.siniestro?.referencia)
+        assertEquals(api.reportes[0].second, api.reportes[1].second)
     }
 
     @Test
-    fun `un error del servidor sin codigo conocido permite reintentar con la misma clave`() {
+    fun `un error del servidor sin codigo conocido se trata como incierto`() {
         api.reporte = { _, _ -> throw fallaBff(503, "nucleo_no_disponible") }
         val vm = enRevision()
         vm.continuar()
-        assertEquals(Aviso.Generico, vm.estado.aviso)
-        assertEquals("clave-1", vm.estado.claveIdempotencia)
-        assertTrue("el núcleo pudo registrarlo", vm.estado.envioPendiente)
+        assertEquals(ReporteGuardado.SIN_CONFIRMAR, vm.estado.guardado)
+        assertTrue("el núcleo pudo registrarlo", entorno.borradores().single().intentoIncierto)
     }
 
     @Test
-    fun `con un envio sin respuesta los datos quedan fijos hasta conocer el resultado`() {
-        api.reporte = { _, _ -> throw IOException("respuesta perdida") }
+    fun `si no se puede guardar no envia, no dice guardado y conserva los datos`() {
+        entorno.cifrado.bytes = 4
         val vm = enRevision()
         vm.continuar()
-        assertTrue(vm.estado.envioPendiente)
-        assertFalse(vm.estado.puedeCorregir)
-        vm.irA(PasoReporte.INFORMACION)
-        vm.actualizar(Campo.DESCRIPCION) { it.copy(descripcion = "Otra descripción del evento") }
+        assertEquals(Aviso.NoPudimosGuardar, vm.estado.aviso)
+        assertNull(vm.estado.guardado)
+        assertNull(vm.estado.idBorrador)
+        assertTrue(api.reportes.isEmpty())
         assertEquals(PasoReporte.REVISION, vm.estado.paso)
         assertEquals("Me robaron el celular en el bus", vm.estado.datos.descripcion.trim())
-        assertFalse("Atrás sale del asistente en vez de abrir un paso para corregir", vm.atras())
-        api.reporte = { _, solicitud -> siniestroDe(solicitud) }
-        vm.continuar()
-        assertEquals(api.reportes[0], api.reportes[1])
-        assertFalse(vm.estado.envioPendiente)
+        assertFalse(vm.estado.enviando)
     }
 
     @Test
-    fun `un rechazo definitivo tras un envio sin respuesta vuelve a permitir corregir`() {
-        api.reporte = { _, _ -> throw IOException("sin red") }
+    fun `una vez guardado el estado del asistente no conserva los datos en claro`() {
+        entorno.monitor.conectado.value = false
         val vm = enRevision()
+        vm.actualizar(Campo.MONTO) { it.copy(monto = "250000") }
         vm.continuar()
-        api.reporte = { _, _ -> throw fallaBff(409, "evento_fuera_de_vigencia") }
-        vm.continuar()
-        assertFalse(vm.estado.envioPendiente)
-        vm.irA(PasoReporte.INFORMACION)
-        assertEquals(PasoReporte.INFORMACION, vm.estado.paso)
+        val textos = borrador.keys().mapNotNull { borrador.get<Any>(it)?.toString() }
+        textos.forEach { texto ->
+            assertFalse(texto, "celular" in texto || POLIZA_VIGENTE.numero in texto || "250000" in texto)
+        }
+        assertEquals(vm.estado.idBorrador, borrador.get<String>("borrador"))
     }
 
     @Test
-    fun `clave en uso genera una clave nueva y pide confirmar el envio otra vez`() {
+    fun `clave en uso no rota la clave y deja el reporte por confirmar`() {
         api.reporte = { _, _ -> throw fallaBff(409, "clave_idempotencia_en_uso") }
+        api.siniestros = { throw IOException("sin red") }
         val vm = enRevision()
         vm.continuar()
-        assertEquals(Aviso.ConfirmarDeNuevo, vm.estado.aviso)
-        assertEquals("clave-2", vm.estado.claveIdempotencia)
-        assertEquals(PasoReporte.REVISION, vm.estado.paso)
-        assertEquals("no reenvía solo", 1, api.reportes.size)
-        api.reporte = { _, solicitud -> siniestroDe(solicitud) }
-        vm.continuar()
-        assertEquals("clave-2", api.reportes.last().first)
+        assertEquals(ReporteGuardado.SIN_CONFIRMAR, vm.estado.guardado)
+        assertEquals("clave-1", entorno.borradores().single().claveIdempotencia)
+        assertEquals("no reenvía con otra clave", 1, api.reportes.size)
     }
 
     @Test
@@ -285,6 +307,75 @@ class ReporteViewModelTest {
         assertEquals(Aviso.Generico, vm.estado.aviso)
         assertEquals("clave-2", vm.estado.claveIdempotencia)
     }
+
+    @Test
+    fun `un rechazo definitivo se corrige en el asistente y sale con una clave nueva`() {
+        api.reporte = { _, _ -> throw fallaBff(409, "evento_fuera_de_vigencia") }
+        val vm = enRevision()
+        vm.continuar()
+        assertTrue(vm.estado.corrigiendo)
+        assertEquals(EstadoBorrador.REQUIERE_ATENCION, entorno.borradores().single().estado)
+        vm.irA(PasoReporte.INFORMACION)
+        vm.actualizar(Campo.FECHA) { it.copy(fecha = HOY.minusDays(1)) }
+        vm.continuar()
+        vm.continuar()
+        api.reporte = { _, solicitud -> siniestroDe(solicitud) }
+        vm.continuar()
+        assertEquals(listOf("clave-1", "clave-2"), api.reportes.map { it.first })
+        assertEquals("2026-10-25", api.reportes.last().second.ocurridoEl)
+        assertEquals("SIN-2026-000123", vm.estado.siniestro?.referencia)
+        assertEquals("se corrigió el mismo borrador", 1, entorno.enviador.tarjetas.value.size)
+    }
+
+    @Test
+    fun `al corregir los datos tampoco quedan en claro en el estado guardado`() {
+        api.reporte = { _, _ -> throw fallaBff(409, "evento_fuera_de_vigencia") }
+        val vm = enRevision()
+        vm.continuar()
+        assertTrue(vm.estado.corrigiendo)
+        val textos = borrador.keys().mapNotNull { borrador.get<Any>(it)?.toString() }
+        textos.forEach { texto -> assertFalse(texto, "celular" in texto || POLIZA_VIGENTE.numero in texto) }
+        // Tras la muerte del proceso, los datos se vuelven a leer del borrador cifrado.
+        val restaurado = viewModel(copia())
+        assertTrue(restaurado.estado.corrigiendo)
+        assertEquals("Me robaron el celular en el bus", restaurado.estado.datos.descripcion)
+    }
+
+    @Test
+    fun `revisar desde Inicio abre el asistente con el aviso en el paso afectado`() {
+        api.reporte = { _, _ ->
+            throw fallaBff(422, "solicitud_invalida", listOf(ErrorCampo("descripcion", "longitud_invalida")))
+        }
+        enRevision().continuar()
+        val id = entorno.borradores().single().id
+        val vm = viewModel(SavedStateHandle(), idCorregir = id)
+        assertTrue(vm.estado.corrigiendo)
+        assertEquals(PasoReporte.INFORMACION, vm.estado.paso)
+        assertEquals(ProblemaCampo.DESCRIPCION_LONGITUD, vm.estado.error(Campo.DESCRIPCION))
+        assertEquals("Me robaron el celular en el bus", vm.estado.datos.descripcion)
+    }
+
+    // ── Pólizas sin conexión ─────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `sin red el paso 1 usa la ultima lista de polizas con su fecha`() {
+        viewModel()
+        api.polizas = { throw IOException("sin red") }
+        val vm = viewModel(SavedStateHandle())
+        assertEquals(listOf(POLIZA_VIGENTE, POLIZA_VENCIDA), vm.estado.polizas)
+        assertEquals("2026-10-26T15:00:00Z", vm.estado.polizasDel)
+        assertFalse(vm.estado.necesitaConexion)
+    }
+
+    @Test
+    fun `sin red y sin polizas guardadas explica que hace falta conexion una vez`() {
+        api.polizas = { throw IOException("sin red") }
+        val vm = viewModel()
+        assertTrue(vm.estado.necesitaConexion)
+        assertFalse(vm.estado.sinPolizas)
+        assertNull(vm.estado.errorCarga)
+    }
+
 
     @Test
     fun `evento fuera de vigencia explica las fechas de la poliza y no confirma`() {
@@ -381,18 +472,27 @@ class ReporteViewModelTest {
         val vm = enRevision()
         vm.continuar()
         val restaurado = viewModel(copia())
-        assertEquals(vm.estado.siniestro, restaurado.estado.siniestro)
+        assertEquals(vm.estado.siniestro?.referencia, restaurado.estado.siniestro?.referencia)
+        assertEquals(vm.estado.siniestro?.siguientePaso, restaurado.estado.siniestro?.siguientePaso)
         assertEquals("solo la consulta del primer ViewModel", 1, api.consultasPolizas)
     }
 
     @Test
-    fun `tras la muerte del proceso un envio pendiente sigue fijo y lo explica`() {
+    fun `tras la muerte del proceso reporte guardado se conserva y no vuelve a enviar`() {
         api.reporte = { _, _ -> throw IOException("sin red") }
         enRevision().continuar()
         val restaurado = viewModel(copia())
-        assertTrue(restaurado.estado.envioPendiente)
-        assertEquals(Aviso.Generico, restaurado.estado.aviso)
-        assertEquals("clave-1", restaurado.estado.claveIdempotencia)
+        assertEquals(ReporteGuardado.SIN_CONFIRMAR, restaurado.estado.guardado)
+        assertEquals(1, api.reportes.size)
+        assertEquals("clave-1", entorno.borradores().single().claveIdempotencia)
+    }
+
+    @Test
+    fun `si el proceso muere entre el guardado y la respuesta no se abre un asistente vacio`() {
+        val handle = SavedStateHandle(mapOf("borrador" to "B-1", "corrigiendo" to false))
+        val restaurado = viewModel(handle)
+        assertEquals(ReporteGuardado.SIN_CONFIRMAR, restaurado.estado.guardado)
+        assertEquals(0, api.consultasPolizas)
     }
 
     private fun copia() = SavedStateHandle(borrador.keys().associateWith { borrador.get<Any>(it) })

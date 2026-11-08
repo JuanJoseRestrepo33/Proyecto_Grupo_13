@@ -26,6 +26,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -39,14 +40,18 @@ class PantallaReporteTest {
     @get:Rule(order = 1)
     val compose = createComposeRule()
 
+    @get:Rule(order = 2)
+    val carpeta = TemporaryFolder()
+
     private val api = BffFalso()
+    private val entorno by lazy { Entorno(carpeta.root, api) }
     private val claves = Claves()
     private var termino = false
     private var sesionVencida = false
     private lateinit var viewModel: ReporteViewModel
 
     private fun mostrar() {
-        viewModel = ReporteViewModel(api, hoy = { HOY }, nuevaClave = claves::nueva)
+        viewModel = ReporteViewModel(api, hoy = { HOY }, nuevaClave = claves::nueva, enviador = entorno.enviador)
         compose.setContent {
             SolventaTheme { PantallaReporte(viewModel, { termino = true }, { sesionVencida = true }) }
         }
@@ -176,19 +181,65 @@ class PantallaReporteTest {
     }
 
     @Test
-    fun `sin red se explica que reintentar no duplica y reintenta con la misma clave`() {
+    fun `sin respuesta el reporte queda guardado y se dice que no se duplicara`() {
         api.reporte = { _, _ -> throw java.io.IOException("sin red") }
         hastaRevision()
         compose.onNodeWithTag("enviar").performScrollTo().performClick()
-        compose.onNodeWithText(
-            "No pudimos confirmar el envío por falta de conexión. Toca «Enviar reporte» para reintentar con los " +
-                "mismos datos: no se creará un reporte duplicado.",
-        ).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithContentDescription("Cambiar póliza").assertIsNotEnabled()
-        api.reporte = { _, solicitud -> siniestroDe(solicitud) }
+        compose.onNodeWithText("Reporte guardado en tu teléfono").assertIsDisplayed()
+        compose.onNodeWithTag("guardado-sin_confirmar").assertIsDisplayed()
+        compose.onNodeWithText("No pudimos confirmar el envío", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("No hay conexión", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Verás el número de referencia en Inicio cuando se confirme.").assertIsDisplayed()
+        tocar("Volver al inicio")
+        assertTrue(termino)
+    }
+
+    @Test
+    fun `sin conexion la revision lo advierte y al enviar dice que no hay conexion`() {
+        entorno.monitor.conectado.value = false
+        hastaRevision()
+        compose.onNodeWithTag("sin-conexion").assertIsDisplayed()
+        compose.onNodeWithTag("revision-sin-conexion").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("enviar").performScrollTo().performClick()
-        compose.onNodeWithText("SIN-2026-000123").assertIsDisplayed()
-        assertEquals(listOf("clave-1", "clave-1"), api.reportes.map { it.first })
+        compose.onNodeWithTag("guardado-sin_conexion").assertIsDisplayed()
+        compose.onNodeWithText("No hay conexión. Guardamos tu reporte", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Verás el número de referencia en Inicio cuando se envíe.").assertIsDisplayed()
+        assertTrue(api.reportes.isEmpty())
+    }
+
+    @Test
+    fun `si no se puede guardar no dice guardado y los datos siguen en la revision`() {
+        entorno.cifrado.bytes = 4
+        hastaRevision()
+        compose.onNodeWithTag("enviar").performScrollTo().performClick()
+        compose.onNodeWithText("No pudimos guardar tu reporte en el teléfono", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Reporte guardado en tu teléfono").assertDoesNotExist()
+        compose.onNodeWithText("Me robaron el celular en el bus").performScrollTo().assertIsDisplayed()
+        assertTrue(api.reportes.isEmpty())
+    }
+
+    @Test
+    fun `sin conexion el paso 1 muestra las polizas guardadas con su fecha`() {
+        kotlinx.coroutines.runBlocking { entorno.enviador.guardarPolizas(listOf(POLIZA_VIGENTE)) }
+        api.polizas = { throw java.io.IOException("sin red") }
+        mostrar()
+        compose.onNodeWithTag("polizas-guardadas").assertIsDisplayed()
+        compose.onNodeWithText("Sin conexión no podemos confirmar la vigencia", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag("poliza-${POLIZA_VIGENTE.numero}").assertIsDisplayed()
+    }
+
+    @Test
+    fun `sin conexion y sin polizas guardadas explica que necesita conexion una vez`() {
+        api.polizas = { throw java.io.IOException("sin red") }
+        mostrar()
+        compose.onNodeWithTag("necesita-conexion").assertIsDisplayed()
+        compose.onNodeWithText("Reintentar").assertHeightIsAtLeast(48.dp)
+        tocar("Volver al inicio")
+        assertTrue(termino)
     }
 
     @Test

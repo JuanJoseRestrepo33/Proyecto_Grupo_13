@@ -17,6 +17,7 @@ import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.TipoEventoSiniestro
 import co.solventa.feature.siniestros.AlmacenFalso
 import co.solventa.feature.siniestros.BffFalso
+import co.solventa.feature.siniestros.Entorno
 import co.solventa.feature.siniestros.Claves
 import co.solventa.feature.siniestros.HOY
 import co.solventa.feature.siniestros.POLIZA_VIGENTE
@@ -25,9 +26,11 @@ import co.solventa.feature.siniestros.fallaBff
 import co.solventa.feature.siniestros.reporte.Campo
 import co.solventa.feature.siniestros.reporte.PantallaReporte
 import co.solventa.feature.siniestros.reporte.ReporteViewModel
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -49,6 +52,7 @@ class PasoEvidenciaTest {
     val carpeta = TemporaryFolder()
 
     private val api = BffFalso()
+    private val entorno by lazy { Entorno(File(carpeta.root, "durable"), api) }
     private val almacen by lazy { AlmacenFalso(carpeta.root) }
     private var camaraAbierta = 0
     private var permisosPedidos = 0
@@ -69,6 +73,7 @@ class PasoEvidenciaTest {
             { HOY },
             Claves()::nueva,
             FuentesEvidencia(almacen, { Coordenadas(4.711, -74.0721) }),
+            enviador = entorno.enviador,
         )
         viewModel.actualizar(Campo.POLIZA) { it.copy(numeroPoliza = POLIZA_VIGENTE.numero) }
         viewModel.continuar()
@@ -245,7 +250,7 @@ class PasoEvidenciaTest {
     }
 
     @Test
-    fun `durante la carga no se puede salir ni se borran los archivos`() {
+    fun `la evidencia del reporte sigue subiendo aunque el cliente salga`() {
         val bloqueo = CompletableDeferred<Unit>()
         api.carga = { datos ->
             bloqueo.await()
@@ -255,11 +260,40 @@ class PasoEvidenciaTest {
         compose.runOnIdle { gestor.fotoTomada("a.jpg") }
         tocar("continuar")
         tocar("enviar")
-        compose.onNodeWithText("Volver al inicio").performScrollTo().assertIsNotEnabled()
-        assertTrue(almacen.borrados.isEmpty())
+        compose.onNodeWithText("Enviando la evidencia…").performScrollTo().assertIsDisplayed()
+        // La sube el enviador desde el borrador cifrado: salir no la corta ni la borra.
+        compose.onNodeWithText("Volver al inicio").performScrollTo().assertIsEnabled()
         compose.runOnIdle { bloqueo.complete(Unit) }
         compose.onNodeWithText("Foto 1: adjuntado").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Volver al inicio").performScrollTo().assertIsEnabled()
+        assertEquals(1, api.cargas.size)
+    }
+
+    @Test
+    fun `si un archivo desaparecio de la cache se avisa antes de enviar y no se pierde en silencio`() {
+        mostrar(EstadoPermiso.CONCEDIDO, EstadoPermiso.CONCEDIDO)
+        compose.runOnIdle { gestor.fotoTomada("a.jpg") }
+        val ruta = gestor.estado.adjuntos.single().ruta
+        tocar("continuar")
+        File(ruta).delete()
+        tocar("enviar")
+        compose.onNodeWithText("Un archivo de evidencia ya no estaba en el teléfono", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Paso 3 de 4 · Evidencia").assertIsDisplayed()
+        assertTrue(api.reportes.isEmpty())
+    }
+
+    @Test
+    fun `al guardar el borrador no queda la copia en claro en la cache`() {
+        entorno.monitor.conectado.value = false
+        mostrar(EstadoPermiso.CONCEDIDO, EstadoPermiso.CONCEDIDO)
+        compose.runOnIdle { gestor.fotoTomada("a.jpg") }
+        val ruta = gestor.estado.adjuntos.single().ruta
+        tocar("continuar")
+        tocar("enviar")
+        compose.onNodeWithTag("guardado-sin_conexion").assertIsDisplayed()
+        compose.onNodeWithText("Guardamos tu reporte y 1 archivo de evidencia", substring = true).assertIsDisplayed()
+        assertFalse(File(ruta).exists())
     }
 
     @Test

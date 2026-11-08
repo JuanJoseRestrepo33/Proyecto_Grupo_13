@@ -31,7 +31,7 @@ import co.solventa.feature.siniestros.R
 import co.solventa.feature.siniestros.comun.BotonTexto
 import co.solventa.feature.siniestros.comun.CampoTexto
 import co.solventa.feature.siniestros.comun.Mensaje
-import co.solventa.feature.siniestros.evidencia.Adjunto
+import co.solventa.feature.siniestros.evidencia.FormatoEvidencia
 import co.solventa.feature.siniestros.evidencia.etiqueta
 
 // ── Paso 1 · Póliza ───────────────────────────────────────────────────────────────────────────
@@ -39,6 +39,13 @@ import co.solventa.feature.siniestros.evidencia.etiqueta
 @Composable
 internal fun PasoPoliza(estado: EstadoReporte, viewModel: ReporteViewModel) {
     Text(stringResource(R.string.poliza_instrucciones), style = MaterialTheme.typography.bodyMedium)
+    estado.polizasDel?.let { fecha ->
+        Text(
+            stringResource(R.string.polizas_actualizacion, formatoFechaHora(fecha)),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("polizas-guardadas"),
+        )
+    }
     Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(SolventaSpacing.sm)) {
         estado.polizas.forEach { poliza ->
             FilaPoliza(
@@ -49,6 +56,7 @@ internal fun PasoPoliza(estado: EstadoReporte, viewModel: ReporteViewModel) {
         }
     }
     estado.error(Campo.POLIZA)?.let { Mensaje(stringResource(it.mensaje)) }
+    if (estado.polizasDel != null) Mensaje(stringResource(R.string.polizas_sin_confirmar), esError = false)
 }
 
 @Composable
@@ -163,21 +171,30 @@ internal fun PasoRevision(estado: EstadoReporte, viewModel: ReporteViewModel) {
     informacion.forEach { (titulo, valor) ->
         Resumen(titulo, valor, PasoReporte.INFORMACION, viewModel, habilitado = estado.puedeCorregir)
     }
+    val previos = estado.adjuntosBorrador.map { Triple(it.formato, it.tamano, it.id) }
+    val nuevos = viewModel.evidencia.estado.listos.map { Triple(it.formato, it.tamano, it.id) }
     Resumen(
         titulo = R.string.revision_evidencia,
-        valor = resumenEvidencia(viewModel.evidencia.estado.listos),
+        valor = resumenEvidencia(previos + nuevos),
         paso = PasoReporte.EVIDENCIA,
         viewModel = viewModel,
         habilitado = estado.puedeCorregir,
     )
+    if (estado.sinConexion) {
+        Mensaje(
+            stringResource(R.string.revision_sin_conexion),
+            esError = false,
+            modifier = Modifier.testTag("revision-sin-conexion"),
+        )
+    }
 }
 
 /** Lo que irá con el reporte, un archivo por línea. */
 @Composable
-private fun resumenEvidencia(adjuntos: List<Adjunto>): String {
+private fun resumenEvidencia(adjuntos: List<Triple<FormatoEvidencia?, Long, String>>): String {
     if (adjuntos.isEmpty()) return stringResource(R.string.revision_sin_evidencia)
-    return adjuntos.mapIndexed { indice, adjunto ->
-        "${stringResource(adjunto.formato.etiqueta(), indice + 1)} · ${formatoTamano(adjunto.tamano)}"
+    return adjuntos.mapIndexed { indice, (formato, tamano, _) ->
+        "${stringResource(formato.etiqueta(), indice + 1)} · ${formatoTamano(tamano)}"
     }.joinToString("\n")
 }
 

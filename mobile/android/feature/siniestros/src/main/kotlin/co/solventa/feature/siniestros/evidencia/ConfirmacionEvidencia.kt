@@ -20,9 +20,17 @@ import co.solventa.feature.siniestros.comun.Mensaje
 import co.solventa.feature.siniestros.reporte.formatoFechaHora
 import co.solventa.feature.siniestros.reporte.formatoTamano
 
-/** En la confirmación: qué se adjuntó, qué no y por qué; la evidencia del siniestro y agregar más. */
+/**
+ * En la confirmación: qué se adjuntó, qué no y por qué; la evidencia del siniestro y agregar más. Lo del
+ * borrador lo sube el enviador y lo agregado después, el gestor: la pantalla los muestra juntos.
+ */
 @Composable
-internal fun SeccionEvidencia(estado: EstadoEvidencia, gestor: GestorEvidencia, idSiniestro: String) {
+internal fun SeccionEvidencia(
+    estado: EstadoEvidencia,
+    onReintentar: () -> Unit,
+    onConsultar: () -> Unit,
+    onAgregar: () -> Unit,
+) {
     if (estado.adjuntos.isNotEmpty()) {
         Text(stringResource(R.string.confirmacion_adjuntos), style = MaterialTheme.typography.titleSmall)
         estado.adjuntos.forEachIndexed { indice, adjunto -> FilaCarga(adjunto, indice) }
@@ -31,13 +39,13 @@ internal fun SeccionEvidencia(estado: EstadoEvidencia, gestor: GestorEvidencia, 
     if (estado.puedeReintentar) {
         BotonSecundario(
             stringResource(R.string.evidencia_reintentar),
-            onClick = { gestor.reintentar(idSiniestro) },
+            onClick = onReintentar,
             modifier = Modifier.testTag("reintentar-evidencia"),
         )
     }
     if (estado.errorConsulta) {
         Mensaje(stringResource(R.string.evidencia_error_consulta))
-        BotonSecundario(stringResource(R.string.boton_reintentar), onClick = { gestor.consultar(idSiniestro) })
+        BotonSecundario(stringResource(R.string.boton_reintentar), onClick = onConsultar)
     }
     if (estado.delSiniestro.isNotEmpty()) {
         Text(stringResource(R.string.confirmacion_evidencia), style = MaterialTheme.typography.titleSmall)
@@ -45,7 +53,7 @@ internal fun SeccionEvidencia(estado: EstadoEvidencia, gestor: GestorEvidencia, 
     }
     BotonSecundario(
         stringResource(R.string.evidencia_agregar),
-        onClick = gestor::agregarMas,
+        onClick = onAgregar,
         habilitado = !estado.enviando,
         modifier = Modifier.testTag("agregar-evidencia"),
     )
@@ -94,7 +102,7 @@ private fun FilaEvidencia(evidencia: Evidencia, indice: Int) {
 }
 
 @StringRes
-private fun FalloCarga.mensaje() = when (this) {
+internal fun FalloCarga.mensaje() = when (this) {
     FalloCarga.TAMANO -> R.string.fallo_tamano
     FalloCarga.FORMATO -> R.string.fallo_formato
     FalloCarga.VACIO -> R.string.fallo_vacio

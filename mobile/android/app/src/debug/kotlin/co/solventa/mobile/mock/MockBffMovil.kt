@@ -79,6 +79,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         "POST consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
         "GET polizas" -> siniestros.polizas(autorizacion)
         "POST siniestros" -> siniestros.reportar(autorizacion, cuerpo, claveIdempotencia)
+        "GET siniestros" -> siniestros.listar(autorizacion)
         else -> null
     }
 

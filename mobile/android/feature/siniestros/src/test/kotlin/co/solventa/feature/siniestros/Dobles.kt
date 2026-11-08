@@ -8,7 +8,9 @@ import co.solventa.core.network.ErrorBff
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoPoliza
 import co.solventa.core.network.EstadoSiniestro
+import co.solventa.core.network.DuenioSolicitud
 import co.solventa.core.network.Evidencia
+import co.solventa.core.network.SolicitudDeOtraCuenta
 import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Otp
@@ -26,7 +28,24 @@ import co.solventa.core.network.VerificacionIdentidad
 import co.solventa.feature.siniestros.evidencia.AlmacenEvidencias
 import co.solventa.feature.siniestros.evidencia.FormatoEvidencia
 import co.solventa.feature.siniestros.evidencia.Preparado
+import co.solventa.feature.siniestros.borrador.AlmacenBorradoresCifrado
+import co.solventa.feature.siniestros.borrador.CifradoAesGcm
+import co.solventa.feature.siniestros.borrador.ESPERAS_REINTENTO
+import co.solventa.feature.siniestros.borrador.EnviadorBorradores
+import co.solventa.feature.siniestros.borrador.FuenteLlave
+import co.solventa.feature.siniestros.borrador.LlaveInexistente
+import co.solventa.feature.siniestros.borrador.MonitorConectividad
+import co.solventa.feature.siniestros.borrador.PuertoCifrado
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
+import java.time.Duration
+import java.time.Instant
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +67,10 @@ import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReglaMain : TestWatcher() {
-    override fun starting(description: Description) = Dispatchers.setMain(UnconfinedTestDispatcher())
+    /** Para `runTest(main.dispatcher)`: el reloj virtual es el mismo que usan las esperas del enviador. */
+    val dispatcher = UnconfinedTestDispatcher()
+
+    override fun starting(description: Description) = Dispatchers.setMain(dispatcher)
     override fun finished(description: Description) = Dispatchers.resetMain()
 }
 
@@ -91,6 +113,7 @@ data class CargaFalsa(
     val idSiniestro: String,
     val nombre: String,
     val tipo: String,
+    val contenido: ByteArray,
     val tomadaEn: String?,
     val latitud: String?,
     val longitud: String?,
@@ -155,9 +178,38 @@ class BffFalso : BffApi {
         return polizas()
     }
 
-    override suspend fun reportarSiniestro(claveIdempotencia: String, solicitud: SolicitudSiniestro): Siniestro {
+    /** Dueño de cada llamada, en orden: `null` si la hizo una pantalla en línea. */
+    val duenios = mutableListOf<String?>()
+
+    /** Cuenta con sesión, para simular `InterceptorDuenio`: una llamada de otro dueño no sale. */
+    var sesionDe: (() -> String?)? = null
+
+    private fun revisarDuenio(duenio: DuenioSolicitud?) {
+        val vigente = sesionDe?.invoke()
+        if (duenio != null && sesionDe != null && vigente != duenio.clienteId) {
+            throw SolicitudDeOtraCuenta(duenio.clienteId, vigente)
+        }
+        duenios += duenio?.clienteId
+    }
+
+    override suspend fun reportarSiniestro(
+        claveIdempotencia: String,
+        solicitud: SolicitudSiniestro,
+        duenio: DuenioSolicitud?,
+    ): Siniestro {
+        revisarDuenio(duenio)
         reportes += claveIdempotencia to solicitud
         return reporte(claveIdempotencia, solicitud)
+    }
+
+    var siniestros: suspend () -> List<Siniestro> = { emptyList() }
+    var consultasSiniestros = 0
+        private set
+
+    override suspend fun listarSiniestros(duenio: DuenioSolicitud?): List<Siniestro> {
+        revisarDuenio(duenio)
+        consultasSiniestros += 1
+        return siniestros()
     }
 
     /** Carga: nombre del archivo y campos de texto. Por defecto la guarda y responde como el BFF. */
@@ -179,13 +231,16 @@ class BffFalso : BffApi {
         latitud: RequestBody?,
         longitud: RequestBody?,
         lugar: RequestBody?,
+        duenio: DuenioSolicitud?,
     ): Evidencia {
+        revisarDuenio(duenio)
         val disposicion = archivo.headers?.get("Content-Disposition").orEmpty()
         val nombre = disposicion.substringAfter("filename=\"").substringBefore('"')
         val datos = CargaFalsa(
             idSiniestro,
             nombre,
             archivo.body.contentType().toString(),
+            Buffer().also(archivo.body::writeTo).readByteArray(),
             tomadaEn?.texto(),
             latitud?.texto(),
             longitud?.texto(),
@@ -195,7 +250,8 @@ class BffFalso : BffApi {
         return carga(datos)
     }
 
-    override suspend fun listarEvidencias(idSiniestro: String): List<Evidencia> {
+    override suspend fun listarEvidencias(idSiniestro: String, duenio: DuenioSolicitud?): List<Evidencia> {
+        revisarDuenio(duenio)
         consultasEvidencia += 1
         return consulta()
     }
@@ -245,4 +301,81 @@ class BffFalso : BffApi {
 
     override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
         error("no se usa en siniestros")
+}
+
+// ── Borradores (MOB-F05-02) ────────────────────────────────────────────────────────────────────
+
+const val CLIENTE = "CLI-2026-000001"
+const val OTRO_CLIENTE = "CLI-2026-000002"
+
+/** Red controlable desde la prueba. */
+class MonitorFalso(conectado: Boolean = true) : MonitorConectividad {
+    override val conectado = MutableStateFlow(conectado)
+}
+
+/** Llave AES-256 de la JCA, en memoria: el mismo código de cifrado que con el Keystore. */
+class LlaveJca : FuenteLlave {
+    var llave: SecretKey? = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+    var fallo: Exception? = null
+
+    override fun paraCifrar(): SecretKey = llave ?: KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        .also { llave = it }
+
+    override fun paraDescifrar(): SecretKey {
+        fallo?.let { throw it }
+        return llave ?: throw LlaveInexistente()
+    }
+}
+
+/** Cifrado que falla al escribir tras [bytes] bytes: disco lleno o escritura incompleta. */
+class CifradoQueFalla(private val real: PuertoCifrado, var bytes: Long? = null) : PuertoCifrado {
+    override fun cifrar(destino: OutputStream): OutputStream {
+        val limite = bytes ?: return real.cifrar(destino)
+        var escritos = 0L
+        return object : OutputStream() {
+            override fun write(b: Int) {
+                escritos += 1
+                if (escritos > limite) throw IOException("No queda espacio en el dispositivo")
+            }
+        }
+    }
+
+    override fun descifrar(origen: InputStream): InputStream = real.descifrar(origen)
+}
+
+/** El enviador con el almacén real (AES-GCM de la JCA) en [carpeta] y la sesión que diga [cliente]. */
+@Suppress("LongParameterList")
+class Entorno(
+    carpeta: File,
+    val api: BffFalso = BffFalso(),
+    val monitor: MonitorFalso = MonitorFalso(),
+    val alcance: CoroutineScope = CoroutineScope(Dispatchers.Main),
+    reloj: () -> Instant = { Instant.parse("2026-10-26T15:00:00Z") },
+    esperas: List<Duration> = ESPERAS_REINTENTO,
+    /** La misma llave del Keystore sobrevive a la muerte del proceso: se pasa la del entorno anterior. */
+    val llave: LlaveJca = LlaveJca(),
+) {
+    val cifrado = CifradoQueFalla(CifradoAesGcm(llave))
+    val raiz = File(carpeta, "borradores")
+    val almacen = AlmacenBorradoresCifrado(raiz, cifrado)
+    var cliente: String? = CLIENTE
+
+    init {
+        api.sesionDe = { cliente }
+    }
+
+    val enviador = EnviadorBorradores(
+        api = api,
+        almacen = almacen,
+        monitor = monitor,
+        clienteVigente = { cliente },
+        alcance = alcance,
+        reloj = reloj,
+        io = Dispatchers.Main,
+        esperas = esperas,
+    )
+
+    fun borradores(duenio: String = CLIENTE) = almacen.listar(duenio)
+        .filterIsInstance<co.solventa.feature.siniestros.borrador.EntradaBorrador.Legible>()
+        .map { it.borrador }
 }
