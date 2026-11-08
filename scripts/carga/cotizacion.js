@@ -4,8 +4,10 @@
 //          -e ESCENARIO=sano scripts/carga/cotizacion.js
 //
 // Credenciales de la cuenta de prueba en HUMO_CORREO y HUMO_CLAVE (nunca se imprimen). Inicia
-// sesión una vez en `setup` por el router web y cada iteración cotiza con esa cookie: el recorrido
-// es el del cliente real (BFF → núcleo → perfilamiento → Cloud SQL), no el del prototipo de EXP-01.
+// sesión una vez en `setup` por el router web, se asegura de que la cuenta tenga consentimiento
+// vigente para `cotizacion` (si no, lo otorga) y cada iteración cotiza con esa cookie: el
+// recorrido es el del cliente real (BFF → núcleo → perfilamiento → Cloud SQL), no el del
+// prototipo de EXP-01.
 //
 // El estado del proveedor de Open Finance (sano, degradado o caído) no se cambia aquí: lo pone el
 // workflow `carga.yml` en el núcleo (PERFILAMIENTO_OPEN_FINANCE_MODO) antes de correr. ESCENARIO
@@ -61,7 +63,46 @@ export function setup() {
   );
   const cookie = res.cookies.sesion && res.cookies.sesion[0];
   if (res.status !== 200 || !cookie) fail(`No se pudo iniciar sesión: ${res.status}`);
+  asegurarConsentimiento(cookie.value);
   return { sesion: cookie.value };
+}
+
+// Sin consentimiento vigente para `cotizacion`, toda oferta sale a tarifa estándar y la carga nunca
+// pasa por el perfil de Open Finance ni por su caché: los escenarios degradado y caído no medirían
+// nada (ARQ-05, criterios 1, 2 y 7). Si la cuenta de prueba no lo tiene, se le otorga con las
+// entidades y la versión del texto del catálogo, como lo haría el cliente desde la web.
+function asegurarConsentimiento(sesion) {
+  const opciones = (nombre) => ({
+    headers: { 'Content-Type': 'application/json', Cookie: `sesion=${sesion}` },
+    tags: { name: nombre },
+  });
+  const actuales = http.get(`${WEB}/consentimientos`, opciones('consentimientos'));
+  if (actuales.status !== 200) fail(`No se pudieron leer los consentimientos: ${actuales.status}`);
+  const vigente = actuales
+    .json()
+    .some((c) => c.finalidad === 'cotizacion' && c.estado === 'vigente');
+  if (vigente) {
+    console.log('La cuenta de prueba ya tiene consentimiento vigente para cotizacion');
+    return;
+  }
+  const catalogo = http.get(`${WEB}/consentimientos/finalidades`, opciones('finalidades'));
+  if (catalogo.status !== 200) fail(`No se pudo leer el catálogo: ${catalogo.status}`);
+  const finalidad = catalogo.json().find((f) => f.codigo === 'cotizacion');
+  if (!finalidad) fail('El catálogo no trae la finalidad cotizacion');
+  const otorgado = http.post(
+    `${WEB}/consentimientos`,
+    JSON.stringify({
+      finalidad: 'cotizacion',
+      entidades_origen: finalidad.entidades_origen.map((e) => e.id),
+      version_texto: finalidad.version_texto,
+    }),
+    opciones('otorgar'),
+  );
+  // 409: otra corrida lo otorgó entre la consulta y este envío; ya está vigente.
+  if (otorgado.status !== 201 && otorgado.status !== 409) {
+    fail(`No se pudo otorgar el consentimiento: ${otorgado.status}`);
+  }
+  console.log('Consentimiento de cotizacion otorgado a la cuenta de prueba');
 }
 
 export default function (datos) {
