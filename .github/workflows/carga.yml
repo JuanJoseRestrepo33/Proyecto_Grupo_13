@@ -1,0 +1,111 @@
+# Carga de cotización con k6 contra staging (ARQ-05, #136 y #216). Manual.
+#
+# Pone el proveedor simulado de Open Finance del núcleo en el escenario elegido (sano, degradado o
+# caído), corre scripts/carga/cotizacion.js contra el BFF de staging con la cuenta de prueba y
+# deja el resumen en la corrida y como artefacto. Al terminar, pase lo que pase, devuelve el
+# proveedor a `sano`. Cambiar el modo crea una revisión nueva del núcleo; las cuentas en memoria
+# se pierden, pero la de prueba se vuelve a sembrar al arrancar.
+#
+# Usa la cuenta `infraestructura` (puede actualizar el servicio), y por eso el environment
+# `staging-infraestructura`, que pide aprobación y solo acepta develop. Comparte el grupo de
+# concurrencia con Aprovisionar y Cloud SQL: nunca corren a la vez.
+name: Carga de cotización (k6)
+
+on:
+  workflow_dispatch:
+    inputs:
+      escenario:
+        description: Estado del proveedor de Open Finance durante la carga
+        type: choice
+        options: [sano, degradado, caido]
+        default: sano
+      rpm:
+        description: Cotizaciones por minuto (perfil de EXP-01, 1000)
+        default: "1000"
+      duracion:
+        description: Duración de la carga (por ejemplo 5m o 90s)
+        default: "5m"
+
+concurrency:
+  group: ambiente-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  carga:
+    name: k6 · ${{ inputs.escenario }}
+    runs-on: ubuntu-latest
+    environment: staging-infraestructura
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      ESCENARIO: ${{ inputs.escenario }}
+      RPM: ${{ inputs.rpm }}
+      DURACION: ${{ inputs.duracion }}
+      K6_VERSION: v0.54.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar entradas
+        run: |
+          [[ "$RPM" =~ ^[0-9]{1,5}$ ]] && (( RPM >= 1 && RPM <= 6000 )) \
+            || { echo "::error::rpm debe ser un entero entre 1 y 6000"; exit 1; }
+          [[ "$DURACION" =~ ^[0-9]{1,3}(s|m)$ ]] \
+            || { echo "::error::duracion debe ser como 90s o 5m"; exit 1; }
+
+      - name: Instalar k6 ${{ env.K6_VERSION }} (checksum verificado)
+        run: |
+          base="https://github.com/grafana/k6/releases/download/${K6_VERSION}"
+          archivo="k6-${K6_VERSION}-linux-amd64.tar.gz"
+          curl -fsSLO "$base/$archivo"
+          curl -fsSL "$base/k6-${K6_VERSION}-checksums.txt" | grep " ${archivo}\$" | sha256sum -c -
+          tar -xzf "$archivo"
+          sudo install "k6-${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+
+      - name: Proveedor de Open Finance en «${{ inputs.escenario }}»
+        run: |
+          set -euo pipefail
+          scripts/carga/modo_proveedor.sh "$ESCENARIO"
+          echo "BFF_URL=$(gcloud run services describe solventa-bff --region="$REGION" \
+            --project="$PROYECTO" --format='value(status.url)')" >> "$GITHUB_ENV"
+
+      - name: Correr k6
+        env:
+          HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
+          HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: |
+          set -o pipefail
+          estado=0
+          k6 run --quiet --no-color -e BASE_URL="$BFF_URL" -e RPM="$RPM" -e DURACION="$DURACION" \
+            -e ESCENARIO="$ESCENARIO" scripts/carga/cotizacion.js | tee salida-k6.txt || estado=$?
+          cat "carga-${ESCENARIO}.md" >> "$GITHUB_STEP_SUMMARY"
+          # 99: algún umbral de RC-01 o RC-03 no se cumplió. Queda en el resumen y la corrida falla.
+          exit "$estado"
+
+      - name: Guardar el resumen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carga-${{ inputs.escenario }}-${{ github.run_id }}
+          path: |
+            carga-*.json
+            carga-*.md
+          if-no-files-found: warn
+
+      - name: Devolver el proveedor a «sano»
+        if: always() && inputs.escenario != 'sano'
+        run: scripts/carga/modo_proveedor.sh sano

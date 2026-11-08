@@ -79,6 +79,7 @@ class NubeSimulada:
             PUSH_MODO="sano",
             DOCUMENTOS_BUCKET=BUCKET_DOCUMENTOS[5:],
             POLIZAS_SEMILLA=amb.SEMILLA_POLIZAS,
+            **amb.UMBRALES_CIRCUITO,
         )
         self.servicios = {
             "solventa-nucleo": {"cloudsql": conexion, "env": nucleo},
@@ -408,6 +409,27 @@ class TestAprovisionarDesdeCero:
         assert "ALMACENAMIENTO_DOCUMENTOS=gcs" in variables
         assert "PUSH_MODO=sano" in variables
         assert f"DOCUMENTOS_BUCKET={BUCKET_DOCUMENTOS[5:]}" in variables
+
+    def test_el_nucleo_lleva_los_umbrales_del_circuito_pero_no_el_modo(self, nube, entorno):
+        _ambiente(nube, entorno).aprovisionar()
+        nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
+        variables = next(a for a in nucleo if a.startswith("--set-env-vars="))
+        for variable, valor in amb.UMBRALES_CIRCUITO.items():
+            assert f"{variable}={valor}" in variables
+        # El modo del proveedor lo cambia carga.yml; aprovisionar no lo devuelve a sano a mitad
+        # de una carga.
+        assert "PERFILAMIENTO_OPEN_FINANCE_MODO" not in variables
+
+    def test_un_umbral_cambiado_a_mano_se_corrige(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.servicios["solventa-nucleo"]["env"]["PERFILAMIENTO_CIRCUITO_UMBRAL"] = "0.5"
+        nube.servicios["solventa-nucleo"]["env"]["PERFILAMIENTO_OPEN_FINANCE_MODO"] = "caido"
+        _ambiente(nube, entorno).aprovisionar()
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        assert "--update-env-vars=PERFILAMIENTO_CIRCUITO_UMBRAL=0.10" in actualizacion
+        assert (
+            nube.servicios["solventa-nucleo"]["env"]["PERFILAMIENTO_OPEN_FINANCE_MODO"] == "caido"
+        )
 
     def test_crea_el_token_interno_de_siniestros_sin_imprimirlo(self, nube, entorno, capsys):
         _ambiente(nube, entorno).aprovisionar()
