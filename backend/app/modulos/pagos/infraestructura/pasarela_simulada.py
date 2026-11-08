@@ -52,6 +52,8 @@ class PasarelaSimulada:
         self.caida = caida
         self.cobros: list[tuple[str, Dinero, MedioPago]] = []
         self._transacciones: dict[str, EstadoPago] = {}
+        #: Referencia de la transacción de cada pago, para conciliar por nuestro id.
+        self._por_pago: dict[str, str] = {}
         self._consecutivo = itertools.count(77_120_418)
         self._cerrojo = threading.Lock()
 
@@ -86,8 +88,18 @@ class PasarelaSimulada:
             referencia = f"TX-{next(self._consecutivo)}"
             estado = self.resultados[medio]
             self._transacciones[referencia] = estado
+            self._por_pago[id_pago] = referencia
             self.cobros.append((id_pago, monto, medio))
         return RespuestaPasarela(estado, referencia)
+
+    def consultar_pago(self, id_pago: str) -> RespuestaPasarela | None:
+        if self.caida:
+            raise DependenciaNoDisponible("La pasarela de pagos no respondió", proveedor="pasarela")
+        with self._cerrojo:
+            referencia = self._por_pago.get(id_pago)
+            if referencia is None:
+                return None
+            return RespuestaPasarela(self._transacciones[referencia], referencia)
 
     def consultar(self, referencia: str) -> RespuestaPasarela:
         if self.caida:

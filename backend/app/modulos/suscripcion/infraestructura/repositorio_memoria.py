@@ -7,6 +7,7 @@ igual que la restricción `UNIQUE` del repositorio en PostgreSQL.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 from ..dominio.modelo import Suscripcion
 
@@ -24,9 +25,14 @@ class RepositorioEnMemoria:
             self._por_id[suscripcion.id_suscripcion] = suscripcion
             return suscripcion
 
-    def actualizar(self, suscripcion: Suscripcion) -> None:
+    def actualizar(self, suscripcion: Suscripcion) -> Suscripcion | None:
         with self._cerrojo:
-            self._por_id[suscripcion.id_suscripcion] = suscripcion
+            guardada = self._por_id.get(suscripcion.id_suscripcion)
+            if guardada is None or guardada.version != suscripcion.version:
+                return None
+            nueva = replace(suscripcion, version=suscripcion.version + 1)
+            self._por_id[suscripcion.id_suscripcion] = nueva
+            return nueva
 
     def obtener(self, id_suscripcion: str) -> Suscripcion | None:
         with self._cerrojo:

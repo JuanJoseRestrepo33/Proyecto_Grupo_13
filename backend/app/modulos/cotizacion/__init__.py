@@ -14,7 +14,7 @@ from .api.rutas import router
 from .aplicacion.servicio import ServicioDeCotizacion
 from .dominio.catalogo import Producto
 from .dominio.catalogo import obtener as _obtener_producto
-from .dominio.modelo import Cotizacion, EstadoCotizacion, ProductoId
+from .dominio.modelo import Cotizacion, EstadoCotizacion, OfertaVencidaError, ProductoId
 
 MODULO = DescriptorDeModulo(
     nombre="cotizacion",
@@ -38,6 +38,7 @@ __all__ = [
     "MODULO",
     "Cotizacion",
     "EstadoCotizacion",
+    "OfertaVencidaError",
     "Producto",
     "ServicioDeCotizacion",
     "obtener_servicio",

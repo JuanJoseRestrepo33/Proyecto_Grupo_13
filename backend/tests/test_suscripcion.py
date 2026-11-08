@@ -412,3 +412,92 @@ def test_la_firma_simulada_se_configura_por_entorno():
     assert not FirmaSimulada.desde_entorno(reloj, {}).caida
     with pytest.raises(RuntimeError):
         FirmaSimulada.desde_entorno(reloj, {"FIRMA_MODO": "rota"})
+
+
+# -- fallos parciales y réplicas (revisión de #270) ----------------------------------------
+
+
+def test_una_aceptacion_sin_auditar_se_audita_al_reintentar(entorno, monkeypatch):
+    id_cotizacion = entorno.cotizar()
+    auditoria = entorno.servicio._auditoria
+    original = auditoria.registrar_aceptacion
+
+    def falla(_suscripcion):
+        raise RuntimeError("auditoría caída")
+
+    monkeypatch.setattr(auditoria, "registrar_aceptacion", falla)
+    with pytest.raises(RuntimeError):
+        entorno.servicio.aceptar(CLIENTE, id_cotizacion, "web")
+    monkeypatch.setattr(auditoria, "registrar_aceptacion", original)
+
+    suscripcion, nueva = entorno.servicio.aceptar(CLIENTE, id_cotizacion, "web")
+
+    assert not nueva
+    assert [p.paso for p in suscripcion.trazabilidad] == [Paso.ACEPTACION]
+    guardada = entorno.repositorio.obtener(suscripcion.id_suscripcion)
+    assert [p.paso for p in guardada.trazabilidad] == [Paso.ACEPTACION]
+
+
+def test_si_la_emision_falla_tras_firmar_el_reintento_reutiliza_la_firma(entorno, monkeypatch):
+    pagada = entorno.pagada()
+    emision = entorno.servicio._emision
+    original = emision.emitir
+
+    def falla(_suscripcion):
+        raise RuntimeError("pólizas caído")
+
+    monkeypatch.setattr(emision, "emitir", falla)
+    with pytest.raises(RuntimeError):
+        entorno.servicio.firmar(CLIENTE, pagada.id_suscripcion, True)
+    monkeypatch.setattr(emision, "emitir", original)
+
+    emitida, nueva = entorno.servicio.firmar(CLIENTE, pagada.id_suscripcion, True)
+
+    assert nueva
+    assert len(entorno.firma.firmadas) == 1
+    poliza = entorno.polizas.poliza_del_cliente(emitida.numero_poliza, CLIENTE)
+    assert poliza.id_firma == emitida.id_firma
+    pasos = [p.paso for p in emitida.trazabilidad]
+    assert pasos == [Paso.ACEPTACION, Paso.PAGO, Paso.FIRMA, Paso.EMISION]
+
+
+def test_una_escritura_tardia_de_otra_replica_no_deshace_la_emision(entorno):
+    """La réplica A leyó la suscripción `aceptada` y va a dejarla `pagada`; mientras tanto la
+    réplica B la firmó y la emitió. La escritura de A no puede devolverla a `pagada`."""
+    suscripcion = entorno.aceptada()
+    leida_por_a = entorno.repositorio.obtener(suscripcion.id_suscripcion)
+    entorno.servicio.pagar(CLIENTE, suscripcion.id_suscripcion, "tarjeta_credito", "c-1", "web")
+    emitida, _ = entorno.servicio.firmar(CLIENTE, suscripcion.id_suscripcion, True)
+    pago = entorno.servicio.ultimo_pago(emitida)
+
+    entorno.servicio._registrar_si_aprobado(leida_por_a, pago)
+
+    final = entorno.repositorio.obtener(suscripcion.id_suscripcion)
+    assert final.estado is EstadoSuscripcion.EMITIDA
+    assert final.numero_poliza == emitida.numero_poliza
+
+
+def test_el_repositorio_rechaza_una_escritura_sobre_una_version_vieja(entorno):
+    suscripcion = entorno.aceptada()
+    vieja = entorno.repositorio.obtener(suscripcion.id_suscripcion)
+    assert entorno.repositorio.actualizar(vieja) is not None
+
+    assert entorno.repositorio.actualizar(vieja) is None
+
+
+def test_listar_trae_el_ultimo_pago_de_cada_suscripcion_en_una_consulta(entorno, monkeypatch):
+    pagada = entorno.pagada()
+    consultas = []
+    original = entorno.pagos.ultimos
+
+    def contar(conceptos):
+        consultas.append(conceptos)
+        return original(conceptos)
+
+    monkeypatch.setattr(entorno.pagos, "ultimos", contar)
+
+    pagos = entorno.servicio.ultimos_pagos(entorno.servicio.del_cliente(CLIENTE))
+
+    assert set(pagos) == {pagada.id_suscripcion}
+    assert pagos[pagada.id_suscripcion].aprobado
+    assert len(consultas) == 1
