@@ -5,6 +5,54 @@ Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Fo
 (ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
 que rompen a un cliente existente van marcados como **incompatible**.
 
+## [0.8.0] · 2026-11-08 · MOB-F06
+
+Rutas nuevas, solo en este contrato: el push es propio de la app.
+
+### Agregado
+
+- `POST /dispositivos` (`SolicitudDispositivo` con `token_push` y `plataforma: android`): registra
+  el dispositivo para recibir push. Responde 201 si el token es nuevo y 200 si ya estaba (queda con
+  esta cuenta), así la app puede registrarlo en cada arranque. 422 `token_push_invalido` si está
+  vacío, tiene espacios o pasa de 4096 caracteres.
+- `DELETE /dispositivos/{id}`: da de baja el dispositivo al cerrar sesión. 404 si no existe.
+- `GET /notificaciones` (`limite` de 1 a 100, 50 por defecto): notificaciones del cliente, de la más
+  reciente a la más antigua: una por cada cambio de estado de un siniestro, aunque el núcleo
+  reciba el evento dos veces.
+- `POST /notificaciones/{id}/lectura`: marca una notificación como leída. 404 si no existe.
+- Esquemas `SolicitudDispositivo`, `Dispositivo` y `Notificacion`. En `datos`, cada notificación de
+  un siniestro trae `tipo: siniestro_estado` y el `id_siniestro` que la app abre al tocarla.
+- La descripción del contrato explica cómo recibe la app el push mientras el proveedor sea
+  simulado: registra el token al iniciar sesión, lee `GET /notificaciones` y muestra cada una como
+  notificación local.
+
+## [0.7.0] · 2026-11-08 · WEB-F06
+
+Compatible: los enums de estado y de siguiente paso no cambian, y la app los sigue leyendo como
+enums cerrados.
+
+### Agregado
+
+- `GET /siniestros/{id}` responde `SiniestroDetalle`, con el `historial` de eventos y los
+  `requerimientos`, igual que en `bff-web` 0.11.0.
+- `Siniestro.estado_actualizado_en`, opcional.
+- `POST /siniestros/{id}/evidencias` acepta `id_requerimiento` para responder un requerimiento.
+  Errores: 404 `requerimiento_no_encontrado`; 409 `requerimiento_ya_atendido`.
+- Esquemas `SiniestroDetalle`, `EventoSiniestro` y `Requerimiento`.
+
+## [0.6.0] · 2026-11-08 · WEB-F04
+
+Compatible: la app ignora los campos desconocidos, así que el resumen ampliado no la rompe.
+
+### Agregado
+
+- `GET /polizas/{numero}`: detalle con coberturas, deducible, valor asegurado y fecha de emisión,
+  igual que en `bff-web` 0.10.0. 404 `poliza_no_encontrada`, también si es de otro cliente.
+- `GET /polizas/{numero}/documento`: el PDF de la póliza emitida en la web, con la sesión de la app.
+  404 `documento_no_disponible` en las pólizas de prueba.
+- `PolizaResumen` suma `nombre_producto`, `prima_mensual` y `documento_url`, opcionales.
+- Esquema `Cobertura`. Las rutas de pólizas pasan a su propia etiqueta, `polizas`.
+
 ## [0.5.0] · 2026-10-31 · WEB-F13
 
 Los códigos nuevos son compatibles: la app relee la verificación ante cualquier 409 y muestra su
