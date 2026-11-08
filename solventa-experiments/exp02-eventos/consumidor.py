@@ -20,7 +20,6 @@ import signal
 
 import redis
 from google.cloud import pubsub_v1
-from google.cloud import monitoring_v3
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("consumidor")

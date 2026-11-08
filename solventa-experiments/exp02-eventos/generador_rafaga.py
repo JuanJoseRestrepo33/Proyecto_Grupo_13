@@ -8,8 +8,7 @@ verificacion de idempotencia.
 Ejecutar:
   python generador_rafaga.py --eventos 1000000 --ventana 600 --duplicados 0.05
 """
-import argparse, json, os, random, time, threading
-from concurrent.futures import ThreadPoolExecutor
+import argparse, json, os, random, time
 from google.cloud import pubsub_v1
 
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]

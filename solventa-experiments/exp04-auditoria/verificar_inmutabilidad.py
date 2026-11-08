@@ -4,7 +4,7 @@ es append-only, e intenta deliberadamente modificarlo y borrarlo.
 
 Ejecutar: python verificar_inmutabilidad.py
 """
-import os, json, random
+import os, json
 from google.cloud import bigquery
 
 PROJECT = os.environ["GCP_PROJECT_ID"]
