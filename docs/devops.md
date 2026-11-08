@@ -468,6 +468,8 @@ lados.
 | Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
 | Conexión de siniestros | `SINIESTROS_DATABASE_URL` ← secreto `siniestros-database-url` | `solventa-nucleo` | WEB-F05 |
 | Pólizas de prueba de *staging* | `POLIZAS_SEMILLA`: ruta a un JSON; `id_cliente` `"*"` es una plantilla para cualquier cliente | `solventa-nucleo` | WEB-F05 |
+| Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
+| Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo | `solventa-nucleo` | ARQ-05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
