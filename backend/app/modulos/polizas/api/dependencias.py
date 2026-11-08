@@ -38,18 +38,30 @@ VARIABLE_BUCKET = "DOCUMENTOS_BUCKET"
 log = logging.getLogger(__name__)
 
 
-def crear_almacen_de_documentos(entorno: Mapping[str, str] | None = None) -> AlmacenDeDocumentos:
-    entorno = os.environ if entorno is None else entorno
+def _almacen_configurado(entorno: Mapping[str, str]) -> tuple[str, str | None]:
     tipo = entorno.get(VARIABLE_ALMACENAMIENTO, "local")
     if tipo == "local":
-        return AlmacenDeDocumentosEnMemoria()
+        return tipo, None
     if tipo == "gcs":
         bucket = entorno.get(VARIABLE_BUCKET)
         if not bucket:
             # Sin bucket no se arranca en silencio contra memoria: el documento se perdería.
             raise RuntimeError(f"{VARIABLE_ALMACENAMIENTO}=gcs requiere {VARIABLE_BUCKET}")
-        return AlmacenDeDocumentosGcs(bucket)
+        return tipo, bucket
     raise RuntimeError(f"{VARIABLE_ALMACENAMIENTO} no admite {tipo!r}: usa 'local' o 'gcs'")
+
+
+def crear_almacen_de_documentos(entorno: Mapping[str, str] | None = None) -> AlmacenDeDocumentos:
+    tipo, bucket = _almacen_configurado(os.environ if entorno is None else entorno)
+    if tipo == "gcs":
+        return AlmacenDeDocumentosGcs(bucket)  # type: ignore[arg-type]
+    return AlmacenDeDocumentosEnMemoria()
+
+
+def validar_configuracion() -> None:
+    """Revisa `ALMACENAMIENTO_DOCUMENTOS` al armar el núcleo: un valor inválido impide
+    arrancar, en vez de fallar en la primera solicitud (y en `/salud`)."""
+    _almacen_configurado(os.environ)
 
 
 def _crear_repositorio() -> RepositorioPolizas:

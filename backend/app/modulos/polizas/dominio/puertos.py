@@ -38,11 +38,15 @@ class RepositorioPolizas(Protocol):
 
 
 class AlmacenDeDocumentos(Protocol):
-    def guardar(self, numero_poliza: str, contenido: bytes) -> str:
+    def guardar(self, numero_poliza: str, id_suscripcion: str, contenido: bytes) -> str:
         """Guarda el PDF y devuelve su identificador en el almacén. No sobrescribe."""
         raise NotImplementedError
 
     def leer(self, id_documento: str) -> bytes | None:
+        raise NotImplementedError
+
+    def borrar(self, id_documento: str) -> None:
+        """Borra un documento que no quedó ligado a ninguna póliza. No falla si no existe."""
         raise NotImplementedError
 
 

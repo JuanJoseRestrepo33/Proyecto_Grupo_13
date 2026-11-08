@@ -66,6 +66,17 @@ class AuditoriaEnMemoria:
         return f"DEC-{len(self.emitidas)}"
 
 
+class _AuditoriaQueFallaUnaVez:
+    def __init__(self, auditoria: AuditoriaEnMemoria) -> None:
+        self._auditoria, self._fallar = auditoria, True
+
+    def registrar_emision(self, poliza) -> str:
+        if self._fallar:
+            self._fallar = False
+            raise RuntimeError("auditoría caída")
+        return self._auditoria.registrar_emision(poliza)
+
+
 @pytest.fixture
 def auditoria() -> AuditoriaEnMemoria:
     return AuditoriaEnMemoria()
@@ -111,6 +122,56 @@ def test_emitir_otra_vez_la_misma_suscripcion_devuelve_la_misma_poliza(servicio,
     assert not nueva
     assert repetida == primera
     assert auditoria.emitidas == [primera.numero]
+
+
+def test_una_emision_guardada_sin_auditar_se_audita_al_reintentar(almacen, auditoria):
+    repositorio = RepositorioEnMemoria()
+    servicio = ServicioDePolizas(
+        repositorio,
+        RelojFijo(INSTANTE),
+        almacen=almacen,
+        generador=GeneradorPdf(),
+        auditoria=_AuditoriaQueFallaUnaVez(auditoria),
+    )
+    with pytest.raises(RuntimeError):
+        servicio.emitir(SOLICITUD)
+    assert repositorio.por_suscripcion("SUS-1").id_decision is None
+
+    poliza, nueva = servicio.emitir(SOLICITUD)
+
+    assert not nueva
+    assert poliza.id_decision == "DEC-1"
+    assert repositorio.por_suscripcion("SUS-1").id_decision == "DEC-1"
+
+
+def test_la_emision_que_pierde_la_carrera_no_deja_su_pdf(almacen, auditoria):
+    """Otra réplica emitió entre la lectura y la inserción: el PDF de la que pierde se borra."""
+    repositorio = RepositorioEnMemoria()
+    servicio = ServicioDePolizas(
+        repositorio,
+        RelojFijo(INSTANTE),
+        almacen=almacen,
+        generador=GeneradorPdf(),
+        auditoria=auditoria,
+    )
+    ganadora = Poliza(
+        "POL-2026-000099",
+        CLIENTE,
+        "auto",
+        date(2026, 11, 8),
+        date(2027, 11, 7),
+        id_suscripcion="SUS-1",
+        id_documento="polizas/SUS-1/POL-2026-000099.pdf",
+    )
+    original = repositorio.por_suscripcion
+    repositorio.por_suscripcion = lambda _id: None  # la lectura no la ve todavía
+    repositorio.guardar(ganadora)
+
+    poliza, nueva = servicio.emitir(SOLICITUD)
+    repositorio.por_suscripcion = original
+
+    assert not nueva and poliza.numero == "POL-2026-000099"
+    assert almacen.leer("polizas/SUS-1/POL-2026-000001.pdf") is None
 
 
 def test_emisiones_simultaneas_dejan_una_sola_poliza(servicio, auditoria):
@@ -193,6 +254,11 @@ class _Objeto:
     def download_as_bytes(self):
         return self._bucket.objetos[self._nombre][0]
 
+    def delete(self):
+        if self._nombre not in self._bucket.objetos:
+            raise _GcsError(404)
+        del self._bucket.objetos[self._nombre]
+
 
 class _Bucket:
     def __init__(self) -> None:
@@ -220,13 +286,37 @@ def test_el_almacen_gcs_guarda_el_pdf_sin_sobrescribirlo():
     cliente = _ClienteGcs()
     almacen = AlmacenDeDocumentosGcs("solventa-documentos", cliente)
 
-    id_documento = almacen.guardar("POL-2026-000001", b"%PDF-1")
-    otra_vez = almacen.guardar("POL-2026-000001", b"%PDF-2")
+    id_documento = almacen.guardar("POL-2026-000001", "SUS-1", b"%PDF-1")
+    otra_vez = almacen.guardar("POL-2026-000001", "SUS-1", b"%PDF-2")
 
-    assert id_documento == otra_vez == "polizas/POL-2026-000001.pdf"
+    assert id_documento == otra_vez == "polizas/SUS-1/POL-2026-000001.pdf"
     assert cliente.bucket_simulado.objetos[id_documento] == (b"%PDF-1", "application/pdf")
     assert almacen.leer(id_documento) == b"%PDF-1"
     assert almacen.leer("polizas/NO-EXISTE.pdf") is None
+
+
+def test_el_mismo_numero_en_otra_suscripcion_no_comparte_documento():
+    """Un número repetido (repositorio en memoria tras reiniciar, base recreada) no hace que
+    una póliza apunte al PDF de otra."""
+    cliente = _ClienteGcs()
+    almacen = AlmacenDeDocumentosGcs("solventa-documentos", cliente)
+
+    del_cliente_a = almacen.guardar("POL-2026-000001", "SUS-A", b"%PDF-A")
+    del_cliente_b = almacen.guardar("POL-2026-000001", "SUS-B", b"%PDF-B")
+
+    assert del_cliente_a != del_cliente_b
+    assert almacen.leer(del_cliente_b) == b"%PDF-B"
+
+
+def test_el_almacen_gcs_borra_y_tolera_lo_que_ya_no_existe():
+    cliente = _ClienteGcs()
+    almacen = AlmacenDeDocumentosGcs("solventa-documentos", cliente)
+    id_documento = almacen.guardar("POL-2026-000001", "SUS-1", b"%PDF")
+
+    almacen.borrar(id_documento)
+    almacen.borrar(id_documento)
+
+    assert almacen.leer(id_documento) is None
 
 
 def test_el_almacen_gcs_caido_es_dependencia_no_disponible():
@@ -235,14 +325,14 @@ def test_el_almacen_gcs_caido_es_dependencia_no_disponible():
     cliente.bucket_simulado.falla = True
 
     with pytest.raises(AlmacenDeDocumentosNoDisponibleError):
-        almacen.guardar("POL-2026-000001", b"%PDF")
+        almacen.guardar("POL-2026-000001", "SUS-1", b"%PDF")
     with pytest.raises(AlmacenDeDocumentosNoDisponibleError):
         almacen.leer("polizas/POL-2026-000001.pdf")
 
 
 def test_el_nombre_del_objeto_no_admite_rutas():
     with pytest.raises(ValueError):
-        nombre_del_objeto("../otra")
+        nombre_del_objeto("../otra", "SUS-1")
 
 
 @pytest.mark.parametrize(
@@ -307,3 +397,10 @@ def test_salud_reporta_el_almacen_de_documentos(nucleo):
 
     assert dependencias_polizas["documentos_polizas"]["estado"] == "simulado"
     assert dependencias_polizas["repositorio_polizas"]["estado"] == "simulado"
+
+
+def test_un_almacen_mal_configurado_impide_armar_el_nucleo(monkeypatch):
+    monkeypatch.setenv("ALMACENAMIENTO_DOCUMENTOS", "s3")
+
+    with pytest.raises(RuntimeError, match="ALMACENAMIENTO_DOCUMENTOS"):
+        crear_app()
