@@ -3,6 +3,8 @@
     ProveedorOpenFinance → el proveedor externo, detrás del adaptador de ARQ-02. Simulado hoy
     FuenteDePerfiles     → el adaptador resiliente, tal como lo ve el caso de uso
     CacheDePerfiles      → copia local del último perfil; se vacía por evento al revocar
+    VerificacionDeConsentimiento → consentimiento, por su interfaz pública: se pregunta antes
+                           de usar la caché (ARQ-05)
 
 El núcleo solo conoce estas interfaces. Ninguna referencia a un proveedor concreto sale
 de `infraestructura/` (ARQ-02, criterio 1).
@@ -51,4 +53,10 @@ class FuenteDePerfiles(Protocol):
         raise NotImplementedError
 
     def resumen(self) -> dict[str, object]:
+        raise NotImplementedError
+
+
+class VerificacionDeConsentimiento(Protocol):
+    def vigente(self, id_cliente: str, id_consentimiento: str) -> bool:
+        """Si el consentimiento sigue vigente según la fuente de verdad, no según la caché."""
         raise NotImplementedError

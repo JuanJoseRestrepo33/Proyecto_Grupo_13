@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Móvil
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Contrato entre la app Android y su Backend for Frontend (BFF).
 
@@ -19,10 +19,34 @@ info:
       web: el mismo siniestro se ve en los dos canales.
     - **MOB-F05** · Evidencia del siniestro con la fecha de la cámara y la ubicación, o el
       lugar escrito si no hay permiso.
+    - **MOB-F06** · Notificaciones push del siniestro: registro del dispositivo y bandeja de
+      notificaciones. Ver "Push" más abajo.
     - **WEB-F06** · Seguir el siniestro: estado actual, historial de eventos con su fecha y
       requerimientos pendientes que se responden adjuntando evidencia, igual en los dos canales.
     - **WEB-F04** · Mis pólizas: lista, detalle con coberturas y documento, iguales a los de la
       web. Una póliza comprada en la web aparece en la app sin hacer nada más.
+
+    **Push (MOB-F06).** El proveedor de push es **simulado**: el núcleo no habla con Firebase.
+    Cuando cambia el estado de un siniestro, el núcleo crea una notificación para el cliente y
+    la "envía" a cada dispositivo registrado, que en este prototipo es guardarla. La app la
+    recibe así:
+
+    1. Tras iniciar sesión (y en cada arranque con sesión), `POST /dispositivos` con su
+       `token_push`. Es idempotente; si el token estaba con otra cuenta, pasa a esta
+       (criterio 4). Si no hay Firebase en la app, sirve cualquier identificador estable de
+       la instalación.
+    2. Mientras la app está abierta o en segundo plano (WorkManager, cada pocos minutos),
+       `GET /notificaciones`. Cada notificación con `leida: false` que la app no haya mostrado
+       se muestra como notificación local del sistema con `titulo` y `cuerpo`.
+    3. Al tocarla, la app abre el detalle del siniestro de `datos.id_siniestro` cuando
+       `datos.tipo` es `siniestro_estado` (criterio 2) y marca la notificación con
+       `POST /notificaciones/{id}/lectura`.
+    4. Al cerrar sesión, `DELETE /dispositivos/{id}`.
+
+    Si el cliente negó el permiso de notificaciones, la app no muestra la notificación local
+    pero el estado se sigue viendo en el seguimiento (P20, criterio 3). Cambiar a Firebase real
+    solo cambia el núcleo: estas rutas y estos campos se mantienen, y `datos` viaja igual en el
+    mensaje de FCM.
 
     **Biometría.** Solventa nunca recibe el dato biométrico. Tras el primer ingreso con contraseña,
     la app guarda el `token_refresco` cifrado con una llave del Android Keystore que solo se
@@ -52,6 +76,8 @@ tags:
     description: Verificación de identidad KYC/AML (MOB-F01)
   - name: consentimientos
     description: Consentimiento de Open Finance, igual que en la web (MOB-F02)
+  - name: notificaciones
+    description: Registro del dispositivo y notificaciones push del siniestro (MOB-F06)
   - name: polizas
     description: Pólizas del cliente, iguales a las de la web (WEB-F04)
   - name: siniestros
@@ -424,6 +450,89 @@ paths:
           content:
             application/pdf:
               schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /dispositivos:
+    post:
+      tags: [notificaciones]
+      operationId: registrarDispositivo
+      summary: Registra el dispositivo para recibir push
+      description: |
+        Idempotente por `token_push`: registrarlo en cada arranque no crea otro. Si el token
+        estaba registrado con otra cuenta, queda con esta (criterio 4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudDispositivo" }
+      responses:
+        "200":
+          description: Ya estaba registrado; queda con esta cuenta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispositivo" }
+        "201":
+          description: Registrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispositivo" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "422":
+          description: "`token_push_invalido`: vacío, con espacios o de más de 4096 caracteres"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dispositivos/{id}:
+    delete:
+      tags: [notificaciones]
+      operationId: darDeBajaDispositivo
+      summary: Da de baja el dispositivo al cerrar sesión
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Dado de baja; ya no recibe push de esta cuenta }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /notificaciones:
+    get:
+      tags: [notificaciones]
+      operationId: listarNotificaciones
+      summary: Notificaciones del cliente, de la más reciente a la más antigua
+      description: |
+        La bandeja del proveedor de push simulado (ver "Push" en la descripción). Una por cada
+        cambio de estado de un siniestro del cliente, aunque el núcleo reciba el evento dos veces.
+      parameters:
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Notificaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notificacion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /notificaciones/{id}/lectura:
+    post:
+      tags: [notificaciones]
+      operationId: marcarNotificacionLeida
+      summary: Marca una notificación como leída
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Leída }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
@@ -934,6 +1043,55 @@ components:
       properties:
         nombre: { type: string }
         limite: { type: string }
+
+    SolicitudDispositivo:
+      type: object
+      required: [token_push]
+      properties:
+        token_push:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: Token del proveedor de push, o un identificador estable de la instalación
+        plataforma:
+          type: string
+          enum: [android]
+          default: android
+
+    Dispositivo:
+      type: object
+      required: [id, plataforma, registrado_en]
+      properties:
+        id:
+          type: string
+          description: Identificador del dispositivo; el token nunca vuelve en una respuesta
+        plataforma: { type: string, enum: [android] }
+        registrado_en: { type: string, format: date-time }
+
+    Notificacion:
+      type: object
+      required: [id, titulo, cuerpo, datos, creada_en, leida]
+      properties:
+        id: { type: string }
+        titulo: { type: string, examples: [Tu siniestro SIN-2026-000123 cambió] }
+        cuerpo: { type: string, examples: [Ya estamos evaluando tu caso.] }
+        datos:
+          type: object
+          description: |
+            Lo que la app necesita para actuar al tocarla. Con `tipo` = `siniestro_estado`, abre
+            el detalle de `id_siniestro`.
+          required: [tipo]
+          properties:
+            tipo: { type: string, examples: [siniestro_estado] }
+            id_siniestro: { type: string }
+            referencia: { type: string }
+            estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+          additionalProperties: { type: string }
+        creada_en:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        leida: { type: boolean }
 
     PolizaResumen:
       type: object

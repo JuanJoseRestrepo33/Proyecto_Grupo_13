@@ -479,6 +479,10 @@ lados.
 | Pasarela simulada | `PASARELA_TARJETA_CREDITO` (`aprobado` por defecto), `PASARELA_PSE` (`pendiente`), `PASARELA_PENDIENTE_SE_RESUELVE_EN` (`aprobado`) y `PASARELA_MODO` (`sana` o `caida`) | `solventa-nucleo` | WEB-F03 |
 | Firma electrónica simulada | `FIRMA_MODO` = `sana` (por defecto) o `caida` | `solventa-nucleo` | WEB-F03 |
 | Operación interna de cambio de estado del siniestro, solo en *staging* | `SINIESTROS_TOKEN_INTERNO` ← secreto `siniestros-token-interno`; sin ella, `POST /v1/siniestros/{id}/estado` responde 404. Se envía en `X-Token-Interno` | `solventa-nucleo` (y los E2E de seguimiento) | WEB-F06 |
+| Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
+| Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto) o `caido` | `solventa-nucleo` | MOB-F06 |
+| Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
+| Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo | `solventa-nucleo` | ARQ-05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es

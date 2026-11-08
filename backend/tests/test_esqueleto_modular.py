@@ -30,6 +30,8 @@ CAPACIDADES_DEL_DISENO = {
     "siniestros",
     "pagos",
     "socios",
+    # MOB-F06: push por cambio de estado del siniestro.
+    "notificaciones",
 }
 
 
@@ -77,6 +79,7 @@ def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
         "consentimiento",
         "cotizacion",
         "identidad",
+        "notificaciones",
         "pagos",
         "perfilamiento",
         "polizas",
