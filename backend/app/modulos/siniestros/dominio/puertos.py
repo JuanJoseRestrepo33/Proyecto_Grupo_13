@@ -13,7 +13,8 @@ from datetime import date
 from typing import Protocol
 
 from .evidencias import EvidenciaDelSiniestro
-from .modelo import Siniestro
+from .modelo import EstadoSiniestro, Siniestro
+from .seguimiento import EventoDeSeguimiento, Requerimiento
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +58,41 @@ class RepositorioSiniestros(Protocol):
         """Las evidencias del siniestro en el orden en que se cargaron."""
         raise NotImplementedError
 
+    # -- seguimiento (WEB-F06) ---------------------------------------------------------
+
+    def por_id(self, id_siniestro: str) -> Siniestro | None:
+        """Sin filtrar por cliente: solo para la operación interna de cambio de estado."""
+        raise NotImplementedError
+
+    def aplicar_cambio_de_estado(
+        self,
+        anterior: EstadoSiniestro,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[Requerimiento, ...],
+    ) -> bool:
+        """En una sola transacción: cambia el estado solo si sigue siendo `anterior`, deja el
+        evento en el historial, cierra los requerimientos que seguían pendientes y guarda los
+        nuevos. Si el estado ya no es `anterior` no guarda nada y devuelve False: dos cambios
+        simultáneos dejan uno solo, y nunca queda un estado sin su evento o sus
+        requerimientos."""
+        raise NotImplementedError
+
+    def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
+        """Del más antiguo al más reciente."""
+        raise NotImplementedError
+
+    def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
+        """Del más antiguo al más reciente."""
+        raise NotImplementedError
+
+    def responder_requerimiento(
+        self, evidencia: EvidenciaDelSiniestro, id_requerimiento: str
+    ) -> bool:
+        """En una sola transacción: marca atendido el requerimiento del siniestro de la
+        evidencia y guarda la evidencia. Si ya no estaba pendiente no guarda nada y devuelve
+        False: de dos respuestas simultáneas, una sola queda."""
+        raise NotImplementedError
+
 
 class RegistroDeAuditoria(Protocol):
     def registrar(self, siniestro: Siniestro) -> str:
@@ -64,4 +100,12 @@ class RegistroDeAuditoria(Protocol):
         raise NotImplementedError
 
     def registrar_evidencia(self, siniestro: Siniestro, evidencia: EvidenciaDelSiniestro) -> str:
+        raise NotImplementedError
+
+    def registrar_cambio_de_estado(
+        self,
+        siniestro: Siniestro,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[str, ...],
+    ) -> str:
         raise NotImplementedError

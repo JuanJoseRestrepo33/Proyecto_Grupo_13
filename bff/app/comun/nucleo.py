@@ -8,7 +8,7 @@ código propio, para que ningún canal vea una excepción de `httpx`.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any
 
 import httpx
@@ -90,13 +90,16 @@ class ClienteNucleo:
         archivos: Mapping[str, Any] | None = None,
         contenido: bytes | None = None,
         si_no_existe: str | None = None,
+        conservar: Collection[str] = (),
     ) -> httpx.Response:
         """Hace la solicitud y devuelve la respuesta si fue exitosa; si no, lanza `ErrorBff`.
 
         `canal` va en la cabecera `X-Canal`, que el núcleo deja en la auditoría.
         `contenido` es un cuerpo crudo, como el archivo de una evidencia, con su tipo en
         `encabezados`. `si_no_existe` reemplaza el código genérico de un 404 por el del
-        contrato del canal (por ejemplo, `cotizacion_no_encontrada`).
+        contrato del canal (por ejemplo, `cotizacion_no_encontrada`), salvo que el núcleo
+        responda uno de `conservar`: un 404 que el contrato también documenta y que dice qué
+        recurso faltó, como `requerimiento_no_encontrado` al cargar evidencia.
         """
         cabeceras = dict(encabezados or {})
         if canal:
@@ -120,7 +123,11 @@ class ClienteNucleo:
         if respuesta.is_success:
             return respuesta
         error = _traducir(respuesta)
-        if si_no_existe and error.estado == status.HTTP_404_NOT_FOUND:
+        if (
+            si_no_existe
+            and error.estado == status.HTTP_404_NOT_FOUND
+            and error.codigo not in conservar
+        ):
             error.codigo = si_no_existe
         raise error
 

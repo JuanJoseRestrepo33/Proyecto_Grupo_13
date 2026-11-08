@@ -33,7 +33,13 @@ DEL_NUCLEO = {
     "canal": "movil",
     "reportado_en": "2026-10-26T15:00:00Z",
 }
-PARA_EL_CANAL = {**DEL_NUCLEO, "monto_estimado": {"valor": 1500000, "moneda": "COP"}}
+PARA_EL_CANAL = {
+    **DEL_NUCLEO,
+    "monto_estimado": {"valor": 1500000, "moneda": "COP"},
+    "estado_actualizado_en": None,
+}
+#: El detalle suma el historial y los requerimientos (WEB-F06).
+DETALLE_PARA_EL_CANAL = {**PARA_EL_CANAL, "historial": [], "requerimientos": []}
 
 
 @pytest.mark.parametrize(
@@ -175,7 +181,7 @@ def test_el_mismo_siniestro_se_lista_y_se_consulta(con_sesion, nucleo, canal):
     nucleo.responder("GET", f"{NUCLEO}/SIN-1", 200, DEL_NUCLEO)
 
     assert con_sesion.get(f"{canal.prefijo}/siniestros").json() == [PARA_EL_CANAL]
-    assert con_sesion.get(f"{canal.prefijo}/siniestros/SIN-1").json() == PARA_EL_CANAL
+    assert con_sesion.get(f"{canal.prefijo}/siniestros/SIN-1").json() == DETALLE_PARA_EL_CANAL
 
 
 def test_un_siniestro_ajeno_es_404_del_contrato(con_sesion, canal):

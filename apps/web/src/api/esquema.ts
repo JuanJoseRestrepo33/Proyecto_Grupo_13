@@ -427,7 +427,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Detalle de un siniestro */
+        /**
+         * Detalle de un siniestro con su historial y sus requerimientos
+         * @description WEB-F06. El estado actual es el mismo en la web y en la app (criterio 1) y un cambio en
+         *     el núcleo se ve al refrescar (criterio 2). `historial` trae los eventos con su fecha,
+         *     empezando por el reporte (criterio 4). `requerimientos` dice qué falta; el cliente
+         *     responde uno adjuntando evidencia con `id_requerimiento` (criterio 5).
+         */
         get: operations["obtenerSiniestro"];
         put?: never;
         post?: never;
@@ -772,12 +778,16 @@ export interface components {
         /** @enum {string} */
         TipoEventoSiniestro: "accidente_vehiculo" | "hurto" | "dano_hogar" | "retraso_vuelo" | "equipo_danado_o_perdido" | "cancelacion_viaje" | "otro";
         /**
-         * @description En el Sprint 2 todo siniestro está `reportado`; el seguimiento llega con WEB-F06.
+         * @description Estado del caso (WEB-F06). `rechazado` y `pagado` son finales. Cada canal lo muestra con
+         *     su texto, nunca solo con color.
          * @enum {string}
          */
         EstadoSiniestro: "reportado" | "en_evaluacion" | "requiere_informacion" | "aprobado" | "rechazado" | "pagado";
         /**
          * @description Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+         *     `adjuntar_evidencia` en `reportado` y en `requiere_informacion` (ahí, para responder
+         *     los requerimientos pendientes); `esperar_evaluacion` en los demás. Un caso cerrado lo
+         *     explica su `estado`.
          * @enum {string}
          */
         SiguientePaso: "adjuntar_evidencia" | "esperar_evaluacion";
@@ -812,6 +822,38 @@ export interface components {
             canal: "web" | "movil";
             /** Format: date-time */
             reportado_en: string;
+            /** @description Último cambio de estado (WEB-F06); `null` mientras siga como se reportó */
+            estado_actualizado_en?: string | null;
+        };
+        SiniestroDetalle: components["schemas"]["Siniestro"] & {
+            /** @description Eventos del caso, del más antiguo al más reciente; el primero es el reporte */
+            historial: components["schemas"]["EventoSiniestro"][];
+            /** @description Lo que se le pidió al cliente, pendiente o ya atendido */
+            requerimientos: components["schemas"]["Requerimiento"][];
+        };
+        EventoSiniestro: {
+            id: string;
+            /** @description `null` en el evento del reporte */
+            estado_anterior: components["schemas"]["EstadoSiniestro"] | null;
+            estado: components["schemas"]["EstadoSiniestro"];
+            /** Format: date-time */
+            ocurrido_en: string;
+            /** @description Explicación del cambio, si la hay */
+            motivo: string | null;
+        };
+        Requerimiento: {
+            id: string;
+            /**
+             * @description Qué falta, en palabras del ajustador
+             * @example Factura de la reparación
+             */
+            descripcion: string;
+            /** Format: date-time */
+            creado_en: string;
+            pendiente: boolean;
+            atendido_en: string | null;
+            /** @description La evidencia con la que se respondió; `null` si sigue pendiente */
+            id_evidencia: string | null;
         };
         ErrorVigencia: components["schemas"]["Error"] & {
             /**
@@ -840,6 +882,12 @@ export interface components {
             longitud?: number;
             /** @description El lugar escrito por el cliente cuando no hay ubicación */
             lugar?: string;
+            /**
+             * @description Requerimiento pendiente que esta evidencia responde (WEB-F06, criterio 5). Lo deja
+             *     atendido. 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+             *     `requerimiento_ya_atendido` si ya se respondió.
+             */
+            id_requerimiento?: string;
         };
         Evidencia: {
             /** @example EVI-6f1c2a */
@@ -1601,13 +1649,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Siniestro con su estado y siguiente paso */
+            /** @description Siniestro con su estado, siguiente paso, historial y requerimientos */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Siniestro"];
+                    "application/json": components["schemas"]["SiniestroDetalle"];
                 };
             };
             401: components["responses"]["NoAutenticado"];

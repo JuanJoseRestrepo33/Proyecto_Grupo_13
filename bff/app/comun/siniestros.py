@@ -72,6 +72,35 @@ def a_siniestro(siniestro: dict[str, Any]) -> dict[str, object]:
         "siguiente_paso": siniestro["siguiente_paso"],
         "canal": siniestro["canal"],
         "reportado_en": siniestro["reportado_en"],
+        "estado_actualizado_en": siniestro.get("estado_actualizado_en"),
+    }
+
+
+def a_detalle(siniestro: dict[str, Any]) -> dict[str, object]:
+    """El siniestro con su historial y sus requerimientos (WEB-F06, criterios 4 y 5)."""
+    return {
+        **a_siniestro(siniestro),
+        "historial": [
+            {
+                "id": e["id"],
+                "estado_anterior": e["estado_anterior"],
+                "estado": e["estado"],
+                "ocurrido_en": e["ocurrido_en"],
+                "motivo": e["motivo"],
+            }
+            for e in siniestro.get("historial", [])
+        ],
+        "requerimientos": [
+            {
+                "id": r["id"],
+                "descripcion": r["descripcion"],
+                "creado_en": r["creado_en"],
+                "pendiente": r["pendiente"],
+                "atendido_en": r["atendido_en"],
+                "id_evidencia": r["id_evidencia"],
+            }
+            for r in siniestro.get("requerimientos", [])
+        ],
     }
 
 
@@ -90,7 +119,7 @@ def listar(nucleo: ClienteNucleo, id_cliente: str) -> list[dict[str, object]]:
 
 def obtener(nucleo: ClienteNucleo, id_cliente: str, id_siniestro: str) -> dict[str, object]:
     siniestro = nucleo.get(ruta_siniestro(id_cliente, id_siniestro), si_no_existe=NO_ENCONTRADO)
-    return a_siniestro(siniestro)
+    return a_detalle(siniestro)
 
 
 def reportar(
