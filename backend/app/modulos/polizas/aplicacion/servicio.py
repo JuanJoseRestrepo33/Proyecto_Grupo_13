@@ -78,8 +78,8 @@ class ServicioDePolizas:
         return poliza.id_documento is not None and self._almacen is not None
 
     def _completar(self, poliza: Poliza) -> Poliza:
-        """Una póliza de prueba toma las condiciones del catálogo; una emitida ya trae las
-        de su oferta y no se toca."""
+        """Una póliza de prueba toma las condiciones del catálogo, sin prima (queda en None);
+        una emitida ya trae las de su oferta y no se toca."""
         if poliza.emitida or poliza.coberturas or self._catalogo is None:
             return poliza
         condiciones = self._catalogo.condiciones(poliza.producto)
@@ -91,7 +91,6 @@ class ServicioDePolizas:
             coberturas=condiciones.coberturas,
             deducible=condiciones.deducible,
             valor_asegurado=condiciones.valor_asegurado,
-            prima_mensual=condiciones.prima_mensual,
         )
 
     def documento(self, numero: str, id_cliente: str) -> tuple[Poliza, bytes]:

@@ -17,5 +17,4 @@ class CatalogoDelNucleo:
             coberturas=tuple(CoberturaPoliza(c.nombre, c.limite) for c in encontrado.coberturas),
             deducible=encontrado.deducible,
             valor_asegurado=encontrado.valor_asegurado,
-            prima_mensual=encontrado.prima_estandar,
         )
