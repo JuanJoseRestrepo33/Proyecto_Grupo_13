@@ -17,6 +17,8 @@ CREATE SCHEMA IF NOT EXISTS pagos;
 
 CREATE TABLE IF NOT EXISTS pagos.pagos (
     id_pago             TEXT         PRIMARY KEY,
+    -- Orden de llegada: dos intentos del mismo instante se distinguen sin depender del id.
+    orden               BIGSERIAL    NOT NULL,
     concepto            TEXT         NOT NULL,
     id_cliente          TEXT         NOT NULL,
     medio               TEXT         NOT NULL,
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS pagos.pagos (
 CREATE UNIQUE INDEX IF NOT EXISTS pagos_un_activo_por_concepto
     ON pagos.pagos (concepto) WHERE estado IN ('procesando', 'pendiente', 'aprobado');
 
-CREATE INDEX IF NOT EXISTS pagos_por_concepto ON pagos.pagos (concepto, creado_en);
+CREATE INDEX IF NOT EXISTS pagos_por_concepto ON pagos.pagos (concepto, orden);
 """
 
 COLUMNAS = """
@@ -72,5 +74,5 @@ LIBERAR = "DELETE FROM pagos.pagos WHERE id_pago = %(id_pago)s AND estado = 'pro
 POR_ID = f"SELECT {COLUMNAS} FROM pagos.pagos WHERE id_pago = %(id_pago)s"
 
 DEL_CONCEPTO = f"""
-SELECT {COLUMNAS} FROM pagos.pagos WHERE concepto = %(concepto)s ORDER BY creado_en, id_pago
+SELECT {COLUMNAS} FROM pagos.pagos WHERE concepto = %(concepto)s ORDER BY orden
 """

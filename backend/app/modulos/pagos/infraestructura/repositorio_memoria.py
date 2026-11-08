@@ -40,6 +40,6 @@ class RepositorioEnMemoria:
             return self._por_id.get(id_pago)
 
     def del_concepto(self, concepto: str) -> tuple[Pago, ...]:
+        # Los dict conservan el orden de inserción: es el orden de llegada de los intentos.
         with self._cerrojo:
-            propios = [p for p in self._por_id.values() if p.concepto == concepto]
-        return tuple(sorted(propios, key=lambda p: p.creado_en))
+            return tuple(p for p in self._por_id.values() if p.concepto == concepto)
