@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.8.0
+  version: 0.9.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
@@ -12,8 +12,8 @@ info:
     - **WEB-F02** · Gestión del consentimiento Open Finance.
     - **WEB-F01** · Asistente de cotización con tarifa personalizada o estándar,
       explicación del precio y vigencia de la oferta.
-    - **WEB-F03** (rebanada) · Checkout: aceptar la oferta y pagarla contra la pasarela
-      simulada, sin cobro doble. La firma y la emisión llegan con el resto de WEB-F03.
+    - **WEB-F03** · Checkout: aceptar la oferta, pagarla contra la pasarela simulada sin
+      cobro doble, firmarla y recibir la póliza emitida con su documento.
     - **WEB-F13** · Inicio y cierre de sesión con la misma cuenta del registro en la app.
     - **WEB-F05** · Reporte de siniestros en tres pasos, idempotente, igual que en la app.
     - **MOB-F05** · Evidencia del siniestro: adjuntar, listar y descargar, igual que en la app.
@@ -37,6 +37,8 @@ tags:
     description: Asistente de cotización (WEB-F01)
   - name: suscripciones
     description: Checkout de la oferta aceptada (WEB-F03)
+  - name: polizas
+    description: Pólizas del cliente y su documento (WEB-F03, WEB-F04)
   - name: siniestros
     description: Reporte de siniestros (WEB-F05)
 
@@ -408,6 +410,73 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /suscripciones/{id}/firma:
+    post:
+      tags: [suscripciones]
+      operationId: firmarSuscripcion
+      summary: Firma electrónicamente y emite la póliza
+      description: |
+        Con el pago aprobado, el cliente firma con el proveedor simulado y la póliza queda
+        emitida con su número y un documento descargable (criterio 4). Si el último pago estaba
+        `pendiente`, el BFF lo consulta antes de decidir.
+
+        Es idempotente: firmar una suscripción ya `emitida` responde 200 con la misma póliza.
+        Sin un pago aprobado responde 409 `pago_no_aprobado`; sin `acepta_condiciones: true`,
+        422 `aceptacion_requerida`. Si el proveedor de firma no responde, 503 y no se emite
+        nada: firmar otra vez es seguro.
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudFirma" }
+      responses:
+        "200":
+          description: Ya estaba emitida; es la misma póliza
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "201":
+          description: Firmada y emitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`pago_no_aprobado`: la suscripción no tiene un pago aprobado"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+        "503":
+          description: "`dependencia_no_disponible`: el proveedor de firma no respondió"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /polizas/{numero}/documento:
+    get:
+      tags: [polizas]
+      operationId: descargarDocumentoPoliza
+      summary: Documento PDF de una póliza emitida
+      description: |
+        El documento de la póliza (WEB-F03, criterio 4). Sale con la sesión del cliente; el
+        almacén es privado. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe; una póliza sin documento (las de prueba), 404
+        `documento_no_disponible`.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: "El PDF, como adjunto (`Content-Disposition: attachment`)"
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
   /polizas:
     get:
       tags: [siniestros]
@@ -625,6 +694,11 @@ components:
       in: path
       required: true
       schema: { type: string }
+    NumeroPoliza:
+      name: numero
+      in: path
+      required: true
+      schema: { type: string, examples: [POL-2026-000001] }
 
   responses:
     NoAutenticado:
@@ -935,14 +1009,46 @@ components:
         prima_mensual: { $ref: "#/components/schemas/Dinero" }
         estado:
           type: string
-          enum: [aceptada, pagada]
-          description: "`pagada` cuando la pasarela aprobó el pago"
+          enum: [aceptada, pagada, emitida]
+          description: |
+            `pagada` cuando la pasarela aprobó el pago; `emitida` cuando el cliente firmó y la
+            póliza quedó emitida.
         aceptada_en: { type: string, format: date-time }
         pago:
           description: Último intento de pago; `null` si aún no se ha pagado
           oneOf:
             - $ref: "#/components/schemas/Pago"
             - type: "null"
+        firmada_en:
+          description: Cuándo firmó el cliente; `null` hasta firmar
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        poliza:
+          description: La póliza emitida; `null` hasta firmar
+          oneOf:
+            - $ref: "#/components/schemas/PolizaEmitida"
+            - type: "null"
+
+    SolicitudFirma:
+      type: object
+      required: [acepta_condiciones]
+      properties:
+        acepta_condiciones:
+          type: boolean
+          description: El cliente acepta expresamente las condiciones que firma; debe ser `true`
+
+    PolizaEmitida:
+      type: object
+      required: [numero, inicio, fin, documento_url]
+      properties:
+        numero: { type: string, examples: [POL-2026-000001] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        documento_url:
+          type: string
+          description: Ruta del documento PDF en este BFF
+          examples: [/api/v1/web/polizas/POL-2026-000001/documento]
 
     MedioPago:
       type: string
