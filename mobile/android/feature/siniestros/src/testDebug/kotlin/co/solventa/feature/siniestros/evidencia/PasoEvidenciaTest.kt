@@ -29,9 +29,11 @@ import co.solventa.feature.siniestros.reporte.ReporteViewModel
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -53,6 +55,10 @@ class PasoEvidenciaTest {
 
     private val api = BffFalso()
     private val entorno by lazy { Entorno(File(carpeta.root, "durable"), api) }
+
+    /** El bucle del enviador no debe seguir vivo en la prueba siguiente. */
+    @After
+    fun cerrarEnviador() = entorno.alcance.cancel()
     private val almacen by lazy { AlmacenFalso(carpeta.root) }
     private var camaraAbierta = 0
     private var permisosPedidos = 0

@@ -22,8 +22,10 @@ import co.solventa.feature.siniestros.reporte.Campo
 import co.solventa.feature.siniestros.reporte.PantallaReporte
 import co.solventa.feature.siniestros.reporte.ReporteViewModel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,6 +47,10 @@ class PantallaReporteTest {
 
     private val api = BffFalso()
     private val entorno by lazy { Entorno(carpeta.root, api) }
+
+    /** El bucle del enviador no debe seguir vivo en la prueba siguiente. */
+    @After
+    fun cerrarEnviador() = entorno.alcance.cancel()
     private val claves = Claves()
     private var termino = false
     private var sesionVencida = false
