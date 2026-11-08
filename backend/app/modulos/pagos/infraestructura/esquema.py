@@ -76,3 +76,8 @@ POR_ID = f"SELECT {COLUMNAS} FROM pagos.pagos WHERE id_pago = %(id_pago)s"
 DEL_CONCEPTO = f"""
 SELECT {COLUMNAS} FROM pagos.pagos WHERE concepto = %(concepto)s ORDER BY orden
 """
+
+ULTIMOS = f"""
+SELECT DISTINCT ON (concepto) {COLUMNAS} FROM pagos.pagos
+WHERE concepto = ANY(%(conceptos)s) ORDER BY concepto, orden DESC
+"""

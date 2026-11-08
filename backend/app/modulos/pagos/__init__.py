@@ -6,7 +6,7 @@ y consulta el resultado con `consultar(...)`; nunca importa nada más profundo (
 
 from app.compartido.modulo import DescriptorDeModulo
 
-from .api.dependencias import estado_dependencias, obtener_servicio
+from .api.dependencias import estado_dependencias, obtener_servicio, validar_configuracion
 from .api.esquemas import PagoDto, a_pago_dto
 from .api.rutas import router
 from .aplicacion.servicio import ServicioDePagos
@@ -18,6 +18,7 @@ MODULO = DescriptorDeModulo(
     historia="WEB-F03",
     router=router,
     dependencias=estado_dependencias,
+    iniciar=validar_configuracion,
 )
 
 __all__ = [

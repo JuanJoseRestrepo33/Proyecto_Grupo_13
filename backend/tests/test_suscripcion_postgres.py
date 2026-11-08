@@ -64,13 +64,15 @@ def test_la_suscripcion_emitida_se_lee_igual_desde_otra_replica(repositorio):
     pago = PagoDeLaPrima(
         "PAG-1", "aprobado", "pse", Dinero.cop(132_900), "TX-1", INSTANTE, INSTANTE, "DEC-2"
     )
-    emitida = guardada.pagada(pago, INSTANTE).emitida(
-        Firma("FIR-1", "firma-simulada", INSTANTE),
-        "DEC-3",
-        PolizaEmitida("POL-2026-000001", date(2026, 11, 8), date(2027, 11, 7), "DEC-4"),
-        INSTANTE,
+    emitida = (
+        guardada.pagada(pago, INSTANTE)
+        .firmada(Firma("FIR-1", "firma-simulada", INSTANTE), "DEC-3")
+        .emitida(
+            PolizaEmitida("POL-2026-000001", date(2026, 11, 8), date(2027, 11, 7), "DEC-4"),
+            INSTANTE,
+        )
     )
-    repositorio.actualizar(emitida)
+    emitida = repositorio.actualizar(emitida)
 
     leida = RepositorioPostgres(DSN).obtener("SUS-1")
 

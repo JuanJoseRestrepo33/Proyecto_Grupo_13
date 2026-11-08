@@ -188,8 +188,10 @@ def test_pse_pendiente_se_confirma_al_consultar(nucleo):
 
     assert consultado.json()["estado"] == "aprobado"
     assert nucleo.get(f"{RUTA}/{id_suscripcion}").json()["estado"] == "pagada"
-    otro = nucleo.get(f"/v1/pagos/conceptos/{id_suscripcion}/pagos/{pendiente['id']}")
-    assert otro.json()["estado"] == "aprobado"
+    leido = nucleo.get(
+        f"/v1/pagos/clientes/{CLIENTE}/conceptos/{id_suscripcion}/pagos/{pendiente['id']}"
+    )
+    assert leido.json()["estado"] == "aprobado"
 
 
 def test_un_rechazo_se_informa_y_permite_otro_intento(nucleo):

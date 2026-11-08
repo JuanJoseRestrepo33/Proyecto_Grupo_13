@@ -10,17 +10,14 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.modulos.pagos import MedioPago
+
 from ..dominio.modelo import EstadoSuscripcion, PagoDeLaPrima, Paso, Suscripcion
 
 
 class Canal(StrEnum):
     WEB = "web"
     MOVIL = "movil"
-
-
-class MedioPago(StrEnum):
-    TARJETA_CREDITO = "tarjeta_credito"
-    PSE = "pse"
 
 
 class _Dto(BaseModel):
@@ -47,6 +44,10 @@ class CoberturaDto(_Dto):
 
 
 class PagoDto(_Dto):
+    """El pago como lo ve el checkout. No es el `PagoDto` de pagos: suscripción solo conoce
+    `PagoDeLaPrima` (su traducción del pago, ARQ-01) y este contrato no expone `concepto` ni
+    `id_decision`, que el BFF tampoco lee."""
+
     id: str
     estado: str = Field(description="aprobado, rechazado o pendiente")
     medio: str

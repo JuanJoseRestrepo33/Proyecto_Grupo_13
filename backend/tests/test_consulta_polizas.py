@@ -12,8 +12,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.compartido.dinero import Dinero
 from app.main import crear_app
+from app.modulos import cotizacion
 from app.modulos.cotizacion.dominio import catalogo
 from app.modulos.cotizacion.dominio.modelo import ProductoId
 from app.modulos.polizas.api import dependencias
@@ -118,8 +118,18 @@ def test_el_detalle_de_una_poliza_de_prueba_trae_las_del_catalogo(nucleo):
     assert detalle["nombre_producto"] == hogar.nombre
     assert detalle["deducible"] == hogar.deducible
     assert [c["nombre"] for c in detalle["coberturas"]] == [c.nombre for c in hogar.coberturas]
-    assert detalle["prima_mensual"] == hogar.prima_estandar.monto
     assert detalle["emitida"] is False and detalle["emitida_en"] is None
+
+
+def test_una_poliza_de_prueba_sale_sin_prima(nucleo):
+    """La prima estándar del catálogo no es la de nadie: el canal no debe mostrarla."""
+    numero = f"POL-STG-HOGAR-{CLIENTE.rsplit('-', 1)[-1]}"
+
+    detalle = nucleo.get(f"{RUTA}/{numero}").json()
+    lista = nucleo.get(RUTA).json()
+
+    assert detalle["prima_mensual"] is None and detalle["moneda"] is None
+    assert next(p for p in lista if p["numero"] == numero)["prima_mensual"] is None
 
 
 def test_una_poliza_de_un_producto_fuera_del_catalogo_sale_sin_condiciones(nucleo):
@@ -150,6 +160,14 @@ def test_el_documento_de_una_poliza_de_prueba_no_esta_disponible(nucleo):
 def test_el_catalogo_del_nucleo_traduce_el_producto():
     condiciones = CatalogoDelNucleo().condiciones("auto")
 
-    assert condiciones.prima_mensual == catalogo.obtener(ProductoId.AUTO).prima_estandar
-    assert isinstance(condiciones.prima_mensual, Dinero)
+    assert condiciones.nombre_producto == catalogo.obtener(ProductoId.AUTO).nombre
     assert CatalogoDelNucleo().condiciones("no_existe") is None
+
+
+def test_un_producto_sin_entrada_en_el_catalogo_sale_sin_condiciones(monkeypatch):
+    """Si se agrega un producto al enum sin su entrada, la lista no responde 404."""
+    sin_auto = {k: v for k, v in catalogo.CATALOGO.items() if k is not ProductoId.AUTO}
+    monkeypatch.setattr(catalogo, "CATALOGO", sin_auto)
+
+    assert cotizacion.producto_del_catalogo("auto") is None
+    assert CatalogoDelNucleo().condiciones("auto") is None

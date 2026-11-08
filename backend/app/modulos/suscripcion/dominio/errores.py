@@ -27,6 +27,13 @@ class PagoNoAprobadoError(ReglaDeNegocioViolada):
     codigo = "pago_no_aprobado"
 
 
+class ConflictoDeEscrituraError(ReglaDeNegocioViolada):
+    """Otra réplica cambió la suscripción una y otra vez mientras esta escribía. Es raro; el
+    canal puede reintentar el mismo paso, que es idempotente."""
+
+    codigo = "suscripcion_en_conflicto"
+
+
 class AceptacionRequeridaError(DatoInvalido):
     """La firma exige que el cliente acepte expresamente las condiciones."""
 

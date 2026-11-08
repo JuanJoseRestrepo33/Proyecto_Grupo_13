@@ -7,7 +7,7 @@ Suscripción emite la póliza pagada y firmada con `obtener_servicio().emitir(..
 
 from app.compartido.modulo import DescriptorDeModulo
 
-from .api.dependencias import estado_dependencias, obtener_servicio
+from .api.dependencias import estado_dependencias, obtener_servicio, validar_configuracion
 from .api.rutas import router
 from .aplicacion.servicio import ServicioDePolizas
 from .dominio.modelo import CoberturaPoliza, EstadoPoliza, Poliza, SolicitudDeEmision
@@ -18,6 +18,7 @@ MODULO = DescriptorDeModulo(
     historia="WEB-F04",
     router=router,
     dependencias=estado_dependencias,
+    iniciar=validar_configuracion,
 )
 
 __all__ = [

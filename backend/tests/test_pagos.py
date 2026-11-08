@@ -231,3 +231,127 @@ def test_la_pasarela_se_configura_por_entorno():
 def test_una_configuracion_invalida_no_arranca(entorno):
     with pytest.raises(RuntimeError):
         PasarelaSimulada.desde_entorno(entorno)
+
+
+# -- fallos a mitad del cobro: ni cobro doble ni pago colgado (revisión de #270) ----------
+
+
+class _PasarelaQueCobraYNoResponde(PasarelaSimulada):
+    """Cobra, pero la respuesta se pierde (timeout de lectura): no es `DependenciaNoDisponible`."""
+
+    def cobrar(self, id_pago, monto, medio):
+        super().cobrar(id_pago, monto, medio)
+        raise TimeoutError("se perdió la respuesta")
+
+
+def test_un_error_que_no_garantiza_que_no_hubo_cobro_no_libera_la_reserva(repositorio, auditoria):
+    reloj = RelojFijo(INSTANTE)
+    pasarela = _PasarelaQueCobraYNoResponde()
+    servicio = ServicioDePagos(repositorio, pasarela, auditoria, reloj)
+    with pytest.raises(TimeoutError):
+        _cobrar(servicio)
+
+    with pytest.raises(PagoEnCursoError):
+        _cobrar(servicio)
+
+    assert len(pasarela.cobros) == 1
+
+
+def test_un_pago_colgado_se_concilia_con_lo_que_cobro_la_pasarela(repositorio, auditoria):
+    reloj = RelojFijo(INSTANTE)
+    pasarela = _PasarelaQueCobraYNoResponde()
+    servicio = ServicioDePagos(repositorio, pasarela, auditoria, reloj)
+    with pytest.raises(TimeoutError):
+        _cobrar(servicio)
+    reloj.avanzar(61)
+
+    pago, nuevo = _cobrar(servicio)
+
+    assert not nuevo
+    assert pago.estado is EstadoPago.APROBADO and pago.id_decision is not None
+    assert len(pasarela.cobros) == 1
+    assert repositorio.obtener(pago.id_pago).estado is EstadoPago.APROBADO
+
+
+def test_un_pago_colgado_tambien_se_concilia_con_otra_clave(repositorio, auditoria):
+    reloj = RelojFijo(INSTANTE)
+    pasarela = _PasarelaQueCobraYNoResponde()
+    servicio = ServicioDePagos(repositorio, pasarela, auditoria, reloj)
+    with pytest.raises(TimeoutError):
+        _cobrar(servicio)
+    reloj.avanzar(61)
+
+    with pytest.raises(PagoYaRegistradoError) as error:
+        _cobrar(servicio, clave="clave-2")
+
+    assert error.value.detalles["estado"] is EstadoPago.APROBADO
+    assert len(pasarela.cobros) == 1
+
+
+def test_si_la_auditoria_falla_tras_cobrar_el_pago_se_concilia_despues(repositorio, pasarela):
+    class AuditoriaQueFallaUnaVez(AuditoriaEnMemoria):
+        fallar = True
+
+        def registrar(self, pago) -> str:
+            if self.fallar:
+                self.fallar = False
+                raise RuntimeError("auditoría caída")
+            return super().registrar(pago)
+
+    reloj = RelojFijo(INSTANTE)
+    servicio = ServicioDePagos(repositorio, pasarela, AuditoriaQueFallaUnaVez(), reloj)
+    with pytest.raises(RuntimeError):
+        _cobrar(servicio)
+    reloj.avanzar(61)
+
+    pago, _ = _cobrar(servicio)
+
+    assert pago.estado is EstadoPago.APROBADO and pago.id_decision == "DEC-1"
+    assert len(pasarela.cobros) == 1
+
+
+def test_un_pago_colgado_que_la_pasarela_nunca_recibio_se_libera(repositorio, pasarela, auditoria):
+    reloj = RelojFijo(INSTANTE)
+    servicio = ServicioDePagos(repositorio, pasarela, auditoria, reloj)
+    servicio_que_muere = ServicioDePagos(repositorio, pasarela, auditoria, reloj)
+    # El proceso murió entre la reserva y la llamada a la pasarela.
+    servicio_que_muere._cobrar_reservado = lambda reservado: (_ for _ in ()).throw(SystemExit)
+    with pytest.raises(SystemExit):
+        _cobrar(servicio_que_muere)
+    reloj.avanzar(61)
+
+    pago, nuevo = _cobrar(servicio)
+
+    assert nuevo and pago.estado is EstadoPago.APROBADO
+    assert len(pasarela.cobros) == 1
+
+
+def test_leer_un_pago_no_llama_a_la_pasarela_y_exige_el_cliente(servicio, pasarela):
+    pendiente, _ = _cobrar(servicio, medio=MedioPago.PSE)
+
+    leido = servicio.leer(CLIENTE, SUSCRIPCION, pendiente.id_pago)
+
+    assert leido.estado is EstadoPago.PENDIENTE
+    with pytest.raises(PagoNoEncontradoError):
+        servicio.leer("CLI-OTRO", SUSCRIPCION, pendiente.id_pago)
+
+
+def test_ultimos_trae_el_ultimo_intento_de_cada_concepto(servicio, pasarela):
+    pasarela.resultados[MedioPago.TARJETA_CREDITO] = EstadoPago.RECHAZADO
+    _cobrar(servicio, clave="clave-1")
+    pasarela.resultados[MedioPago.TARJETA_CREDITO] = EstadoPago.APROBADO
+    segundo, _ = _cobrar(servicio, clave="clave-2")
+    otro, _ = _cobrar(servicio, clave="clave-3", concepto="SUS-2")
+
+    ultimos = servicio.ultimos(["SUS-1", "SUS-2", "SUS-3"])
+
+    assert ultimos == {"SUS-1": segundo, "SUS-2": otro}
+
+
+def test_una_pasarela_mal_configurada_impide_armar_el_nucleo(monkeypatch):
+    from app.main import crear_app
+
+    monkeypatch.setenv("PASARELA_MODO", "rota")
+
+    with pytest.raises(RuntimeError, match="PASARELA_MODO"):
+        crear_app()
