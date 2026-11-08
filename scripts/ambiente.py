@@ -70,6 +70,11 @@ SECRETOS_BFF = {"TOKENS_LLAVE_PUBLICA": "tokens-llave-publica"}
 SECRETO_CUENTA_HUMO = "humo-cuenta-staging"
 SECRETOS = (*dict.fromkeys(SECRETOS_NUCLEO.values()), SECRETO_CUENTA_HUMO)
 SEMILLA_POLIZAS = "/opt/solventa/semillas/polizas-staging.json"
+UMBRALES_CIRCUITO = {
+    "PERFILAMIENTO_CIRCUITO_UMBRAL": "0.10",
+    "PERFILAMIENTO_CIRCUITO_VENTANA_S": "30",
+    "PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS": "5",
+}
 # Imagen de relleno del primer despliegue; el CD la reemplaza por la real.
 IMAGEN_INICIAL = "us-docker.pkg.dev/cloudrun/container/hello"
 CICLO_BUCKET = {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}
@@ -621,6 +626,10 @@ class Ambiente:
             "ALMACENAMIENTO_DOCUMENTOS": "gcs",
             "DOCUMENTOS_BUCKET": self.bucket_documentos,
             "POLIZAS_SEMILLA": SEMILLA_POLIZAS,
+            # Umbrales del circuito de Open Finance (ARQ-05, D-02): 10 % de fallas en 30 s, con un
+            # mínimo de 5 llamadas. Son los valores por defecto, explícitos para verlos en el
+            # servicio y cambiarlos sin tocar código. El modo del proveedor lo maneja carga.yml.
+            **UMBRALES_CIRCUITO,
         }
         return montados, variables
 
