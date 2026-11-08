@@ -9,6 +9,7 @@ PROYECTO = "proyecto-prueba"
 REGION = "us-east1"
 CONEXION_VIEJA = f"{PROYECTO}:{REGION}:solventa-auditoria"
 BUCKET = f"gs://{PROYECTO}-solventa-evidencias"
+BUCKET_DOCUMENTOS = f"gs://{PROYECTO}-solventa-documentos"
 ROLES_BUCKET = ("roles/storage.objectCreator", "roles/storage.objectViewer")
 
 
@@ -45,6 +46,7 @@ class NubeSimulada:
         self.bases: set[tuple[str, str]] = set()
         self.usuarios: set[tuple[str, str]] = set()
         self.secretos: dict[str, dict] = {}
+        self.etiquetas_buckets: dict[str, str] = {}  # gs://… → etiqueta historia
         self.buckets: dict[str, dict] = {}  # gs://… → ciclo de vida y roles de run-nucleo
         self.servicios: dict[str, dict] = {}
         self.paquetes: set[str] = set()
@@ -67,11 +69,14 @@ class NubeSimulada:
                 "instancia": instancia,
             }
         self.buckets[BUCKET] = {"ciclo": amb.CICLO_BUCKET, "roles": set(ROLES_BUCKET)}
+        self.buckets[BUCKET_DOCUMENTOS] = {"ciclo": None, "roles": set(ROLES_BUCKET)}
         conexion = f"{PROYECTO}:{REGION}:{instancia}"
         nucleo = {v: ("secreto", s) for v, s in amb.SECRETOS_NUCLEO.items()}
         nucleo.update(
             ALMACENAMIENTO_EVIDENCIAS="gcs",
             EVIDENCIAS_BUCKET=BUCKET[5:],
+            ALMACENAMIENTO_DOCUMENTOS="gcs",
+            DOCUMENTOS_BUCKET=BUCKET_DOCUMENTOS[5:],
             POLIZAS_SEMILLA=amb.SEMILLA_POLIZAS,
         )
         self.servicios = {
@@ -185,8 +190,11 @@ class NubeSimulada:
             descripcion = {"lifecycle_config": bucket["ciclo"]} if bucket["ciclo"] else {}
             return amb.Salida(0, json.dumps(descripcion))
         if verbo == "update":
-            with open(self._opcion(args, "lifecycle-file"), encoding="utf-8") as archivo:
-                bucket["ciclo"] = json.load(archivo)
+            if etiqueta := self._opcion(args, "update-labels"):
+                self.etiquetas_buckets[objetivo] = etiqueta.split("=", 1)[1]
+            if ciclo := self._opcion(args, "lifecycle-file"):
+                with open(ciclo, encoding="utf-8") as archivo:
+                    bucket["ciclo"] = json.load(archivo)
         elif verbo == "get-iam-policy":
             miembro = f"serviceAccount:run-nucleo@{PROYECTO}.iam.gserviceaccount.com"
             vinculos = [{"role": r, "members": [miembro]} for r in sorted(bucket["roles"])]
@@ -315,13 +323,12 @@ class TestAprovisionarDesdeCero:
         assert list(nube.instancias) == ["solventa-20261102-0930"]
         assert ("solventa-20261102-0930", "solventa") in nube.bases
         assert set(nube.secretos) == set(amb.SECRETOS)
-        assert set(nube.buckets) == {BUCKET}
+        assert set(nube.buckets) == {BUCKET, BUCKET_DOCUMENTOS}
         assert [c[2] for c in nube.comandos("run", "deploy")] == list(amb.SERVICIOS)
         assert ambiente.servicios_creados == list(amb.SERVICIOS)
         assert conexion.cerrada
         assert [s.split(" PASSWORD")[0] for s in conexion.sentencias if "ROLE" in s] == [
-            "CREATE ROLE cotizacion LOGIN",
-            "CREATE ROLE siniestros LOGIN",
+            f"CREATE ROLE {m} LOGIN" for m in amb.MODULOS_BD if m != amb.DUENO
         ]
 
     def test_espera_a_que_cloud_sql_termine_de_crearse(self, nube, entorno):
@@ -373,12 +380,41 @@ class TestAprovisionarDesdeCero:
         assert ("tokens-llave-privada", "--member=serviceAccount:run-bff") not in accesos
         assert all(s != amb.SECRETO_CUENTA_HUMO for s, _ in accesos)
 
-    def test_el_bucket_es_privado_y_sin_permiso_de_borrar(self, nube, entorno):
+    def test_los_buckets_son_privados_y_sin_permiso_de_borrar(self, nube, entorno):
         _ambiente(nube, entorno).aprovisionar()
-        (crear,) = nube.comandos("storage", "buckets", "create")
-        assert "--public-access-prevention" in crear and "--uniform-bucket-level-access" in crear
+        creados = nube.comandos("storage", "buckets", "create")
+        assert [c[3] for c in creados] == [BUCKET, BUCKET_DOCUMENTOS]
+        for crear in creados:
+            assert (
+                "--public-access-prevention" in crear and "--uniform-bucket-level-access" in crear
+            )
         roles = [c[-1] for c in nube.comandos("storage", "buckets", "add-iam-policy-binding")]
-        assert roles == ["--role=roles/storage.objectCreator", "--role=roles/storage.objectViewer"]
+        assert roles == 2 * [
+            "--role=roles/storage.objectCreator",
+            "--role=roles/storage.objectViewer",
+        ]
+
+    def test_los_documentos_de_poliza_no_se_borran_solos(self, nube, entorno):
+        _ambiente(nube, entorno).aprovisionar()
+        assert nube.buckets[BUCKET]["ciclo"] == amb.CICLO_BUCKET
+        assert nube.buckets[BUCKET_DOCUMENTOS]["ciclo"] is None
+        assert nube.etiquetas_buckets == {BUCKET: "mob-f05", BUCKET_DOCUMENTOS: "web-f03"}
+
+    def test_el_nucleo_guarda_los_documentos_en_su_bucket(self, nube, entorno):
+        _ambiente(nube, entorno).aprovisionar()
+        nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
+        variables = next(a for a in nucleo if a.startswith("--set-env-vars="))
+        assert "ALMACENAMIENTO_DOCUMENTOS=gcs" in variables
+        assert f"DOCUMENTOS_BUCKET={BUCKET_DOCUMENTOS[5:]}" in variables
+
+    def test_crea_el_token_interno_de_siniestros_sin_imprimirlo(self, nube, entorno, capsys):
+        _ambiente(nube, entorno).aprovisionar()
+        (token,) = nube.secretos["siniestros-token-interno"]["versiones"]
+        assert len(token) >= 40
+        assert token not in capsys.readouterr().out
+        nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
+        secretos = next(a for a in nucleo if a.startswith("--set-secrets="))
+        assert "SINIESTROS_TOKEN_INTERNO=siniestros-token-interno:latest" in secretos
 
     def test_nunca_imprime_los_valores_de_los_secretos(self, nube, entorno, capsys):
         _ambiente(nube, entorno).aprovisionar()
@@ -408,6 +444,41 @@ class TestAprovisionarLoQueYaExiste:
         assert ambiente.conexiones == []
         assert ambiente.servicios_creados == []
         assert sum("ya existe, se omite" in linea for linea in ambiente.informe.lineas) >= 10
+
+    def test_el_staging_del_sprint_2_recibe_solo_lo_del_sprint_3(self, entorno):
+        """Staging antes de WEB-F03: tres módulos con base y un solo bucket."""
+        nube = NubeSimulada(completa=True)
+        nuevos = ("suscripcion", "pagos", "polizas", "notificaciones", "consentimiento")
+        nucleo = nube.servicios["solventa-nucleo"]["env"]
+        for modulo in nuevos:
+            del nube.secretos[f"{modulo}-database-url"]
+            del nucleo[f"{modulo.upper()}_DATABASE_URL"]
+        del nube.secretos["siniestros-token-interno"]
+        del nucleo["SINIESTROS_TOKEN_INTERNO"]
+        del nube.buckets[BUCKET_DOCUMENTOS]
+        for variable in ("ALMACENAMIENTO_DOCUMENTOS", "DOCUMENTOS_BUCKET"):
+            del nucleo[variable]
+        antes = {n: list(s["versiones"]) for n, s in nube.secretos.items()}
+        conexion = ConexionSimulada(roles={"cotizacion", "siniestros"})
+        _ambiente(nube, entorno, conexion).aprovisionar()
+
+        assert [s.split(" PASSWORD")[0] for s in conexion.sentencias if "ROLE" in s] == [
+            f"CREATE ROLE {m} LOGIN" for m in nuevos
+        ]
+        for nombre, versiones in antes.items():  # nada de lo que ya existía se rota
+            assert nube.secretos[nombre]["versiones"] == versiones
+        assert [c[3] for c in nube.comandos("storage", "buckets", "create")] == [BUCKET_DOCUMENTOS]
+        assert not nube.comandos("run", "deploy")
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        secretos = next(a for a in actualizacion if a.startswith("--update-secrets="))
+        assert all(f"{m.upper()}_DATABASE_URL={m}-database-url" in secretos for m in nuevos)
+        assert "SINIESTROS_TOKEN_INTERNO=siniestros-token-interno:latest" in secretos
+        assert nucleo["DOCUMENTOS_BUCKET"] == BUCKET_DOCUMENTOS[5:]
+        assert nucleo["POLIZAS_SEMILLA"] == amb.SEMILLA_POLIZAS
+
+        nube.llamadas.clear()
+        _ambiente(nube, entorno, ConexionSimulada(roles=set(amb.MODULOS_BD))).aprovisionar()
+        assert _escrituras(nube) == []
 
     def test_enciende_cloud_sql_si_esta_apagada_y_sigue(self, entorno):
         nube = NubeSimulada(completa=True)
