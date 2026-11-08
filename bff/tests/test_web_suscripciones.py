@@ -91,7 +91,6 @@ def canal():
         ("POST", "/suscripciones/SUS-1/pagos"),
         ("GET", "/suscripciones/SUS-1/pagos/PAG-1"),
         ("POST", "/suscripciones/SUS-1/firma"),
-        ("GET", "/polizas/POL-1/documento"),
     ],
 )
 def test_sin_sesion_toda_ruta_es_401(cliente, nucleo, metodo, ruta):
@@ -289,40 +288,3 @@ def test_firmar_sin_pago_o_sin_aceptar(con_sesion, nucleo, estado, codigo):
 
     assert respuesta.status_code == estado
     assert respuesta.json()["codigo"] == codigo
-
-
-def test_el_documento_de_la_poliza_se_descarga_como_pdf(con_sesion, nucleo):
-    import httpx
-
-    nucleo.responder(
-        "GET",
-        f"/v1/polizas/clientes/{CLIENTE}/polizas/POL-1/documento",
-        lambda _: httpx.Response(
-            200,
-            content=b"%PDF-1.4",
-            headers={
-                "content-type": "application/pdf",
-                "content-disposition": 'attachment; filename="POL-1.pdf"',
-            },
-        ),
-    )
-
-    respuesta = con_sesion.get(f"{PREFIJO}/polizas/POL-1/documento")
-
-    assert respuesta.status_code == 200
-    assert respuesta.content == b"%PDF-1.4"
-    assert respuesta.headers["content-type"] == "application/pdf"
-    assert respuesta.headers["content-disposition"] == 'attachment; filename="POL-1.pdf"'
-
-
-def test_el_documento_de_una_poliza_ajena_es_404(con_sesion, nucleo):
-    nucleo.responder(
-        "GET",
-        f"/v1/polizas/clientes/{CLIENTE}/polizas/POL-9/documento",
-        problema(404, "poliza_no_encontrada"),
-    )
-
-    respuesta = con_sesion.get(f"{PREFIJO}/polizas/POL-9/documento")
-
-    assert respuesta.status_code == 404
-    assert respuesta.json()["codigo"] == "poliza_no_encontrada"

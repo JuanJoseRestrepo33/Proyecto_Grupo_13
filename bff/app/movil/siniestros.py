@@ -16,14 +16,8 @@ from app.comun.siniestros import SolicitudSiniestro
 from .dependencias import CANAL, ClienteMovil, Nucleo
 
 router = APIRouter(prefix="/siniestros", tags=["siniestros"])
-router_polizas = APIRouter(prefix="/polizas", tags=["polizas"])
 
 Clave = Annotated[str | None, Header(alias="Idempotency-Key")]
-
-
-@router_polizas.get("", summary="Pólizas del cliente, para elegir la afectada")
-def polizas(cliente: ClienteMovil, nucleo: Nucleo) -> list[dict[str, object]]:
-    return siniestros.polizas(nucleo, cliente.id_cliente)
 
 
 @router.get("", summary="Siniestros del cliente, del más reciente al más antiguo")
