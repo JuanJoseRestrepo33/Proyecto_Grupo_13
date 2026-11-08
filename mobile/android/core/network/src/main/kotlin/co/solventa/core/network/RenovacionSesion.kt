@@ -18,6 +18,9 @@ interface SesionBff {
     val tokenAcceso: String?
     val tokenRefresco: String?
 
+    /** `cliente.id` de la sesión vigente: InterceptorDuenio lo compara con el dueño de cada solicitud. */
+    val clienteId: String? get() = null
+
     /** El BFF rotó el par de tokens: el de refresco anterior ya no sirve (criterio 5 de WEB-F13). */
     fun alRenovar(nueva: Sesion)
 

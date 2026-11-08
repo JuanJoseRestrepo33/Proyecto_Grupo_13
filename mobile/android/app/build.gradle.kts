@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
+    implementation(libs.coroutines.core)
     testImplementation(libs.coroutines.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)

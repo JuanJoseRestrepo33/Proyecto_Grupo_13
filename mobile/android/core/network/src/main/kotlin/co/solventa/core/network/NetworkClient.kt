@@ -29,9 +29,13 @@ object NetworkClient {
      * cliente sin el autenticador, así que nunca se renueva en bucle.
      */
     fun create(baseUrl: String, interceptors: List<Interceptor> = emptyList(), sesion: SesionBff): BffApi {
-        val base = cliente(interceptors) { sesion.tokenAcceso }
+        // El dueño se revisa antes que cualquier otro interceptor (el mock de debug responde sin red)
+        // y otra vez en cada intento de red, que incluye el que repite la llamada tras renovar.
+        val duenio = InterceptorDuenio { sesion.clienteId }
+        val base = cliente(listOf(duenio) + interceptors) { sesion.tokenAcceso }
         val renovacion = retrofit(baseUrl, base).create(RenovacionApi::class.java)
         val conRenovacion = base.newBuilder()
+            .addNetworkInterceptor(duenio)
             .authenticator(RenovadorSesion(sesion, RenovadorSesion.desde(renovacion)))
             .build()
         return retrofit(baseUrl, conRenovacion).create(BffApi::class.java)

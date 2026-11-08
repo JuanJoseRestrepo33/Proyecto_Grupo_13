@@ -5,6 +5,7 @@ import co.solventa.core.network.Cliente
 import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.Credenciales
 import co.solventa.core.network.ErrorBff
+import co.solventa.core.network.DuenioSolicitud
 import co.solventa.core.network.Evidencia
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoIdentidad
@@ -147,13 +148,21 @@ class BffFalso : BffApi {
         latitud: RequestBody?,
         longitud: RequestBody?,
         lugar: RequestBody?,
+        duenio: DuenioSolicitud?,
     ): Evidencia = error("no se usa en MOB-F01")
 
-    override suspend fun listarEvidencias(idSiniestro: String): List<Evidencia> = error("no se usa en MOB-F01")
+    override suspend fun listarEvidencias(idSiniestro: String, duenio: DuenioSolicitud?): List<Evidencia> =
+        error("no se usa en MOB-F01")
 
     override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en MOB-F01")
 
-    override suspend fun reportarSiniestro(claveIdempotencia: String, solicitud: SolicitudSiniestro): Siniestro =
+    override suspend fun reportarSiniestro(
+        claveIdempotencia: String,
+        solicitud: SolicitudSiniestro,
+        duenio: DuenioSolicitud?,
+    ): Siniestro = error("no se usa en MOB-F01")
+
+    override suspend fun listarSiniestros(duenio: DuenioSolicitud?): List<Siniestro> =
         error("no se usa en MOB-F01")
 }
 
