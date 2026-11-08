@@ -91,6 +91,18 @@ class PlantillaDePoliza:
 
 
 @dataclass(frozen=True, slots=True)
+class CondicionesDeCatalogo:
+    """Condiciones de un producto según el catálogo. Completan las pólizas de prueba de la
+    semilla, que no vienen de una oferta aceptada (WEB-F04, criterio 4)."""
+
+    nombre_producto: str
+    coberturas: tuple[CoberturaPoliza, ...]
+    deducible: str
+    valor_asegurado: str
+    prima_mensual: Dinero
+
+
+@dataclass(frozen=True, slots=True)
 class SolicitudDeEmision:
     """Lo que suscripción entrega para emitir: la oferta aceptada, pagada y firmada."""
 

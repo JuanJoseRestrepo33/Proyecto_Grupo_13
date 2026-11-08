@@ -17,6 +17,7 @@ from ..dominio.errores import DocumentoNoDisponibleError, PolizaNoEncontradaErro
 from ..dominio.modelo import PlantillaDePoliza, Poliza, SolicitudDeEmision, vigencia_anual
 from ..dominio.puertos import (
     AlmacenDeDocumentos,
+    CatalogoDeProductos,
     GeneradorDeDocumento,
     RegistroDeAuditoria,
     RepositorioPolizas,
@@ -33,6 +34,7 @@ class ServicioDePolizas:
         almacen: AlmacenDeDocumentos | None = None,
         generador: GeneradorDeDocumento | None = None,
         auditoria: RegistroDeAuditoria | None = None,
+        catalogo: CatalogoDeProductos | None = None,
     ) -> None:
         self._repositorio = repositorio
         self._reloj = reloj
@@ -40,14 +42,20 @@ class ServicioDePolizas:
         self._almacen = almacen
         self._generador = generador
         self._auditoria = auditoria
+        self._catalogo = catalogo
 
     # -- consulta ------------------------------------------------------------------------
 
     def del_cliente(self, id_cliente: str) -> tuple[Poliza, ...]:
-        """Las pólizas del cliente, de la más reciente a la más antigua."""
+        """Las pólizas del cliente, de la más reciente a la más antigua (WEB-F04, criterio 1).
+
+        Una póliza emitida en la web es la misma que ve la app: las dos leen de aquí
+        (criterio 2). Sin pólizas, la tupla vacía; el canal muestra el estado vacío.
+        """
         propias = self._repositorio.del_cliente(id_cliente)
         de_plantilla = tuple(p.para(id_cliente) for p in self._plantillas)
-        return tuple(sorted(propias + de_plantilla, key=lambda p: p.inicio, reverse=True))
+        todas = sorted(propias + de_plantilla, key=lambda p: p.inicio, reverse=True)
+        return tuple(self._completar(p) for p in todas)
 
     def poliza_del_cliente(self, numero: str, id_cliente: str) -> Poliza | None:
         """La póliza si existe y es del cliente; si no, None, sin distinguir los dos casos."""
@@ -61,6 +69,30 @@ class ServicioDePolizas:
         if poliza is None:
             raise PolizaNoEncontradaError("La póliza no existe", numero=numero)
         return poliza
+
+    def detalle(self, numero: str, id_cliente: str) -> Poliza:
+        """La póliza con coberturas, deducible y límites (WEB-F04, criterio 4)."""
+        return self._completar(self.exigir_del_cliente(numero, id_cliente))
+
+    def tiene_documento(self, poliza: Poliza) -> bool:
+        return poliza.id_documento is not None and self._almacen is not None
+
+    def _completar(self, poliza: Poliza) -> Poliza:
+        """Una póliza de prueba toma las condiciones del catálogo; una emitida ya trae las
+        de su oferta y no se toca."""
+        if poliza.emitida or poliza.coberturas or self._catalogo is None:
+            return poliza
+        condiciones = self._catalogo.condiciones(poliza.producto)
+        if condiciones is None:
+            return poliza
+        return replace(
+            poliza,
+            nombre_producto=condiciones.nombre_producto,
+            coberturas=condiciones.coberturas,
+            deducible=condiciones.deducible,
+            valor_asegurado=condiciones.valor_asegurado,
+            prima_mensual=condiciones.prima_mensual,
+        )
 
     def documento(self, numero: str, id_cliente: str) -> tuple[Poliza, bytes]:
         """El PDF de una póliza del cliente (WEB-F03, criterio 4)."""
