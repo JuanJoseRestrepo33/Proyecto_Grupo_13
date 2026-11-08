@@ -8,12 +8,14 @@ pueden dejar dos siniestros, aunque lleguen a instancias distintas del núcleo.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 
 import psycopg
 from psycopg.rows import dict_row
 
 from ..dominio.evidencias import Captura, EvidenciaDelSiniestro
 from ..dominio.modelo import DatosDeReporte, EstadoSiniestro, Siniestro, TipoEvento
+from ..dominio.seguimiento import EventoDeSeguimiento, Requerimiento
 from . import esquema
 
 
@@ -33,6 +35,33 @@ def _a_siniestro(fila: Mapping[str, object]) -> Siniestro:
         reportado_en=fila["reportado_en"],  # type: ignore[arg-type]
         estado=EstadoSiniestro(fila["estado"]),
         clave_idempotencia=fila["clave_idempotencia"],  # type: ignore[arg-type]
+        estado_actualizado_en=fila.get("estado_actualizado_en"),  # type: ignore[arg-type]
+    )
+
+
+def _a_evento(fila: Mapping[str, object]) -> EventoDeSeguimiento:
+    anterior = fila["estado_anterior"]
+    return EventoDeSeguimiento(
+        id_evento=str(fila["id_evento"]),
+        id_siniestro=str(fila["id_siniestro"]),
+        estado_anterior=None if anterior is None else EstadoSiniestro(anterior),
+        estado_nuevo=EstadoSiniestro(fila["estado_nuevo"]),
+        ocurrido_en=fila["ocurrido_en"],  # type: ignore[arg-type]
+        actor=str(fila["actor"]),
+        motivo=fila["motivo"],  # type: ignore[arg-type]
+        id_decision=fila["id_decision"],  # type: ignore[arg-type]
+    )
+
+
+def _a_requerimiento(fila: Mapping[str, object]) -> Requerimiento:
+    return Requerimiento(
+        id_requerimiento=str(fila["id_requerimiento"]),
+        id_siniestro=str(fila["id_siniestro"]),
+        descripcion=str(fila["descripcion"]),
+        creado_en=fila["creado_en"],  # type: ignore[arg-type]
+        id_evento=str(fila["id_evento"]),
+        atendido_en=fila["atendido_en"],  # type: ignore[arg-type]
+        id_evidencia=fila["id_evidencia"],  # type: ignore[arg-type]
     )
 
 
@@ -78,6 +107,7 @@ class RepositorioPostgres:
                     "estado": str(siniestro.estado),
                     "reportado_en": siniestro.reportado_en,
                     "clave_idempotencia": siniestro.clave_idempotencia,
+                    "estado_actualizado_en": siniestro.estado_actualizado_en,
                 },
             ).fetchone()
             if fila is None:
@@ -147,3 +177,93 @@ class RepositorioPostgres:
             )
             for f in filas
         )
+
+    # -- seguimiento (WEB-F06) ---------------------------------------------------------
+
+    def por_id(self, id_siniestro: str) -> Siniestro | None:
+        with self._conectar() as conexion:
+            fila = conexion.execute(
+                esquema.POR_ID_INTERNO, {"id_siniestro": id_siniestro}
+            ).fetchone()
+        return _a_siniestro(fila) if fila else None
+
+    def cambiar_estado(
+        self,
+        id_siniestro: str,
+        anterior: EstadoSiniestro,
+        nuevo: EstadoSiniestro,
+        instante: datetime,
+    ) -> bool:
+        with self._conectar() as conexion:
+            cursor = conexion.execute(
+                esquema.CAMBIAR_ESTADO,
+                {
+                    "id_siniestro": id_siniestro,
+                    "anterior": str(anterior),
+                    "nuevo": str(nuevo),
+                    "instante": instante,
+                },
+            )
+            return cursor.rowcount == 1
+
+    def agregar_evento(self, evento: EventoDeSeguimiento) -> None:
+        with self._conectar() as conexion:
+            conexion.execute(
+                esquema.INSERTAR_EVENTO,
+                {
+                    "id_evento": evento.id_evento,
+                    "id_siniestro": evento.id_siniestro,
+                    "estado_anterior": None
+                    if evento.estado_anterior is None
+                    else str(evento.estado_anterior),
+                    "estado_nuevo": str(evento.estado_nuevo),
+                    "ocurrido_en": evento.ocurrido_en,
+                    "actor": evento.actor,
+                    "motivo": evento.motivo,
+                    "id_decision": evento.id_decision,
+                },
+            )
+
+    def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
+        with self._conectar() as conexion:
+            filas = conexion.execute(esquema.EVENTOS, {"id_siniestro": id_siniestro}).fetchall()
+        return tuple(_a_evento(f) for f in filas)
+
+    def agregar_requerimientos(self, requerimientos: tuple[Requerimiento, ...]) -> None:
+        if not requerimientos:
+            return
+        with self._conectar() as conexion:
+            for r in requerimientos:
+                conexion.execute(
+                    esquema.INSERTAR_REQUERIMIENTO,
+                    {
+                        "id_requerimiento": r.id_requerimiento,
+                        "id_siniestro": r.id_siniestro,
+                        "descripcion": r.descripcion,
+                        "creado_en": r.creado_en,
+                        "id_evento": r.id_evento,
+                        "atendido_en": r.atendido_en,
+                        "id_evidencia": r.id_evidencia,
+                    },
+                )
+
+    def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
+        with self._conectar() as conexion:
+            filas = conexion.execute(
+                esquema.REQUERIMIENTOS, {"id_siniestro": id_siniestro}
+            ).fetchall()
+        return tuple(_a_requerimiento(f) for f in filas)
+
+    def atender_requerimiento(
+        self, id_requerimiento: str, id_evidencia: str, instante: datetime
+    ) -> bool:
+        with self._conectar() as conexion:
+            cursor = conexion.execute(
+                esquema.ATENDER_REQUERIMIENTO,
+                {
+                    "id_requerimiento": id_requerimiento,
+                    "id_evidencia": id_evidencia,
+                    "instante": instante,
+                },
+            )
+            return cursor.rowcount == 1

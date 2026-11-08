@@ -9,11 +9,12 @@ AlmacenDeEvidencias   → archivos de evidencia (MOB-F05), en `almacen_evidencia
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol
 
 from .evidencias import EvidenciaDelSiniestro
-from .modelo import Siniestro
+from .modelo import EstadoSiniestro, Siniestro
+from .seguimiento import EventoDeSeguimiento, Requerimiento
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +58,43 @@ class RepositorioSiniestros(Protocol):
         """Las evidencias del siniestro en el orden en que se cargaron."""
         raise NotImplementedError
 
+    # -- seguimiento (WEB-F06) ---------------------------------------------------------
+
+    def por_id(self, id_siniestro: str) -> Siniestro | None:
+        """Sin filtrar por cliente: solo para la operación interna de cambio de estado."""
+        raise NotImplementedError
+
+    def cambiar_estado(
+        self,
+        id_siniestro: str,
+        anterior: EstadoSiniestro,
+        nuevo: EstadoSiniestro,
+        instante: datetime,
+    ) -> bool:
+        """Cambia el estado solo si sigue siendo `anterior`. Es atómico: dos cambios
+        simultáneos sobre el mismo estado dejan uno solo."""
+        raise NotImplementedError
+
+    def agregar_evento(self, evento: EventoDeSeguimiento) -> None:
+        raise NotImplementedError
+
+    def eventos(self, id_siniestro: str) -> tuple[EventoDeSeguimiento, ...]:
+        """Del más antiguo al más reciente."""
+        raise NotImplementedError
+
+    def agregar_requerimientos(self, requerimientos: tuple[Requerimiento, ...]) -> None:
+        raise NotImplementedError
+
+    def requerimientos(self, id_siniestro: str) -> tuple[Requerimiento, ...]:
+        """Del más antiguo al más reciente."""
+        raise NotImplementedError
+
+    def atender_requerimiento(
+        self, id_requerimiento: str, id_evidencia: str, instante: datetime
+    ) -> bool:
+        """Lo marca atendido si seguía pendiente. Devuelve si lo atendió."""
+        raise NotImplementedError
+
 
 class RegistroDeAuditoria(Protocol):
     def registrar(self, siniestro: Siniestro) -> str:
@@ -64,4 +102,12 @@ class RegistroDeAuditoria(Protocol):
         raise NotImplementedError
 
     def registrar_evidencia(self, siniestro: Siniestro, evidencia: EvidenciaDelSiniestro) -> str:
+        raise NotImplementedError
+
+    def registrar_cambio_de_estado(
+        self,
+        siniestro: Siniestro,
+        evento: EventoDeSeguimiento,
+        requerimientos: tuple[str, ...],
+    ) -> str:
         raise NotImplementedError
