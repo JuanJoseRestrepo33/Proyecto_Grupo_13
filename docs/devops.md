@@ -475,6 +475,7 @@ lados.
 | Bucket de documentos de póliza | `DOCUMENTOS_BUCKET`; privado, igual que el de evidencias (crear y leer, sin borrar) | `solventa-nucleo` | WEB-F03 |
 | Pasarela simulada | `PASARELA_TARJETA_CREDITO` (`aprobado` por defecto), `PASARELA_PSE` (`pendiente`), `PASARELA_PENDIENTE_SE_RESUELVE_EN` (`aprobado`) y `PASARELA_MODO` (`sana` o `caida`) | `solventa-nucleo` | WEB-F03 |
 | Firma electrónica simulada | `FIRMA_MODO` = `sana` (por defecto) o `caida` | `solventa-nucleo` | WEB-F03 |
+| Operación interna de cambio de estado del siniestro, solo en *staging* | `SINIESTROS_TOKEN_INTERNO` ← secreto `siniestros-token-interno`; sin ella, `POST /v1/siniestros/{id}/estado` responde 404. Se envía en `X-Token-Interno` | `solventa-nucleo` (y los E2E de seguimiento) | WEB-F06 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
 valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es

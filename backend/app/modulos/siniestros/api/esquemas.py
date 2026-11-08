@@ -19,6 +19,13 @@ from ..dominio.modelo import (
     Siniestro,
     TipoEvento,
 )
+from ..dominio.seguimiento import (
+    LARGO_MAXIMO_MOTIVO,
+    LARGO_MAXIMO_REQUERIMIENTO,
+    MAXIMO_REQUERIMIENTOS,
+    EventoDeSeguimiento,
+    Requerimiento,
+)
 
 
 class Canal(StrEnum):
@@ -59,6 +66,8 @@ class SiniestroDto(_Dto):
     siguiente_paso: SiguientePaso
     canal: str
     reportado_en: datetime
+    #: Último cambio de estado (WEB-F06); null mientras siga como se reportó.
+    estado_actualizado_en: datetime | None = None
 
 
 def a_siniestro_dto(siniestro: Siniestro) -> SiniestroDto:
@@ -75,6 +84,7 @@ def a_siniestro_dto(siniestro: Siniestro) -> SiniestroDto:
         siguiente_paso=siniestro.siguiente_paso,
         canal=siniestro.canal,
         reportado_en=siniestro.reportado_en,
+        estado_actualizado_en=siniestro.estado_actualizado_en,
     )
 
 
@@ -103,4 +113,78 @@ def a_evidencia_dto(evidencia: EvidenciaDelSiniestro) -> EvidenciaDto:
         latitud=evidencia.captura.latitud,
         longitud=evidencia.captura.longitud,
         lugar=evidencia.captura.lugar,
+    )
+
+
+# -- seguimiento (WEB-F06) ------------------------------------------------------------------
+
+
+class EventoDeSeguimientoDto(_Dto):
+    id: str
+    estado_anterior: EstadoSiniestro | None
+    estado: EstadoSiniestro
+    ocurrido_en: datetime
+    motivo: str | None
+
+
+class RequerimientoDto(_Dto):
+    id: str
+    descripcion: str
+    creado_en: datetime
+    pendiente: bool
+    atendido_en: datetime | None
+    id_evidencia: str | None
+
+
+class SiniestroDetalleDto(SiniestroDto):
+    """El siniestro con su historial y sus requerimientos (WEB-F06, criterios 4 y 5)."""
+
+    historial: tuple[EventoDeSeguimientoDto, ...] = ()
+    requerimientos: tuple[RequerimientoDto, ...] = ()
+
+
+class RequerimientoSolicitadoDto(_Dto):
+    descripcion: str = Field(min_length=1, max_length=LARGO_MAXIMO_REQUERIMIENTO)
+
+
+class CambioDeEstadoDto(_Dto):
+    estado: EstadoSiniestro
+    motivo: str | None = Field(default=None, max_length=LARGO_MAXIMO_MOTIVO)
+    requerimientos: tuple[RequerimientoSolicitadoDto, ...] = Field(
+        default=(),
+        max_length=MAXIMO_REQUERIMIENTOS,
+        description="Obligatorio al pasar a requiere_informacion: qué le falta al cliente",
+    )
+
+
+def a_evento_dto(evento: EventoDeSeguimiento) -> EventoDeSeguimientoDto:
+    return EventoDeSeguimientoDto(
+        id=evento.id_evento,
+        estado_anterior=evento.estado_anterior,
+        estado=evento.estado_nuevo,
+        ocurrido_en=evento.ocurrido_en,
+        motivo=evento.motivo,
+    )
+
+
+def a_requerimiento_dto(requerimiento: Requerimiento) -> RequerimientoDto:
+    return RequerimientoDto(
+        id=requerimiento.id_requerimiento,
+        descripcion=requerimiento.descripcion,
+        creado_en=requerimiento.creado_en,
+        pendiente=requerimiento.pendiente,
+        atendido_en=requerimiento.atendido_en,
+        id_evidencia=requerimiento.id_evidencia,
+    )
+
+
+def a_detalle_dto(
+    siniestro: Siniestro,
+    historial: tuple[EventoDeSeguimiento, ...],
+    requerimientos: tuple[Requerimiento, ...],
+) -> SiniestroDetalleDto:
+    return SiniestroDetalleDto(
+        **a_siniestro_dto(siniestro).model_dump(),
+        historial=tuple(a_evento_dto(e) for e in historial),
+        requerimientos=tuple(a_requerimiento_dto(r) for r in requerimientos),
     )
