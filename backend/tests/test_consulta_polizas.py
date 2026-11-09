@@ -8,6 +8,7 @@ del catálogo de cotización.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -85,6 +86,16 @@ def test_la_lista_trae_producto_numero_vigencia_y_estado(nucleo, emitida):
     }
     assert polizas[1]["estado"] == "vencida"
     assert polizas[1]["tiene_documento"] is False and polizas[1]["emitida"] is False
+
+
+def test_entre_dos_del_mismo_dia_la_ultima_emitida_va_primero(nucleo, emitida):
+    """Criterio 2. Las dos empiezan hoy; la recién emitida no puede quedar detrás de la otra."""
+    segunda = dependencias.obtener_servicio().emitir(replace(SOLICITUD, id_suscripcion="SUS-2"))[0]
+    assert segunda.inicio == emitida.inicio
+
+    numeros = [p["numero"] for p in nucleo.get(RUTA).json()]
+
+    assert numeros[:2] == [segunda.numero, emitida.numero]
 
 
 def test_un_cliente_sin_polizas_recibe_la_lista_vacia(nucleo, monkeypatch):

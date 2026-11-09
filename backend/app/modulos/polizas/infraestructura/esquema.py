@@ -77,7 +77,8 @@ SELECT {COLUMNAS} FROM polizas.polizas WHERE id_suscripcion = %(id_suscripcion)s
 """
 
 DEL_CLIENTE = f"""
-SELECT {COLUMNAS} FROM polizas.polizas WHERE id_cliente = %(id_cliente)s ORDER BY inicio DESC
+SELECT {COLUMNAS} FROM polizas.polizas WHERE id_cliente = %(id_cliente)s
+ORDER BY inicio DESC, emitida_en DESC NULLS LAST, numero DESC
 """
 
 SIGUIENTE_NUMERO = "SELECT nextval('polizas.numero') AS consecutivo"

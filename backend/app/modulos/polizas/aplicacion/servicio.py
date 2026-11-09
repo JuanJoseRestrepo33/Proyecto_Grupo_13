@@ -35,6 +35,16 @@ _CERROJOS = 64
 log = logging.getLogger(__name__)
 
 
+def _mas_reciente(poliza: Poliza) -> tuple[date, bool, float, str]:
+    """Orden de la lista: por inicio y, el mismo día, la última emitida primero.
+
+    Sin el desempate, dos pólizas que empiezan el mismo día salen en cualquier orden y la
+    recién emitida puede no quedar de primera (WEB-F04, criterio 2).
+    """
+    emitida_en = poliza.emitida_en.timestamp() if poliza.emitida_en else 0.0
+    return poliza.inicio, poliza.emitida_en is not None, emitida_en, poliza.numero
+
+
 class ServicioDePolizas:
     def __init__(
         self,
@@ -66,7 +76,7 @@ class ServicioDePolizas:
         """
         propias = self._repositorio.del_cliente(id_cliente)
         de_plantilla = tuple(p.para(id_cliente) for p in self._plantillas)
-        todas = sorted(propias + de_plantilla, key=lambda p: p.inicio, reverse=True)
+        todas = sorted(propias + de_plantilla, key=_mas_reciente, reverse=True)
         return tuple(self._completar(p) for p in todas)
 
     def poliza_del_cliente(self, numero: str, id_cliente: str) -> Poliza | None:
