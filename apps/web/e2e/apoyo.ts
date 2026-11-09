@@ -1,4 +1,6 @@
 /** Pasos comunes de las pruebas E2E: la sesión de la cuenta de prueba y el estado que cada flujo necesita. */
+import { readFile } from 'node:fs/promises'
+
 import { expect, type Page } from '@playwright/test'
 
 const API = '/api/v1/web'
@@ -67,16 +69,65 @@ export async function consentimientoDeCotizacion(page: Page, vigente: boolean) {
   }
 }
 
-/** Cotiza el seguro de auto con Open Finance, como lo haría el cliente, hasta ver la oferta. */
-export async function cotizarAuto(page: Page) {
+/**
+ * Cotiza el seguro de auto con Open Finance, como lo haría el cliente, hasta ver la oferta. El núcleo
+ * reutiliza la cotización vigente de una solicitud idéntica: quien necesite una oferta nueva, por
+ * ejemplo para comprarla, pasa una ciudad distinta.
+ */
+export async function cotizarAuto(page: Page, ciudad = 'Bogotá') {
   await page.goto('/cotizacion')
   await page.getByRole('radio', { name: /Auto/ }).check()
   await page.getByRole('button', { name: 'Continuar' }).click()
   await page.getByLabel('Fecha de nacimiento').fill('1990-05-14')
-  await page.getByLabel('Ciudad').fill('Bogotá')
+  await page.getByLabel('Ciudad').fill(ciudad)
   await page.getByRole('button', { name: 'Continuar' }).click()
   await page.getByRole('button', { name: 'Ver mi oferta' }).click()
   await expect(page.getByRole('heading', { level: 2, name: /Tu oferta/ })).toBeVisible()
+}
+
+/** Ciudad única para cada corrida: garantiza una cotización sin comprar, aun en un reintento. */
+export const ciudadUnica = () => `Bogotá ${Date.now().toString(36)}`
+
+/** Contenido del archivo que descarga el navegador al activar el enlace. */
+export async function descargar(page: Page, enlace: string) {
+  const [descarga] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: enlace }).click()])
+  return { nombre: descarga.suggestedFilename(), contenido: await readFile(await descarga.path()) }
+}
+
+/** La fila de una póliza en «Mis pólizas», en la pestaña que esté abierta. */
+export const filaDePoliza = (page: Page, numero: string) =>
+  page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: numero, exact: true }) })
+
+/**
+ * Compra una póliza de auto por la interfaz, desde la oferta hasta la emisión, con un medio que la
+ * pasarela simulada aprueba. Devuelve la cotización y el número de la póliza emitida.
+ */
+export async function comprarPoliza(page: Page) {
+  await page.getByRole('link', { name: 'Aceptar oferta' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suscripción de tu póliza' })).toBeVisible()
+  const cotizacion = new URL(page.url()).pathname.split('/').pop()!
+
+  await page.getByRole('button', { name: 'Aceptar y continuar al pago' }).click()
+  await page.getByRole('radio', { name: /^Tarjeta de crédito/ }).check()
+  await page.getByRole('button', { name: /^Pagar / }).click()
+  await expect(page.getByText('Pago aprobado.')).toBeVisible()
+  await expect(page.getByText('Referencia de la transacción')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Continuar a la firma' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: /Firma tu póliza/ })).toBeVisible()
+  await page.getByRole('checkbox', { name: /Acepto los términos/ }).check()
+  await page.getByRole('button', { name: 'Firmar electrónicamente' }).click()
+
+  await expect(page.getByRole('heading', { level: 2, name: /Póliza emitida/ })).toBeVisible()
+  const numero = await numeroDePolizaEmitida(page)
+  return { cotizacion, numero }
+}
+
+/** El número que muestra la pantalla de emisión. */
+export async function numeroDePolizaEmitida(page: Page) {
+  const texto = await page.getByRole('main').locator('dd').first().innerText()
+  expect(texto).toMatch(/^POL-\d{4}-\d{6}$/)
+  return texto
 }
 
 /** El día que fue hace `dias` días en Bogotá, como `2026-10-29`: así nunca es una fecha futura. */
@@ -86,16 +137,29 @@ export function diaEnBogota(dias: number) {
 }
 
 /**
+ * Una póliza de auto vigente que ya cubría ese día. Las que emite la prueba de compra empiezan hoy,
+ * así que la más reciente de la cuenta de prueba no siempre sirve para un evento pasado.
+ */
+async function polizaDeAutoQueCubre(page: Page, dia: string) {
+  const respuesta = await page.request.get(`${API}/polizas`)
+  expect(respuesta.ok()).toBe(true)
+  const polizas = (await respuesta.json()) as { numero: string; producto: string; inicio: string; estado: string }[]
+  const poliza = polizas.find((p) => p.producto === 'auto' && p.estado === 'vigente' && p.inicio <= dia)
+  expect(poliza, 'La cuenta de prueba necesita una póliza de auto vigente anterior al evento').toBeDefined()
+  return poliza!.numero
+}
+
+/**
  * Llena el reporte de un siniestro sobre la póliza de auto vigente, hasta la revisión. La descripción
  * lleva una marca única para encontrar después ese siniestro entre los de la cuenta de prueba.
  */
 export async function llenarReporteHastaRevision(page: Page, descripcion: string) {
+  const fechaDelEvento = diaEnBogota(2)
+  const numero = await polizaDeAutoQueCubre(page, fechaDelEvento)
   await page.goto('/siniestros/reportar')
-  const poliza = page.getByLabel('Póliza afectada')
-  const vigente = poliza.locator('option', { hasText: '· Auto (vigente)' }).first()
-  await poliza.selectOption((await vigente.getAttribute('value'))!)
+  await page.getByLabel('Póliza afectada').selectOption(numero)
   await page.getByLabel('Tipo de evento').selectOption({ label: 'Accidente de vehículo' })
-  await page.getByLabel('Fecha del evento').fill(diaEnBogota(2))
+  await page.getByLabel('Fecha del evento').fill(fechaDelEvento)
   await page.getByLabel('Descripción de lo ocurrido').fill(descripcion)
   await page.getByRole('button', { name: 'Continuar' }).click()
   await expect(page.getByRole('heading', { level: 2, name: /Evidencias/ })).toBeVisible()
