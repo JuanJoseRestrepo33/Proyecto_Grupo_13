@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 
 import { urlAbsolutaBff } from '../../api/cliente'
 import type { PolizaEmitida } from '../../api/tipos'
@@ -35,7 +36,10 @@ export function ResultadoEmision({ poliza, producto }: { poliza: PolizaEmitida; 
         </dd>
       </dl>
       <div className={estilos.acciones}>
-        <a className={clasesBoton('primario')} href={urlAbsolutaBff(poliza.documento_url)} download>
+        <Link className={clasesBoton('primario')} to={`/polizas/${encodeURIComponent(poliza.numero)}`}>
+          {t('suscripcion.emision.verPoliza')}
+        </Link>
+        <a className={clasesBoton('secundario')} href={urlAbsolutaBff(poliza.documento_url)} download>
           {t('suscripcion.emision.descargar')}
         </a>
       </div>

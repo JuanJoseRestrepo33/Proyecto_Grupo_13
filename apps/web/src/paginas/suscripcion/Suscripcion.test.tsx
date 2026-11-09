@@ -343,6 +343,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
         expect.stringContaining(`/api/v1/web/polizas/${emitida.numero}/documento`),
       )
       expect(screen.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute('href', '/')
+      expect(screen.getByRole('link', { name: 'Ver mi póliza' })).toHaveAttribute('href', `/polizas/${emitida.numero}`)
     })
 
     it('exige aceptar las condiciones antes de firmar', async () => {

@@ -9,6 +9,7 @@
   "nav": {
     "inicio": "Home",
     "cotizar": "Get a quote",
+    "polizas": "My policies",
     "consentimientos": "Consents",
     "suscripcion": "Purchase",
     "reportarSiniestro": "Report a claim",
@@ -278,7 +279,8 @@
       "numero": "Policy number",
       "vigencia": "Coverage period",
       "vigenciaDetalle": "From {{inicio}} to {{fin}}",
-      "descargar": "Download PDF"
+      "descargar": "Download PDF",
+      "verPoliza": "View my policy"
     },
     "avisos": {
       "reintento": "This payment had already been processed. You were not charged twice.",
@@ -299,6 +301,60 @@
     "recotizar": "Get a new quote",
     "reintentar": "Retry",
     "atras": "Back"
+  },
+  "polizas": {
+    "titulo": "My policies",
+    "descripcion": "See what protects you and download your documents.",
+    "seguroDe": "{{producto}} insurance",
+    "primaPorMes": "{{monto}}/mo",
+    "verDetalle": "View details",
+    "deLaPoliza": "of policy {{numero}}",
+    "reintentar": "Retry",
+    "estados": {
+      "vigente": "Active",
+      "vencida": "Expired",
+      "por_iniciar": "Not started"
+    },
+    "vacio": {
+      "titulo": "You have no policies yet",
+      "detalle": "Get a quote and have your policy issued in minutes.",
+      "cotizar": "Get a quote"
+    },
+    "errores": {
+      "cargar": "We couldn't load your policies. Please try again.",
+      "cargarDetalle": "We couldn't load this policy. Please try again.",
+      "noEncontrada": "We couldn't find this policy."
+    },
+    "detalle": {
+      "miga": "Policy details",
+      "vigencia": "Coverage period",
+      "prima": "Monthly premium",
+      "emitidaEl": "Issued on",
+      "descargar": "Download PDF",
+      "sinDocumento": "The document for this policy is not available.",
+      "volver": "Back to my policies",
+      "informacionGeneral": "General information",
+      "informacionFinanciera": "Financial information",
+      "cobertura": "Coverage",
+      "limite": "Insured limit"
+    },
+    "rangoVigencia": "{{inicio}} – {{fin}}",
+    "noDisponible": "Not available",
+    "columnas": {
+      "numero": "Number",
+      "producto": "Product",
+      "estado": "Status",
+      "prima": "Premium",
+      "vigencia": "Coverage period",
+      "acciones": "Actions"
+    },
+    "pestanas": {
+      "etiqueta": "Filter policies by status",
+      "activas": "Active",
+      "vencidas": "Expired",
+      "todas": "View all",
+      "sinResultados": "You have no policies in this tab."
+    }
   },
   "siniestro": {
     "titulo": "Report a claim",

@@ -8,6 +8,8 @@ export interface Miga {
   clave: string
   /** Ruta; la última miga (la pantalla actual) no la lleva. */
   a?: string
+  /** Texto que no se traduce, como el número de una póliza; reemplaza al de `clave`. */
+  texto?: string
 }
 
 /** Migas de pan (P02): dónde está el cliente y cómo volver. La última es la pantalla actual. */
@@ -16,12 +18,12 @@ export function MigasDePan({ migas }: { migas: Miga[] }) {
   return (
     <nav className={estilos.migas} aria-label={t('app.migasDePan')}>
       <ol>
-        {migas.map(({ clave, a }) => (
+        {migas.map(({ clave, a, texto }) => (
           <li key={clave}>
             {a ? (
-              <Link to={a}>{t(clave)}</Link>
+              <Link to={a}>{texto ?? t(clave)}</Link>
             ) : (
-              <span aria-current="page">{t(clave)}</span>
+              <span aria-current="page">{texto ?? t(clave)}</span>
             )}
           </li>
         ))}

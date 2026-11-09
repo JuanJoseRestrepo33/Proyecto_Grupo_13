@@ -9,6 +9,7 @@
   "nav": {
     "inicio": "Inicio",
     "cotizar": "Cotizar",
+    "polizas": "Mis pólizas",
     "consentimientos": "Consentimientos",
     "suscripcion": "Suscripción",
     "reportarSiniestro": "Reportar siniestro",
@@ -278,7 +279,8 @@
       "numero": "Número de póliza",
       "vigencia": "Vigencia",
       "vigenciaDetalle": "Del {{inicio}} al {{fin}}",
-      "descargar": "Descargar PDF"
+      "descargar": "Descargar PDF",
+      "verPoliza": "Ver mi póliza"
     },
     "avisos": {
       "reintento": "Este pago ya se había procesado. No se hizo un segundo cobro.",
@@ -299,6 +301,60 @@
     "recotizar": "Volver a cotizar",
     "reintentar": "Reintentar",
     "atras": "Atrás"
+  },
+  "polizas": {
+    "titulo": "Mis pólizas",
+    "descripcion": "Consulta lo que te protege y descarga tus documentos.",
+    "seguroDe": "Seguro de {{producto}}",
+    "primaPorMes": "{{monto}}/mes",
+    "verDetalle": "Ver detalle",
+    "deLaPoliza": "de la póliza {{numero}}",
+    "reintentar": "Reintentar",
+    "estados": {
+      "vigente": "Vigente",
+      "vencida": "Vencida",
+      "por_iniciar": "Por iniciar"
+    },
+    "vacio": {
+      "titulo": "Aún no tienes pólizas",
+      "detalle": "Cotiza un seguro y tenlo emitido en minutos.",
+      "cotizar": "Cotizar un seguro"
+    },
+    "errores": {
+      "cargar": "No pudimos cargar tus pólizas. Intenta de nuevo.",
+      "cargarDetalle": "No pudimos cargar esta póliza. Intenta de nuevo.",
+      "noEncontrada": "No encontramos esta póliza."
+    },
+    "detalle": {
+      "miga": "Detalle de la póliza",
+      "vigencia": "Vigencia",
+      "prima": "Prima mensual",
+      "emitidaEl": "Emitida el",
+      "descargar": "Descargar PDF",
+      "sinDocumento": "El documento de esta póliza no está disponible.",
+      "volver": "Volver a mis pólizas",
+      "informacionGeneral": "Información general",
+      "informacionFinanciera": "Información financiera",
+      "cobertura": "Cobertura",
+      "limite": "Límite asegurado"
+    },
+    "rangoVigencia": "{{inicio}} – {{fin}}",
+    "noDisponible": "No disponible",
+    "columnas": {
+      "numero": "Número",
+      "producto": "Producto",
+      "estado": "Estado",
+      "prima": "Prima",
+      "vigencia": "Vigencia",
+      "acciones": "Acciones"
+    },
+    "pestanas": {
+      "etiqueta": "Filtrar pólizas por estado",
+      "activas": "Activas",
+      "vencidas": "Vencidas",
+      "todas": "Ver todas",
+      "sinResultados": "No tienes pólizas en esta pestaña."
+    }
   },
   "siniestro": {
     "titulo": "Reportar un siniestro",

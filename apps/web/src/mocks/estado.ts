@@ -6,6 +6,7 @@ import type {
   Evidencia,
   MedioPago,
   Pago,
+  PolizaDetalle,
   PolizaResumen,
   Sesion,
   Siniestro,
@@ -27,6 +28,9 @@ export type PagoGuardado = Omit<Pago, 'reintento'>
  */
 export type ModoOpenFinance = 'sano' | 'degradado' | 'caido'
 
+/** Condiciones de una póliza, que la lista no trae. */
+export type CondicionesPoliza = Pick<PolizaDetalle, 'coberturas' | 'deducible' | 'valor_asegurado' | 'emitida_en'>
+
 /** Pagos por `Idempotency-Key`: `'procesando'` mientras la pasarela responde. */
 export interface IntentoPago {
   suscripcionId: string
@@ -45,6 +49,8 @@ interface EstadoMocks {
   intentos: Map<string, IntentoPago>
   /** Pólizas del cliente; las pruebas pueden dejarlo sin ninguna. */
   polizas: PolizaResumen[]
+  /** Condiciones por número de póliza; las pólizas de prueba no tienen. */
+  condicionesPolizas: Map<string, CondicionesPoliza>
   siniestros: Siniestro[]
   /** Evidencias por siniestro, con su contenido para descargarlas. */
   evidencias: Map<string, { evidencia: Evidencia; contenido: Blob }[]>
@@ -67,6 +73,7 @@ function nuevo(): EstadoMocks {
     pagos: new Map(),
     intentos: new Map(),
     polizas: polizasDePrueba(),
+    condicionesPolizas: new Map(),
     siniestros: [],
     evidencias: new Map(),
     reportes: new Map(),
