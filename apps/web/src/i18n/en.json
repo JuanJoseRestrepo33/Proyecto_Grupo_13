@@ -10,6 +10,7 @@
     "inicio": "Home",
     "cotizar": "Get a quote",
     "polizas": "My policies",
+    "siniestros": "My claims",
     "consentimientos": "Consents",
     "suscripcion": "Purchase",
     "reportarSiniestro": "Report a claim",
@@ -400,7 +401,9 @@
         "vacio": "{{nombre}}: not attached because it's empty.",
         "cerrado": "{{nombre}}: not attached because the claim is already closed.",
         "almacenamiento": "{{nombre}}: not attached because evidence storage didn't respond. Try again in a few minutes.",
-        "error": "{{nombre}}: we couldn't attach it. Try again."
+        "error": "{{nombre}}: we couldn't attach it. Try again.",
+        "requerimientoAtendido": "{{nombre}}: not sent because this request is no longer pending. We refreshed your claim.",
+        "requerimientoNoEncontrado": "{{nombre}}: not sent because this request no longer exists. We refreshed your claim."
       }
     },
     "revision": {
@@ -506,6 +509,63 @@
     "canales": {
       "web": "the web",
       "movil": "the app"
+    },
+    "seguimiento": {
+      "titulo": "My claims",
+      "descripcion": "Check the status and progress of your claims, reported on the web or in the app.",
+      "miga": "Claim details",
+      "reportar": "Report a claim",
+      "actualizar": "Refresh",
+      "actualizando": "Refreshing…",
+      "actualizado": "Information refreshed.",
+      "reintentar": "Retry",
+      "volver": "Back to my claims",
+      "noDisponible": "Not available",
+      "ver": "View",
+      "delSiniestro": "claim {{referencia}}",
+      "referenciaPoliza": "{{referencia}} · Policy {{poliza}}",
+      "lineaDeTiempo": "Timeline",
+      "columnas": {
+        "referencia": "Reference",
+        "poliza": "Policy",
+        "tipo": "Type",
+        "canal": "Channel",
+        "estado": "Status",
+        "monto": "Amount",
+        "acciones": "Actions"
+      },
+      "canales": {
+        "web": "Web",
+        "movil": "App"
+      },
+      "vacio": {
+        "titulo": "You have no reported claims",
+        "detalle": "If something happened, report it here."
+      },
+      "errores": {
+        "cargar": "We couldn't load your claims. Please try again.",
+        "cargarDetalle": "We couldn't load this claim. Please try again.",
+        "noEncontrado": "We couldn't find this claim.",
+        "actualizar": "We couldn't refresh the information. What you see may be out of date."
+      },
+      "resumen": {
+        "titulo": "Summary",
+        "fecha": "Event date",
+        "descripcion": "Description",
+        "monto": "Estimated amount",
+        "canal": "Channel",
+        "actualizadoEl": "Last change"
+      },
+      "requerimientos": {
+        "titulo": "Requests",
+        "pendiente": "Pending · Requested on {{fecha}}",
+        "atendido": "Answered on {{fecha}}",
+        "cerrado": "Closed without a response",
+        "adjuntar": "File to respond: {{descripcion}}",
+        "enviar": "Send response",
+        "enviando": "Sending…",
+        "respondido": "{{nombre}}: we sent your response."
+      }
     }
   }
 }

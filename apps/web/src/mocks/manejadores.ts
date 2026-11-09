@@ -44,7 +44,7 @@ import {
   VERSION_REGLA,
   VIGENCIA_COTIZACION_MS,
 } from './datos'
-import { type ConsentimientoGuardado, estado, type PagoGuardado, siguienteId } from './estado'
+import { type ConsentimientoGuardado, estado, type PagoGuardado, siguienteId, type SeguimientoSiniestro } from './estado'
 
 const ruta = (camino: string) => `*${PREFIJO_BFF}${camino}`
 
@@ -201,6 +201,26 @@ function solicitudSiniestroValida(solicitud: Partial<SolicitudSiniestro>): boole
 }
 /** Lo que tarda la pasarela simulada; visible en el navegador, corto en las pruebas. */
 const LATENCIA_PASARELA_MS = import.meta.env.MODE === 'test' ? 20 : 1200
+
+/** El seguimiento del siniestro; sin cambios de estado, solo tiene el evento del reporte. */
+function seguimientoDe(siniestro: Siniestro): SeguimientoSiniestro {
+  const guardado = estado.seguimientos.get(siniestro.id)
+  if (guardado) return guardado
+  const nuevo: SeguimientoSiniestro = {
+    historial: [
+      {
+        id: `${siniestro.id}-reporte`,
+        estado_anterior: null,
+        estado: 'reportado',
+        ocurrido_en: siniestro.reportado_en,
+        motivo: null,
+      },
+    ],
+    requerimientos: [],
+  }
+  estado.seguimientos.set(siniestro.id, nuevo)
+  return nuevo
+}
 
 function suscripcionConPago(id: string): Suscripcion | undefined {
   const guardada = estado.suscripciones.get(id)
@@ -564,7 +584,7 @@ export const manejadores = [
   http.get(ruta('/siniestros/:id'), ({ params }) => {
     const siniestro = estado.siniestros.find((s) => s.id === String(params.id))
     if (!siniestro) return error(404, 'siniestro_no_encontrado', 'No existe')
-    return HttpResponse.json(siniestro)
+    return HttpResponse.json({ ...siniestro, ...seguimientoDe(siniestro) })
   }),
 
   http.get(ruta('/siniestros/:id/evidencias'), ({ params }) => {
@@ -576,8 +596,13 @@ export const manejadores = [
   http.post(ruta('/siniestros/:id/evidencias'), async ({ params, request }) => {
     const id = String(params.id)
     if (!estado.siniestros.some((s) => s.id === id)) return error(404, 'siniestro_no_encontrado', 'No existe')
-    const archivo = (await request.formData()).get('archivo')
+    const formulario = await request.formData()
+    const archivo = formulario.get('archivo')
     if (!(archivo instanceof File)) return error(422, 'solicitud_invalida', 'Falta el archivo')
+    const idRequerimiento = formulario.get('id_requerimiento')
+    const requerimiento = estado.seguimientos.get(id)?.requerimientos.find((r) => r.id === idRequerimiento)
+    if (idRequerimiento && !requerimiento) return error(404, 'requerimiento_no_encontrado', 'No existe')
+    if (requerimiento && !requerimiento.pendiente) return error(409, 'requerimiento_ya_atendido', 'Ya no está pendiente')
     if (archivo.size > TAMANO_MAXIMO_EVIDENCIA) {
       return error(413, 'archivo_demasiado_grande', 'El archivo supera los 10 MB')
     }
@@ -598,6 +623,11 @@ export const manejadores = [
       lugar: null,
     }
     estado.evidencias.set(id, [...(estado.evidencias.get(id) ?? []), { evidencia, contenido: archivo }])
+    if (requerimiento) {
+      requerimiento.pendiente = false
+      requerimiento.atendido_en = evidencia.cargada_en
+      requerimiento.id_evidencia = evidencia.id
+    }
     return HttpResponse.json(evidencia, { status: 201 })
   }),
 

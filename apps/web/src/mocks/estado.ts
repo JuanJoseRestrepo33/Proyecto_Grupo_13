@@ -4,10 +4,12 @@ import type {
   Cotizacion,
   EventoConsentimiento,
   Evidencia,
+  EventoSiniestro,
   MedioPago,
   Pago,
   PolizaDetalle,
   PolizaResumen,
+  Requerimiento,
   Sesion,
   Siniestro,
   SolicitudCotizacion,
@@ -31,6 +33,12 @@ export type ModoOpenFinance = 'sano' | 'degradado' | 'caido'
 /** Condiciones de una póliza, que la lista no trae. */
 export type CondicionesPoliza = Pick<PolizaDetalle, 'coberturas' | 'deducible' | 'valor_asegurado' | 'emitida_en'>
 
+/** Lo que el detalle de un siniestro agrega a la lista. */
+export interface SeguimientoSiniestro {
+  historial: EventoSiniestro[]
+  requerimientos: Requerimiento[]
+}
+
 /** Pagos por `Idempotency-Key`: `'procesando'` mientras la pasarela responde. */
 export interface IntentoPago {
   suscripcionId: string
@@ -52,6 +60,8 @@ interface EstadoMocks {
   /** Condiciones por número de póliza; las pólizas de prueba no tienen. */
   condicionesPolizas: Map<string, CondicionesPoliza>
   siniestros: Siniestro[]
+  /** Historial y requerimientos por siniestro; el historial nace con el evento del reporte. */
+  seguimientos: Map<string, SeguimientoSiniestro>
   /** Evidencias por siniestro, con su contenido para descargarlas. */
   evidencias: Map<string, { evidencia: Evidencia; contenido: Blob }[]>
   /** Reportes por `Idempotency-Key`, con la solicitud que los creó para reconocer un reintento. */
@@ -75,6 +85,7 @@ function nuevo(): EstadoMocks {
     polizas: polizasDePrueba(),
     condicionesPolizas: new Map(),
     siniestros: [],
+    seguimientos: new Map(),
     evidencias: new Map(),
     reportes: new Map(),
     openFinance: 'sano',
