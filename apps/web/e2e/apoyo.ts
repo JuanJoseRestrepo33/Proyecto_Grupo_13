@@ -123,6 +123,30 @@ export async function comprarPoliza(page: Page) {
   return { cotizacion, numero }
 }
 
+interface Oferta {
+  nombre_producto: string
+  valor_asegurado: string
+  deducible: string
+  coberturas: { nombre: string; limite: string }[]
+}
+
+/** Las condiciones de la oferta, según el BFF: lo que la póliza emitida debe conservar. */
+export async function ofertaDe(page: Page, cotizacion: string) {
+  const respuesta = await page.request.get(`${API}/cotizaciones/${encodeURIComponent(cotizacion)}`)
+  expect(respuesta.ok()).toBe(true)
+  return (await respuesta.json()) as Oferta
+}
+
+/** Número de una póliza sembrada en el ambiente, que no tiene documento. */
+export async function polizaSinDocumento(page: Page) {
+  const respuesta = await page.request.get(`${API}/polizas`)
+  expect(respuesta.ok()).toBe(true)
+  const polizas = (await respuesta.json()) as { numero: string; documento_url?: string | null }[]
+  const poliza = polizas.find((p) => !p.documento_url)
+  expect(poliza, 'La cuenta de prueba necesita una póliza sembrada, sin documento').toBeDefined()
+  return poliza!.numero
+}
+
 /** El número que muestra la pantalla de emisión. */
 export async function numeroDePolizaEmitida(page: Page) {
   const texto = await page.getByRole('main').locator('dd').first().innerText()
