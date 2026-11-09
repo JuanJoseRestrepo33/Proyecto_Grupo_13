@@ -219,13 +219,12 @@
   },
   "suscripcion": {
     "titulo": "Suscripción de tu póliza",
-    "descripcion": "Revisa la oferta, págala y fírmala para emitir tu póliza.",
+    "descripcion": "Revisa la oferta, confirma el pago y firma para recibir tu póliza.",
     "pasos": {
       "etiqueta": "Pasos de la suscripción",
       "actual": "paso {{actual}} de {{total}}",
       "revisar": "Revisar oferta",
       "pago": "Pago",
-      "resultado": "Confirmación",
       "firma": "Firma",
       "emision": "Emisión"
     },
@@ -249,7 +248,7 @@
       "consultar": "Consultar estado del pago"
     },
     "resultado": {
-      "titulo": "3. Confirmación del pago",
+      "titulo": "2. Resultado del pago",
       "referencia": "Referencia de la transacción",
       "aprobado": "Pago aprobado.",
       "aprobadoDetalle": "Siguiente paso: firma tu póliza para emitirla.",
@@ -262,24 +261,24 @@
       "continuarFirma": "Continuar a la firma"
     },
     "firma": {
-      "titulo": "4. Firma tu póliza",
+      "titulo": "3. Firma tu póliza",
       "descripcion": "Revisa lo que vas a firmar. La firma es electrónica y deja tu póliza emitida.",
       "producto": "Producto",
       "prima": "Prima mensual",
-      "acepta": "Acepto las condiciones de la póliza y la firmo electrónicamente.",
-      "aceptaRequerida": "Debes aceptar las condiciones para firmar.",
-      "firmar": "Firmar y emitir mi póliza",
+      "acepta": "Acepto los términos del contrato y autorizo mi firma electrónica.",
+      "aceptaRequerida": "Debes aceptar los términos para firmar.",
+      "firmar": "Firmar electrónicamente",
       "firmando": "Firmando…",
       "procesandoDetalle": "Estamos firmando y emitiendo tu póliza. No cierres esta ventana ni pulses de nuevo."
     },
     "emision": {
-      "titulo": "5. Tu póliza está emitida",
-      "exito": "Póliza emitida.",
-      "exitoDetalle": "Descarga el documento de tu póliza y guárdalo.",
+      "titulo": "4. ¡Póliza emitida!",
+      "exito": "Tu póliza fue emitida correctamente.",
+      "exitoDetalle": "Descárgala y guárdala; puedes consultarla en cualquier momento.",
       "numero": "Número de póliza",
       "vigencia": "Vigencia",
       "vigenciaDetalle": "Del {{inicio}} al {{fin}}",
-      "descargar": "Descargar documento"
+      "descargar": "Descargar PDF"
     },
     "avisos": {
       "reintento": "Este pago ya se había procesado. No se hizo un segundo cobro.",

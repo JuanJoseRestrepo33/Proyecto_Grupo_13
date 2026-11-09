@@ -291,14 +291,18 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
 
   describe('criterio 4: al firmar queda emitida la póliza con su documento', () => {
     const REGISTRO_POST_FIRMA = /\/suscripciones\/[^/]+\/firma$/
-    const botonFirmar = () => screen.getByRole('button', { name: 'Firmar y emitir mi póliza' })
-    const casillaAcepta = () => screen.getByRole('checkbox', { name: /Acepto las condiciones/ })
+    const botonFirmar = () => screen.getByRole('button', { name: 'Firmar electrónicamente' })
+    const casillaAcepta = () => screen.getByRole('checkbox', { name: /Acepto los términos/ })
 
     async function pagarConTarjeta(cotizacionId?: string) {
       const id = await abrirCheckout(cotizacionId)
       await aceptarYElegir()
       await userEvent.click(botonPagar())
       await screen.findByText('Pago aprobado.')
+      expect(within(screen.getByRole('list', { name: 'Pasos de la suscripción' })).getByText('Pago')).toHaveAttribute(
+        'aria-current',
+        'step',
+      )
       return id
     }
 
@@ -324,12 +328,17 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(casillaAcepta())
       await userEvent.click(botonFirmar())
 
-      const titulo = await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      const titulo = await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
       await waitFor(() => expect(titulo).toHaveFocus())
+      expect(within(screen.getByRole('list', { name: 'Pasos de la suscripción' })).getByText('Emisión')).toHaveAttribute(
+        'aria-current',
+        'step',
+      )
+      expect(screen.getAllByRole('heading', { level: 2 })[0]).toHaveAccessibleName(/paso 4 de 4/)
       const emitida = estado.polizas[0]!
       expect(screen.getByText(emitida.numero)).toBeInTheDocument()
       expect(screen.getByText(/^Del .+ al .+$/)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Descargar documento' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Descargar PDF' })).toHaveAttribute(
         'href',
         expect.stringContaining(`/api/v1/web/polizas/${emitida.numero}/documento`),
       )
@@ -344,7 +353,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(botonFirmar())
 
       expect(casillaAcepta()).toHaveFocus()
-      expect(casillaAcepta()).toHaveAccessibleDescription('Debes aceptar las condiciones para firmar.')
+      expect(casillaAcepta()).toHaveAccessibleDescription('Debes aceptar los términos para firmar.')
       expect(firmas).toEqual([])
     })
 
@@ -363,7 +372,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
 
       expect(screen.getByRole('button', { name: 'Firmando…' })).toBeDisabled()
       expect(screen.getByText(/Estamos firmando y emitiendo tu póliza/)).toBeInTheDocument()
-      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
       expect(firmas).toHaveLength(1)
     })
 
@@ -381,10 +390,10 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(botonFirmar())
 
       expect(await screen.findByText(/El servicio de firma no respondió y no se emitió nada/)).toBeInTheDocument()
-      expect(screen.queryByRole('heading', { level: 2, name: /Tu póliza está emitida/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('heading', { level: 2, name: /Póliza emitida/ })).not.toBeInTheDocument()
 
       await userEvent.click(botonFirmar())
-      expect(await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })).toBeInTheDocument()
     })
 
     it('si no llega la respuesta, permite reintentar sin emitir otra póliza', async () => {
@@ -398,7 +407,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       expect(await screen.findByText(/No pudimos confirmar la firma/)).toBeInTheDocument()
 
       await userEvent.click(botonFirmar())
-      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
       expect(estado.polizas).toHaveLength(polizasAntes + 1)
     })
 
@@ -414,7 +423,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(botonFirmar())
 
       expect(await screen.findByText('Tu pago todavía no está aprobado. Confírmalo antes de firmar.')).toBeInTheDocument()
-      expect(screen.getByRole('heading', { level: 2, name: /Confirmación del pago/ })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 2, name: /Resultado del pago/ })).toBeInTheDocument()
     })
 
     it('un pago pendiente se confirma y luego se puede firmar', async () => {
@@ -441,7 +450,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await irAFirma()
       await userEvent.click(casillaAcepta())
       await userEvent.click(botonFirmar())
-      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
       const polizas = estado.polizas.length
 
       document.body.innerHTML = ''
@@ -449,7 +458,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Aceptar y continuar al pago' }))
 
       expect(await screen.findByText('Esta póliza ya estaba emitida. No se hizo otra firma ni otro cobro.')).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Descargar documento' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Descargar PDF' })).toBeInTheDocument()
       expect(estado.polizas).toHaveLength(polizas)
       expect(estado.pagos.size).toBe(1)
     })
@@ -468,11 +477,11 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
     expect(await violaciones()).toEqual([])
     await userEvent.click(screen.getByRole('button', { name: 'Continuar a la firma' }))
     await screen.findByRole('heading', { level: 2, name: /Firma tu póliza/ })
-    await userEvent.click(screen.getByRole('button', { name: 'Firmar y emitir mi póliza' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Firmar electrónicamente' }))
     expect(await violaciones()).toEqual([])
-    await userEvent.click(screen.getByRole('checkbox', { name: /Acepto las condiciones/ }))
-    await userEvent.click(screen.getByRole('button', { name: 'Firmar y emitir mi póliza' }))
-    await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+    await userEvent.click(screen.getByRole('checkbox', { name: /Acepto los términos/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Firmar electrónicamente' }))
+    await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
     expect(await violaciones()).toEqual([])
   })
 

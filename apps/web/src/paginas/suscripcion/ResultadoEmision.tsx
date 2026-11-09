@@ -10,7 +10,7 @@ import estilosCotizacion from '../cotizacion/Cotizacion.module.css'
 import estilos from './Suscripcion.module.css'
 
 /** La póliza quedó emitida: número, vigencia y documento (WEB-F03, criterio 4). */
-export function ResultadoEmision({ poliza }: { poliza: PolizaEmitida }) {
+export function ResultadoEmision({ poliza, producto }: { poliza: PolizaEmitida; producto: string }) {
   const { t, i18n } = useTranslation()
   const idioma = i18n.language as Idioma
 
@@ -24,6 +24,8 @@ export function ResultadoEmision({ poliza }: { poliza: PolizaEmitida }) {
       <dl className={estilosCotizacion.detalles}>
         <dt>{t('suscripcion.emision.numero')}</dt>
         <dd>{poliza.numero}</dd>
+        <dt>{t('suscripcion.firma.producto')}</dt>
+        <dd>{producto}</dd>
         <dt>{t('suscripcion.emision.vigencia')}</dt>
         <dd>
           {t('suscripcion.emision.vigenciaDetalle', {

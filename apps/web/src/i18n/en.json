@@ -219,13 +219,12 @@
   },
   "suscripcion": {
     "titulo": "Your policy purchase",
-    "descripcion": "Review the offer, pay and sign it to issue your policy.",
+    "descripcion": "Review the offer, confirm the payment and sign to receive your policy.",
     "pasos": {
       "etiqueta": "Purchase steps",
       "actual": "step {{actual}} of {{total}}",
       "revisar": "Review offer",
       "pago": "Payment",
-      "resultado": "Confirmation",
       "firma": "Signature",
       "emision": "Issuance"
     },
@@ -249,7 +248,7 @@
       "consultar": "Check payment status"
     },
     "resultado": {
-      "titulo": "3. Payment confirmation",
+      "titulo": "2. Payment result",
       "referencia": "Transaction reference",
       "aprobado": "Payment approved.",
       "aprobadoDetalle": "Next step: sign your policy to issue it.",
@@ -262,24 +261,24 @@
       "continuarFirma": "Continue to signature"
     },
     "firma": {
-      "titulo": "4. Sign your policy",
+      "titulo": "3. Sign your policy",
       "descripcion": "Review what you are about to sign. The signature is electronic and issues your policy.",
       "producto": "Product",
       "prima": "Monthly premium",
-      "acepta": "I accept the policy terms and sign it electronically.",
+      "acepta": "I accept the contract terms and authorize my electronic signature.",
       "aceptaRequerida": "You must accept the terms to sign.",
-      "firmar": "Sign and issue my policy",
+      "firmar": "Sign electronically",
       "firmando": "Signing…",
       "procesandoDetalle": "We are signing and issuing your policy. Do not close this window or press again."
     },
     "emision": {
-      "titulo": "5. Your policy is issued",
-      "exito": "Policy issued.",
-      "exitoDetalle": "Download your policy document and keep it.",
+      "titulo": "4. Policy issued!",
+      "exito": "Your policy was issued successfully.",
+      "exitoDetalle": "Download it and keep it; you can check it at any time.",
       "numero": "Policy number",
       "vigencia": "Coverage period",
       "vigenciaDetalle": "From {{inicio}} to {{fin}}",
-      "descargar": "Download document"
+      "descargar": "Download PDF"
     },
     "avisos": {
       "reintento": "This payment had already been processed. You were not charged twice.",
