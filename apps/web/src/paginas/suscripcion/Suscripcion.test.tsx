@@ -1,7 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router'
 
 import { App } from '../../App'
@@ -51,7 +51,7 @@ function registrarPagos() {
 beforeEach(() => sessionStorage.clear())
 afterEach(() => servidor.events.removeAllListeners())
 
-describe('Checkout de la suscripción (WEB-F03, rebanada del Sprint 1)', () => {
+describe('Checkout de la suscripción (WEB-F03)', () => {
   it('se llega desde la oferta del cotizador con "Aceptar oferta"', async () => {
     render(
       <MemoryRouter initialEntries={['/cotizacion']}>
@@ -88,7 +88,7 @@ describe('Checkout de la suscripción (WEB-F03, rebanada del Sprint 1)', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Aceptar y continuar al pago' }))
       await screen.findByRole('heading', { level: 2, name: /Medio de pago/ })
       expect(within(pasos()).getByText('Pago')).toHaveAttribute('aria-current', 'step')
-      expect(screen.getByRole('heading', { level: 2 })).toHaveFocus()
+      await waitFor(() => expect(screen.getByRole('heading', { level: 2 })).toHaveFocus())
 
       await userEvent.click(screen.getByRole('button', { name: /Atrás/ }))
       expect(within(pasos()).getByText('Revisar oferta')).toHaveAttribute('aria-current', 'step')
@@ -289,6 +289,172 @@ describe('Checkout de la suscripción (WEB-F03, rebanada del Sprint 1)', () => {
     })
   })
 
+  describe('criterio 4: al firmar queda emitida la póliza con su documento', () => {
+    const REGISTRO_POST_FIRMA = /\/suscripciones\/[^/]+\/firma$/
+    const botonFirmar = () => screen.getByRole('button', { name: 'Firmar y emitir mi póliza' })
+    const casillaAcepta = () => screen.getByRole('checkbox', { name: /Acepto las condiciones/ })
+
+    async function pagarConTarjeta(cotizacionId?: string) {
+      const id = await abrirCheckout(cotizacionId)
+      await aceptarYElegir()
+      await userEvent.click(botonPagar())
+      await screen.findByText('Pago aprobado.')
+      return id
+    }
+
+    async function irAFirma() {
+      await userEvent.click(screen.getByRole('button', { name: 'Continuar a la firma' }))
+      const titulo = await screen.findByRole('heading', { level: 2, name: /Firma tu póliza/ })
+      await waitFor(() => expect(titulo).toHaveFocus())
+    }
+
+    function registrarFirmas() {
+      const firmas: string[] = []
+      servidor.events.on('request:start', ({ request }) => {
+        if (request.method === 'POST' && REGISTRO_POST_FIRMA.test(request.url)) firmas.push(request.url)
+      })
+      return firmas
+    }
+
+    it('después de un pago aprobado, muestra lo que se firma y emite la póliza con su documento', async () => {
+      await pagarConTarjeta()
+      await irAFirma()
+      expect(screen.getByText('Seguro de Auto — Plan Full')).toBeInTheDocument()
+
+      await userEvent.click(casillaAcepta())
+      await userEvent.click(botonFirmar())
+
+      const titulo = await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      await waitFor(() => expect(titulo).toHaveFocus())
+      const emitida = estado.polizas[0]!
+      expect(screen.getByText(emitida.numero)).toBeInTheDocument()
+      expect(screen.getByText(/^Del .+ al .+$/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Descargar documento' })).toHaveAttribute(
+        'href',
+        expect.stringContaining(`/api/v1/web/polizas/${emitida.numero}/documento`),
+      )
+      expect(screen.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute('href', '/')
+    })
+
+    it('exige aceptar las condiciones antes de firmar', async () => {
+      const firmas = registrarFirmas()
+      await pagarConTarjeta()
+      await irAFirma()
+
+      await userEvent.click(botonFirmar())
+
+      expect(casillaAcepta()).toHaveFocus()
+      expect(casillaAcepta()).toHaveAccessibleDescription('Debes aceptar las condiciones para firmar.')
+      expect(firmas).toEqual([])
+    })
+
+    it('un doble clic en firmar envía una sola solicitud y deja el botón ocupado', async () => {
+      const firmas = registrarFirmas()
+      servidor.use(
+        http.post(ruta('/suscripciones/:id/firma'), async () => {
+          await delay(30)
+        }),
+      )
+      await pagarConTarjeta()
+      await irAFirma()
+      await userEvent.click(casillaAcepta())
+
+      await userEvent.dblClick(botonFirmar())
+
+      expect(screen.getByRole('button', { name: 'Firmando…' })).toBeDisabled()
+      expect(screen.getByText(/Estamos firmando y emitiendo tu póliza/)).toBeInTheDocument()
+      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      expect(firmas).toHaveLength(1)
+    })
+
+    it('si el proveedor de firma no responde, lo explica sin emitir y permite firmar de nuevo', async () => {
+      servidor.use(
+        http.post(
+          ruta('/suscripciones/:id/firma'),
+          () => HttpResponse.json({ codigo: 'dependencia_no_disponible', mensaje: 'Sin firma' }, { status: 503 }),
+          { once: true },
+        ),
+      )
+      await pagarConTarjeta()
+      await irAFirma()
+      await userEvent.click(casillaAcepta())
+      await userEvent.click(botonFirmar())
+
+      expect(await screen.findByText(/El servicio de firma no respondió y no se emitió nada/)).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { level: 2, name: /Tu póliza está emitida/ })).not.toBeInTheDocument()
+
+      await userEvent.click(botonFirmar())
+      expect(await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })).toBeInTheDocument()
+    })
+
+    it('si no llega la respuesta, permite reintentar sin emitir otra póliza', async () => {
+      servidor.use(http.post(ruta('/suscripciones/:id/firma'), () => HttpResponse.error(), { once: true }))
+      await pagarConTarjeta()
+      await irAFirma()
+      const polizasAntes = estado.polizas.length
+      await userEvent.click(casillaAcepta())
+      await userEvent.click(botonFirmar())
+
+      expect(await screen.findByText(/No pudimos confirmar la firma/)).toBeInTheDocument()
+
+      await userEvent.click(botonFirmar())
+      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      expect(estado.polizas).toHaveLength(polizasAntes + 1)
+    })
+
+    it('si el pago dejó de estar aprobado, vuelve a la confirmación del pago y lo explica', async () => {
+      servidor.use(
+        http.post(ruta('/suscripciones/:id/firma'), () =>
+          HttpResponse.json({ codigo: 'pago_no_aprobado', mensaje: 'Sin pago aprobado' }, { status: 409 }),
+        ),
+      )
+      await pagarConTarjeta()
+      await irAFirma()
+      await userEvent.click(casillaAcepta())
+      await userEvent.click(botonFirmar())
+
+      expect(await screen.findByText('Tu pago todavía no está aprobado. Confírmalo antes de firmar.')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 2, name: /Confirmación del pago/ })).toBeInTheDocument()
+    })
+
+    it('un pago pendiente se confirma y luego se puede firmar', async () => {
+      await abrirCheckout()
+      await aceptarYElegir('PSE (débito a tu cuenta)')
+      await userEvent.click(botonPagar())
+      await screen.findByText('Tu banco aún no confirma el pago.')
+      expect(screen.queryByRole('button', { name: 'Continuar a la firma' })).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Consultar estado del pago' }))
+      await screen.findByText('Pago aprobado.')
+      await irAFirma()
+    })
+
+    it('se puede volver de la firma a la confirmación del pago', async () => {
+      await pagarConTarjeta()
+      await irAFirma()
+      await userEvent.click(screen.getByRole('button', { name: /Atrás/ }))
+      expect(await screen.findByText('Pago aprobado.')).toBeInTheDocument()
+    })
+
+    it('volver a aceptar una oferta ya emitida muestra la póliza sin firmar ni cobrar otra vez', async () => {
+      const id = await pagarConTarjeta()
+      await irAFirma()
+      await userEvent.click(casillaAcepta())
+      await userEvent.click(botonFirmar())
+      await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
+      const polizas = estado.polizas.length
+
+      document.body.innerHTML = ''
+      await abrirCheckout(id)
+      await userEvent.click(screen.getByRole('button', { name: 'Aceptar y continuar al pago' }))
+
+      expect(await screen.findByText('Esta póliza ya estaba emitida. No se hizo otra firma ni otro cobro.')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Descargar documento' })).toBeInTheDocument()
+      expect(estado.polizas).toHaveLength(polizas)
+      expect(estado.pagos.size).toBe(1)
+    })
+  })
+
   it('no tiene violaciones de accesibilidad en la revisión, el pago y el resultado', async () => {
     const reglas = { rules: { 'color-contrast': { enabled: false } } }
     const violaciones = async () => (await axe.run(document.body, reglas)).violations.map((v) => v.id)
@@ -299,6 +465,14 @@ describe('Checkout de la suscripción (WEB-F03, rebanada del Sprint 1)', () => {
     expect(await violaciones()).toEqual([])
     await userEvent.click(botonPagar())
     await screen.findByText('Pago aprobado.')
+    expect(await violaciones()).toEqual([])
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar a la firma' }))
+    await screen.findByRole('heading', { level: 2, name: /Firma tu póliza/ })
+    await userEvent.click(screen.getByRole('button', { name: 'Firmar y emitir mi póliza' }))
+    expect(await violaciones()).toEqual([])
+    await userEvent.click(screen.getByRole('checkbox', { name: /Acepto las condiciones/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Firmar y emitir mi póliza' }))
+    await screen.findByRole('heading', { level: 2, name: /Tu póliza está emitida/ })
     expect(await violaciones()).toEqual([])
   })
 

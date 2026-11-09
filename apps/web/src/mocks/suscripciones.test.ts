@@ -161,4 +161,78 @@ describe('mocks del checkout (WEB-F03)', () => {
       expect(pago.response.status).toBe(404)
     })
   })
+
+  describe('firmar y emitir (criterio 4)', () => {
+    function firmar(id: string, acepta = true) {
+      return bff.POST('/suscripciones/{id}/firma', {
+        params: { path: { id } },
+        body: { acepta_condiciones: acepta },
+      })
+    }
+
+    async function suscripcionPagada(medio: MedioPago = 'tarjeta_credito') {
+      const suscripcion = await suscripcionAceptada()
+      await pagar(suscripcion.id, crypto.randomUUID(), medio)
+      return suscripcion
+    }
+
+    it('emite la póliza con número, vigencia y documento, y la agrega a las pólizas del cliente', async () => {
+      const suscripcion = await suscripcionPagada()
+      const { data, response } = await firmar(suscripcion.id)
+
+      expect(response.status).toBe(201)
+      expect(data?.estado).toBe('emitida')
+      expect(data?.firmada_en).toEqual(expect.any(String))
+      const numero = data!.poliza!.numero
+      expect(data!.poliza!.documento_url).toBe(`/api/v1/web/polizas/${numero}/documento`)
+      expect(estado.polizas[0]).toMatchObject({ numero, producto: 'auto', estado: 'vigente' })
+    })
+
+    it('firmar de nuevo responde 200 con la misma póliza', async () => {
+      const suscripcion = await suscripcionPagada()
+      const primera = await firmar(suscripcion.id)
+      const segunda = await firmar(suscripcion.id)
+      expect(segunda.response.status).toBe(200)
+      expect(segunda.data?.poliza).toEqual(primera.data?.poliza)
+    })
+
+    it('un pago pendiente se consulta antes de decidir y permite firmar', async () => {
+      const suscripcion = await suscripcionPagada('pse')
+      const { response } = await firmar(suscripcion.id)
+      expect(response.status).toBe(201)
+    })
+
+    it('sin un pago aprobado responde 409 pago_no_aprobado', async () => {
+      const suscripcion = await suscripcionAceptada()
+      const { response, error } = await firmar(suscripcion.id)
+      expect(response.status).toBe(409)
+      expect(error?.codigo).toBe('pago_no_aprobado')
+    })
+
+    it('sin aceptar las condiciones responde 422 aceptacion_requerida', async () => {
+      const suscripcion = await suscripcionPagada()
+      const { response, error } = await firmar(suscripcion.id, false)
+      expect(response.status).toBe(422)
+      expect(error?.codigo).toBe('aceptacion_requerida')
+    })
+
+    it('404 para una suscripción que no existe', async () => {
+      expect((await firmar('sus-no-existe')).response.status).toBe(404)
+    })
+
+    it('entrega el PDF de la póliza emitida y 404 si no tiene documento o no existe', async () => {
+      const suscripcion = await suscripcionPagada()
+      const { data } = await firmar(suscripcion.id)
+      const documento = await fetch(`http://localhost${data!.poliza!.documento_url}`)
+      expect(documento.headers.get('Content-Type')).toBe('application/pdf')
+      expect(documento.headers.get('Content-Disposition')).toContain(`${data!.poliza!.numero}.pdf`)
+
+      const sinDocumento = estado.polizas.find((p) => !p.documento_url)!
+      const deSemilla = await fetch(`http://localhost/api/v1/web/polizas/${sinDocumento.numero}/documento`)
+      expect(deSemilla.status).toBe(404)
+      expect(await deSemilla.json()).toMatchObject({ codigo: 'documento_no_disponible' })
+      const inexistente = await fetch('http://localhost/api/v1/web/polizas/POL-NO-EXISTE/documento')
+      expect(await inexistente.json()).toMatchObject({ codigo: 'poliza_no_encontrada' })
+    })
+  })
 })

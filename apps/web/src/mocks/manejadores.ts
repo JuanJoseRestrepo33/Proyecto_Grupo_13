@@ -2,8 +2,8 @@
  * Mocks del BFF web (MSW). Implementan contratos/bff-web/openapi.yaml con un estado en memoria
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
  * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
- * paga contra una pasarela simulada que responde según `estado.pasarela`, y el proveedor de
- * Open Finance responde según `estado.openFinance`. Los siniestros (WEB-F05) se reportan sobre
+ * paga contra una pasarela simulada que responde según `estado.pasarela` y emite la póliza al
+ * firmar. El proveedor de Open Finance responde según `estado.openFinance`. Los siniestros (WEB-F05) se reportan sobre
  * `estado.polizas`, con la misma `Idempotency-Key` reconocida como reintento, y reciben evidencia
  * (MOB-F05) con los mismos límites del BFF. El formato se toma del tipo del archivo; el BFF real lo
  * comprueba con el contenido. Sin sesión
@@ -25,13 +25,14 @@ import type {
   Producto,
   SolicitudConsentimiento,
   SolicitudCotizacion,
+  SolicitudFirma,
   SolicitudPago,
   SolicitudSiniestro,
   SolicitudSuscripcion,
   Siniestro,
   Suscripcion,
 } from '../api/tipos'
-import { diaLocal } from '../formato'
+import { diaLocal, diaRelativo } from '../formato'
 import {
   CREDENCIALES_PRUEBA,
   ENTIDADES,
@@ -209,6 +210,27 @@ function suscripcionConPago(id: string): Suscripcion | undefined {
   return { ...suscripcion, pago: pago ? { ...pago, reintento: false } : null }
 }
 
+/** Emite la póliza de una suscripción pagada y la deja en las pólizas del cliente. */
+function emitirPoliza(id: string): void {
+  const suscripcion = estado.suscripciones.get(id)!
+  const numero = `POL-2026-${String(++estado.secuencia).padStart(6, '0')}`
+  const documentoUrl = `${PREFIJO_BFF}/polizas/${numero}/documento`
+  const [inicio, fin] = [diaLocal(), diaRelativo(364)]
+  suscripcion.estado = 'emitida'
+  suscripcion.firmada_en = new Date().toISOString()
+  suscripcion.poliza = { numero, inicio, fin, documento_url: documentoUrl }
+  estado.polizas.unshift({
+    numero,
+    producto: estado.cotizaciones.get(suscripcion.cotizacion_id)!.cotizacion.producto,
+    inicio,
+    fin,
+    estado: 'vigente',
+    nombre_producto: suscripcion.nombre_producto,
+    prima_mensual: suscripcion.prima_mensual,
+    documento_url: documentoUrl,
+  })
+}
+
 /** Registra el resultado de la pasarela; con el pago aprobado la suscripción queda pagada. */
 function guardarPago(suscripcionId: string, pago: PagoGuardado): void {
   estado.pagos.set(pago.id, pago)
@@ -367,6 +389,8 @@ export const manejadores = [
       prima_mensual: cotizacion.prima_mensual,
       estado: 'aceptada',
       aceptada_en: new Date().toISOString(),
+      firmada_en: null,
+      poliza: null,
       pagoId: null,
     })
     return HttpResponse.json(suscripcionConPago(id), { status: 201 })
@@ -428,6 +452,35 @@ export const manejadores = [
     if (pago.estado === 'pendiente') guardarPago(suscripcionId, { ...pago, estado: 'aprobado' })
     const actual: Pago = { ...estado.pagos.get(pago.id)!, reintento: false }
     return HttpResponse.json(actual)
+  }),
+
+  http.post(ruta('/suscripciones/:id/firma'), async ({ params, request }) => {
+    const id = String(params.id)
+    const guardada = estado.suscripciones.get(id)
+    if (!guardada) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    const { acepta_condiciones: acepta } = (await request.json()) as SolicitudFirma
+    if (acepta !== true) return error(422, 'aceptacion_requerida', 'Hay que aceptar las condiciones')
+    if (guardada.estado === 'emitida') return HttpResponse.json(suscripcionConPago(id))
+
+    const pago = guardada.pagoId ? estado.pagos.get(guardada.pagoId) : undefined
+    if (pago?.estado === 'pendiente') guardarPago(id, { ...pago, estado: 'aprobado' })
+    if (estado.pagos.get(guardada.pagoId ?? '')?.estado !== 'aprobado') {
+      return error(409, 'pago_no_aprobado', 'La suscripción no tiene un pago aprobado')
+    }
+    emitirPoliza(id)
+    return HttpResponse.json(suscripcionConPago(id), { status: 201 })
+  }),
+
+  http.get(ruta('/polizas/:numero/documento'), ({ params }) => {
+    const poliza = estado.polizas.find((p) => p.numero === String(params.numero))
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'No existe')
+    if (!poliza.documento_url) return error(404, 'documento_no_disponible', 'La póliza no tiene documento')
+    return new HttpResponse('%PDF-1.7', {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${poliza.numero}.pdf"`,
+      },
+    })
   }),
 
   http.get(ruta('/polizas'), () => HttpResponse.json(estado.polizas)),

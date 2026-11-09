@@ -13,12 +13,14 @@ import type { Idioma } from '../../i18n'
 import estilos from '../cotizacion/Cotizacion.module.css'
 import { Pasos } from '../cotizacion/Pasos'
 import { claveDelIntento, nuevaClave } from './claveIdempotencia'
+import { PasoFirma } from './PasoFirma'
 import { PasoPago } from './PasoPago'
 import { PasoRevisar } from './PasoRevisar'
+import { ResultadoEmision } from './ResultadoEmision'
 import { ResultadoPago } from './ResultadoPago'
 
-const PASOS = ['revisar', 'pago', 'resultado'] as const
-const [REVISAR, PAGO, RESULTADO] = [0, 1, 2]
+const PASOS = ['revisar', 'pago', 'resultado', 'firma', 'emision'] as const
+const [REVISAR, PAGO, RESULTADO, FIRMA, EMISION] = [0, 1, 2, 3, 4]
 
 const MIGAS = [
   { clave: 'nav.inicio', a: '/' },
@@ -29,7 +31,17 @@ const MIGAS = [
 type Carga = { tipo: 'cargando' } | { tipo: 'error' } | { tipo: 'noEncontrada' } | { tipo: 'listo'; cotizacion: Cotizacion }
 
 /** Avisos de la pantalla; la clave es la de i18n en `suscripcion.avisos`. */
-type ClaveAviso = 'reintento' | 'pagoEnCurso' | 'pagoYaRegistrado' | 'sinConfirmacion' | 'cotizacionVencida' | 'error'
+type ClaveAviso =
+  | 'reintento'
+  | 'pagoEnCurso'
+  | 'pagoYaRegistrado'
+  | 'sinConfirmacion'
+  | 'cotizacionVencida'
+  | 'polizaYaEmitida'
+  | 'firmaNoDisponible'
+  | 'firmaSinConfirmacion'
+  | 'pagoNoAprobado'
+  | 'error'
 
 const TIPO_AVISO: Record<ClaveAviso, TipoAviso> = {
   reintento: 'info',
@@ -37,6 +49,10 @@ const TIPO_AVISO: Record<ClaveAviso, TipoAviso> = {
   pagoYaRegistrado: 'info',
   sinConfirmacion: 'advertencia',
   cotizacionVencida: 'error',
+  polizaYaEmitida: 'info',
+  firmaNoDisponible: 'advertencia',
+  firmaSinConfirmacion: 'advertencia',
+  pagoNoAprobado: 'advertencia',
   error: 'error',
 }
 
@@ -51,11 +67,12 @@ async function obtenerCotizacion(id: string): Promise<Carga> {
 }
 
 /**
- * Checkout de la oferta aceptada (WEB-F03, rebanada): revisar → pagar → confirmación.
+ * Compra de la oferta aceptada (WEB-F03): revisar → pagar → confirmar el pago → firmar → póliza emitida.
  *
  * Cada intento de pago lleva su `Idempotency-Key` (P18). Mientras el pago se procesa el botón queda
  * ocupado (P10), y cualquier reintento del mismo intento reutiliza la clave, así el BFF devuelve el
- * mismo pago en lugar de cobrar otra vez. La firma y la emisión llegan con el resto de WEB-F03.
+ * mismo pago en lugar de cobrar otra vez. La firma también es idempotente: firmar de nuevo devuelve
+ * la misma póliza.
  */
 export function Suscripcion() {
   const { cotizacion: cotizacionId = '' } = useParams()
@@ -69,6 +86,8 @@ export function Suscripcion() {
   const [pago, setPago] = useState<Pago | null>(null)
   const [aviso, setAviso] = useState<ClaveAviso | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [aceptaCondiciones, setAceptaCondiciones] = useState(false)
+  const [errorAceptacion, setErrorAceptacion] = useState(false)
   // Candado síncrono: un doble clic llega antes de que React deshabilite el botón.
   const enCurso = useRef(false)
   const titulo = useRef<HTMLHeadingElement>(null)
@@ -110,6 +129,12 @@ export function Suscripcion() {
     setPaso(RESULTADO)
   }
 
+  function mostrarPoliza(emitida: SuscripcionApi, claveAviso: ClaveAviso | null = null) {
+    setSuscripcion(emitida)
+    setAviso(claveAviso)
+    setPaso(EMISION)
+  }
+
   const aceptar = () =>
     ocupado(async () => {
       setAviso(null)
@@ -118,6 +143,10 @@ export function Suscripcion() {
         .catch(() => ({ data: undefined, error: undefined }))
       if (!data) {
         setAviso(error?.codigo === 'cotizacion_vencida' ? 'cotizacionVencida' : 'error')
+        return
+      }
+      if (data.poliza) {
+        mostrarPoliza(data, 'polizaYaEmitida')
         return
       }
       setSuscripcion(data)
@@ -171,6 +200,51 @@ export function Suscripcion() {
       if (data) mostrarPago(data)
       else setAviso('error')
     })
+
+  const firmar = () =>
+    ocupado(async () => {
+      if (!suscripcion) return
+      if (!aceptaCondiciones) {
+        setErrorAceptacion(true)
+        document.getElementById('acepta-condiciones')?.focus()
+        return
+      }
+      setAviso(null)
+      const resultado = await bff
+        .POST('/suscripciones/{id}/firma', {
+          params: { path: { id: suscripcion.id } },
+          body: { acepta_condiciones: true },
+        })
+        .catch(() => null)
+      if (!resultado) {
+        setAviso('firmaSinConfirmacion')
+        return
+      }
+      const { data, error, response } = resultado
+      if (data?.poliza) {
+        mostrarPoliza(data, response.status === 200 ? 'polizaYaEmitida' : null)
+      } else if (error?.codigo === 'pago_no_aprobado') {
+        const actual = await bff
+          .GET('/suscripciones/{id}', { params: { path: { id: suscripcion.id } } })
+          .catch(() => ({ data: undefined }))
+        if (actual.data?.pago) mostrarPago(actual.data.pago, 'pagoNoAprobado')
+        else setAviso('error')
+      } else if (error?.codigo === 'aceptacion_requerida') {
+        setErrorAceptacion(true)
+      } else {
+        setAviso(response.status === 503 ? 'firmaNoDisponible' : 'error')
+      }
+    })
+
+  function continuarAFirma() {
+    setAviso(null)
+    setPaso(FIRMA)
+  }
+
+  function volver() {
+    setAviso(null)
+    setPaso(paso - 1)
+  }
 
   function intentarDeNuevo() {
     if (suscripcion) nuevaClave(suscripcion.id)
@@ -246,10 +320,23 @@ export function Suscripcion() {
           />
         )}
         {paso === RESULTADO && pago && <ResultadoPago pago={pago} />}
+        {paso === FIRMA && (
+          <PasoFirma
+            cotizacion={cotizacion}
+            acepta={aceptaCondiciones}
+            error={errorAceptacion}
+            deshabilitado={enviando}
+            onCambiar={(acepta) => {
+              setAceptaCondiciones(acepta)
+              setErrorAceptacion(false)
+            }}
+          />
+        )}
+        {paso === EMISION && suscripcion?.poliza && <ResultadoEmision poliza={suscripcion.poliza} />}
 
-        {enviando && paso === PAGO && (
+        {enviando && (paso === PAGO || paso === FIRMA) && (
           <p role="status" className={estilos.ayuda}>
-            {t('suscripcion.pago.procesandoDetalle')}
+            {t(paso === PAGO ? 'suscripcion.pago.procesandoDetalle' : 'suscripcion.firma.procesandoDetalle')}
           </p>
         )}
 
@@ -274,8 +361,8 @@ export function Suscripcion() {
         )}
 
         <div className={estilos.navegacion}>
-          {paso === PAGO && !enviando ? (
-            <Boton variante="fantasma" onClick={() => setPaso(REVISAR)}>
+          {(paso === PAGO || paso === FIRMA) && !enviando ? (
+            <Boton variante="fantasma" onClick={volver}>
               ← {t('suscripcion.atras')}
             </Boton>
           ) : (
@@ -305,6 +392,14 @@ export function Suscripcion() {
             </Boton>
           )}
           {paso === RESULTADO && pago?.estado === 'aprobado' && (
+            <Boton onClick={continuarAFirma}>{t('suscripcion.resultado.continuarFirma')}</Boton>
+          )}
+          {paso === FIRMA && (
+            <Boton onClick={() => void firmar()} disabled={enviando} aria-busy={enviando}>
+              {enviando ? t('suscripcion.firma.firmando') : t('suscripcion.firma.firmar')}
+            </Boton>
+          )}
+          {paso === EMISION && (
             <Link className={clasesBoton('secundario')} to="/">
               {t('suscripcion.resultado.volverInicio')}
             </Link>

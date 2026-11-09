@@ -219,13 +219,15 @@
   },
   "suscripcion": {
     "titulo": "Suscripción de tu póliza",
-    "descripcion": "Revisa la oferta y págala para continuar con la emisión de tu póliza.",
+    "descripcion": "Revisa la oferta, págala y fírmala para emitir tu póliza.",
     "pasos": {
       "etiqueta": "Pasos de la suscripción",
       "actual": "paso {{actual}} de {{total}}",
       "revisar": "Revisar oferta",
       "pago": "Pago",
-      "resultado": "Confirmación"
+      "resultado": "Confirmación",
+      "firma": "Firma",
+      "emision": "Emisión"
     },
     "revisar": {
       "titulo": "1. Revisa las condiciones de tu oferta",
@@ -250,13 +252,34 @@
       "titulo": "3. Confirmación del pago",
       "referencia": "Referencia de la transacción",
       "aprobado": "Pago aprobado.",
-      "aprobadoDetalle": "Siguiente paso: firmar tu póliza. Esta parte del proceso estará disponible próximamente.",
+      "aprobadoDetalle": "Siguiente paso: firma tu póliza para emitirla.",
       "rechazado": "Pago rechazado por el banco emisor.",
       "rechazadoDetalle": "No se realizó ningún cobro. Verifica los datos o usa otro medio e intenta de nuevo.",
       "pendiente": "Tu banco aún no confirma el pago.",
       "pendienteDetalle": "No hagas otro pago. Consulta el estado en unos minutos.",
       "intentarDeNuevo": "Intentar de nuevo",
-      "volverInicio": "Volver al inicio"
+      "volverInicio": "Volver al inicio",
+      "continuarFirma": "Continuar a la firma"
+    },
+    "firma": {
+      "titulo": "4. Firma tu póliza",
+      "descripcion": "Revisa lo que vas a firmar. La firma es electrónica y deja tu póliza emitida.",
+      "producto": "Producto",
+      "prima": "Prima mensual",
+      "acepta": "Acepto las condiciones de la póliza y la firmo electrónicamente.",
+      "aceptaRequerida": "Debes aceptar las condiciones para firmar.",
+      "firmar": "Firmar y emitir mi póliza",
+      "firmando": "Firmando…",
+      "procesandoDetalle": "Estamos firmando y emitiendo tu póliza. No cierres esta ventana ni pulses de nuevo."
+    },
+    "emision": {
+      "titulo": "5. Tu póliza está emitida",
+      "exito": "Póliza emitida.",
+      "exitoDetalle": "Descarga el documento de tu póliza y guárdalo.",
+      "numero": "Número de póliza",
+      "vigencia": "Vigencia",
+      "vigenciaDetalle": "Del {{inicio}} al {{fin}}",
+      "descargar": "Descargar documento"
     },
     "avisos": {
       "reintento": "Este pago ya se había procesado. No se hizo un segundo cobro.",
@@ -268,7 +291,11 @@
       "medioRequerido": "Elige un medio de pago para continuar.",
       "error": "No pudimos completar la operación. Intenta de nuevo.",
       "noEncontrada": "No encontramos esta cotización.",
-      "cargar": "No pudimos cargar tu cotización. Intenta de nuevo."
+      "cargar": "No pudimos cargar tu cotización. Intenta de nuevo.",
+      "polizaYaEmitida": "Esta póliza ya estaba emitida. No se hizo otra firma ni otro cobro.",
+      "firmaNoDisponible": "El servicio de firma no respondió y no se emitió nada. Puedes firmar de nuevo con seguridad.",
+      "firmaSinConfirmacion": "No pudimos confirmar la firma. Puedes intentarlo de nuevo con seguridad: si ya se emitió, verás la misma póliza.",
+      "pagoNoAprobado": "Tu pago todavía no está aprobado. Confírmalo antes de firmar."
     },
     "recotizar": "Volver a cotizar",
     "reintentar": "Reintentar",
