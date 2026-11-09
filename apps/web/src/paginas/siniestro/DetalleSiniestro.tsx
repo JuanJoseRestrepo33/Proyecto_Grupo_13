@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 
@@ -42,6 +42,7 @@ export function DetalleSiniestro() {
   const [actualizando, setActualizando] = useState(false)
   const [resultado, setResultado] = useState<'actualizado' | 'fallo' | null>(null)
   const [respuesta, setRespuesta] = useState<ResultadoRespuesta | null>(null)
+  const ultimaConsulta = useRef(0)
 
   useEffect(() => {
     let vigente = true
@@ -58,11 +59,14 @@ export function DetalleSiniestro() {
     void obtenerSiniestro(id).then(setCarga)
   }
 
+  /** Consulta el caso; si hay varias consultas a la vez, solo vale la última. */
   async function actualizar(avisar = true) {
-    if (actualizando) return
+    ultimaConsulta.current += 1
+    const consulta = ultimaConsulta.current
     setActualizando(true)
     setResultado(null)
     const nueva = await obtenerSiniestro(id)
+    if (consulta !== ultimaConsulta.current) return
     setActualizando(false)
     if (nueva.tipo === 'listo') {
       setCarga(nueva)
@@ -125,7 +129,14 @@ export function DetalleSiniestro() {
       </div>
 
       <div className={estilos.encabezadoAcciones}>
-        <Boton variante="secundario" onClick={() => void actualizar()} aria-disabled={actualizando} aria-busy={actualizando}>
+        <Boton
+          variante="secundario"
+          onClick={() => {
+            if (!actualizando) void actualizar()
+          }}
+          aria-disabled={actualizando}
+          aria-busy={actualizando}
+        >
           {actualizando ? t('siniestro.seguimiento.actualizando') : t('siniestro.seguimiento.actualizar')}
         </Boton>
       </div>
@@ -191,7 +202,7 @@ export function DetalleSiniestro() {
         </section>
       </div>
 
-      {siniestro.requerimientos.length > 0 && (
+      {(siniestro.requerimientos.length > 0 || respuesta) && (
         <section aria-labelledby="titulo-requerimientos">
           <h2 id="titulo-requerimientos" className={estilosPolizas.seccionTitulo} tabIndex={-1}>
             {t('siniestro.seguimiento.requerimientos.titulo')}

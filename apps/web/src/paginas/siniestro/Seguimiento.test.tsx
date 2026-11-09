@@ -354,6 +354,45 @@ describe('Seguimiento del siniestro (WEB-F06)', () => {
       await waitFor(() => expect(screen.queryByRole('heading', { level: 3, name: 'Factura de la reparación' })).not.toBeInTheDocument())
     })
 
+    it('si el único requerimiento ya no existe, la explicación sigue visible', async () => {
+      sembrar()
+      abrir('/siniestros/sin-1')
+      await userEvent.upload(await adjuntar(), factura())
+
+      estado.seguimientos.get(CASO.id)!.requerimientos.shift()
+      await userEvent.click(botonEnviar())
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('ya no existe')
+      await waitFor(() => expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument())
+      expect(screen.getByRole('alert')).toHaveTextContent('ya no existe')
+      expect(screen.getByRole('heading', { level: 2, name: 'Requerimientos' })).toBeInTheDocument()
+    })
+
+    it('una respuesta enviada mientras se actualiza queda reflejada, aunque la consulta anterior llegue después', async () => {
+      sembrar()
+      abrir('/siniestros/sin-1')
+      await userEvent.upload(await adjuntar(), factura())
+      servidor.use(
+        http.get(
+          ruta('/siniestros/:id'),
+          async () => {
+            const anterior = structuredClone({ ...estado.siniestros[0]!, ...estado.seguimientos.get(CASO.id)! })
+            await delay(80)
+            return HttpResponse.json(anterior)
+          },
+          { once: true },
+        ),
+      )
+
+      await userEvent.click(screen.getByRole('button', { name: 'Actualizar' }))
+      await userEvent.click(botonEnviar())
+
+      expect(await screen.findByText(/^Atendido el/)).toBeInTheDocument()
+      await delay(120)
+      expect(screen.getByText(/^Atendido el/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Actualizar' })).toHaveAttribute('aria-disabled', 'false')
+    })
+
     it('un requerimiento cerrado sin respuesta lo dice y no permite responder', async () => {
       sembrar({ estado: 'en_evaluacion' }, [{ ...PENDIENTE, pendiente: false }])
       abrir('/siniestros/sin-1')
