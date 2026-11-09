@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 
 import { urlAbsolutaBff } from '../../api/cliente'
 import type { PolizaEmitida } from '../../api/tipos'
@@ -10,7 +11,7 @@ import estilosCotizacion from '../cotizacion/Cotizacion.module.css'
 import estilos from './Suscripcion.module.css'
 
 /** La póliza quedó emitida: número, vigencia y documento (WEB-F03, criterio 4). */
-export function ResultadoEmision({ poliza }: { poliza: PolizaEmitida }) {
+export function ResultadoEmision({ poliza, producto }: { poliza: PolizaEmitida; producto: string }) {
   const { t, i18n } = useTranslation()
   const idioma = i18n.language as Idioma
 
@@ -24,6 +25,8 @@ export function ResultadoEmision({ poliza }: { poliza: PolizaEmitida }) {
       <dl className={estilosCotizacion.detalles}>
         <dt>{t('suscripcion.emision.numero')}</dt>
         <dd>{poliza.numero}</dd>
+        <dt>{t('suscripcion.firma.producto')}</dt>
+        <dd>{producto}</dd>
         <dt>{t('suscripcion.emision.vigencia')}</dt>
         <dd>
           {t('suscripcion.emision.vigenciaDetalle', {
@@ -33,7 +36,10 @@ export function ResultadoEmision({ poliza }: { poliza: PolizaEmitida }) {
         </dd>
       </dl>
       <div className={estilos.acciones}>
-        <a className={clasesBoton('primario')} href={urlAbsolutaBff(poliza.documento_url)} download>
+        <Link className={clasesBoton('primario')} to={`/polizas/${encodeURIComponent(poliza.numero)}`}>
+          {t('suscripcion.emision.verPoliza')}
+        </Link>
+        <a className={clasesBoton('secundario')} href={urlAbsolutaBff(poliza.documento_url)} download>
           {t('suscripcion.emision.descargar')}
         </a>
       </div>

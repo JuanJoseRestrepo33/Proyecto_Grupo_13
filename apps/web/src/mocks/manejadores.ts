@@ -216,18 +216,25 @@ function emitirPoliza(id: string): void {
   const numero = `POL-2026-${String(++estado.secuencia).padStart(6, '0')}`
   const documentoUrl = `${PREFIJO_BFF}/polizas/${numero}/documento`
   const [inicio, fin] = [diaLocal(), diaRelativo(364)]
+  const { cotizacion } = estado.cotizaciones.get(suscripcion.cotizacion_id)!
   suscripcion.estado = 'emitida'
   suscripcion.firmada_en = new Date().toISOString()
   suscripcion.poliza = { numero, inicio, fin, documento_url: documentoUrl }
   estado.polizas.unshift({
     numero,
-    producto: estado.cotizaciones.get(suscripcion.cotizacion_id)!.cotizacion.producto,
+    producto: cotizacion.producto,
     inicio,
     fin,
     estado: 'vigente',
     nombre_producto: suscripcion.nombre_producto,
     prima_mensual: suscripcion.prima_mensual,
     documento_url: documentoUrl,
+  })
+  estado.condicionesPolizas.set(numero, {
+    coberturas: cotizacion.coberturas,
+    deducible: cotizacion.deducible,
+    valor_asegurado: cotizacion.valor_asegurado,
+    emitida_en: suscripcion.firmada_en,
   })
 }
 
@@ -484,6 +491,20 @@ export const manejadores = [
   }),
 
   http.get(ruta('/polizas'), () => HttpResponse.json(estado.polizas)),
+
+  http.get(ruta('/polizas/:numero'), ({ params }) => {
+    const numero = String(params.numero)
+    const poliza = estado.polizas.find((p) => p.numero === numero)
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'No existe')
+    const condiciones = estado.condicionesPolizas.get(numero)
+    return HttpResponse.json({
+      ...poliza,
+      coberturas: condiciones?.coberturas ?? [],
+      deducible: condiciones?.deducible ?? null,
+      valor_asegurado: condiciones?.valor_asegurado ?? null,
+      emitida_en: condiciones?.emitida_en ?? null,
+    })
+  }),
 
   http.get(ruta('/siniestros'), () => HttpResponse.json([...estado.siniestros].reverse())),
 

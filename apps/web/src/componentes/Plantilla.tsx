@@ -11,6 +11,7 @@ import estilos from './Plantilla.module.css'
 const ENLACES = [
   { a: '/', clave: 'nav.inicio' },
   { a: '/cotizacion', clave: 'nav.cotizar' },
+  { a: '/polizas', clave: 'nav.polizas' },
   { a: '/consentimientos', clave: 'nav.consentimientos' },
   { a: '/siniestros/reportar', clave: 'nav.reportarSiniestro' },
   { a: '/siniestros/evidencias', clave: 'nav.evidencias' },

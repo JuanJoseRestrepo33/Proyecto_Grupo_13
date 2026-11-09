@@ -5,6 +5,8 @@ import { Consentimientos } from './paginas/consentimientos/Consentimientos'
 import { Cotizacion } from './paginas/cotizacion/Cotizacion'
 import { Inicio } from './paginas/Inicio'
 import { NoEncontrada } from './paginas/NoEncontrada'
+import { DetallePoliza } from './paginas/polizas/DetallePoliza'
+import { MisPolizas } from './paginas/polizas/MisPolizas'
 import { InicioSesion } from './paginas/sesion/InicioSesion'
 import { EvidenciasSiniestro } from './paginas/siniestro/EvidenciasSiniestro'
 import { ReporteSiniestro } from './paginas/siniestro/ReporteSiniestro'
@@ -23,6 +25,8 @@ export function App() {
             <Route path="cotizacion" element={<Cotizacion />} />
             <Route path="consentimientos" element={<Consentimientos />} />
             <Route path="suscripcion/:cotizacion" element={<Suscripcion />} />
+            <Route path="polizas" element={<MisPolizas />} />
+            <Route path="polizas/:numero" element={<DetallePoliza />} />
             <Route path="siniestros/reportar" element={<ReporteSiniestro />} />
             <Route path="siniestros/evidencias" element={<EvidenciasSiniestro />} />
           </Route>

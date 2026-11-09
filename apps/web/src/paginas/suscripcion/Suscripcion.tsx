@@ -19,8 +19,11 @@ import { PasoRevisar } from './PasoRevisar'
 import { ResultadoEmision } from './ResultadoEmision'
 import { ResultadoPago } from './ResultadoPago'
 
-const PASOS = ['revisar', 'pago', 'resultado', 'firma', 'emision'] as const
+const PASOS = ['revisar', 'pago', 'firma', 'emision'] as const
+const VISTAS = ['revisar', 'pago', 'resultado', 'firma', 'emision'] as const
 const [REVISAR, PAGO, RESULTADO, FIRMA, EMISION] = [0, 1, 2, 3, 4]
+/** Paso del indicador de cada vista: el resultado del pago sigue siendo parte del paso Pago. */
+const PASO_DE_VISTA = [0, 1, 1, 2, 3]
 
 const MIGAS = [
   { clave: 'nav.inicio', a: '/' },
@@ -67,7 +70,7 @@ async function obtenerCotizacion(id: string): Promise<Carga> {
 }
 
 /**
- * Compra de la oferta aceptada (WEB-F03): revisar → pagar → confirmar el pago → firmar → póliza emitida.
+ * Compra de la oferta aceptada (WEB-F03): revisar → pagar → firmar → póliza emitida.
  *
  * Cada intento de pago lleva su `Idempotency-Key` (P18). Mientras el pago se procesa el botón queda
  * ocupado (P10), y cualquier reintento del mismo intento reutiliza la clave, así el BFF devuelve el
@@ -294,17 +297,18 @@ export function Suscripcion() {
   // Una oferta que ya llega vencida se explica de entrada, no solo con el botón deshabilitado.
   const avisoActual: ClaveAviso | null = aviso ?? (paso === REVISAR && vencida ? 'cotizacionVencida' : null)
   const monto = formatearMoneda(suscripcion?.prima_mensual ?? cotizacion.prima_mensual, idioma)
-  const nombrePaso = PASOS[paso]!
+  const nombreVista = VISTAS[paso]!
+  const pasoActual = PASO_DE_VISTA[paso]!
 
   return (
     <>
       {encabezado}
-      <Pasos actual={paso} pasos={PASOS} claves="suscripcion.pasos" />
+      <Pasos actual={pasoActual} pasos={PASOS} claves="suscripcion.pasos" />
 
       <section className={estilos.tarjeta} aria-labelledby="titulo-paso">
         <h2 id="titulo-paso" ref={titulo} tabIndex={-1}>
-          {t(`suscripcion.${nombrePaso}.titulo`)}
-          <span className="sr-only"> ({t('suscripcion.pasos.actual', { actual: paso + 1, total: PASOS.length })})</span>
+          {t(`suscripcion.${nombreVista}.titulo`)}
+          <span className="sr-only"> ({t('suscripcion.pasos.actual', { actual: pasoActual + 1, total: PASOS.length })})</span>
         </h2>
 
         {paso === REVISAR && <PasoRevisar cotizacion={cotizacion} onVencer={marcarVencida} />}
@@ -332,7 +336,9 @@ export function Suscripcion() {
             }}
           />
         )}
-        {paso === EMISION && suscripcion?.poliza && <ResultadoEmision poliza={suscripcion.poliza} />}
+        {paso === EMISION && suscripcion?.poliza && (
+          <ResultadoEmision poliza={suscripcion.poliza} producto={suscripcion.nombre_producto} />
+        )}
 
         {enviando && (paso === PAGO || paso === FIRMA) && (
           <p role="status" className={estilos.ayuda}>
