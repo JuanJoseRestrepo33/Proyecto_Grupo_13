@@ -71,3 +71,8 @@ export const bff = crearClienteBff()
 export function urlBff(camino: string, origen = import.meta.env.VITE_BFF_URL || globalThis.location?.origin) {
   return `${origen ?? ''}${PREFIJO_BFF}${camino}`
 }
+
+/** URL absoluta de una ruta que el BFF ya entrega completa, como el `documento_url` de una póliza. */
+export function urlAbsolutaBff(ruta: string, origen = import.meta.env.VITE_BFF_URL || globalThis.location?.origin) {
+  return `${origen ?? ''}${ruta}`
+}

@@ -219,13 +219,15 @@
   },
   "suscripcion": {
     "titulo": "Your policy purchase",
-    "descripcion": "Review the offer and pay for it to continue with the issuance of your policy.",
+    "descripcion": "Review the offer, pay and sign it to issue your policy.",
     "pasos": {
       "etiqueta": "Purchase steps",
       "actual": "step {{actual}} of {{total}}",
       "revisar": "Review offer",
       "pago": "Payment",
-      "resultado": "Confirmation"
+      "resultado": "Confirmation",
+      "firma": "Signature",
+      "emision": "Issuance"
     },
     "revisar": {
       "titulo": "1. Review the terms of your offer",
@@ -250,13 +252,34 @@
       "titulo": "3. Payment confirmation",
       "referencia": "Transaction reference",
       "aprobado": "Payment approved.",
-      "aprobadoDetalle": "Next step: sign your policy. This part of the process will be available soon.",
+      "aprobadoDetalle": "Next step: sign your policy to issue it.",
       "rechazado": "Payment declined by the issuing bank.",
       "rechazadoDetalle": "You were not charged. Check your details or use another method and try again.",
       "pendiente": "Your bank has not confirmed the payment yet.",
       "pendienteDetalle": "Do not make another payment. Check the status in a few minutes.",
       "intentarDeNuevo": "Try again",
-      "volverInicio": "Back to home"
+      "volverInicio": "Back to home",
+      "continuarFirma": "Continue to signature"
+    },
+    "firma": {
+      "titulo": "4. Sign your policy",
+      "descripcion": "Review what you are about to sign. The signature is electronic and issues your policy.",
+      "producto": "Product",
+      "prima": "Monthly premium",
+      "acepta": "I accept the policy terms and sign it electronically.",
+      "aceptaRequerida": "You must accept the terms to sign.",
+      "firmar": "Sign and issue my policy",
+      "firmando": "Signing…",
+      "procesandoDetalle": "We are signing and issuing your policy. Do not close this window or press again."
+    },
+    "emision": {
+      "titulo": "5. Your policy is issued",
+      "exito": "Policy issued.",
+      "exitoDetalle": "Download your policy document and keep it.",
+      "numero": "Policy number",
+      "vigencia": "Coverage period",
+      "vigenciaDetalle": "From {{inicio}} to {{fin}}",
+      "descargar": "Download document"
     },
     "avisos": {
       "reintento": "This payment had already been processed. You were not charged twice.",
@@ -268,7 +291,11 @@
       "medioRequerido": "Choose a payment method to continue.",
       "error": "We could not complete the operation. Please try again.",
       "noEncontrada": "We could not find this quote.",
-      "cargar": "We could not load your quote. Please try again."
+      "cargar": "We could not load your quote. Please try again.",
+      "polizaYaEmitida": "This policy was already issued. No new signature or charge was made.",
+      "firmaNoDisponible": "The signature service did not respond and nothing was issued. You can safely sign again.",
+      "firmaSinConfirmacion": "We couldn't confirm the signature. You can safely try again: if it was already issued, you'll see the same policy.",
+      "pagoNoAprobado": "Your payment is not approved yet. Confirm it before signing."
     },
     "recotizar": "Get a new quote",
     "reintentar": "Retry",
