@@ -484,6 +484,7 @@ lados.
 | Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
 | Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
 | Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
+| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`). *Aprovisionar* ya la crea y la monta, pero el núcleo todavía no la lee: las cuentas viven en memoria y por eso el núcleo corre con una sola réplica | `solventa-nucleo` | ARQ-05 |
 | Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo. *Aprovisionar* los deja explícitos en *staging*; el modo del proveedor (`PERFILAMIENTO_OPEN_FINANCE_MODO`) no, porque lo cambia *Carga de cotización* | `solventa-nucleo` | ARQ-05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
