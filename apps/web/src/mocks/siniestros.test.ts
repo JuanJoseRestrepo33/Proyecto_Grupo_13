@@ -34,7 +34,7 @@ describe('mocks del BFF web · siniestros (WEB-F05)', () => {
     expect(data).toMatchObject({ estado: 'reportado', siguiente_paso: 'adjuntar_evidencia', canal: 'web' })
     expect(data?.referencia).toMatch(/^SIN-2026-\d{6}$/)
     expect((await bff.GET('/siniestros')).data).toEqual([data])
-    expect((await bff.GET('/siniestros/{id}', { params: { path: { id: data!.id } } })).data).toEqual(data)
+    expect((await bff.GET('/siniestros/{id}', { params: { path: { id: data!.id } } })).data).toMatchObject(data!)
   })
 
   it('con la misma clave y los mismos datos devuelve el mismo siniestro con 200, sin crear otro', async () => {

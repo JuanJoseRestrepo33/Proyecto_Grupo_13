@@ -10,6 +10,7 @@
     "inicio": "Inicio",
     "cotizar": "Cotizar",
     "polizas": "Mis pólizas",
+    "siniestros": "Mis siniestros",
     "consentimientos": "Consentimientos",
     "suscripcion": "Suscripción",
     "reportarSiniestro": "Reportar siniestro",
@@ -400,7 +401,9 @@
         "vacio": "{{nombre}}: no se adjuntó porque está vacío.",
         "cerrado": "{{nombre}}: no se adjuntó porque el siniestro ya está cerrado.",
         "almacenamiento": "{{nombre}}: no se adjuntó porque el almacén de evidencias no respondió. Intenta de nuevo en unos minutos.",
-        "error": "{{nombre}}: no pudimos adjuntarlo. Intenta de nuevo."
+        "error": "{{nombre}}: no pudimos adjuntarlo. Intenta de nuevo.",
+        "requerimientoAtendido": "{{nombre}}: no se envió porque este requerimiento ya no está pendiente. Actualizamos tu caso.",
+        "requerimientoNoEncontrado": "{{nombre}}: no se envió porque este requerimiento ya no existe. Actualizamos tu caso."
       }
     },
     "revision": {
@@ -506,6 +509,63 @@
     "canales": {
       "web": "la web",
       "movil": "la app"
+    },
+    "seguimiento": {
+      "titulo": "Mis siniestros",
+      "descripcion": "Consulta el estado y la evolución de tus siniestros, reportados en la web o en la app.",
+      "miga": "Detalle del siniestro",
+      "reportar": "Reportar siniestro",
+      "actualizar": "Actualizar",
+      "actualizando": "Actualizando…",
+      "actualizado": "Información actualizada.",
+      "reintentar": "Reintentar",
+      "volver": "Volver a mis siniestros",
+      "noDisponible": "No disponible",
+      "ver": "Ver",
+      "delSiniestro": "el siniestro {{referencia}}",
+      "referenciaPoliza": "{{referencia}} · Póliza {{poliza}}",
+      "lineaDeTiempo": "Línea de tiempo",
+      "columnas": {
+        "referencia": "Referencia",
+        "poliza": "Póliza",
+        "tipo": "Tipo",
+        "canal": "Canal",
+        "estado": "Estado",
+        "monto": "Monto",
+        "acciones": "Acciones"
+      },
+      "canales": {
+        "web": "Web",
+        "movil": "App"
+      },
+      "vacio": {
+        "titulo": "No tienes siniestros reportados",
+        "detalle": "Si te ocurrió algo, repórtalo aquí."
+      },
+      "errores": {
+        "cargar": "No pudimos cargar tus siniestros. Intenta de nuevo.",
+        "cargarDetalle": "No pudimos cargar este siniestro. Intenta de nuevo.",
+        "noEncontrado": "No encontramos este siniestro.",
+        "actualizar": "No pudimos actualizar la información. Lo que ves puede no estar al día."
+      },
+      "resumen": {
+        "titulo": "Resumen",
+        "fecha": "Fecha del evento",
+        "descripcion": "Descripción",
+        "monto": "Monto estimado",
+        "canal": "Canal",
+        "actualizadoEl": "Último cambio"
+      },
+      "requerimientos": {
+        "titulo": "Requerimientos",
+        "pendiente": "Pendiente · Pedido el {{fecha}}",
+        "atendido": "Atendido el {{fecha}}",
+        "cerrado": "Cerrado sin respuesta",
+        "adjuntar": "Archivo para responder: {{descripcion}}",
+        "enviar": "Enviar respuesta",
+        "enviando": "Enviando…",
+        "respondido": "{{nombre}}: enviamos tu respuesta."
+      }
     }
   }
 }

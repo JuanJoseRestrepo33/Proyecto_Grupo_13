@@ -10,13 +10,17 @@ interface Propiedades {
   /** Los archivos que se pueden enviar; los demás se explican aquí mismo. */
   onSeleccionar: (archivos: File[]) => void
   deshabilitado?: boolean
+  /** Si se puede elegir más de un archivo; por defecto, sí. */
+  multiple?: boolean
+  /** Texto del campo; por defecto, el general de la evidencia. */
+  etiqueta?: string
 }
 
 /**
  * Selector de evidencias. Un archivo de formato no admitido, vacío o de más de 10 MB se rechaza
  * antes de enviarlo, con el límite explicado (MOB-F05, criterio 4).
  */
-export function SelectorArchivos({ onSeleccionar, deshabilitado }: Propiedades) {
+export function SelectorArchivos({ onSeleccionar, deshabilitado, multiple = true, etiqueta }: Propiedades) {
   const { t, i18n } = useTranslation()
   const idioma = i18n.language as Idioma
   const id = useId()
@@ -41,11 +45,11 @@ export function SelectorArchivos({ onSeleccionar, deshabilitado }: Propiedades) 
 
   return (
     <div className={estilos.campo}>
-      <label htmlFor={id}>{t('siniestro.evidencia.elegir')}</label>
+      <label htmlFor={id}>{etiqueta ?? t('siniestro.evidencia.elegir')}</label>
       <input
         id={id}
         type="file"
-        multiple
+        multiple={multiple}
         accept={ACEPTA}
         disabled={deshabilitado}
         aria-describedby={`${id}-ayuda`}

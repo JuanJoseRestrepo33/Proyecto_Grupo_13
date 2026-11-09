@@ -52,7 +52,7 @@ export function formatearTamano(bytes: number, idioma: Idioma): string {
 }
 
 /** Por qué no se adjuntó: los rechazos del BFF, o `error` si no hubo respuesta o fue otro fallo. */
-export type FalloCarga = Rechazo | 'cerrado' | 'almacenamiento' | 'error'
+export type FalloCarga = Rechazo | 'cerrado' | 'almacenamiento' | 'requerimientoAtendido' | 'requerimientoNoEncontrado' | 'error'
 
 export type ResultadoCarga = { ok: true; evidencia: Evidencia } | { ok: false; fallo: FalloCarga }
 
@@ -62,6 +62,8 @@ const FALLOS: Record<string, FalloCarga> = {
   archivo_vacio: 'vacio',
   siniestro_cerrado: 'cerrado',
   almacenamiento_no_disponible: 'almacenamiento',
+  requerimiento_ya_atendido: 'requerimientoAtendido',
+  requerimiento_no_encontrado: 'requerimientoNoEncontrado',
 }
 
 /**
@@ -76,9 +78,10 @@ function conTipoAdmitido(archivo: File): File {
   return tipo ? new File([archivo], archivo.name, { type: tipo, lastModified: archivo.lastModified }) : archivo
 }
 
-export async function subirEvidencia(idSiniestro: string, archivo: File): Promise<ResultadoCarga> {
+export async function subirEvidencia(idSiniestro: string, archivo: File, idRequerimiento?: string): Promise<ResultadoCarga> {
   const formulario = new FormData()
   formulario.append('archivo', conTipoAdmitido(archivo), archivo.name)
+  if (idRequerimiento) formulario.append('id_requerimiento', idRequerimiento)
   try {
     const { data, error } = await bff.POST('/siniestros/{id}/evidencias', {
       params: { path: { id: idSiniestro } },
