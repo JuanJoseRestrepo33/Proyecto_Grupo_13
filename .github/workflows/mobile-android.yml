@@ -241,7 +241,14 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
             -camera-back emulated
           disable-animations: true
-          script: >-
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
-            -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO"
-            -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE"
+          # ReporteSinConexionE2eTest (#213) usa el modo avión y lo desactiva en @Before y @After. Si la
+          # instrumentación muere a mitad, la red se restaura aquí, antes de que el runner apague el
+          # emulador. La acción corre cada línea del script por separado.
+          script: |
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" || { adb shell cmd connectivity airplane-mode disable; exit 1; }
+            adb shell cmd connectivity airplane-mode disable
+      - name: Restaurar la red del emulador
+        # Por si el paso anterior se canceló o venció con el emulador aún encendido. Si ya se apagó, no
+        # queda red que restaurar y el paso no falla.
+        if: always()
+        run: adb shell cmd connectivity airplane-mode disable || echo "Sin emulador encendido; nada que restaurar."
