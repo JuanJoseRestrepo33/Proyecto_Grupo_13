@@ -102,13 +102,14 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
   })
 
   describe('criterio 1: al enviar el pago el botón queda ocupado y no permite un segundo envío', () => {
-    it('mientras se procesa, el botón está deshabilitado y se avisa que no se pulse de nuevo', async () => {
+    it('mientras se procesa, el botón queda ocupado y se avisa que no se pulse de nuevo', async () => {
       await abrirCheckout()
       await aceptarYElegir()
       await userEvent.click(botonPagar())
 
       const ocupado = screen.getByRole('button', { name: 'Procesando pago…' })
-      expect(ocupado).toBeDisabled()
+      expect(ocupado).toBeEnabled()
+      expect(ocupado).toHaveAttribute('aria-disabled', 'true')
       expect(ocupado).toHaveAttribute('aria-busy', 'true')
       expect(screen.getByRole('status')).toHaveTextContent('No cierres esta ventana ni pulses de nuevo.')
 
@@ -239,7 +240,34 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
 
       expect(await screen.findByText('Pago aprobado.')).toBeInTheDocument()
       expect(screen.getByText(/^TX-/)).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('heading', { level: 2 })).toHaveFocus())
     })
+  })
+
+  it('si la pasarela sigue pendiente, el foco se queda en el botón de consultar', async () => {
+    servidor.use(
+      http.get(ruta('/suscripciones/:id/pagos/:idPago'), () =>
+        HttpResponse.json({
+          id: 'pag-1',
+          estado: 'pendiente',
+          medio: 'pse',
+          monto: { valor: 148000, moneda: 'COP' },
+          referencia: 'TX-1',
+          creado_en: '2026-11-09T10:00:00Z',
+          reintento: false,
+        }),
+      ),
+    )
+    await abrirCheckout()
+    await aceptarYElegir('PSE (débito a tu cuenta)')
+    await userEvent.click(botonPagar())
+    await screen.findByText('Tu banco aún no confirma el pago.')
+
+    const consultar = screen.getByRole('button', { name: 'Consultar estado del pago' })
+    await userEvent.click(consultar)
+
+    await waitFor(() => expect(consultar).toHaveAttribute('aria-disabled', 'false'))
+    expect(consultar).toHaveFocus()
   })
 
   describe('oferta que no se puede aceptar', () => {
@@ -371,7 +399,10 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
 
       await userEvent.dblClick(botonFirmar())
 
-      expect(screen.getByRole('button', { name: 'Firmando…' })).toBeDisabled()
+      const ocupado = screen.getByRole('button', { name: 'Firmando…' })
+      expect(ocupado).toBeEnabled()
+      expect(ocupado).toHaveAttribute('aria-disabled', 'true')
+      expect(ocupado).toHaveAttribute('aria-busy', 'true')
       expect(screen.getByText(/Estamos firmando y emitiendo tu póliza/)).toBeInTheDocument()
       await screen.findByRole('heading', { level: 2, name: /Póliza emitida/ })
       expect(firmas).toHaveLength(1)
@@ -391,6 +422,7 @@ describe('Checkout de la suscripción (WEB-F03)', () => {
       await userEvent.click(botonFirmar())
 
       expect(await screen.findByText(/El servicio de firma no respondió y no se emitió nada/)).toBeInTheDocument()
+      expect(botonFirmar()).toHaveFocus()
       expect(screen.queryByRole('heading', { level: 2, name: /Póliza emitida/ })).not.toBeInTheDocument()
 
       await userEvent.click(botonFirmar())

@@ -75,7 +75,8 @@ async function obtenerCotizacion(id: string): Promise<Carga> {
  * Cada intento de pago lleva su `Idempotency-Key` (P18). Mientras el pago se procesa el botón queda
  * ocupado (P10), y cualquier reintento del mismo intento reutiliza la clave, así el BFF devuelve el
  * mismo pago en lugar de cobrar otra vez. La firma también es idempotente: firmar de nuevo devuelve
- * la misma póliza.
+ * la misma póliza. El botón ocupado conserva el foco, para que quien usa teclado pueda reintentar
+ * sin recorrer de nuevo la pantalla.
  */
 export function Suscripcion() {
   const { cotizacion: cotizacionId = '' } = useParams()
@@ -200,8 +201,12 @@ export function Suscripcion() {
       const { data } = await bff
         .GET('/suscripciones/{id}/pagos/{id_pago}', { params: { path: { id: suscripcion.id, id_pago: pago.id } } })
         .catch(() => ({ data: undefined }))
-      if (data) mostrarPago(data)
-      else setAviso('error')
+      if (!data) {
+        setAviso('error')
+        return
+      }
+      mostrarPago(data)
+      if (data.estado !== 'pendiente') titulo.current?.focus()
     })
 
   const firmar = () =>
@@ -376,12 +381,12 @@ export function Suscripcion() {
           )}
 
           {paso === REVISAR && (
-            <Boton onClick={() => void aceptar()} disabled={enviando || vencida}>
+            <Boton onClick={() => void aceptar()} disabled={vencida} aria-disabled={enviando} aria-busy={enviando}>
               {enviando ? t('suscripcion.revisar.aceptando') : t('suscripcion.revisar.aceptar')}
             </Boton>
           )}
           {paso === PAGO && (
-            <Boton onClick={() => void pagar()} disabled={enviando} aria-busy={enviando}>
+            <Boton onClick={() => void pagar()} aria-disabled={enviando} aria-busy={enviando}>
               {enviando
                 ? t('suscripcion.pago.procesando')
                 : aviso === 'pagoEnCurso' || aviso === 'sinConfirmacion'
@@ -393,7 +398,7 @@ export function Suscripcion() {
             <Boton onClick={intentarDeNuevo}>{t('suscripcion.resultado.intentarDeNuevo')}</Boton>
           )}
           {paso === RESULTADO && pago?.estado === 'pendiente' && (
-            <Boton onClick={() => void consultarPago()} disabled={enviando} aria-busy={enviando}>
+            <Boton onClick={() => void consultarPago()} aria-disabled={enviando} aria-busy={enviando}>
               {t('suscripcion.pago.consultar')}
             </Boton>
           )}
@@ -401,7 +406,7 @@ export function Suscripcion() {
             <Boton onClick={continuarAFirma}>{t('suscripcion.resultado.continuarFirma')}</Boton>
           )}
           {paso === FIRMA && (
-            <Boton onClick={() => void firmar()} disabled={enviando} aria-busy={enviando}>
+            <Boton onClick={() => void firmar()} aria-disabled={enviando} aria-busy={enviando}>
               {enviando ? t('suscripcion.firma.firmando') : t('suscripcion.firma.firmar')}
             </Boton>
           )}
