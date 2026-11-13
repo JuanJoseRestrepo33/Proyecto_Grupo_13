@@ -165,8 +165,16 @@ la firma, la emisión y el documento.
 
 **Patrones de interfaz.** P02 Migas de pan y barra de flujo · P10 Botón ocupado · P18 Idempotencia
 comunicada.
-**Capturas.** *Pendiente:* las de *staging* (firma, póliza emitida y descarga), con la parte web
-(#131). Las de la [guía](guia-de-usuario/README.md#5-comprar-y-recibir-tu-póliza) son del prototipo.
+**Capturas** (*staging*, 13 nov 2026), los cuatro pasos de la web contra el BFF y el núcleo
+desplegados:
+[`web-staging-suscripcion-revisar.png`](guia-de-usuario/img/web-staging-suscripcion-revisar.png) ·
+[`web-staging-suscripcion-pago.png`](guia-de-usuario/img/web-staging-suscripcion-pago.png) ·
+[`web-staging-suscripcion-pago-aprobado.png`](guia-de-usuario/img/web-staging-suscripcion-pago-aprobado.png) ·
+[`web-staging-suscripcion-firma.png`](guia-de-usuario/img/web-staging-suscripcion-firma.png) ·
+[`web-staging-suscripcion-emitida.png`](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
+(número de póliza, vigencia y descarga del PDF). *Pendiente:* las de la app.
+
+![Póliza emitida en staging](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
 
 **Favorece** RC-08 Trazabilidad y explicabilidad · **Puntos** 13 · **Responsables** Sergio
 (backend, integración), Harold (web, E2E web), Juan (cloud, documentación) · **Depende de**
@@ -229,7 +237,13 @@ MOB-F03, como *stretch*. Por eso sube de 5 a 8 puntos.
   ([`humo.py`](../scripts/humo.py)).
 
 **Patrones de interfaz.** P03 Pestañas · P12 Insignias de estado con texto.
-**Capturas.** *Pendiente:* lista y detalle en *staging*, con las partes web (#189) y móvil (#190).
+**Capturas** (*staging*, 13 nov 2026).
+[`web-staging-polizas.png`](guia-de-usuario/img/web-staging-polizas.png) (pestaña *Activas*, la
+recién emitida primero) ·
+[`web-staging-poliza-detalle.png`](guia-de-usuario/img/web-staging-poliza-detalle.png) (coberturas,
+deducible, límites y documento). *Pendiente:* las de la app (#190).
+
+![Mis pólizas en staging](guia-de-usuario/img/web-staging-polizas.png)
 
 **Favorece** RC-06 Facilidad de integración · **Puntos** 8 · **Responsables** Sergio (backend,
 integración), Harold (web, E2E web), Edwin (móvil, E2E móvil), Juan (cloud, documentación) ·
@@ -296,8 +310,14 @@ notificaciones push.
 
 **Patrones de interfaz.** P11 Línea de tiempo de estado · P12 Insignias de estado con texto ·
 P26 Ayuda en contexto.
-**Capturas.** *Pendiente:* lista, detalle con historial y requerimiento en *staging*, con las partes
-web (#198) y móvil (#199).
+**Capturas** (*staging*, 13 nov 2026).
+[`web-staging-siniestros.png`](guia-de-usuario/img/web-staging-siniestros.png) (cada caso con su
+canal y su estado) ·
+[`web-staging-siniestro-detalle.png`](guia-de-usuario/img/web-staging-siniestro-detalle.png) (línea
+de tiempo, resumen y siguiente paso). *Pendiente:* un caso con un requerimiento pendiente, porque
+ninguno de *staging* tiene uno, y las de la app (#199).
+
+![Mis siniestros en staging](guia-de-usuario/img/web-staging-siniestros.png)
 
 **Favorece** RC-08 Trazabilidad y explicabilidad · **Puntos** 8 · **Responsables** Sergio
 (backend, integración), Harold (web, E2E web), Edwin (móvil, E2E móvil), Juan (cloud,
