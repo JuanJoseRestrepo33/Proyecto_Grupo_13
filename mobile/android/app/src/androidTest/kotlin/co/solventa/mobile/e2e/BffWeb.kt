@@ -1,5 +1,6 @@
 package co.solventa.mobile.e2e
 
+import android.os.SystemClock
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -7,6 +8,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
+import java.time.LocalDate
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
@@ -36,6 +40,48 @@ internal class BffWeb(private val raiz: String) {
     }
 
     fun siniestro(cookie: String, id: String): JSONObject = JSONObject(obtener("siniestros/$id", cookie))
+
+    fun polizas(cookie: String): List<JSONObject> {
+        val lista = JSONArray(obtener("polizas", cookie))
+        return List(lista.length(), lista::getJSONObject)
+    }
+
+    /**
+     * Reporta como lo haría la web (WEB-F06, #202). [clave] es la `Idempotency-Key` del caso, un UUID que
+     * el llamador genera una vez: si la red o el servidor fallan, se reenvía con la misma clave y el mismo
+     * cuerpo, y el BFF devuelve el mismo siniestro en vez de crear otro.
+     */
+    fun reportar(cookie: String, reporte: ReporteWeb, clave: UUID): JSONObject {
+        val cuerpo = JSONObject()
+            .put("numero_poliza", reporte.numeroPoliza)
+            .put("tipo_evento", reporte.tipoEvento)
+            .put("ocurrido_el", reporte.ocurridoEl.toString())
+            .put("descripcion", reporte.descripcion)
+            .toString()
+        var ultimo: Throwable? = null
+        repeat(INTENTOS_REPORTE) { intento ->
+            if (intento > 0) SystemClock.sleep(PAUSA_REPORTE_MS)
+            val solicitud = Request.Builder()
+                .url(raiz + "siniestros")
+                .header("Cookie", cookie)
+                .header("Idempotency-Key", clave.toString())
+                .post(cuerpo.toRequestBody("application/json".toMediaType()))
+                .build()
+            try {
+                cliente.newCall(solicitud).execute().use { respuesta ->
+                    // Un 4xx no cambia al repetirlo: se informa enseguida.
+                    if (respuesta.code < SERVIDOR) {
+                        exigirExito(respuesta, "siniestros")
+                        return JSONObject(respuesta.body!!.string())
+                    }
+                    ultimo = IllegalStateException("siniestros respondió ${respuesta.code}")
+                }
+            } catch (error: IOException) {
+                ultimo = IllegalStateException("siniestros no respondió (${error.javaClass.simpleName})")
+            }
+        }
+        throw checkNotNull(ultimo)
+    }
 
     fun evidencias(cookie: String, idSiniestro: String): List<JSONObject> {
         val lista = JSONArray(obtener("siniestros/$idSiniestro/evidencias", cookie))
@@ -105,5 +151,16 @@ internal class BffWeb(private val raiz: String) {
         // El primer pedido a Cloud Run tras un rato sin tráfico arranca una instancia.
         const val ESPERA_SEGUNDOS = 60L
         const val EDAD = 34
+        const val INTENTOS_REPORTE = 3
+        const val PAUSA_REPORTE_MS = 3_000L
+        const val SERVIDOR = 500
     }
 }
+
+/** Lo que la web envía al reportar; la descripción lleva la marca de la corrida. */
+internal data class ReporteWeb(
+    val numeroPoliza: String,
+    val tipoEvento: String,
+    val ocurridoEl: LocalDate,
+    val descripcion: String,
+)
