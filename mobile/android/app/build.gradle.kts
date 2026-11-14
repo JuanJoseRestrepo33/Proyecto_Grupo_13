@@ -99,4 +99,6 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
+    // UiDevice.pressHome(): el recorrido 2 de ReporteSinConexionE2eTest manda la app a segundo plano (#213).
+    androidTestImplementation(libs.androidx.test.uiautomator)
 }

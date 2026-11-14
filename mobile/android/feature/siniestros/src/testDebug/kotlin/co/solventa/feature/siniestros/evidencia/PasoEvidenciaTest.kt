@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -153,6 +154,10 @@ class PasoEvidenciaTest {
         compose.onNodeWithText("Foto 1").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("10 B").assertIsDisplayed()
         compose.onNodeWithText("4.71100, -74.07210").assertIsDisplayed()
+        // La miniatura se lee en Dispatchers.IO, que la sincronización de Compose no espera.
+        compose.waitUntil(ESPERA_MINIATURA_MS) {
+            compose.onAllNodesWithContentDescription("Vista previa de Foto 1").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithContentDescription("Vista previa de Foto 1").assertIsDisplayed()
         compose.onNodeWithContentDescription("Quitar Foto 1").performClick()
         compose.onNodeWithText("Foto 1").assertDoesNotExist()
@@ -320,3 +325,5 @@ class PasoEvidenciaTest {
         compose.onNodeWithTag("quitar-0").performScrollTo().assertHeightIsAtLeast(48.dp)
     }
 }
+
+private const val ESPERA_MINIATURA_MS = 5_000L

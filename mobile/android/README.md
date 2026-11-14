@@ -284,6 +284,61 @@ publica artefactos porque los resultados del runner podrían incluir los argumen
 Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
 estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
 
+#### Reporte sin conexión (MOB-F05-02, #213)
+
+`ReporteSinConexionE2eTest` corta la red de verdad, con el modo avión, y comprueba que el reporte guardado
+sin señal llega **una sola vez** a la web cuando vuelve la red. No simula la red ni cambia el código de la
+app. Corre en el mismo `connectedDebugAndroidTest`, con los mismos argumentos y el mismo job.
+
+- **Comprobación previa** (`@BeforeClass`): activa el modo avión, espera que la red deje de estar validada,
+  lo desactiva y espera que vuelva a `VALIDATED`, la condición que usa `MonitorConectividad`. Si falla, la
+  clase entera falla con «No concluyente…» y se pasa al plan B.
+- **Recorrido 1** (dos `@Test`): con red inicia sesión, elige la póliza sembrada y toma una foto. Luego
+  activa el modo avión, envía y ve «Reporte guardado en tu teléfono» y una tarjeta `borrador-<id>` nueva
+  con «Esperando conexión». Desactiva el modo avión y no toca nada más: la tarjeta se reemplaza por una
+  `enviado-<id>` nueva con la referencia. Por el BFF web hay exactamente un siniestro con la marca de la
+  ejecución, esa referencia, la póliza, `reportado`, `canal: movil` y una sola evidencia `image/jpeg`.
+- **Recorrido 2**: guarda las pólizas con red, abre el reporte en modo avión (`polizas-guardadas`), lo
+  envía sin evidencia, manda la app a segundo plano con `UiDevice.pressHome()` y desactiva el modo avión.
+  Sin abrir la app, sondea el BFF web hasta ver el siniestro. Si no aparece, falla con «No se envió en
+  segundo plano». Solo después vuelve a la app y comprueba que la tarjeta enviada tiene la misma
+  referencia. Si el sistema mata el proceso en segundo plano, el resultado es no concluyente, no aprobado.
+- **Aislamiento**: cada prueba toca «Entendido» en su propia tarjeta y el `@After` cierra sesión. Las
+  tarjetas que había antes de enviar no cuentan: la prueba solo busca tarjetas nuevas.
+
+Tiempos límite (constantes del `companion object`):
+
+| Constante | Valor | Para qué |
+|---|---|---|
+| `RED_MS` | 2 min | Recuperar `VALIDATED` tras salir del modo avión, o perderla al entrar |
+| `ENVIO_MS` | 4 min | De la reconexión a la tarjeta enviada (primer intento y reintentos de 30 s, 1 y 2 min) |
+| `SONDEO_MS` | 5 s | Cada cuánto se consulta el BFF web, con lo que quede de `ENVIO_MS` |
+| `LIMITE_CLASE_MS` | 15 min | La clase completa. Una prueba que empieza después de ese tiempo falla |
+
+Para correr solo esta clase en local, agregar al comando anterior
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.ReporteSinConexionE2eTest`.
+Necesita Cloud SQL encendida y un emulador con salida a internet: al salir del modo avión, Android valida
+la red contra internet antes de marcarla `VALIDATED`.
+
+**Modo avión.** La prueba lo maneja con `cmd connectivity airplane-mode enable|disable`, desde la shell de
+la instrumentación. El `@Before` y el `@After` lo desactivan siempre y esperan la red validada, aunque la
+prueba falle. En CI, el script del job lo desactiva otra vez tras `connectedDebugAndroidTest`, y un paso
+con `if: always()` vuelve a hacerlo.
+
+**Si el emulador queda sin red** (por ejemplo, porque se detuvo la corrida a mano):
+
+```bash
+adb shell cmd connectivity airplane-mode disable
+adb shell dumpsys connectivity | grep -m1 VALIDATED   # debe mostrar la red validada
+```
+
+Si sigue sin `VALIDATED`, reiniciar el emulador (`adb emu kill` y volver a abrir el AVD).
+
+**Plan B.** Si la comprobación previa o el emulador fallan en CI, se hacen **los dos recorridos** a mano
+contra *staging*, en un teléfono o emulador, y se graban. En el recorrido 2, la grabación muestra la
+consulta exitosa al BFF web **antes** de volver a abrir la app. Se adjunta a #211 con el commit, la URL y la
+lista de criterios que quedan sin cubrir (al menos el 6, el 7 y el 8 de #213).
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
