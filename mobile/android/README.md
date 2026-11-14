@@ -287,6 +287,37 @@ publica artefactos porque los resultados del runner podrían incluir los argumen
 Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
 estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
 
+#### El cambio de estado se ve en la app (WEB-F06, #202)
+
+`SeguimientoE2eTest` reporta un caso por el BFF web (`BffWeb.reportar`, sin la UI de la web) con una marca
+única y la póliza `POL-STG-AUTO-…` vigente de la cuenta. Luego inicia sesión en la app y comprueba en «Mis
+siniestros» que la tarjeta `siniestro-<id>` tiene la misma referencia, «Reportado» y el canal Web. Pasa el
+caso a `en_evaluacion` con la operación interna del núcleo (`NucleoInterno`, `POST /v1/siniestros/{id}/estado`
+con `X-Token-Interno`), toca «Actualizar» y ve «En evaluación» en la tarjeta. En el detalle comprueba la insignia
+y el historial (dos eventos con su fecha, solo el último resaltado). Con la app en el detalle pasa el caso a
+`requiere_informacion` con un requerimiento, actualiza y comprueba el tercer evento, el requerimiento
+«Pendiente» con «Responder» y el siguiente paso. Si un paso falla, el error dice cuál («Paso «6 · actualizar la
+lista»: …») y solo lista etiquetas de la pantalla, nunca textos ni credenciales.
+
+Necesita dos argumentos más, además de `correo` y `clave`: `nucleo`, la URL de `solventa-nucleo` sin `/v1`,
+y `tokenInterno`, el valor del secreto `siniestros-token-interno`. Sin ellos la prueba falla en el `@Before`,
+no se omite. Para correr solo esta clase en local:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PBFF_MOCK=false \
+  -PBFF_BASE_URL=https://<solventa-bff>/api/v1/movil/ \
+  -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" \
+  -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" \
+  -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" \
+  -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" \
+  -Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.SeguimientoE2eTest
+```
+
+En CI, el job `e2e-emulador` toma la variable `NUCLEO_URL` y el secreto `SINIESTROS_TOKEN_INTERNO` del
+environment `staging` (los mismos nombres que el E2E web de #201). Su primer paso nombra cada variable o
+secreto que falte y deja el job en rojo. El plan B, si el emulador no queda estable, es el del issue: dos
+recorridos a mano grabados y adjuntos a #195, nunca con el token.
+
 #### Reporte sin conexión (MOB-F05-02, #213)
 
 `ReporteSinConexionE2eTest` corta la red de verdad, con el modo avión, y comprueba que el reporte guardado
