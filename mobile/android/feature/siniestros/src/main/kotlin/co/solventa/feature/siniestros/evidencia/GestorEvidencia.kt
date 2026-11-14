@@ -102,10 +102,31 @@ data class EstadoEvidencia(
         get() = permisoCamara == EstadoPermiso.CONCEDIDO && permisoUbicacion != EstadoPermiso.SIN_PEDIR
 }
 
+/** Cómo terminó la respuesta a un requerimiento (WEB-F06): la pantalla decide el aviso con esto. */
+sealed interface RespuestaRequerimiento {
+    /** La evidencia llegó (con `201` o hallada al conciliar): el requerimiento quedó atendido. */
+    data object Enviada : RespuestaRequerimiento
+
+    /** El BFF rechazó la carga; el adjunto queda fallido con su motivo. */
+    data class Rechazada(val falla: Resultado.Falla) : RespuestaRequerimiento
+
+    /** Sin red o sin respuesta: quizá llegó. El reintento concilia antes de reenviar. */
+    data object SinRespuesta : RespuestaRequerimiento
+
+    /** No se pudo conciliar una carga incierta: no se reenvió nada para no duplicarla. */
+    data object SinConciliar : RespuestaRequerimiento
+
+    /** No hay archivo listo (o el sistema lo borró de la caché): hay que elegir otro. */
+    data object SinArchivo : RespuestaRequerimiento
+}
+
 /**
  * Evidencia del reporte (MOB-F05): lo adjunto, su carga una a una después del reporte y los
  * reintentos. El adjunto se guarda en [borrador] y su archivo en la caché: sobreviven a la rotación
  * y al segundo plano. Un fallo de evidencia nunca deshace el reporte.
+ *
+ * @param unico respuesta a un requerimiento (WEB-F06): un archivo por respuesta, así que elegir otro
+ * reemplaza el que no se ha enviado. Se envía con [responder], no con [subir].
  */
 @Suppress("TooManyFunctions")
 class GestorEvidencia(
@@ -113,6 +134,7 @@ class GestorEvidencia(
     private val fuentes: FuentesEvidencia,
     private val alcance: CoroutineScope,
     private val borrador: SavedStateHandle,
+    private val unico: Boolean = false,
 ) {
     private val almacen = fuentes.almacen
     private var preparacion: Job? = null
@@ -175,14 +197,22 @@ class GestorEvidencia(
                 is Preparado.Rechazado -> noCabe(preparado)
             }
             val rechazo = (preparado as? Preparado.Rechazado)?.motivo
+            // Con un archivo por respuesta, el nuevo reemplaza al anterior, que aún no salió.
+            val reemplazados = if (unico && adjunto != null) estado.adjuntos.filter(::reemplazable) else emptyList()
+            reemplazados.filter { it.ruta.isNotEmpty() }.forEach { almacen.borrar(it.ruta) }
             estado = estado.copy(
                 preparando = false,
                 progreso = null,
                 rechazo = rechazo,
-                adjuntos = estado.adjuntos + listOfNotNull(adjunto),
+                adjuntos = estado.adjuntos - reemplazados.toSet() + listOfNotNull(adjunto),
             )
         }
     }
+
+    /** Lo que aún no está en el BFF. Uno con envío incierto no se reemplaza: quizá ya llegó. */
+    private fun reemplazable(adjunto: Adjunto) = adjunto.estado != EstadoAdjunto.ENVIADO &&
+        adjunto.estado != EstadoAdjunto.ENVIANDO &&
+        !(adjunto.estado == EstadoAdjunto.FALLIDO && adjunto.fallo in INCIERTOS)
 
     /** Lo que no cupo queda en la lista para explicarlo y ofrecer quitarlo; nunca se envía. */
     private fun noCabe(rechazado: Preparado.Rechazado) = rechazado.takeIf { it.motivo == MotivoRechazo.NO_CABE }?.let {
@@ -339,6 +369,61 @@ class GestorEvidencia(
         estado = estado.copy(adjuntos = emptyList())
     }
 
+    /**
+     * Responde el requerimiento [idRequerimiento] con el único archivo de la lista (WEB-F06): una sola
+     * carga con `id_requerimiento`, porque la primera lo deja atendido y otra recibiría 409
+     * `requerimiento_ya_atendido`. Si un envío anterior quedó sin respuesta, primero concilia por
+     * `nombre_original`: si la evidencia llegó, no se vuelve a cargar.
+     */
+    suspend fun responder(idSiniestro: String, idRequerimiento: String): RespuestaRequerimiento {
+        val adjunto = estado.adjuntos.lastOrNull { it.estado == EstadoAdjunto.LISTO || it.reintentable }
+        return when {
+            estado.enviando -> RespuestaRequerimiento.SinRespuesta
+            adjunto == null -> RespuestaRequerimiento.SinArchivo
+            else -> {
+                estado = estado.copy(enviando = true, rechazo = null)
+                val incierto = adjunto.estado == EstadoAdjunto.FALLIDO && adjunto.fallo in INCIERTOS
+                val respuesta = (if (incierto) conciliar(idSiniestro, adjunto) else null)
+                    ?: cargarRespuesta(idSiniestro, idRequerimiento, adjunto)
+                estado = estado.copy(enviando = false)
+                respuesta
+            }
+        }
+    }
+
+    /**
+     * Busca la carga incierta por `nombre_original`. @return [RespuestaRequerimiento.Enviada] si llegó,
+     * [RespuestaRequerimiento.Rechazada] si el BFF rechazó la consulta (401 o 404 llegan así a su flujo),
+     * [RespuestaRequerimiento.SinConciliar] si no hubo red, o null si no llegó y hay que cargarla.
+     */
+    private suspend fun conciliar(idSiniestro: String, adjunto: Adjunto): RespuestaRequerimiento? {
+        val consulta = llamarBff { api.listarEvidencias(idSiniestro) }
+        val evidencias = (consulta as? Resultado.Exito)?.valor
+        val llego = evidencias?.any { it.nombreOriginal == adjunto.nombre }
+        estado = estado.copy(delSiniestro = evidencias ?: estado.delSiniestro, errorConsulta = evidencias == null)
+        if (llego == true) {
+            almacen.borrar(adjunto.ruta)
+            cambiar(adjunto.id) { it.copy(estado = EstadoAdjunto.ENVIADO, fallo = null) }
+        }
+        return when {
+            consulta is Resultado.Falla -> RespuestaRequerimiento.Rechazada(consulta)
+            llego == null -> RespuestaRequerimiento.SinConciliar
+            llego -> RespuestaRequerimiento.Enviada
+            else -> null
+        }
+    }
+
+    private suspend fun cargarRespuesta(
+        idSiniestro: String,
+        idRequerimiento: String,
+        adjunto: Adjunto,
+    ): RespuestaRequerimiento = when (val resultado = subirUno(idSiniestro, adjunto, idRequerimiento)) {
+        null -> RespuestaRequerimiento.SinArchivo
+        is Resultado.Exito -> RespuestaRequerimiento.Enviada
+        is Resultado.Falla -> RespuestaRequerimiento.Rechazada(resultado)
+        Resultado.SinConexion -> RespuestaRequerimiento.SinRespuesta
+    }
+
     /** Solo actualiza la lista del siniestro: `enviando` es de la tarea que controla los POST. */
     private suspend fun consultarAhora(idSiniestro: String) {
         val consulta = llamarBff { api.listarEvidencias(idSiniestro) }
@@ -353,10 +438,18 @@ class GestorEvidencia(
         estado.listos.forEach { subirUno(idSiniestro, it) }
     }
 
-    private suspend fun subirUno(idSiniestro: String, adjunto: Adjunto) {
+    /** @return null si el archivo ya no está en la caché. */
+    private suspend fun subirUno(
+        idSiniestro: String,
+        adjunto: Adjunto,
+        idRequerimiento: String? = null,
+    ): Resultado<Evidencia>? {
         val archivo = almacen.archivo(adjunto.ruta)
         val formato = adjunto.formato
-        if (archivo == null || formato == null) return fallar(adjunto.id, FalloCarga.ARCHIVO_PERDIDO)
+        if (archivo == null || formato == null) {
+            fallar(adjunto.id, FalloCarga.ARCHIVO_PERDIDO)
+            return null
+        }
         cambiar(adjunto.id) { it.copy(estado = EstadoAdjunto.ENVIANDO, fallo = null) }
         val lugar = adjunto.lugar.trim().takeIf { it.isNotEmpty() && !adjunto.conCoordenadas }
         val resultado = llamarBff {
@@ -367,6 +460,7 @@ class GestorEvidencia(
                 parteTexto(adjunto.latitud?.toString()),
                 parteTexto(adjunto.longitud?.toString()),
                 parteTexto(lugar),
+                parteTexto(idRequerimiento),
             )
         }
         when (resultado) {
@@ -380,6 +474,7 @@ class GestorEvidencia(
             }
             Resultado.SinConexion -> fallar(adjunto.id, FalloCarga.SIN_RED)
         }
+        return resultado
     }
 
     private fun fallar(id: String, fallo: FalloCarga) =
@@ -395,6 +490,9 @@ private const val CLAVE_AGREGANDO = "evidencia_agregando"
 private const val HTTP_NO_AUTENTICADO = 401
 private const val HTTP_NO_ENCONTRADO = 404
 private val SERIALIZADOR = ListSerializer(Adjunto.serializer())
+
+/** Fallos tras los que la carga quizá llegó: antes de reenviar se concilia por `nombre_original`. */
+private val INCIERTOS = setOf(FalloCarga.SIN_RED, FalloCarga.GENERICO)
 
 /** Con segundos y zona siempre: `OffsetDateTime.toString` los omite si son cero. */
 private val FECHA_CON_ZONA: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME

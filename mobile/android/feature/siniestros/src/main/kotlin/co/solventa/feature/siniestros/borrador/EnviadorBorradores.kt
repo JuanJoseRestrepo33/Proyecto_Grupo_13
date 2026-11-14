@@ -635,7 +635,7 @@ class EnviadorBorradores(
                 parteTexto(adjunto.latitud?.toString()),
                 parteTexto(adjunto.longitud?.toString()),
                 parteTexto(lugar),
-                duenio,
+                duenio = duenio,
             )
         }
         when (resultado) {

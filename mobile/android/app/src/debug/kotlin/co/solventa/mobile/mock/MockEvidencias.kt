@@ -1,6 +1,7 @@
 package co.solventa.mobile.mock
 
 import co.solventa.core.network.ErrorCampo
+import co.solventa.core.network.EstadoSiniestro
 import co.solventa.core.network.Evidencia
 import co.solventa.core.network.Siniestro
 
@@ -14,6 +15,8 @@ class CargaMock(
     val latitud: Double? = null,
     val longitud: Double? = null,
     val lugar: String? = null,
+    /** Parte `id_requerimiento` (WEB-F06): la carga responde ese requerimiento. */
+    val idRequerimiento: String? = null,
 )
 
 /** Marcas en `lugar` para provocar cada rechazo del BFF desde la app. */
@@ -42,10 +45,21 @@ internal class MockEvidencias(private val estado: EstadoMock, private val sinies
     @Suppress("ReturnCount")
     fun adjuntar(autorizacion: String?, id: String, carga: CargaMock): RespuestaMock {
         val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
-        val siniestro = siniestros.delCliente(cuenta.id, id) ?: return fallo(404, "siniestro_no_encontrado")
+        val detalle = siniestros.detalleDe(cuenta.id, id) ?: return fallo(404, "siniestro_no_encontrado")
+        if (detalle.estado == EstadoSiniestro.RECHAZADO || detalle.estado == EstadoSiniestro.PAGADO) {
+            return fallo(409, "siniestro_cerrado")
+        }
+        val idRequerimiento = carga.idRequerimiento
+        if (idRequerimiento != null) {
+            val requerimiento = detalle.requerimientos.firstOrNull { it.id == idRequerimiento }
+                ?: return fallo(404, "requerimiento_no_encontrado")
+            if (!requerimiento.pendiente) return fallo(409, "requerimiento_ya_atendido")
+        }
         val lugar = carga.lugar.orEmpty()
         rechazo(carga, lugar)?.let { return it }
-        val evidencia = guardar(siniestro, carga)
+        val evidencia = guardar(detalle.resumen, carga)
+        // La primera carga deja el requerimiento atendido; otra recibiría 409 `requerimiento_ya_atendido`.
+        if (idRequerimiento != null) siniestros.atender(detalle.id, idRequerimiento, evidencia.id)
         val perder = MARCA_EVIDENCIA_PERDIDA in lugar && perdidas.add(carga.nombre.orEmpty())
         return respuesta(201, evidencia).copy(perdida = perder)
     }

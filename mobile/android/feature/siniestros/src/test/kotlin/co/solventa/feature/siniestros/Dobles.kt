@@ -19,6 +19,7 @@ import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
 import co.solventa.core.network.SiguientePaso
 import co.solventa.core.network.Siniestro
+import co.solventa.core.network.SiniestroDetalle
 import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
@@ -118,6 +119,8 @@ data class CargaFalsa(
     val latitud: String?,
     val longitud: String?,
     val lugar: String?,
+    /** Parte `id_requerimiento` (WEB-F06); null en las cargas del reporte y la evidencia posterior. */
+    val idRequerimiento: String? = null,
 )
 
 /** Almacén en una carpeta temporal: entrega lo que indique [resultado], por `uri`. */
@@ -231,6 +234,7 @@ class BffFalso : BffApi {
         latitud: RequestBody?,
         longitud: RequestBody?,
         lugar: RequestBody?,
+        idRequerimiento: RequestBody?,
         duenio: DuenioSolicitud?,
     ): Evidencia {
         revisarDuenio(duenio)
@@ -245,9 +249,20 @@ class BffFalso : BffApi {
             latitud?.texto(),
             longitud?.texto(),
             lugar?.texto(),
+            idRequerimiento?.texto(),
         )
         cargas += datos
         return carga(datos)
+    }
+
+    /** `GET /siniestros/{id}` (WEB-F06). */
+    var detalle: suspend (String) -> SiniestroDetalle = { error("detalle no configurado") }
+    var consultasDetalle = 0
+        private set
+
+    override suspend fun obtenerSiniestro(idSiniestro: String): SiniestroDetalle {
+        consultasDetalle += 1
+        return detalle(idSiniestro)
     }
 
     override suspend fun listarEvidencias(idSiniestro: String, duenio: DuenioSolicitud?): List<Evidencia> {

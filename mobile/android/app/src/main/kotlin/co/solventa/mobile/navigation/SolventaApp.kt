@@ -1,5 +1,6 @@
 package co.solventa.mobile.navigation
 
+import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,9 @@ import co.solventa.feature.siniestros.borrador.Tarjeta
 import co.solventa.feature.siniestros.borrador.TarjetasBorradores
 import co.solventa.feature.siniestros.borrador.bloqueanReporteNuevo
 import co.solventa.feature.siniestros.reporte.RutaReporteSiniestro
+import co.solventa.feature.siniestros.seguimiento.DetalleSiniestroViewModel
+import co.solventa.feature.siniestros.seguimiento.RutaDetalleSiniestro
+import co.solventa.feature.siniestros.seguimiento.RutaMisSiniestros
 import co.solventa.mobile.R
 
 /**
@@ -67,6 +71,7 @@ import co.solventa.mobile.R
  * @param avisoBiometriaDesactivada el token rotado no se pudo guardar: se avisa que la huella se
  * desactivó y [onAvisoAtendido] lo consume.
  * @param onCerrarSesion con él, Perfil ofrece cerrar sesión; si hay borradores sin enviar, avisa (M13).
+ * @param navController las pruebas lo pasan para abrir una ruta directamente, como hará el push (#204).
  */
 @Suppress("LongMethod")
 @Composable
@@ -78,8 +83,8 @@ fun SolventaApp(
     avisoBiometriaDesactivada: Boolean = false,
     onAvisoAtendido: () -> Unit = {},
     onCerrarSesion: (() -> Unit)? = null,
+    navController: NavHostController = rememberNavController(),
 ) {
-    val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
     val avisos = remember { SnackbarHostState() }
@@ -104,6 +109,14 @@ fun SolventaApp(
                     )
                     PlaceholderScreen(destination, avisoIdentidad = aviso, accion = accion) {
                         if (destination == TopLevelDestination.HOME && dependenciasSiniestros != null) {
+                            // WEB-F06: el seguimiento, junto a «Reportar siniestro».
+                            OutlinedButton(
+                                onClick = { navController.navigate(RUTA_MIS_SINIESTROS) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = SolventaSpacing.touchTarget)
+                                    .testTag("ir-mis-siniestros"),
+                            ) { Text(stringResource(R.string.inicio_mis_siniestros)) }
                             TarjetasBorradores(
                                 dependenciasSiniestros.enviador,
                                 AccionesTarjeta(
@@ -135,6 +148,30 @@ fun SolventaApp(
                     RutaReporteSiniestro(
                         dependencias = dependenciasSiniestros,
                         onTerminar = { navController.popBackStack() },
+                        onSesionVencida = onSesionVencida,
+                    )
+                }
+                composable(RUTA_MIS_SINIESTROS) {
+                    val tarjetas = dependenciasSiniestros.enviador.tarjetas.collectAsState().value
+                    val bloqueado = tarjetas.bloqueanReporteNuevo()
+                    RutaMisSiniestros(
+                        dependencias = dependenciasSiniestros,
+                        reporteBloqueado = bloqueado,
+                        onAbrir = { id -> navController.navigate(rutaDetalleSiniestro(id)) },
+                        onReportar = { if (!bloqueado) navController.navigate(RUTA_REPORTE_SINIESTRO) },
+                        onVolver = { navController.popBackStack() },
+                        onSesionVencida = onSesionVencida,
+                    )
+                }
+                composable(
+                    RUTA_DETALLE_SINIESTRO,
+                    arguments = listOf(
+                        navArgument(DetalleSiniestroViewModel.ARGUMENTO_ID) { type = NavType.StringType },
+                    ),
+                ) {
+                    RutaDetalleSiniestro(
+                        dependencias = dependenciasSiniestros,
+                        onVolver = { volverAMisSiniestros(navController) },
                         onSesionVencida = onSesionVencida,
                     )
                 }
@@ -202,6 +239,29 @@ private const val ARGUMENTO_BORRADOR = "borrador"
 internal const val RUTA_CORRECCION = "home/siniestros/borradores/{$ARGUMENTO_BORRADOR}"
 
 internal fun rutaCorreccion(id: String) = "home/siniestros/borradores/$id"
+
+/** WEB-F06: «Mis siniestros», anidada bajo Inicio. */
+internal const val RUTA_MIS_SINIESTROS = "home/siniestros"
+
+/**
+ * El detalle lleva un segmento propio (`detalle`) para no chocar con `home/siniestros/reporte` ni con
+ * `home/siniestros/borradores/{borrador}`. El push de MOB-F06 (#204) abrirá esta misma ruta.
+ */
+internal const val RUTA_DETALLE_SINIESTRO = "home/siniestros/detalle/{${DetalleSiniestroViewModel.ARGUMENTO_ID}}"
+
+internal fun rutaDetalleSiniestro(id: String) = "home/siniestros/detalle/${Uri.encode(id)}"
+
+/**
+ * Del detalle se vuelve a la lista. Si se llegó directo (p. ej. desde un push) y la lista no está en
+ * la pila, se abre en lugar del detalle.
+ */
+private fun volverAMisSiniestros(navController: NavHostController) {
+    if (!navController.popBackStack(RUTA_MIS_SINIESTROS, inclusive = false)) {
+        navController.navigate(RUTA_MIS_SINIESTROS) {
+            popUpTo(RUTA_DETALLE_SINIESTRO) { inclusive = true }
+        }
+    }
+}
 
 /** Perfil: cerrar sesión. Con borradores sin enviar se avisa que siguen guardados para esta cuenta (M13). */
 @Composable

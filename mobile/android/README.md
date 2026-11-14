@@ -52,8 +52,9 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
   biometría; ver [su README](feature/onboarding/README.md). Las próximas features se agregan como
   módulos `feature/<nombre>` en `settings.gradle.kts`.
-- `feature/siniestros`: **WEB-F05** y **MOB-F05** en la app. Asistente de reporte (póliza, información,
-  evidencia, revisión) con envío idempotente; se abre desde Inicio. Ver [su README](feature/siniestros/README.md).
+- `feature/siniestros`: **WEB-F05**, **MOB-F05** y **WEB-F06** en la app. Asistente de reporte (póliza,
+  información, evidencia, revisión) con envío idempotente, y «Mis siniestros» con el detalle del caso y la
+  respuesta a requerimientos; los dos se abren desde Inicio. Ver [su README](feature/siniestros/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -221,6 +222,8 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Rechazos de evidencia | Lugar con `#413`, `#422`, `#409` o `#503` (el lugar se pide en archivos sin coordenadas) |
 | Evidencia con respuesta perdida | Lugar con `#perdida`: el archivo queda guardado, la app ve un tiempo agotado y el reintento no lo duplica |
 | Rechazo tras un intento incierto (MOB-F05-02) | Descripción con `#sin-respuesta-luego-404`: el primer envío registra y agota el tiempo, el siguiente responde 404 `poliza_no_encontrada`, y la app concilia con `GET /siniestros` (M10) |
+| Seguimiento (WEB-F06) | `ana@ejemplo.co` tiene un caso en cada estado (`SIN-2026-000901` a `000906`, fechas fijas): `requiere_informacion` con un requerimiento pendiente, `aprobado` con uno atendido, `rechazado` con uno cerrado sin respuesta y `reportado` sin monto ni cambios. Los reportados en la sesión también tienen detalle. `sinpolizas@ejemplo.co` no tiene siniestros |
+| Responder un requerimiento | «Responder» en el caso que requiere información: queda atendido; otra respuesta recibe 409 `requerimiento_ya_atendido`. Un caso rechazado o pagado responde 409 `siniestro_cerrado`. Con lugar `#perdida` la respuesta se pierde y la app concilia antes de reenviar |
 | Reporte sin conexión (MOB-F05-02) | Modo avión en el emulador: el mock no simula la falta de red; en las pruebas JVM se usa un `MonitorConectividad` falso |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`

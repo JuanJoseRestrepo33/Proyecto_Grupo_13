@@ -84,10 +84,19 @@ interface BffApi {
     @GET("siniestros")
     suspend fun listarSiniestros(@Tag duenio: DuenioSolicitud? = null): List<Siniestro>
 
+    // ── Seguimiento (WEB-F06) ──────────────────────────────────────────────────────────────────
+    // Contrato bff-movil 0.7.0 (#197; vigente 0.8.0). Un siniestro de otro cliente responde 404
+    // `siniestro_no_encontrado`, igual que uno que no existe.
+
+    /** El siniestro con su historial (del reporte al estado actual) y sus requerimientos. */
+    @GET("siniestros/{id}")
+    suspend fun obtenerSiniestro(@Path("id") idSiniestro: String): SiniestroDetalle
+
     // ── Evidencia (MOB-F05) ────────────────────────────────────────────────────────────────────
     // Contrato bff-movil 0.4.0. El BFF toma `nombre_original` del nombre de archivo de [archivo].
     // Los campos son RequestBody para que el convertidor JSON no les agregue comillas; ver
-    // `parteArchivo` y `parteTexto`.
+    // `parteArchivo` y `parteTexto`. Con [idRequerimiento] (0.7.0, WEB-F06) la carga responde un
+    // requerimiento pendiente y lo deja atendido; sin él, la carga es la de siempre.
 
     @Suppress("LongParameterList")
     @Multipart
@@ -99,6 +108,7 @@ interface BffApi {
         @Part("latitud") latitud: RequestBody?,
         @Part("longitud") longitud: RequestBody?,
         @Part("lugar") lugar: RequestBody?,
+        @Part("id_requerimiento") idRequerimiento: RequestBody? = null,
         @Tag duenio: DuenioSolicitud? = null,
     ): Evidencia
 

@@ -4,10 +4,12 @@ import co.solventa.core.network.ErrorBff
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoPoliza
 import co.solventa.core.network.EstadoSiniestro
+import co.solventa.core.network.EventoSiniestro
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.SiguientePaso
 import co.solventa.core.network.Siniestro
+import co.solventa.core.network.SiniestroDetalle
 import co.solventa.core.network.SolicitudSiniestro
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -45,11 +47,25 @@ private val PLANTILLAS = listOf(
 /** [huella] es la solicitud ya limpia: la misma clave con otros datos es otro reporte. */
 private class ReporteMock(val huella: SolicitudSiniestro, val siniestro: Siniestro)
 
-/** Pólizas y siniestros: `GET /polizas` y `POST /siniestros`, con vigencia e idempotencia como el núcleo. */
+/**
+ * Pólizas y siniestros: `GET /polizas`, `POST /siniestros` con vigencia e idempotencia como el núcleo, y
+ * el seguimiento (WEB-F06): `GET /siniestros` y `GET /siniestros/{id}` con historial y requerimientos.
+ */
+@Suppress("TooManyFunctions")
 internal class MockSiniestros(private val estado: EstadoMock) {
     private val reportes = mutableMapOf<Pair<String, String>, ReporteMock>()
     private val enviosPerdidos = mutableSetOf<String>()
     private var secuencia = 0
+
+    /** Detalle de cada siniestro por `id`, con la cuenta dueña: los sembrados y los de la sesión. */
+    private val detalles = linkedMapOf<String, Pair<String, SiniestroDetalle>>()
+
+    init {
+        estado.cuentas[CORREO_DEMO]?.let { cuenta ->
+            val poliza = polizasDe(cuenta).first().numero
+            siniestrosSembrados(poliza).forEach { detalles[it.id] = cuenta.id to it }
+        }
+    }
 
     fun polizas(autorizacion: String?): RespuestaMock {
         val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
@@ -91,14 +107,32 @@ internal class MockSiniestros(private val estado: EstadoMock) {
     /** `GET /siniestros`: los del cliente, del más reciente al más antiguo. */
     fun listar(autorizacion: String?): RespuestaMock {
         val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
-        val propios = reportes.filterKeys { it.first == cuenta.id }.values.map { it.siniestro }
-        return respuesta(200, propios.sortedByDescending { it.reportadoEn })
+        val propios = detalles.values.filter { it.first == cuenta.id }.map { it.second.resumen }
+        return respuesta(200, propios.sortedByDescending { java.time.Instant.parse(it.reportadoEn) })
     }
 
-    fun delCliente(idCuenta: String, idSiniestro: String): Siniestro? =
-        reportes.entries.firstOrNull { (clave, reporte) ->
-            clave.first == idCuenta && reporte.siniestro.id == idSiniestro
-        }?.value?.siniestro
+    /** `GET /siniestros/{id}`: el de otro cliente responde 404, igual que uno que no existe. */
+    fun detalle(autorizacion: String?, id: String): RespuestaMock {
+        val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
+        return detalleDe(cuenta.id, id)?.let { respuesta(200, it) } ?: fallo(404, "siniestro_no_encontrado")
+    }
+
+    fun detalleDe(idCuenta: String, idSiniestro: String): SiniestroDetalle? =
+        detalles[idSiniestro]?.takeIf { it.first == idCuenta }?.second
+
+    fun delCliente(idCuenta: String, idSiniestro: String): Siniestro? = detalleDe(idCuenta, idSiniestro)?.resumen
+
+    /** Deja atendido el requerimiento con la evidencia que lo respondió. */
+    fun atender(idSiniestro: String, idRequerimiento: String, idEvidencia: String) {
+        val (cuenta, detalle) = detalles[idSiniestro] ?: return
+        val ahora = estado.reloj().toString()
+        detalles[idSiniestro] = cuenta to detalle.copy(
+            requerimientos = detalle.requerimientos.map {
+                if (it.id != idRequerimiento) return@map it
+                it.copy(pendiente = false, atendidoEn = ahora, idEvidencia = idEvidencia)
+            },
+        )
+    }
 
     private fun registrar(idCuenta: String, clave: String, solicitud: SolicitudSiniestro): RespuestaMock {
         secuencia += 1
@@ -117,6 +151,9 @@ internal class MockSiniestros(private val estado: EstadoMock) {
             reportadoEn = ahora.toString(),
         )
         reportes[idCuenta to clave] = ReporteMock(solicitud, siniestro)
+        // El historial empieza con el evento del reporte; aún no hay requerimientos.
+        val evento = EventoSiniestro("EVT-${siniestro.id}-1", null, EstadoSiniestro.REPORTADO, siniestro.reportadoEn)
+        detalles[siniestro.id] = idCuenta to SiniestroDetalle.de(siniestro, listOf(evento), emptyList())
         val perder = MARCA_RESPUESTA_PERDIDA in solicitud.descripcion && enviosPerdidos.add(clave)
         return respuesta(201, siniestro).copy(perdida = perder)
     }

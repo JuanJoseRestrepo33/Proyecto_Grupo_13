@@ -54,10 +54,18 @@ import kotlinx.coroutines.withContext
 private val LADO_MINIATURA = 64.dp
 private const val MUESTRA_MINIATURA = 8
 
-/** El paso es opcional: cada permiso negado tiene alternativa y nada impide continuar (P20). */
+/**
+ * El paso es opcional: cada permiso negado tiene alternativa y nada impide continuar (P20).
+ * @param instrucciones la respuesta a un requerimiento (WEB-F06) usa las suyas: un solo archivo.
+ */
 @Composable
-internal fun PasoEvidencia(estado: EstadoEvidencia, gestor: GestorEvidencia, acciones: AccionesEvidencia) {
-    Text(stringResource(R.string.evidencia_instrucciones), style = MaterialTheme.typography.bodyMedium)
+internal fun PasoEvidencia(
+    estado: EstadoEvidencia,
+    gestor: GestorEvidencia,
+    acciones: AccionesEvidencia,
+    @StringRes instrucciones: Int = R.string.evidencia_instrucciones,
+) {
+    Text(stringResource(instrucciones), style = MaterialTheme.typography.bodyMedium)
     Text(stringResource(R.string.evidencia_formatos), style = MaterialTheme.typography.bodySmall)
     if (estado.explicando) {
         Explicacion(gestor, acciones)

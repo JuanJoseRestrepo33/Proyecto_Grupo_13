@@ -17,6 +17,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import kotlinx.coroutines.runBlocking
 
 class GestorEvidenciaTest {
     @get:Rule
@@ -126,6 +127,8 @@ class GestorEvidenciaTest {
         assertEquals("4.711", carga.latitud)
         assertEquals("-74.0721", carga.longitud)
         assertNull(carga.lugar)
+        // WEB-F06: la evidencia del reporte y la posterior no responden un requerimiento.
+        assertTrue(api.cargas.all { it.idRequerimiento == null })
         assertTrue(g.estado.adjuntos.all { it.estado == EstadoAdjunto.ENVIADO })
         assertEquals(2, almacen.borrados.size)
         assertEquals(2, g.estado.delSiniestro.size)
@@ -343,5 +346,41 @@ class GestorEvidenciaTest {
         g.descartar()
         assertEquals(rutas, almacen.borrados)
         assertTrue(g.estado.adjuntos.isEmpty())
+    }
+
+    // ── Respuesta a un requerimiento (WEB-F06) ───────────────────────────────────────────────
+
+    private fun gestorUnico() = GestorEvidencia(
+        api,
+        FuentesEvidencia(almacen, { coordenadas }, { ahora }),
+        CoroutineScope(Dispatchers.Main),
+        borrador,
+        unico = true,
+    )
+
+    @Test
+    fun `sin modo unico agregar otro archivo los conserva todos, como en el reporte`() {
+        val g = gestor()
+        g.elegido("a.jpg")
+        g.elegido("b.jpg")
+        assertEquals(listOf("a.jpg", "b.jpg"), g.estado.adjuntos.map { it.nombre })
+    }
+
+    @Test
+    fun `en modo unico un archivo con envio incierto no se reemplaza porque quiza ya llego`() = runBlocking {
+        val g = gestorUnico()
+        g.elegido("a.jpg")
+        api.carga = { throw IOException("tiempo agotado") }
+        assertEquals(RespuestaRequerimiento.SinRespuesta, g.responder("SIN-1", "REQ-1"))
+
+        g.elegido("b.jpg")
+
+        assertEquals(listOf("a.jpg", "b.jpg"), g.estado.adjuntos.map { it.nombre })
+    }
+
+    @Test
+    fun `responder sin archivo listo no envia nada`() = runBlocking {
+        assertEquals(RespuestaRequerimiento.SinArchivo, gestorUnico().responder("SIN-1", "REQ-1"))
+        assertTrue(api.cargas.isEmpty())
     }
 }
