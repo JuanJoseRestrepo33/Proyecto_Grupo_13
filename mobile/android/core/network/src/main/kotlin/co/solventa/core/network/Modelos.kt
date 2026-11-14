@@ -282,7 +282,94 @@ data class Siniestro(
     @SerialName("siguiente_paso") val siguientePaso: SiguientePaso,
     val canal: String,
     @SerialName("reportado_en") val reportadoEn: String,
+    /** Último cambio de estado (WEB-F06): ausente o `null` mientras siga como se reportó. */
+    @SerialName("estado_actualizado_en") val estadoActualizadoEn: String? = null,
 )
+
+// ── Modelos de seguimiento (WEB-F06) ──────────────────────────────────────────────────────────
+
+/** Un cambio del caso. El primero es el reporte, con [estadoAnterior] `null`. */
+@Serializable
+data class EventoSiniestro(
+    val id: String,
+    @SerialName("estado_anterior") val estadoAnterior: EstadoSiniestro? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("ocurrido_en") val ocurridoEn: String,
+    val motivo: String? = null,
+)
+
+/**
+ * Lo que el ajustador le pidió al cliente. Con [pendiente] en false, [atendidoEn] dice cuándo se
+ * respondió; si sigue en `null`, se cerró sin respuesta (el caso salió de `requiere_informacion`).
+ */
+@Serializable
+data class Requerimiento(
+    val id: String,
+    val descripcion: String,
+    @SerialName("creado_en") val creadoEn: String,
+    val pendiente: Boolean,
+    @SerialName("atendido_en") val atendidoEn: String? = null,
+    @SerialName("id_evidencia") val idEvidencia: String? = null,
+)
+
+/**
+ * `SiniestroDetalle` del contrato: el [Siniestro] (allOf) más su historial, del más antiguo al más
+ * reciente, y sus requerimientos. kotlinx.serialization no hereda esquemas, así que los campos se
+ * repiten; [resumen] devuelve el [Siniestro] que comparten la lista y el detalle.
+ */
+@Serializable
+data class SiniestroDetalle(
+    val id: String,
+    val referencia: String,
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("siguiente_paso") val siguientePaso: SiguientePaso,
+    val canal: String,
+    @SerialName("reportado_en") val reportadoEn: String,
+    @SerialName("estado_actualizado_en") val estadoActualizadoEn: String? = null,
+    val historial: List<EventoSiniestro>,
+    val requerimientos: List<Requerimiento>,
+) {
+    val resumen: Siniestro
+        get() = Siniestro(
+            id = id,
+            referencia = referencia,
+            numeroPoliza = numeroPoliza,
+            tipoEvento = tipoEvento,
+            ocurridoEl = ocurridoEl,
+            descripcion = descripcion,
+            montoEstimado = montoEstimado,
+            estado = estado,
+            siguientePaso = siguientePaso,
+            canal = canal,
+            reportadoEn = reportadoEn,
+            estadoActualizadoEn = estadoActualizadoEn,
+        )
+
+    companion object {
+        fun de(siniestro: Siniestro, historial: List<EventoSiniestro>, requerimientos: List<Requerimiento>) =
+            SiniestroDetalle(
+                id = siniestro.id,
+                referencia = siniestro.referencia,
+                numeroPoliza = siniestro.numeroPoliza,
+                tipoEvento = siniestro.tipoEvento,
+                ocurridoEl = siniestro.ocurridoEl,
+                descripcion = siniestro.descripcion,
+                montoEstimado = siniestro.montoEstimado,
+                estado = siniestro.estado,
+                siguientePaso = siniestro.siguientePaso,
+                canal = siniestro.canal,
+                reportadoEn = siniestro.reportadoEn,
+                estadoActualizadoEn = siniestro.estadoActualizadoEn,
+                historial = historial,
+                requerimientos = requerimientos,
+            )
+    }
+}
 
 // ── Modelos de evidencia (MOB-F05) ────────────────────────────────────────────────────────────
 

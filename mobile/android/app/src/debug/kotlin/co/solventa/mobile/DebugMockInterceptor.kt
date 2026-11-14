@@ -51,6 +51,7 @@ class DebugMockInterceptor(private val mock: MockBffMovil) : Interceptor {
             latitud = texto("latitud")?.toDouble(),
             longitud = texto("longitud")?.toDouble(),
             lugar = texto("lugar"),
+            idRequerimiento = texto("id_requerimiento"),
         )
     }
 

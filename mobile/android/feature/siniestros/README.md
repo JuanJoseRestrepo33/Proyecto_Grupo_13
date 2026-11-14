@@ -1,4 +1,4 @@
-# WEB-F05, MOB-F05 y MOB-F05-02 · Reporte de siniestros, evidencia y reporte sin conexión en la app
+# WEB-F05, MOB-F05, MOB-F05-02 y WEB-F06 · Reporte, evidencia, reporte sin conexión y seguimiento de siniestros en la app
 
 Asistente para que el cliente asegurado reporte un siniestro desde Android y termine con el número de
 referencia y el siguiente paso de su caso. Usa las mismas rutas, la misma referencia y la misma clave de
@@ -265,9 +265,91 @@ la app promete un envío con la app cerrada.
   archivo alterado, pantalla bloqueada y caché sin archivos en claro). Correr en emulador con API 26 y 34:
   `./gradlew :feature:siniestros:connectedDebugAndroidTest`.
 
+## Seguimiento (WEB-F06)
+
+«Mis siniestros» en Inicio, junto a «Reportar siniestro»: los casos del cliente reportados desde cualquier
+canal, con el mismo estado, la misma referencia y el mismo historial que la web (#198). Usa
+`GET /siniestros`, `GET /siniestros/{id}` y la parte `id_requerimiento` de la carga de evidencia
+(`bff-movil` 0.7.0, vigente 0.8.0).
+
+```
+Inicio ──▶ Mis siniestros ──┬── con casos ──▶ Tarjetas ──toque──▶ Detalle ◀┄┄ push (#204)
+           home/siniestros  ├── sin casos ──▶ Estado vacío ──▶ Reportar (#169)
+                            └── error ─────▶ Reintentar        home/siniestros/detalle/{id}
+                                                                       │
+             sin pendientes ◀────────────────┬─────────────────────────┤
+          (o cerrado sin respuesta)  requerimiento pendiente     404 ──▶ Volver a mis siniestros
+                                             ▼
+                              Responder: un archivo de cámara, galería o documento
+                                             │
+             201 ──▶ consulta el detalle ──▶ atendido con su fecha (si la consulta falla: «Reintentar» solo consulta)
+             409/404 del requerimiento ──▶ aviso y caso actualizado
+             sin respuesta ──▶ concilia por `nombre_original` antes de reenviar
+```
+
+Las rutas tienen un segmento propio (`detalle`) para no chocar con `home/siniestros/reporte` ni con
+`home/siniestros/borradores/{borrador}`. Del detalle se vuelve a la lista; si se llegó directo (como hará
+el push), volver la abre.
+
+| Pieza | Qué resuelve | Criterios |
+|---|---|---|
+| `ReglasSeguimiento.kt` | Siguiente paso con `estado` y `siguiente_paso` juntos (el contrato manda `esperar_evaluacion` también en los cerrados), los tres estados de un requerimiento, la insignia de cada estado y si termina el caso. JVM puro. | 4, 7, 15 |
+| `MisSiniestrosViewModel` · `PantallaMisSiniestros` | Lista del más reciente al más antiguo, «Actualizar» y deslizar para actualizar, vacía, error y «Reportar siniestro» con el bloqueo de Inicio (MOB-F05-02). | 1, 2, 9, 11, 12, 14 |
+| `DetalleSiniestroViewModel` · `PantallaDetalleSiniestro` | Encabezado, resumen, línea de tiempo (solo el último evento resaltado), requerimientos, no encontrado y errores. El `id` llega por la ruta y queda en el `SavedStateHandle`. | 2–8, 10–13, 15 |
+| `SeccionesDetalle.kt` | Secciones del detalle y la hoja inferior para responder, que reutiliza `PasoEvidencia` (mismas reglas, compresión y permisos). | 3–5, 7, 8, 17 |
+| `GestorEvidencia.responder` | Respuesta única con `id_requerimiento` (modo `unico`: elegir otro archivo reemplaza al anterior), conciliación de una carga incierta y resultado tipado para la pantalla. `subir` y el enviador de borradores siguen sin `id_requerimiento`. | 5, 6, 8 |
+
+### Estados del caso
+
+| Estado | Qué le dice al cliente | ¿Termina el caso? | Insignia |
+|---|---|---|---|
+| Reportado | Se recibió el reporte | No | Ámbar |
+| En evaluación | Lo está revisando un ajustador | No | Ámbar |
+| Requiere información | Falta algo que debe entregar | No | Ámbar |
+| Aprobado | Se aprobó el caso | No | Verde |
+| Rechazado | Se rechazó, con el motivo si lo hay | Sí | Rojo |
+| Pagado | Se pagó la indemnización | Sí | Verde |
+
+La insignia siempre lleva el texto y TalkBack lo lee («Estado: …»).
+
+### Responder un requerimiento
+
+- **Un archivo por respuesta**: el primero deja el requerimiento atendido y otro recibiría
+  `409 requerimiento_ya_atendido`.
+- Tras un `201` se vuelve a consultar el detalle (el `POST` responde la `Evidencia`, no el requerimiento).
+  Si esa consulta falla, la pantalla dice que la respuesta se envió y «Reintentar» solo consulta.
+- Sin red o sin respuesta, el adjunto queda en la hoja; el reintento primero busca su `nombre_original` en
+  `GET /siniestros/{id}/evidencias` y, si llegó, no lo vuelve a cargar. Si no se puede consultar, no se
+  reenvía nada. Un `503` no deja dudas y se reenvía directo, sin volver a elegir el archivo.
+- Errores por `codigo`: `requerimiento_ya_atendido`, `requerimiento_no_encontrado` y `siniestro_cerrado`
+  avisan (*snackbar*) y actualizan el caso; `siniestro_no_encontrado` muestra no encontrado; `413`/`422`
+  usan el mensaje del paso de evidencia; un `401` va al flujo de sesión.
+
+### Rotación, segundo plano y muerte del proceso
+
+Los datos del caso viven en el ViewModel: la rotación no vuelve a consultar. Si Android cerró el proceso,
+el `SavedStateHandle` conserva solo el `id`, el requerimiento que se respondía y el adjunto (en la caché);
+la pantalla vuelve al mismo caso y lo consulta otra vez. Del siniestro no se guarda nada en disco.
+
+### Pruebas del seguimiento
+
+- **JVM**: `ReglasSeguimientoTest` (cada fila de la regla del siguiente paso, los tres estados de un
+  requerimiento y el catálogo de estados), `MisSiniestrosViewModelTest` y `DetalleSiniestroViewModelTest`
+  (lista, detalle, actualizar, respuesta, respuesta perdida sin carga duplicada, fallo solo de la consulta,
+  error de red, una prueba por fila de la tabla de errores, muerte del proceso). `GestorEvidenciaTest` y
+  `EnviadorBorradoresTest` comprueban que las cargas sin requerimiento no cambian; `EvidenciaApiTest`
+  (`core/network`), la parte `id_requerimiento`, el detalle y `estado_actualizado_en` ausente o `null`.
+- **Compose + Robolectric**: `PantallasSeguimientoTest` (lista con datos, vacía, bloqueada, error, detalle
+  con requerimiento pendiente, atendido y cerrado sin respuesta, campos `null`, caso cerrado y no
+  encontrado); en `app`, `SolventaAppTest` recorre Inicio → lista → detalle, «Reportar siniestro» desde la
+  lista (abre el asistente, nunca el detalle) y la ruta del detalle abierta directamente.
+- **Mock**: `MockSeguimientoTest` recorre los escenarios sembrados por el cliente real.
+
 ## Fuera de alcance
 
-Servicio de reporte y rutas del BFF (#135, #168), «Mis siniestros» (WEB-F06), E2E en emulador contra
+Servicio de reporte y rutas del BFF (#135, #168), E2E en emulador contra
 *staging* (#172, y el del reporte sin conexión en #213), el asistente web (#132), la guía de usuario del
 reporte sin conexión (#214), el envío con la app cerrada y sin sesión, una pantalla de detalle del
-borrador y una clave de idempotencia para la evidencia.
+borrador y una clave de idempotencia para la evidencia. Del seguimiento: notificaciones push (MOB-F06,
+#204), actualización automática, filtros y paginación, cambiar el estado desde la app, la web (#198) y su
+E2E en emulador (#202).

@@ -27,6 +27,16 @@ import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.MockBffMovil
 import java.time.Instant
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.performScrollTo
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
+import co.solventa.core.network.Credenciales
+import co.solventa.mobile.mock.CONTRASENA_DEMO
+import co.solventa.mobile.mock.CORREO_DEMO
+import co.solventa.mobile.mock.SINIESTRO_PAGADO
+import co.solventa.mobile.mock.SINIESTRO_REQUIERE_INFORMACION
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -143,10 +153,77 @@ class SolventaAppTest {
         compose.waitUntil(timeoutMillis = 5_000) { sesionVencida }
     }
 
+    // ── Seguimiento (WEB-F06) ────────────────────────────────────────────────────────────────
+
+    /** La app con el mock y la sesión de la cuenta demo, que tiene un caso en cada estado. */
+    private fun conSeguimiento(): NavHostController {
+        var token: String? = null
+        val api = NetworkClient.create(
+            BuildConfig.BASE_URL,
+            listOf(DebugMockInterceptor(MockBffMovil { Instant.parse("2026-10-26T15:00:00Z") })),
+            tokenAcceso = { token },
+        )
+        token = runBlocking { api.iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO)).tokenAcceso }
+        val dependencias = DependenciasSiniestros(api, enviadorDePrueba(api) { "CLI-2026-000001" })
+        lateinit var nav: NavHostController
+        compose.setContent {
+            nav = rememberNavController()
+            SolventaTheme { SolventaApp(dependenciasSiniestros = dependencias, navController = nav) }
+        }
+        return nav
+    }
+
+    private fun esperar(tag: String) = compose.waitUntil(timeoutMillis = 5_000) {
+        compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    @Test
+    fun `inicio abre mis siniestros y la tarjeta abre el detalle de ese id con inicio seleccionado`() {
+        conSeguimiento()
+        compose.onNodeWithTag("ir-mis-siniestros").assertHeightIsAtLeast(48.dp).performClick()
+        esperar("siniestro-$SINIESTRO_REQUIERE_INFORMACION")
+        compose.onNode(tab("Inicio")).assertIsSelected()
+
+        compose.onNodeWithTag("siniestro-$SINIESTRO_REQUIERE_INFORMACION").performScrollTo().performClick()
+
+        esperar("encabezado")
+        compose.onNodeWithText("Referencia SIN-2026-000903", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Volver").performClick()
+        compose.onNodeWithTag("pantalla-mis-siniestros").assertIsDisplayed()
+    }
+
+    @Test
+    fun `reportar desde mis siniestros abre el asistente y nunca el detalle`() {
+        val nav = conSeguimiento()
+        compose.onNodeWithTag("ir-mis-siniestros").performClick()
+        esperar("seguimiento-reportar")
+
+        compose.onNodeWithTag("seguimiento-reportar").performClick()
+
+        compose.waitForIdle()
+        assertEquals(RUTA_REPORTE_SINIESTRO, nav.currentDestination?.route)
+        compose.onNodeWithTag("pantalla-detalle-siniestro").assertDoesNotExist()
+    }
+
+    @Test
+    fun `la ruta del detalle abre el caso de ese id aunque se llegue directo`() {
+        val nav = conSeguimiento()
+        compose.runOnUiThread { nav.navigate(rutaDetalleSiniestro(SINIESTRO_PAGADO)) }
+
+        esperar("encabezado")
+        assertEquals(RUTA_DETALLE_SINIESTRO, nav.currentDestination?.route)
+        compose.onNodeWithText("Referencia SIN-2026-000906", substring = true).assertExists()
+        // Sin la lista en la pila, volver la abre en lugar del detalle.
+        compose.onNodeWithContentDescription("Volver").performClick()
+        compose.waitForIdle()
+        assertEquals(RUTA_MIS_SINIESTROS, nav.currentDestination?.route)
+    }
+
     @Test
     fun `sin dependencias de siniestros inicio no ofrece el reporte`() {
         compose.setContent { SolventaTheme { SolventaApp() } }
         compose.onNodeWithTag("ir-reportar-siniestro").assertDoesNotExist()
+        compose.onNodeWithTag("ir-mis-siniestros").assertDoesNotExist()
     }
 
     private fun tab(label: String): SemanticsMatcher = isSelectable() and hasText(label)

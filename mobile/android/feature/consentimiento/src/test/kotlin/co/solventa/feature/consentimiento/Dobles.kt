@@ -235,6 +235,7 @@ class BffFalso : BffApi {
         latitud: RequestBody?,
         longitud: RequestBody?,
         lugar: RequestBody?,
+        idRequerimiento: RequestBody?,
         duenio: DuenioSolicitud?,
     ): Evidencia = error("no se usa en consentimiento")
 
@@ -250,6 +251,9 @@ class BffFalso : BffApi {
     ): Siniestro = error("no se usa en consentimiento")
 
     override suspend fun listarSiniestros(duenio: DuenioSolicitud?): List<Siniestro> =
+        error("no se usa en consentimiento")
+
+    override suspend fun obtenerSiniestro(idSiniestro: String): co.solventa.core.network.SiniestroDetalle =
         error("no se usa en consentimiento")
 }
 

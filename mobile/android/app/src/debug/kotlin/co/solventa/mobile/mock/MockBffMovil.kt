@@ -12,6 +12,7 @@ private val RUTA_CON_ACCION = Regex(
     "^consentimientos/([^/]+)/(revocacion|renovacion)$",
 )
 private val RUTA_EVIDENCIAS = Regex("^siniestros/([^/]+)/evidencias$")
+private val RUTA_SINIESTRO = Regex("^siniestros/([^/]+)$")
 
 /**
  * Implementación en memoria de contratos/bff-movil/openapi.yaml para el build debug.
@@ -98,6 +99,8 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         }
         val evidencia = RUTA_EVIDENCIAS.matchEntire(ruta)?.groupValues?.get(1)
         if (evidencia != null && metodo == "GET") return evidencias.listar(autorizacion, evidencia)
+        val siniestro = RUTA_SINIESTRO.matchEntire(ruta)?.groupValues?.get(1)
+        if (siniestro != null && metodo == "GET") return siniestros.detalle(autorizacion, siniestro)
         return fallo(404, "ruta_no_simulada")
     }
 

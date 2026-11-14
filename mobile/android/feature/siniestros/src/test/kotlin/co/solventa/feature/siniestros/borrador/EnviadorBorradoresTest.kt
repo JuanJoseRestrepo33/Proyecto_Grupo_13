@@ -280,6 +280,8 @@ class EnviadorBorradoresTest {
         assertEquals(1, e.api.consultasSiniestros)
         assertEquals("SIN-2026-000777", e.enviadas().single().registro.referencia)
         assertEquals(1, e.api.cargas.size)
+        // WEB-F06: la evidencia del borrador no responde ningún requerimiento.
+        assertNull(e.api.cargas.single().idRequerimiento)
     }
 
     @Test
