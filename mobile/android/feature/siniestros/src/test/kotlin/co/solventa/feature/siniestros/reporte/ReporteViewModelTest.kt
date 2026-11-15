@@ -74,6 +74,23 @@ class ReporteViewModelTest {
     }
 
     @Test
+    fun `con el resumen ampliado de WEB-F04 el asistente lista y reporta igual`() {
+        val ampliada = POLIZA_VIGENTE.copy(
+            nombreProducto = "Seguro de Auto — Plan Full",
+            primaMensual = Dinero.pesos(185_000),
+            documentoUrl = "/api/v1/movil/polizas/${POLIZA_VIGENTE.numero}/documento",
+        )
+        api.polizas = { listOf(ampliada, POLIZA_VENCIDA) }
+
+        val vm = enRevision()
+        assertEquals(listOf(ampliada, POLIZA_VENCIDA), vm.estado.polizas)
+        vm.continuar()
+
+        assertEquals(POLIZA_VIGENTE.numero, api.reportes.single().second.numeroPoliza)
+        assertEquals("SIN-2026-000123", vm.estado.siniestro?.referencia)
+    }
+
+    @Test
     fun `una cuenta sin polizas no muestra el formulario`() {
         api.polizas = { emptyList() }
         assertTrue(viewModel().estado.sinPolizas)

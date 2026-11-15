@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +52,8 @@ import androidx.navigation.navArgument
 import co.solventa.core.designsystem.SolventaSpacing
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.consentimiento.RutaConsentimiento
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.lista.RutaMisPolizas
 import co.solventa.feature.siniestros.DependenciasSiniestros
 import co.solventa.feature.siniestros.borrador.AccionesTarjeta
 import co.solventa.feature.siniestros.borrador.Tarjeta
@@ -67,6 +70,7 @@ import co.solventa.mobile.R
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
  * @param dependenciasConsentimiento con ellas, Perfil da acceso al consentimiento (MOB-F02).
  * @param dependenciasSiniestros con ellas, Inicio da acceso al reporte de siniestros (WEB-F05).
+ * @param dependenciasPolizas con ellas, la pestaña Pólizas muestra las del cliente (WEB-F04).
  * @param onSesionVencida flujo de sesión al que se delega un 401 del BFF.
  * @param avisoBiometriaDesactivada el token rotado no se pudo guardar: se avisa que la huella se
  * desactivó y [onAvisoAtendido] lo consume.
@@ -79,6 +83,7 @@ fun SolventaApp(
     identidadVerificada: Boolean = true,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
     dependenciasSiniestros: DependenciasSiniestros? = null,
+    dependenciasPolizas: DependenciasPolizas? = null,
     onSesionVencida: () -> Unit = {},
     avisoBiometriaDesactivada: Boolean = false,
     onAvisoAtendido: () -> Unit = {},
@@ -89,13 +94,29 @@ fun SolventaApp(
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
     val avisos = remember { SnackbarHostState() }
     AvisoBiometriaDesactivada(avisos, avisoBiometriaDesactivada, onAvisoAtendido)
+    // Sube cada vez que el cliente toca Pólizas en la barra: «Mis pólizas» se vuelve a consultar (WEB-F04,
+    // §2). Sobrevive a la rotación, que no debe consultar (criterio 11).
+    var entradasPolizas by rememberSaveable { mutableIntStateOf(0) }
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
-        bottomBar = { BarraInferior(selected, navController) },
+        bottomBar = {
+            BarraInferior(selected, navController) { destino ->
+                if (destino == TopLevelDestination.POLICIES) entradasPolizas += 1
+            }
+        },
     ) { padding ->
         NavHost(navController, startDestination = TopLevelDestination.HOME.route, Modifier.padding(padding)) {
             TopLevelDestination.entries.forEach { destination ->
                 composable(destination.route) {
+                    if (destination == TopLevelDestination.POLICIES && dependenciasPolizas != null) {
+                        RutaMisPolizas(
+                            dependencias = dependenciasPolizas,
+                            entrada = entradasPolizas,
+                            onAbrir = { numero -> navController.navigate(rutaDetallePoliza(numero)) },
+                            onSesionVencida = onSesionVencida,
+                        )
+                        return@composable
+                    }
                     val aviso = !identidadVerificada && destination == TopLevelDestination.HOME
                     // Mientras un reporte quizá ya quedó registrado, no se ofrece otro (MOB-F05-02, criterio 8).
                     val tarjetas = dependenciasSiniestros?.enviador?.tarjetas?.collectAsState()?.value.orEmpty()
@@ -143,6 +164,7 @@ fun SolventaApp(
                     )
                 }
             }
+            detallePoliza(dependenciasPolizas, navController, onSesionVencida)
             if (dependenciasSiniestros != null) {
                 composable(RUTA_REPORTE_SINIESTRO) {
                     RutaReporteSiniestro(
@@ -191,8 +213,16 @@ fun SolventaApp(
     }
 }
 
+/**
+ * Tocar el destino en el que ya se está vuelve a su pantalla raíz (p. ej. del detalle de una póliza a
+ * «Mis pólizas»); [onSeleccion] avisa cada toque, también ese.
+ */
 @Composable
-private fun BarraInferior(selected: TopLevelDestination, navController: NavHostController) {
+private fun BarraInferior(
+    selected: TopLevelDestination,
+    navController: NavHostController,
+    onSeleccion: (TopLevelDestination) -> Unit = {},
+) {
     NavigationBar {
         TopLevelDestination.entries.forEach { destination ->
             NavigationBarItem(
@@ -202,6 +232,10 @@ private fun BarraInferior(selected: TopLevelDestination, navController: NavHostC
                 ),
                 selected = selected == destination,
                 onClick = {
+                    onSeleccion(destination)
+                    if (selected == destination && navController.popBackStack(destination.route, inclusive = false)) {
+                        return@NavigationBarItem
+                    }
                     navController.navigate(destination.route) {
                         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                         launchSingleTop = true

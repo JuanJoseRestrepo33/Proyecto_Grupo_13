@@ -12,6 +12,8 @@ import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.BffApi
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.onboarding.DependenciasOnboarding
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.detalle.DocumentosPolizaAndroid
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
 import co.solventa.feature.onboarding.sesion.GestorSesion
@@ -46,8 +48,15 @@ class MainActivity : FragmentActivity() {
             almacen = AlmacenEvidenciasAndroid(applicationContext),
             ubicacion = LectorUbicacionAndroid(applicationContext),
         )
+        val dependenciasPolizas = DependenciasPolizas(
+            api = proceso.bffApi,
+            documentos = DocumentosPolizaAndroid(applicationContext),
+            urlCotizacion = BuildConfig.WEB_URL + "cotizacion",
+        )
         setContent {
-            SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento, dependenciasSiniestros) }
+            SolventaTheme {
+                SolventaRaiz(dependencias, dependenciasConsentimiento, dependenciasSiniestros, dependenciasPolizas)
+            }
         }
     }
 

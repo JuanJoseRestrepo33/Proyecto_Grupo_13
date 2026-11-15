@@ -27,6 +27,13 @@ require(bffMock || !parsedBaseUrl.host.endsWith(".invalid")) {
 require(bffMock || parsedBaseUrl.rawPath.endsWith("/api/v1/movil/")) {
     "BFF_BASE_URL debe terminar en el prefijo del router móvil: /api/v1/movil/"
 }
+// La web del ambiente (WEB-F04): la app aún no tiene cotizador y «Cotizar un seguro» abre el de la web.
+val webUrl = providers.gradleProperty("WEB_URL").orElse("https://solventa-web.invalid/")
+val parsedWebUrl = URI(webUrl.get())
+require(parsedWebUrl.scheme == "https" && parsedWebUrl.host != null && parsedWebUrl.rawUserInfo == null &&
+    parsedWebUrl.rawQuery == null && parsedWebUrl.rawFragment == null && webUrl.get().endsWith("/")) {
+    "WEB_URL debe ser HTTPS, sin credenciales, query ni fragmento y terminar en /."
+}
 
 android {
     namespace = "co.solventa.mobile"
@@ -51,6 +58,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"${bffBaseUrl.get()}\"")
         buildConfigField("boolean", "BFF_MOCK", bffMock.toString())
+        buildConfigField("String", "WEB_URL", "\"${webUrl.get()}\"")
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures {
@@ -79,6 +87,7 @@ dependencies {
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:consentimiento"))
     implementation(project(":feature:siniestros"))
+    implementation(project(":feature:polizas"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)

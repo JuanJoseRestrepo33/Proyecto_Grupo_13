@@ -55,6 +55,9 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/siniestros`: **WEB-F05**, **MOB-F05** y **WEB-F06** en la app. Asistente de reporte (póliza,
   información, evidencia, revisión) con envío idempotente, y «Mis siniestros» con el detalle del caso y la
   respuesta a requerimientos; los dos se abren desde Inicio. Ver [su README](feature/siniestros/README.md).
+- `feature/polizas`: **WEB-F04** en la app. «Mis pólizas» en la pestaña Pólizas (Activas, Vencidas y
+  Todas) y el detalle con coberturas, deducible, límites y el PDF de la póliza. Ver
+  [su README](feature/polizas/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -215,6 +218,8 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
 | Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
 | Póliza vigente y póliza vencida | Cualquier cliente: auto `POL-2026-NNN101` (desde hace 30 días, por 365) y hogar `POL-2026-NNN102` (venció hace 30 días) |
+| Mis pólizas (WEB-F04) | Cualquier cliente, en este orden: `NNN101` vigente y completa, con documento (un PDF de una página); `NNN103` de viaje por iniciar (empieza en 10 días); `NNN104` de hogar vigente sin nombre comercial, prima, deducible, valor asegurado, emisión, coberturas ni documento (como las de la semilla de staging), y `NNN102` vencida, con condiciones y sin documento (`documento_no_disponible`). La 101 sigue primero porque el reporte y la evidencia toman la primera de la lista |
+| Póliza no encontrada | `POL-2026-999999` (`POLIZA_INEXISTENTE`) o el número de otro cliente: 404 `poliza_no_encontrada` en el detalle y en el documento |
 | Evento dentro o fuera de la vigencia | Reportar sobre la póliza de hogar con una fecha anterior o posterior a su fin: se acepta o responde 409 `evento_fuera_de_vigencia` |
 | Cuenta sin pólizas | `sinpolizas@ejemplo.co` / `Solventa2026` |
 | Reintento con la misma clave | Descripción con `#sin-respuesta`: el primer envío queda registrado pero la app ve un tiempo agotado; el reintento confirma la misma referencia |

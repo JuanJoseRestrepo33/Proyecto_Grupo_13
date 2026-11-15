@@ -213,6 +213,11 @@ enum class EstadoPoliza {
     @SerialName("por_iniciar") POR_INICIAR,
 }
 
+/**
+ * Póliza de la lista (WEB-F04) y del asistente de reporte (WEB-F05). [nombreProducto], [primaMensual] y
+ * [documentoUrl] entraron con WEB-F04 (contrato 0.6.0): `null` o ausentes en las pólizas de prueba, así
+ * que el asistente y el mock no necesitan enviarlos.
+ */
 @Serializable
 data class PolizaResumen(
     val numero: String,
@@ -221,7 +226,68 @@ data class PolizaResumen(
     /** Último día de cobertura, incluido. */
     val fin: String,
     val estado: EstadoPoliza,
+    /** Nombre comercial; `null` si el catálogo no lo tiene. */
+    @SerialName("nombre_producto") val nombreProducto: String? = null,
+    @SerialName("prima_mensual") val primaMensual: Dinero? = null,
+    /**
+     * Ruta del PDF en el BFF; `null` si la póliza no tiene documento. La app no la abre: descarga con
+     * [BffApi.descargarDocumentoPoliza], con la sesión del cliente.
+     */
+    @SerialName("documento_url") val documentoUrl: String? = null,
 )
+
+@Serializable
+data class Cobertura(val nombre: String, val limite: String)
+
+/**
+ * `PolizaDetalle` del contrato: el [PolizaResumen] (allOf) más sus condiciones. Como en
+ * [SiniestroDetalle], los campos se repiten y [resumen] devuelve la parte común. [deducible] y
+ * [valorAsegurado] son texto ya formateado por el núcleo («5% del valor asegurado», «$60.000.000»).
+ */
+@Serializable
+data class PolizaDetalle(
+    val numero: String,
+    val producto: String,
+    val inicio: String,
+    val fin: String,
+    val estado: EstadoPoliza,
+    @SerialName("nombre_producto") val nombreProducto: String? = null,
+    @SerialName("prima_mensual") val primaMensual: Dinero? = null,
+    @SerialName("documento_url") val documentoUrl: String? = null,
+    /** Las pólizas de prueba de la semilla no traen coberturas: lista vacía. */
+    val coberturas: List<Cobertura> = emptyList(),
+    val deducible: String? = null,
+    @SerialName("valor_asegurado") val valorAsegurado: String? = null,
+    /** Fecha y hora de emisión; `null` en una póliza de prueba. */
+    @SerialName("emitida_en") val emitidaEn: String? = null,
+) {
+    val resumen: PolizaResumen
+        get() = PolizaResumen(numero, producto, inicio, fin, estado, nombreProducto, primaMensual, documentoUrl)
+
+    companion object {
+        @Suppress("LongParameterList")
+        fun de(
+            poliza: PolizaResumen,
+            coberturas: List<Cobertura>,
+            deducible: String?,
+            valorAsegurado: String?,
+            emitidaEn: String?,
+        ) = PolizaDetalle(
+            numero = poliza.numero,
+            producto = poliza.producto,
+            inicio = poliza.inicio,
+            fin = poliza.fin,
+            estado = poliza.estado,
+            nombreProducto = poliza.nombreProducto,
+            primaMensual = poliza.primaMensual,
+            documentoUrl = poliza.documentoUrl,
+            coberturas = coberturas,
+            deducible = deducible,
+            valorAsegurado = valorAsegurado,
+            emitidaEn = emitidaEn,
+        )
+    }
+}
 
 @Serializable
 enum class TipoEventoSiniestro {

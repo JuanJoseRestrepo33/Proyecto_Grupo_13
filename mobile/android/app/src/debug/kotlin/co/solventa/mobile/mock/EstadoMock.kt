@@ -31,6 +31,8 @@ data class RespuestaMock(
     val cuerpo: String,
     val encabezados: Map<String, String> = emptyMap(),
     val perdida: Boolean = false,
+    /** Tipo de contenido del [cuerpo]: el documento de la póliza es `application/pdf` (solo ASCII). */
+    val tipo: String = "application/json",
 )
 
 internal inline fun <reified T> respuesta(codigo: Int, valor: T) =
