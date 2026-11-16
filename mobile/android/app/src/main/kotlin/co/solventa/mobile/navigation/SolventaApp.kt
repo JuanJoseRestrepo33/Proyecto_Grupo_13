@@ -226,10 +226,10 @@ private fun BarraInferior(
     NavigationBar {
         TopLevelDestination.entries.forEach { destination ->
             NavigationBarItem(
-                modifier = Modifier.sizeIn(
-                    minWidth = SolventaSpacing.touchTarget,
-                    minHeight = SolventaSpacing.touchTarget,
-                ),
+                // Las pruebas E2E tocan la pestaña por su etiqueta, no por el texto (#193).
+                modifier = Modifier
+                    .sizeIn(minWidth = SolventaSpacing.touchTarget, minHeight = SolventaSpacing.touchTarget)
+                    .testTag("nav-${destination.route}"),
                 selected = selected == destination,
                 onClick = {
                     onSeleccion(destination)

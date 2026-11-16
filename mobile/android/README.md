@@ -347,6 +347,36 @@ contra *staging*, en un teléfono o emulador, y se graban. En el recorrido 2, la
 consulta exitosa al BFF web **antes** de volver a abrir la app. Se adjunta a #211 con el commit, la URL y la
 lista de criterios que quedan sin cubrir (al menos el 6, el 7 y el 8 de #213).
 
+#### Póliza emitida en la web, consultada en la app (WEB-F04, #193)
+
+`ConsultaPolizaE2eTest` comprueba que una póliza comprada en la web aparece en la app sin hacer nada más.
+Corre en el mismo `connectedDebugAndroidTest`, con los mismos argumentos y el mismo job; no necesita
+variables nuevas. Cada recorrido (dos `@Test`, uno tras otro) hace:
+
+1. Inicia sesión en la app y abre la pestaña Pólizas (`nav-policies`) una vez; guarda los números visibles.
+2. Vuelve a Inicio (`nav-home`) y **compra por el BFF web**, sin su interfaz: cotiza el seguro de auto con
+   una ciudad única, acepta la oferta, paga con tarjeta (la pasarela simulada la aprueba; un reintento
+   reenvía la misma `Idempotency-Key`) y firma.
+3. Vuelve a entrar a Pólizas, sin deslizar ni tocar «Actualizar»: la póliza emitida debe ser la primera de
+   Activas, con el producto, «Vigente», el número y la vigencia que devuelve `GET /polizas` en la web.
+4. Abre el detalle: valor asegurado, deducible y coberturas iguales a `GET /polizas/{numero}` de la web y a
+   la oferta aceptada.
+5. Toca «Descargar PDF» con Espresso-Intents interceptando el `ACTION_VIEW` (el emulador puede no tener
+   visor): el archivo empieza por `%PDF-` y tiene el mismo SHA-256 que el documento que descarga la web.
+6. Abre la póliza sembrada (`POL-STG-AUTO-…`) en Todas: sin coberturas, sin documento y «No disponible».
+
+Cada fallo empieza por el paso del recorrido («Paso 5 (segunda entrada a Pólizas): La póliza emitida no es
+la primera de Activas…»). **Deja una póliza nueva por compra** (dos por corrida) en la cuenta de prueba;
+nadie las limpia. Necesita Cloud SQL encendida y la póliza sembrada `POL-STG-AUTO`.
+
+Para correr solo esta clase, agregar al comando de arriba
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.ConsultaPolizaE2eTest`.
+
+**Plan B.** Si el emulador no queda estable en CI, se hacen dos recorridos a mano contra *staging*, cada
+uno con su póliza: la app abierta en Pólizas antes de comprar, la compra por la interfaz de la web y la
+consulta en la app con el APK de `solventa-staging`. Las grabaciones van a #186 con el commit, la URL del
+BFF y los números usados, sin correo ni datos del cliente en pantalla.
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
