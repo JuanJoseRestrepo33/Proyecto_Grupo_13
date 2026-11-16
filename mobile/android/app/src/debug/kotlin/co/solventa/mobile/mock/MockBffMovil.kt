@@ -13,6 +13,8 @@ private val RUTA_CON_ACCION = Regex(
 )
 private val RUTA_EVIDENCIAS = Regex("^siniestros/([^/]+)/evidencias$")
 private val RUTA_SINIESTRO = Regex("^siniestros/([^/]+)$")
+private val RUTA_DISPOSITIVO = Regex("^dispositivos/([^/]+)$")
+private val RUTA_LECTURA = Regex("^notificaciones/([^/]+)/lectura$")
 
 /**
  * Implementación en memoria de contratos/bff-movil/openapi.yaml para el build debug.
@@ -26,6 +28,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
     private val consentimiento = MockConsentimiento(estado)
     private val siniestros = MockSiniestros(estado)
     private val evidencias = MockEvidencias(estado, siniestros)
+    private val notificaciones = MockNotificaciones(estado)
 
     /**
      * @param ruta relativa al prefijo del BFF, sin "/" inicial (p. ej. "registros").
@@ -101,7 +104,20 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         if (evidencia != null && metodo == "GET") return evidencias.listar(autorizacion, evidencia)
         val siniestro = RUTA_SINIESTRO.matchEntire(ruta)?.groupValues?.get(1)
         if (siniestro != null && metodo == "GET") return siniestros.detalle(autorizacion, siniestro)
-        return fallo(404, "ruta_no_simulada")
+        return enrutarPush(metodo, ruta, cuerpo, autorizacion) ?: fallo(404, "ruta_no_simulada")
+    }
+
+    /** Push del siniestro (MOB-F06). */
+    private fun enrutarPush(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock? {
+        val dispositivo = RUTA_DISPOSITIVO.matchEntire(ruta)?.groupValues?.get(1)
+        val lectura = RUTA_LECTURA.matchEntire(ruta)?.groupValues?.get(1)
+        return when {
+            metodo == "POST" && ruta == "dispositivos" -> notificaciones.registrar(autorizacion, cuerpo)
+            metodo == "GET" && ruta == "notificaciones" -> notificaciones.listar(autorizacion)
+            metodo == "DELETE" && dispositivo != null -> notificaciones.darDeBaja(autorizacion, dispositivo)
+            metodo == "POST" && lectura != null -> notificaciones.marcarLeida(autorizacion, lectura)
+            else -> null
+        }
     }
 
     private fun enrutarOtp(metodo: String, id: String, accion: String, cuerpo: String): RespuestaMock {

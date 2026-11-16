@@ -2,6 +2,8 @@ package co.solventa.core.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // Esquemas de contratos/bff-movil/openapi.yaml. Los nombres JSON van en snake_case.
 
@@ -387,3 +389,45 @@ data class Evidencia(
     val longitud: Double? = null,
     val lugar: String? = null,
 )
+
+// ── Push del siniestro (MOB-F06) ──────────────────────────────────────────────────────────────
+
+/** [tokenPush] es el token del proveedor o, sin Firebase, un identificador estable de la instalación. */
+@Serializable
+data class SolicitudDispositivo(
+    @SerialName("token_push") val tokenPush: String,
+    val plataforma: String = "android",
+)
+
+/** El token nunca vuelve en una respuesta: el [id] es lo que se usa para darlo de baja. */
+@Serializable
+data class Dispositivo(
+    val id: String,
+    val plataforma: String,
+    @SerialName("registrado_en") val registradoEn: String,
+)
+
+/**
+ * Una notificación de la bandeja del proveedor simulado. [datos] dice qué abrir al tocarla: con `tipo`
+ * = [TIPO_SINIESTRO_ESTADO], el detalle de `id_siniestro`. Se lee como objeto JSON porque el contrato
+ * admite campos nuevos.
+ */
+@Serializable
+data class Notificacion(
+    val id: String,
+    val titulo: String,
+    val cuerpo: String,
+    val datos: JsonObject = JsonObject(emptyMap()),
+    @SerialName("creada_en") val creadaEn: String? = null,
+    val leida: Boolean = false,
+) {
+    /** El siniestro que abre al tocarla, o null si no es de un cambio de estado. */
+    val idSiniestro: String?
+        get() = texto("id_siniestro")?.takeIf { texto("tipo") == TIPO_SINIESTRO_ESTADO && it.isNotBlank() }
+
+    private fun texto(campo: String): String? = (datos[campo] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    companion object {
+        const val TIPO_SINIESTRO_ESTADO = "siniestro_estado"
+    }
+}

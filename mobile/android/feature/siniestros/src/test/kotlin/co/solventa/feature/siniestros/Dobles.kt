@@ -316,6 +316,17 @@ class BffFalso : BffApi {
 
     override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
         error("no se usa en siniestros")
+
+    // Push (MOB-F06): lo prueba feature/notificaciones.
+    override suspend fun registrarDispositivo(
+        solicitud: co.solventa.core.network.SolicitudDispositivo,
+    ): co.solventa.core.network.Dispositivo = error("no se usa aquí")
+
+    override suspend fun darDeBajaDispositivo(idDispositivo: String, autorizacion: String?) = error("no se usa aquí")
+
+    override suspend fun listarNotificaciones(): List<co.solventa.core.network.Notificacion> = error("no se usa aquí")
+
+    override suspend fun marcarNotificacionLeida(idNotificacion: String) = error("no se usa aquí")
 }
 
 // ── Borradores (MOB-F05-02) ────────────────────────────────────────────────────────────────────

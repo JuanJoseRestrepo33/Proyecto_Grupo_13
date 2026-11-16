@@ -168,6 +168,17 @@ class BffFalso : BffApi {
 
     override suspend fun obtenerSiniestro(idSiniestro: String): co.solventa.core.network.SiniestroDetalle =
         error("no se usa en MOB-F01")
+
+    // Push (MOB-F06): lo prueba feature/notificaciones.
+    override suspend fun registrarDispositivo(
+        solicitud: co.solventa.core.network.SolicitudDispositivo,
+    ): co.solventa.core.network.Dispositivo = error("no se usa aquí")
+
+    override suspend fun darDeBajaDispositivo(idDispositivo: String, autorizacion: String?) = error("no se usa aquí")
+
+    override suspend fun listarNotificaciones(): List<co.solventa.core.network.Notificacion> = error("no se usa aquí")
+
+    override suspend fun marcarNotificacionLeida(idNotificacion: String) = error("no se usa aquí")
 }
 
 /** Almacén en memoria; [cipher] es un objeto opaco que solo viaja entre el almacén y la biometría. */

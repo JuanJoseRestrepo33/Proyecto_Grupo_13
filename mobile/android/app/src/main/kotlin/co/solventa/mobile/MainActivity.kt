@@ -1,6 +1,7 @@
 package co.solventa.mobile
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
@@ -11,6 +12,14 @@ import kotlinx.coroutines.SupervisorJob
 import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.BffApi
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.notificaciones.AlmacenPushAndroid
+import co.solventa.feature.notificaciones.AperturasPush
+import co.solventa.feature.notificaciones.DependenciasNotificaciones
+import co.solventa.feature.notificaciones.NotificadorAndroid
+import co.solventa.feature.notificaciones.ReceptorPush
+import co.solventa.feature.notificaciones.aperturaDe
+import co.solventa.feature.notificaciones.consumirApertura
+import co.solventa.feature.notificaciones.intentoApertura
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
@@ -46,16 +55,49 @@ class MainActivity : FragmentActivity() {
             almacen = AlmacenEvidenciasAndroid(applicationContext),
             ubicacion = LectorUbicacionAndroid(applicationContext),
         )
+        val dependenciasNotificaciones = DependenciasNotificaciones(
+            receptor = proceso.receptor,
+            almacen = proceso.almacenPush,
+            aperturas = proceso.aperturas,
+        )
+        recibirApertura(intent)
         setContent {
-            SolventaTheme { SolventaRaiz(dependencias, dependenciasConsentimiento, dependenciasSiniestros) }
+            SolventaTheme {
+                SolventaRaiz(
+                    dependencias,
+                    dependenciasConsentimiento,
+                    dependenciasSiniestros,
+                    dependenciasNotificaciones,
+                )
+            }
         }
     }
 
-    /** Al abrir la app con sesión activa se procesan los borradores pendientes (MOB-F05-02). */
+    /**
+     * Al abrir la app con sesión activa se procesan los borradores pendientes (MOB-F05-02), se registra el
+     * dispositivo y se lee la bandeja de notificaciones (MOB-F06).
+     */
     override fun onStart() {
         super.onStart()
         val proceso = Proceso.de(applicationContext)
-        proceso.sesion.clienteId?.let(proceso.enviador::activar)
+        proceso.sesion.clienteId?.let {
+            proceso.enviador.activar(it)
+            proceso.receptor.activar(it)
+        }
+    }
+
+    /** `singleTop`: tocar una notificación con la app abierta llega aquí, no a otra copia de la Activity. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recibirApertura(intent)
+    }
+
+    /** La navegación abre el detalle del siniestro en cuanto haya sesión (MOB-F06, criterio 2). */
+    private fun recibirApertura(intent: Intent?) {
+        val apertura = aperturaDe(intent) ?: return
+        Proceso.de(applicationContext).aperturas.recibir(apertura)
+        consumirApertura(intent)
     }
 }
 
@@ -82,13 +124,34 @@ private class Proceso(context: Context) {
         )
     }
 
+    val almacenPush = AlmacenPushAndroid(context)
+    val aperturas = AperturasPush()
+
+    /** Push del siniestro (MOB-F06): registra el dispositivo y lee la bandeja mientras haya sesión. */
+    val receptor: ReceptorPush by lazy {
+        ReceptorPush(
+            api = bffApi,
+            almacen = almacenPush,
+            notificador = NotificadorAndroid(context) { intentoApertura(context, MainActivity::class.java, it) },
+            sesion = sesion,
+            alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+    }
+
     init {
-        // El envío del anterior se cancela antes de reemplazar la sesión; el del nuevo empieza después.
+        // El envío y el push del anterior se cancelan antes de reemplazar la sesión; los del nuevo empiezan
+        // después. Al iniciar sesión se registra el dispositivo (MOB-F06, criterio 4).
         sesion.observador = object : ObservadorCuenta {
-            override fun antes(nuevoCliente: String?) = enviador.detener()
+            override fun antes(nuevoCliente: String?) {
+                enviador.detener()
+                receptor.detener()
+            }
 
             override fun despues(cliente: String?) {
-                cliente?.let(enviador::activar)
+                cliente?.let {
+                    enviador.activar(it)
+                    receptor.activar(it)
+                }
             }
         }
     }

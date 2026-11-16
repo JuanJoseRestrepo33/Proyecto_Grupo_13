@@ -31,6 +31,7 @@ dependencies {
     kover(project(":feature:onboarding"))
     kover(project(":feature:consentimiento"))
     kover(project(":feature:siniestros"))
+    kover(project(":feature:notificaciones"))
 }
 
 kover {
