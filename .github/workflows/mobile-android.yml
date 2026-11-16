@@ -183,8 +183,8 @@ jobs:
           retention-days: 14
 
   e2e-emulador:
-    # Pruebas instrumentadas contra staging (WEB-F05, #172). A mano, porque necesitan Cloud SQL encendida,
-    # y solo en develop, la rama que admite el environment staging. Un fork no puede lanzarlo.
+    # Pruebas instrumentadas contra staging (WEB-F05, #172; WEB-F06, #202). A mano, porque necesitan
+    # Cloud SQL encendida, y solo en develop, la rama que admite el environment staging. Un fork no puede lanzarlo.
     name: Android · E2E en emulador contra staging
     needs: android
     if: github.event_name == 'workflow_dispatch' && github.ref_name == 'develop'
@@ -202,14 +202,25 @@ jobs:
       BFF_BASE_URL: ${{ vars.BFF_BASE_URL }}
       E2E_CORREO: ${{ secrets.HUMO_CORREO }}
       E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+      # SeguimientoE2eTest (WEB-F06, #202) cambia el estado del caso con la operación interna del núcleo.
+      # Mismos nombres que el E2E web de seguimiento (#201).
+      NUCLEO_URL: ${{ vars.NUCLEO_URL }}
+      E2E_TOKEN_INTERNO: ${{ secrets.SINIESTROS_TOKEN_INTERNO }}
     steps:
       - uses: actions/checkout@v6
       - name: Verificar la configuración del ambiente
+        # Nombra cada variable o secreto ausente: ninguna prueba se omite en silencio por falta de uno.
         run: |
-          if [ -z "$BFF_BASE_URL" ] || [ -z "$E2E_CORREO" ] || [ -z "$E2E_CLAVE" ]; then
-            echo "::error::El environment staging necesita BFF_BASE_URL, HUMO_CORREO y HUMO_CLAVE."
-            exit 1
-          fi
+          faltan=0
+          for par in "la variable BFF_BASE_URL:$BFF_BASE_URL" "el secreto HUMO_CORREO:$E2E_CORREO" \
+                     "el secreto HUMO_CLAVE:$E2E_CLAVE" "la variable NUCLEO_URL:$NUCLEO_URL" \
+                     "el secreto SINIESTROS_TOKEN_INTERNO:$E2E_TOKEN_INTERNO"; do
+            if [ -z "${par#*:}" ]; then
+              echo "::error::Falta ${par%%:*} en el environment staging."
+              faltan=1
+            fi
+          done
+          exit "$faltan"
       - name: Configurar JDK 17
         uses: actions/setup-java@v5
         with:
@@ -245,7 +256,7 @@ jobs:
           # instrumentación muere a mitad, la red se restaura aquí, antes de que el runner apague el
           # emulador. La acción corre cada línea del script por separado.
           script: |
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" || { adb shell cmd connectivity airplane-mode disable; exit 1; }
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" || { adb shell cmd connectivity airplane-mode disable; exit 1; }
             adb shell cmd connectivity airplane-mode disable
       - name: Restaurar la red del emulador
         # Por si el paso anterior se canceló o venció con el emulador aún encendido. Si ya se apagó, no
