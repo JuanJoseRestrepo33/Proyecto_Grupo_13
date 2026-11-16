@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import co.solventa.core.designsystem.SolventaTheme
 import co.solventa.core.network.NetworkClient
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.polizas.DependenciasPolizas
 import co.solventa.feature.siniestros.DependenciasSiniestros
 import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
@@ -37,6 +38,7 @@ import co.solventa.mobile.mock.CORREO_DEMO
 import co.solventa.mobile.mock.SINIESTRO_PAGADO
 import co.solventa.mobile.mock.SINIESTRO_REQUIERE_INFORMACION
 import kotlinx.coroutines.runBlocking
+import okhttp3.Interceptor
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -224,6 +226,102 @@ class SolventaAppTest {
         compose.setContent { SolventaTheme { SolventaApp() } }
         compose.onNodeWithTag("ir-reportar-siniestro").assertDoesNotExist()
         compose.onNodeWithTag("ir-mis-siniestros").assertDoesNotExist()
+    }
+
+    // ── Pólizas (WEB-F04) ────────────────────────────────────────────────────────────────────
+
+    /** La app con el mock y la sesión de la cuenta demo; cuenta cada `GET /polizas`. */
+    private fun conPolizas(): Pair<NavHostController, () -> Int> {
+        var token: String? = null
+        var consultas = 0
+        val contador = Interceptor { cadena ->
+            if (cadena.request().url.encodedPath.endsWith("/polizas")) consultas += 1
+            cadena.proceed(cadena.request())
+        }
+        val api = NetworkClient.create(
+            BuildConfig.BASE_URL,
+            listOf(contador, DebugMockInterceptor(MockBffMovil { Instant.parse("2026-11-15T15:00:00Z") })),
+            tokenAcceso = { token },
+        )
+        token = runBlocking { api.iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO)).tokenAcceso }
+        val dependencias = DependenciasPolizas(
+            api = api,
+            documentos = { _, _ -> error("no se descarga en esta prueba") },
+            urlCotizacion = "https://web.prueba/cotizacion",
+        )
+        lateinit var nav: NavHostController
+        compose.setContent {
+            nav = rememberNavController()
+            SolventaTheme { SolventaApp(dependenciasPolizas = dependencias, navController = nav) }
+        }
+        return nav to { consultas }
+    }
+
+    @Test
+    fun `la pestana Polizas muestra las del cliente y la tarjeta abre el detalle de ese numero`() {
+        val (nav, _) = conPolizas()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("poliza-POL-2026-001101")
+        compose.onNodeWithTag("screen-policies").assertDoesNotExist()
+
+        compose.onNodeWithTag("poliza-POL-2026-001101").performClick()
+
+        esperar("encabezado")
+        assertEquals(RUTA_DETALLE_POLIZA, nav.currentDestination?.route)
+        assertEquals("POL-2026-001101", nav.currentBackStackEntry?.arguments?.getString("numero"))
+        compose.onNodeWithText("Seguro de Auto — Plan Full").assertIsDisplayed()
+        compose.onNode(tab("Pólizas")).assertIsSelected()
+
+        compose.onNodeWithContentDescription("Volver").performClick()
+        esperar("pantalla-mis-polizas")
+        assertEquals(TopLevelDestination.POLICIES.route, nav.currentDestination?.route)
+    }
+
+    @Test
+    fun `entrar de nuevo a la pestana vuelve a consultar y volver del detalle no`() {
+        val (_, consultas) = conPolizas()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("poliza-POL-2026-001101")
+        assertEquals(1, consultas())
+
+        compose.onNodeWithTag("poliza-POL-2026-001101").performClick()
+        esperar("encabezado")
+        compose.onNodeWithContentDescription("Volver").performClick()
+        esperar("pantalla-mis-polizas")
+        assertEquals("volver del detalle no consulta", 1, consultas())
+
+        compose.onNode(tab("Inicio")).performClick()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("poliza-POL-2026-001101")
+        compose.waitForIdle()
+        assertEquals("entrar desde la barra consulta otra vez", 2, consultas())
+    }
+
+    @Test
+    fun `tocar Polizas desde el detalle vuelve a la lista`() {
+        val (nav, _) = conPolizas()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("poliza-POL-2026-001101")
+        compose.onNodeWithTag("poliza-POL-2026-001101").performClick()
+        esperar("encabezado")
+
+        compose.onNode(tab("Pólizas")).performClick()
+
+        esperar("pantalla-mis-polizas")
+        assertEquals(TopLevelDestination.POLICIES.route, nav.currentDestination?.route)
+    }
+
+    @Test
+    fun `la ruta del detalle abre la poliza aunque se llegue directo y volver abre la lista`() {
+        val (nav, _) = conPolizas()
+        compose.runOnUiThread { nav.navigate(rutaDetallePoliza("POL-2026-001104")) }
+
+        esperar("encabezado")
+        compose.onNodeWithText("Seguro de hogar").assertIsDisplayed()
+        compose.onNode(tab("Pólizas")).assertIsSelected()
+        compose.onNodeWithContentDescription("Volver").performClick()
+        compose.waitForIdle()
+        assertEquals(TopLevelDestination.POLICIES.route, nav.currentDestination?.route)
     }
 
     private fun tab(label: String): SemanticsMatcher = isSelectable() and hasText(label)

@@ -19,6 +19,7 @@ import co.solventa.feature.onboarding.ingreso.RutaIngreso
 import co.solventa.feature.onboarding.otp.RutaOtp
 import co.solventa.feature.onboarding.registro.RutaRegistro
 import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.polizas.DependenciasPolizas
 import co.solventa.feature.siniestros.DependenciasSiniestros
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -28,6 +29,7 @@ fun SolventaRaiz(
     dependencias: DependenciasOnboarding,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
     dependenciasSiniestros: DependenciasSiniestros? = null,
+    dependenciasPolizas: DependenciasPolizas? = null,
 ) {
     val nav = rememberNavController()
     val sesion = dependencias.sesion
@@ -77,6 +79,7 @@ fun SolventaRaiz(
                 identidadVerificada = sesion.identidadVerificada,
                 dependenciasConsentimiento = dependenciasConsentimiento,
                 dependenciasSiniestros = dependenciasSiniestros,
+                dependenciasPolizas = dependenciasPolizas,
                 // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
                 onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
                 avisoBiometriaDesactivada = sesion.biometriaDesactivada,

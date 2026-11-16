@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- El PDF de la póliza (WEB-F04) se guarda en cacheDir/polizas y se abre con el visor del sistema,
+             con permiso de lectura temporal: sin permisos de almacenamiento. -->
+        <provider
+            android:name="co.solventa.feature.polizas.detalle.ProveedorDocumentos"
+            android:authorities="${applicationId}.polizas.documentos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/documentos_polizas" />
+        </provider>
+    </application>
+</manifest>

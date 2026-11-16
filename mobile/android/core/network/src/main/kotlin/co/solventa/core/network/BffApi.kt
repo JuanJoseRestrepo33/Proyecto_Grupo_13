@@ -6,6 +6,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -13,6 +14,7 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Streaming
 import retrofit2.http.Tag
 
 // Cliente del contrato contratos/bff-movil/openapi.yaml. Las rutas son relativas al prefijo
@@ -63,11 +65,28 @@ interface BffApi {
     @POST("consentimientos/{id}/renovacion")
     suspend fun renovarConsentimiento(@Path("id") idConsentimiento: String): Consentimiento
 
-    // ── Siniestros (WEB-F05) ───────────────────────────────────────────────────────────────────
-    // Contrato bff-movil 0.3.0 (#168); las mismas rutas y códigos que la web.
+    // ── Pólizas (WEB-F04 y WEB-F05) ────────────────────────────────────────────────────────────
+    // `GET /polizas` entró con el reporte (0.3.0, #168) y lo usan el asistente y «Mis pólizas»; el
+    // detalle y el documento, con WEB-F04 (0.6.0, #188). Una póliza de otro cliente responde 404
+    // `poliza_no_encontrada`, igual que una que no existe.
 
+    /** Pólizas del cliente, de la más reciente a la más antigua. */
     @GET("polizas")
     suspend fun listarPolizas(): List<PolizaResumen>
+
+    @GET("polizas/{numero}")
+    suspend fun obtenerPoliza(@Path("numero") numero: String): PolizaDetalle
+
+    /**
+     * El PDF de la póliza, con la sesión del cliente (el almacén es privado). Sin documento responde 404
+     * `documento_no_disponible`. Quien llama cierra el cuerpo.
+     */
+    @Streaming
+    @GET("polizas/{numero}/documento")
+    suspend fun descargarDocumentoPoliza(@Path("numero") numero: String): ResponseBody
+
+    // ── Siniestros (WEB-F05) ───────────────────────────────────────────────────────────────────
+    // Contrato bff-movil 0.3.0 (#168); las mismas rutas y códigos que la web.
 
     // [duenio] ata la llamada a la cuenta que guardó el borrador (MOB-F05-02): InterceptorDuenio la
     // aborta si la sesión vigente es de otra. Las pantallas en línea no la pasan.

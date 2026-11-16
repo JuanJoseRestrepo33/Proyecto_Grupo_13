@@ -74,7 +74,7 @@ jobs:
         run: >-
           ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
           :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest
-          :feature:siniestros:testDebugUnitTest
+          :feature:siniestros:testDebugUnitTest :feature:polizas:testDebugUnitTest
           :app:testDebugUnitTest :koverXmlReport :koverVerify
       - name: Publicar cobertura en el resumen del pipeline
         if: always()
@@ -165,7 +165,12 @@ jobs:
         with:
           cache-read-only: true
       - name: Assemble debug contra staging
-        run: ./gradlew --no-daemon :app:assembleDebug -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
+        # WEB_URL (opcional): la web del ambiente, a la que «Cotizar un seguro» lleva desde Mis pólizas (WEB-F04).
+        env:
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: >-
+          ./gradlew --no-daemon :app:assembleDebug -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
+          ${WEB_URL:+-PWEB_URL="$WEB_URL"}
       - name: Resumen
         run: |
           {
