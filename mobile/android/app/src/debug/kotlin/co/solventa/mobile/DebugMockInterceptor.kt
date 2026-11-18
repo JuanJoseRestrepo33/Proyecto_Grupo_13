@@ -35,7 +35,7 @@ class DebugMockInterceptor(private val mock: MockBffMovil) : Interceptor {
             .code(respuesta.codigo)
             .message("Mock")
             .apply { respuesta.encabezados.forEach { (nombre, valor) -> header(nombre, valor) } }
-            .body(respuesta.cuerpo.toResponseBody("application/json".toMediaType()))
+            .body(respuesta.cuerpo.toResponseBody(respuesta.tipo.toMediaType()))
             .build()
     }
 

@@ -287,6 +287,12 @@ class BffFalso : BffApi {
 
     private fun RequestBody.texto() = Buffer().also(::writeTo).readUtf8()
 
+    override suspend fun obtenerPoliza(numero: String): co.solventa.core.network.PolizaDetalle =
+        error("no se usa en siniestros")
+
+    override suspend fun descargarDocumentoPoliza(numero: String): okhttp3.ResponseBody =
+        error("no se usa en siniestros")
+
     override suspend fun crearRegistro(solicitud: SolicitudRegistro): Registro = error("no se usa en siniestros")
 
     override suspend fun verificarOtp(idRegistro: String, solicitud: SolicitudOtp): Sesion =

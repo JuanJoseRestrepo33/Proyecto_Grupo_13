@@ -244,6 +244,12 @@ class BffFalso : BffApi {
 
     override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en consentimiento")
 
+    override suspend fun obtenerPoliza(numero: String): co.solventa.core.network.PolizaDetalle =
+        error("no se usa en consentimiento")
+
+    override suspend fun descargarDocumentoPoliza(numero: String): okhttp3.ResponseBody =
+        error("no se usa en consentimiento")
+
     override suspend fun reportarSiniestro(
         claveIdempotencia: String,
         solicitud: SolicitudSiniestro,

@@ -21,6 +21,8 @@ import co.solventa.feature.notificaciones.aperturaDe
 import co.solventa.feature.notificaciones.consumirApertura
 import co.solventa.feature.notificaciones.intentoApertura
 import co.solventa.feature.onboarding.DependenciasOnboarding
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.detalle.DocumentosPolizaAndroid
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
 import co.solventa.feature.onboarding.sesion.GestorSesion
@@ -60,6 +62,11 @@ class MainActivity : FragmentActivity() {
             almacen = proceso.almacenPush,
             aperturas = proceso.aperturas,
         )
+        val dependenciasPolizas = DependenciasPolizas(
+            api = proceso.bffApi,
+            documentos = DocumentosPolizaAndroid(applicationContext),
+            urlCotizacion = BuildConfig.WEB_URL + "cotizacion",
+        )
         recibirApertura(intent)
         setContent {
             SolventaTheme {
@@ -67,7 +74,8 @@ class MainActivity : FragmentActivity() {
                     dependencias,
                     dependenciasConsentimiento,
                     dependenciasSiniestros,
-                    dependenciasNotificaciones,
+                    dependenciasNotificaciones = dependenciasNotificaciones,
+                    dependenciasPolizas = dependenciasPolizas,
                 )
             }
         }

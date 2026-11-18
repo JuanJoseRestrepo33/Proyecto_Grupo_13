@@ -48,13 +48,16 @@ class MockSiniestrosTest {
     private fun Pair<Int, ErrorBff?>.clave() = first to second?.codigo
 
     @Test
-    fun `el cliente demo tiene una poliza vigente y una vencida con fechas relativas a hoy`() {
+    fun `las polizas del asistente conservan numero, producto y vigencia con los campos de WEB-F04`() {
         ingresar()
         val esperadas = listOf(
             PolizaResumen("POL-2026-001101", "auto", "2026-09-26", "2027-09-26", EstadoPoliza.VIGENTE),
             PolizaResumen("POL-2026-001102", "hogar", "2025-09-26", "2026-09-26", EstadoPoliza.VENCIDA),
         )
-        assertEquals(esperadas, polizas())
+        val sinCamposNuevos = polizas().map { it.copy(nombreProducto = null, primaMensual = null, documentoUrl = null) }
+        assertEquals(esperadas, sinCamposNuevos.filter { it.numero in setOf("POL-2026-001101", "POL-2026-001102") })
+        // La 101 sigue primero: la evidencia y el reporte toman la primera de la lista.
+        assertEquals("POL-2026-001101", polizas().first().numero)
     }
 
     @Test

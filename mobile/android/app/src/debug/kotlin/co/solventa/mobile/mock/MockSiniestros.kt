@@ -2,11 +2,9 @@ package co.solventa.mobile.mock
 
 import co.solventa.core.network.ErrorBff
 import co.solventa.core.network.ErrorCampo
-import co.solventa.core.network.EstadoPoliza
 import co.solventa.core.network.EstadoSiniestro
 import co.solventa.core.network.EventoSiniestro
 import co.solventa.core.network.NetworkClient
-import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.SiguientePaso
 import co.solventa.core.network.Siniestro
 import co.solventa.core.network.SiniestroDetalle
@@ -33,26 +31,17 @@ const val MARCA_RESPUESTA_PERDIDA = "#sin-respuesta"
 const val MARCA_LUEGO_404 = "#sin-respuesta-luego-404"
 
 private val DESCRIPCION = 10..2000
-private const val DIGITOS_CLIENTE = 3
 private const val ENCABEZADO = "Idempotency-Key"
-
-/** Plantillas de `POLIZAS_SEMILLA` en staging, con fechas relativas a hoy: cualquier cliente las tiene. */
-private data class PlantillaPoliza(val sufijo: Int, val producto: String, val desdeDias: Long, val hastaDias: Long)
-
-private val PLANTILLAS = listOf(
-    PlantillaPoliza(101, "auto", desdeDias = -30, hastaDias = 335),
-    PlantillaPoliza(102, "hogar", desdeDias = -395, hastaDias = -30),
-)
 
 /** [huella] es la solicitud ya limpia: la misma clave con otros datos es otro reporte. */
 private class ReporteMock(val huella: SolicitudSiniestro, val siniestro: Siniestro)
 
 /**
- * Pólizas y siniestros: `GET /polizas`, `POST /siniestros` con vigencia e idempotencia como el núcleo, y
+ * Siniestros: `POST /siniestros` con vigencia e idempotencia como el núcleo, y
  * el seguimiento (WEB-F06): `GET /siniestros` y `GET /siniestros/{id}` con historial y requerimientos.
  */
 @Suppress("TooManyFunctions")
-internal class MockSiniestros(private val estado: EstadoMock) {
+internal class MockSiniestros(private val estado: EstadoMock, private val polizas: MockPolizas) {
     private val reportes = mutableMapOf<Pair<String, String>, ReporteMock>()
     private val enviosPerdidos = mutableSetOf<String>()
     private var secuencia = 0
@@ -62,14 +51,10 @@ internal class MockSiniestros(private val estado: EstadoMock) {
 
     init {
         estado.cuentas[CORREO_DEMO]?.let { cuenta ->
-            val poliza = polizasDe(cuenta).first().numero
+            // La 101 (auto, vigente): la misma desde WEB-F05.
+            val poliza = polizas.polizasDe(cuenta).first { it.producto == "auto" }.numero
             siniestrosSembrados(poliza).forEach { detalles[it.id] = cuenta.id to it }
         }
-    }
-
-    fun polizas(autorizacion: String?): RespuestaMock {
-        val cuenta = estado.cuentaAutenticada(autorizacion) ?: return noAutenticado()
-        return respuesta(200, polizasDe(cuenta))
     }
 
     /** Mismo orden que el BFF y el núcleo: clave, datos, fecha futura, póliza, vigencia, idempotencia. */
@@ -87,7 +72,7 @@ internal class MockSiniestros(private val estado: EstadoMock) {
         if (ocurrido.isAfter(hoy())) {
             return fallo(422, "fecha_futura", listOf(ErrorCampo("ocurrido_el", "fecha_futura")))
         }
-        val poliza = polizasDe(cuenta).firstOrNull { it.numero == solicitud.numeroPoliza }
+        val poliza = polizas.polizasDe(cuenta).firstOrNull { it.numero == solicitud.numeroPoliza }
             ?: return fallo(404, "poliza_no_encontrada")
         if (MARCA_LUEGO_404 in solicitud.descripcion && claveValida in enviosPerdidos) {
             return fallo(404, "poliza_no_encontrada")
@@ -165,24 +150,6 @@ internal class MockSiniestros(private val estado: EstadoMock) {
             if ((solicitud.montoEstimado?.valor ?: 0) < 0) add(ErrorCampo("monto_estimado.valor", "invalido"))
         }
         return if (campos.isEmpty()) null else fallo(422, "solicitud_invalida", campos)
-    }
-
-    private fun polizasDe(cuenta: CuentaMock): List<PolizaResumen> {
-        if (cuenta.correo == CORREO_SIN_POLIZAS) return emptyList()
-        val hoy = hoy()
-        // Número propio por cliente, como las plantillas de staging: POL-2026-001101 para CLI-2026-000001.
-        val cliente = cuenta.id.takeLast(DIGITOS_CLIENTE)
-        return PLANTILLAS.map { plantilla ->
-            val inicio = hoy.plusDays(plantilla.desdeDias)
-            val fin = hoy.plusDays(plantilla.hastaDias)
-            PolizaResumen(
-                numero = "POL-2026-$cliente${plantilla.sufijo}",
-                producto = plantilla.producto,
-                inicio = inicio.toString(),
-                fin = fin.toString(),
-                estado = if (fin.isBefore(hoy)) EstadoPoliza.VENCIDA else EstadoPoliza.VIGENTE,
-            )
-        }
     }
 
     /** El núcleo compara con el día UTC. */

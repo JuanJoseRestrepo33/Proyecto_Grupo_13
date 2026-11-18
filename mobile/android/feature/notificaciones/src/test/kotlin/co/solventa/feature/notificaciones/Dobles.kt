@@ -10,6 +10,7 @@ import co.solventa.core.network.Evidencia
 import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.Notificacion
 import co.solventa.core.network.Otp
+import co.solventa.core.network.PolizaDetalle
 import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 
 /** Solo las rutas del push están programadas; las demás fallan si alguien las usa. */
 @Suppress("TooManyFunctions")
@@ -69,6 +71,8 @@ class BffFalso : BffApi {
     override suspend fun revocarConsentimiento(idConsentimiento: String): Consentimiento = noSeUsa()
     override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento = noSeUsa()
     override suspend fun listarPolizas(): List<PolizaResumen> = noSeUsa()
+    override suspend fun obtenerPoliza(numero: String): PolizaDetalle = noSeUsa()
+    override suspend fun descargarDocumentoPoliza(numero: String): ResponseBody = noSeUsa()
     override suspend fun reportarSiniestro(
         claveIdempotencia: String,
         solicitud: SolicitudSiniestro,

@@ -25,4 +25,5 @@ include(
     ":feature:consentimiento",
     ":feature:siniestros",
     ":feature:notificaciones",
+    ":feature:polizas",
 )

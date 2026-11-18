@@ -3,10 +3,11 @@ package co.solventa.mobile.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
+import co.solventa.feature.notificaciones.AvisoPermisoNotificaciones
 import co.solventa.feature.notificaciones.DependenciasNotificaciones
 import kotlinx.coroutines.flow.first
 
-// Navegación de MOB-F06: la notificación tocada abre el detalle del siniestro.
+// Navegación de MOB-F06: la notificación tocada abre el detalle del siniestro y Inicio explica el permiso.
 
 /**
  * Una notificación tocada abre el detalle de su siniestro (MOB-F06, criterio 2) y queda leída. Llega aquí
@@ -31,4 +32,23 @@ internal fun AbrirDesdeNotificacion(
         dependencias.receptor.marcarLeida(apertura.idNotificacion)
         dependencias.aperturas.atendida(apertura)
     }
+}
+
+/** Sin permiso, el estado se sigue viendo en «Mis siniestros» (MOB-F06, P20, criterio 3). */
+@Composable
+internal fun AvisoPermisoEnInicio(
+    destination: TopLevelDestination,
+    dependencias: DependenciasNotificaciones?,
+    conSiniestros: Boolean,
+    navController: NavHostController,
+) {
+    if (destination != TopLevelDestination.HOME || dependencias == null) return
+    AvisoPermisoNotificaciones(
+        almacen = dependencias.almacen,
+        onVerSiniestros = if (conSiniestros) {
+            { navController.navigate(RUTA_MIS_SINIESTROS) }
+        } else {
+            null
+        },
+    )
 }

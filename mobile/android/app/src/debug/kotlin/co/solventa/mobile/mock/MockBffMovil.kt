@@ -1,6 +1,7 @@
 package co.solventa.mobile.mock
 
 import co.solventa.core.network.ErrorBff
+import java.net.URLDecoder
 import java.time.Instant
 import kotlinx.serialization.SerializationException
 
@@ -15,6 +16,7 @@ private val RUTA_EVIDENCIAS = Regex("^siniestros/([^/]+)/evidencias$")
 private val RUTA_SINIESTRO = Regex("^siniestros/([^/]+)$")
 private val RUTA_DISPOSITIVO = Regex("^dispositivos/([^/]+)$")
 private val RUTA_LECTURA = Regex("^notificaciones/([^/]+)/lectura$")
+private val RUTA_POLIZA = Regex("^polizas/([^/]+)(/documento)?$")
 
 /**
  * Implementación en memoria de contratos/bff-movil/openapi.yaml para el build debug.
@@ -26,7 +28,8 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
     private val sesiones = MockSesiones(estado)
     private val identidad = MockIdentidad(estado)
     private val consentimiento = MockConsentimiento(estado)
-    private val siniestros = MockSiniestros(estado)
+    private val polizas = MockPolizas(estado)
+    private val siniestros = MockSiniestros(estado, polizas)
     private val evidencias = MockEvidencias(estado, siniestros)
     private val notificaciones = MockNotificaciones(estado)
 
@@ -81,7 +84,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         "GET consentimientos/finalidades" -> consentimiento.finalidades(autorizacion)
         "GET consentimientos" -> consentimiento.listar(autorizacion)
         "POST consentimientos" -> consentimiento.otorgar(autorizacion, cuerpo)
-        "GET polizas" -> siniestros.polizas(autorizacion)
+        "GET polizas" -> polizas.listar(autorizacion)
         "POST siniestros" -> siniestros.reportar(autorizacion, cuerpo, claveIdempotencia)
         "GET siniestros" -> siniestros.listar(autorizacion)
         else -> null
@@ -104,6 +107,10 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         if (evidencia != null && metodo == "GET") return evidencias.listar(autorizacion, evidencia)
         val siniestro = RUTA_SINIESTRO.matchEntire(ruta)?.groupValues?.get(1)
         if (siniestro != null && metodo == "GET") return siniestros.detalle(autorizacion, siniestro)
+        val poliza = RUTA_POLIZA.matchEntire(ruta)?.groupValues
+        if (poliza != null && metodo == "GET") {
+            return enrutarPoliza(autorizacion, poliza[1], documento = poliza[2].isNotEmpty())
+        }
         return enrutarPush(metodo, ruta, cuerpo, autorizacion) ?: fallo(404, "ruta_no_simulada")
     }
 
@@ -118,6 +125,12 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
             metodo == "POST" && lectura != null -> notificaciones.marcarLeida(autorizacion, lectura)
             else -> null
         }
+    }
+
+    /** El número llega codificado en la ruta (`Uri.encode`), como el `id` del siniestro. */
+    private fun enrutarPoliza(autorizacion: String?, codificado: String, documento: Boolean): RespuestaMock {
+        val numero = URLDecoder.decode(codificado, Charsets.UTF_8.name())
+        return if (documento) polizas.documento(autorizacion, numero) else polizas.detalle(autorizacion, numero)
     }
 
     private fun enrutarOtp(metodo: String, id: String, accion: String, cuerpo: String): RespuestaMock {
