@@ -87,6 +87,7 @@ dependencies {
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:consentimiento"))
     implementation(project(":feature:siniestros"))
+    implementation(project(":feature:notificaciones"))
     implementation(project(":feature:polizas"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

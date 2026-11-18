@@ -109,31 +109,42 @@ Cuando estés conforme, pulsa **Aceptar oferta**. Para empezar otra, pulsa **Cot
 
 ## 5. Comprar y recibir tu póliza
 
-Desde tu oferta, pulsa **Aceptar oferta**. Arriba verás las migas de pan (*Inicio / Cotizar / Suscripción*) para saber dónde estás y volver al cotizador cuando quieras. La suscripción tiene cuatro pasos:
+Desde tu oferta, pulsa **Aceptar oferta**. Arriba ves en qué paso vas (*paso 1 de 4*). La suscripción tiene cuatro pasos:
 
-1. **Revisar oferta.** Confirma el producto, la prima, las coberturas y cuánto tiempo le queda a la oferta. Pulsa **Aceptar y continuar al pago**. Si la oferta venció, pulsa **Volver a cotizar**. Verás la *Decisión de suscripción*: normalmente **Aprobada automáticamente**. Si dice **En revisión asistida**, un analista revisará tu caso (máximo 4 horas) y te avisaremos.
+1. **Revisar oferta.** Confirma el producto, la prima, las coberturas y el número de la cotización. Pulsa **Aceptar y continuar al pago**. Los precios se garantizan por 5 minutos: si la cotización venció, pulsa **Volver a cotizar**.
 
-   ![Decisión de suscripción](img/web-suscripcion-decision.png)
+   ![Revisar la oferta](img/web-staging-suscripcion-revisar.png)
 
-2. **Pago.** Elige **Tarjeta de crédito** o **PSE** y pulsa **Pagar**. Los datos de tu tarjeta o de tu cuenta los escribes en la pasarela de pagos; Solventa no los guarda. Mientras se procesa, el botón dice *Procesando pago…*: no cierres la ventana ni pulses de nuevo.
-   - **Pago aprobado:** verás la referencia de la transacción y seguirás con la firma.
+2. **Pago.** Elige **Tarjeta de crédito** o **PSE (débito a tu cuenta)** y pulsa **Pagar** con el monto. Los datos de tu tarjeta o de tu cuenta los escribes en la pasarela de pagos; Solventa no los guarda. Mientras se procesa, el botón dice *Procesando pago…*: no cierres la ventana ni pulses de nuevo.
+
+   ![Medio de pago](img/web-staging-suscripcion-pago.png)
+
+   - **Pago aprobado:** ves la referencia de la transacción. Pulsa **Continuar a la firma**.
    - **Pago rechazado:** te confirmamos que **no se hizo ningún cobro**. Pulsa **Intentar de nuevo**.
    - **Pago pendiente** (común con PSE): tu banco aún no confirma. No pagues otra vez; pulsa **Consultar estado del pago** en unos minutos.
    - Si se cae la conexión o pulsas dos veces, **nunca se te cobra dos veces**: al reintentar, te mostramos el pago que ya se había hecho.
-3. **Firma.** Pulsa **Firmar electrónicamente**, lee el resumen, acepta los términos y pulsa **Aceptar y firmar**.
-4. **Emisión.** Recibes el número de póliza, la vigencia y el documento en PDF.
 
-![Póliza emitida](img/web-suscripcion-emitida.png)
+   ![Pago aprobado](img/web-staging-suscripcion-pago-aprobado.png)
 
-Tu nueva póliza aparece de inmediato en **Mis pólizas** y en el inicio, marcada como *Nueva*.
+3. **Firma.** Revisa el producto y la prima, marca *Acepto los términos del contrato y autorizo mi firma electrónica* y pulsa **Firmar electrónicamente**. Mientras se firma, no cierres la ventana. Si el servicio de firma no responde, no se emite nada y puedes firmar de nuevo con seguridad.
+
+   ![Firma](img/web-staging-suscripcion-firma.png)
+
+4. **Emisión.** Ves **¡Póliza emitida!** con el número de póliza (como `POL-2026-000123`) y la vigencia. Pulsa **Descargar PDF** para guardar el documento, o **Ver mi póliza** para abrir su detalle.
+
+![Póliza emitida](img/web-staging-suscripcion-emitida.png)
+
+**Nunca se emite dos veces.** Si vuelves a abrir la suscripción de una póliza ya emitida, verás *Esta póliza ya estaba emitida. No se hizo otra firma ni otro cobro.* y la misma póliza.
 
 ## 6. Consultar tus pólizas
 
-![Mis pólizas](img/web-polizas.png)
+En el menú, pulsa **Mis pólizas**. La tabla muestra el número, el producto, el estado (*Vigente*, *Vencida* o *Por iniciar*), la prima mensual y la vigencia. La última póliza emitida aparece primero. Las pestañas filtran por estado: **Activas** (las vigentes, la pestaña inicial), **Vencidas** y **Ver todas**. Si todavía no tienes pólizas, pulsa **Cotizar un seguro**.
 
-Las pestañas separan pólizas **Activas**, **Vencidas / por vencer** y **Archivadas**. **Ver detalle** muestra vigencia, coberturas, forma de pago, historial de pagos y el PDF.
+![Mis pólizas](img/web-staging-polizas.png)
 
-![Detalle de póliza](img/web-poliza-detalle.png)
+**Ver detalle** abre la póliza: vigencia, prima mensual, fecha de emisión, valor asegurado, deducible y la tabla de coberturas con su límite asegurado. Son las mismas condiciones de la oferta que aceptaste. Pulsa **Descargar PDF** para el documento. Si una póliza no tiene documento, lo verás dicho (*El documento de esta póliza no está disponible.*) en lugar del botón; lo mismo con cualquier dato que falte, que aparece como *No disponible*.
+
+![Detalle de póliza](img/web-staging-poliza-detalle.png)
 
 ## 7. Modificar, renovar o cancelar una póliza
 
@@ -190,12 +201,21 @@ borra ni se reemplaza.
 
 ## 9. Seguir tus siniestros
 
-![Mis siniestros](img/web-siniestros.png)
+En el menú, pulsa **Mis siniestros**. La lista muestra cada caso con su referencia, la póliza, el tipo de evento, el canal donde lo reportaste (**Web** o **App**), el estado y el monto estimado. Los casos de la web y de la app aparecen juntos, con la misma referencia en los dos canales. Para reportar uno nuevo, pulsa **Reportar siniestro**.
 
-La lista muestra cada reclamo con su origen, estado y monto. **Ver** abre la línea de tiempo con cada etapa (recibido, validado, en evaluación, decisión y pago).
+![Mis siniestros](img/web-staging-siniestros.png)
 
-- **⚡ Automático (paramétrico):** algunos seguros pagan solos cuando ocurre un evento verificable, por ejemplo un vuelo con 3 horas o más de retraso. No tienes que reclamar; verás el evento detectado y el pago.
-- **💬 Chat en vivo:** habla con un asesor sobre tu caso.
+Los estados son *Reportado*, *En evaluación*, *Requiere información*, *Aprobado*, *Rechazado* y *Pagado*.
+
+**Ver** abre el detalle del caso:
+
+- **Línea de tiempo:** cada cambio de estado con su fecha, empezando por el reporte. El último es el estado actual.
+- **Resumen:** la fecha del evento, la descripción, el monto estimado, el canal, el último cambio y el siguiente paso.
+- **Requerimientos:** lo que el analista te pidió para seguir evaluando, por ejemplo una factura. Cada uno dice si está *Pendiente*, *Atendido* o *Cerrado sin respuesta*. Para responder uno pendiente, elige el archivo y pulsa **Enviar respuesta**. Verás *enviamos tu respuesta* y el caso se actualiza.
+
+En la lista y en el detalle, pulsa **Actualizar** para traer lo último: un cambio que haga el analista, o una respuesta que enviaste desde la app, se ve al actualizar.
+
+![Detalle del siniestro](img/web-staging-siniestro-detalle.png)
 
 ## 10. Oferta de vida hipotecario
 

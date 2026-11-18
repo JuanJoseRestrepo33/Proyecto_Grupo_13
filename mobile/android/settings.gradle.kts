@@ -17,4 +17,13 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Solventa"
-include(":app", ":core:network", ":core:designsystem", ":feature:onboarding", ":feature:consentimiento", ":feature:siniestros", ":feature:polizas")
+include(
+    ":app",
+    ":core:network",
+    ":core:designsystem",
+    ":feature:onboarding",
+    ":feature:consentimiento",
+    ":feature:siniestros",
+    ":feature:notificaciones",
+    ":feature:polizas",
+)

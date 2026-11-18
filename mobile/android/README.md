@@ -16,7 +16,7 @@ Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :koverXmlReport :koverVerify
 ./gradlew :koverHtmlReport
 ./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
@@ -55,6 +55,9 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/siniestros`: **WEB-F05**, **MOB-F05** y **WEB-F06** en la app. Asistente de reporte (póliza,
   información, evidencia, revisión) con envío idempotente, y «Mis siniestros» con el detalle del caso y la
   respuesta a requerimientos; los dos se abren desde Inicio. Ver [su README](feature/siniestros/README.md).
+- `feature/notificaciones`: **MOB-F06**. Push del siniestro con el proveedor simulado: registro del
+  dispositivo, lectura de la bandeja, notificación local que abre el detalle del siniestro y aviso del
+  permiso con alternativa (P20). Ver [su README](feature/notificaciones/README.md).
 - `feature/polizas`: **WEB-F04** en la app. «Mis pólizas» en la pestaña Pólizas (Activas, Vencidas y
   Todas) y el detalle con coberturas, deducible, límites y el PDF de la póliza. Ver
   [su README](feature/polizas/README.md).
@@ -229,6 +232,7 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Rechazo tras un intento incierto (MOB-F05-02) | Descripción con `#sin-respuesta-luego-404`: el primer envío registra y agota el tiempo, el siguiente responde 404 `poliza_no_encontrada`, y la app concilia con `GET /siniestros` (M10) |
 | Seguimiento (WEB-F06) | `ana@ejemplo.co` tiene un caso en cada estado (`SIN-2026-000901` a `000906`, fechas fijas): `requiere_informacion` con un requerimiento pendiente, `aprobado` con uno atendido, `rechazado` con uno cerrado sin respuesta y `reportado` sin monto ni cambios. Los reportados en la sesión también tienen detalle. `sinpolizas@ejemplo.co` no tiene siniestros |
 | Responder un requerimiento | «Responder» en el caso que requiere información: queda atendido; otra respuesta recibe 409 `requerimiento_ya_atendido`. Un caso rechazado o pagado responde 409 `siniestro_cerrado`. Con lugar `#perdida` la respuesta se pierde y la app concilia antes de reenviar |
+| Push del siniestro (MOB-F06) | `ana@ejemplo.co`: 20 s después de registrar el dispositivo (al iniciar sesión), la bandeja trae «Tu siniestro SIN-2026-000902 cambió»; la app lo muestra en la lectura siguiente (cada 30 s o al volver a la app) y tocarlo abre ese caso. Con el permiso negado, Inicio explica y ofrece «Ver mis siniestros». Las demás cuentas tienen la bandeja vacía |
 | Reporte sin conexión (MOB-F05-02) | Modo avión en el emulador: el mock no simula la falta de red; en las pruebas JVM se usa un `MonitorConectividad` falso |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
@@ -291,6 +295,37 @@ y las credenciales del environment `staging`, que solo admite esa rama. No corre
 publica artefactos porque los resultados del runner podrían incluir los argumentos de instrumentación.
 Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
 estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
+
+#### El cambio de estado se ve en la app (WEB-F06, #202)
+
+`SeguimientoE2eTest` reporta un caso por el BFF web (`BffWeb.reportar`, sin la UI de la web) con una marca
+única y la póliza `POL-STG-AUTO-…` vigente de la cuenta. Luego inicia sesión en la app y comprueba en «Mis
+siniestros» que la tarjeta `siniestro-<id>` tiene la misma referencia, «Reportado» y el canal Web. Pasa el
+caso a `en_evaluacion` con la operación interna del núcleo (`NucleoInterno`, `POST /v1/siniestros/{id}/estado`
+con `X-Token-Interno`), toca «Actualizar» y ve «En evaluación» en la tarjeta. En el detalle comprueba la insignia
+y el historial (dos eventos con su fecha, solo el último resaltado). Con la app en el detalle pasa el caso a
+`requiere_informacion` con un requerimiento, actualiza y comprueba el tercer evento, el requerimiento
+«Pendiente» con «Responder» y el siguiente paso. Si un paso falla, el error dice cuál («Paso «6 · actualizar la
+lista»: …») y solo lista etiquetas de la pantalla, nunca textos ni credenciales.
+
+Necesita dos argumentos más, además de `correo` y `clave`: `nucleo`, la URL de `solventa-nucleo` sin `/v1`,
+y `tokenInterno`, el valor del secreto `siniestros-token-interno`. Sin ellos la prueba falla en el `@Before`,
+no se omite. Para correr solo esta clase en local:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PBFF_MOCK=false \
+  -PBFF_BASE_URL=https://<solventa-bff>/api/v1/movil/ \
+  -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" \
+  -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" \
+  -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" \
+  -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" \
+  -Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.SeguimientoE2eTest
+```
+
+En CI, el job `e2e-emulador` toma la variable `NUCLEO_URL` y el secreto `SINIESTROS_TOKEN_INTERNO` del
+environment `staging` (los mismos nombres que el E2E web de #201). Su primer paso nombra cada variable o
+secreto que falte y deja el job en rojo. El plan B, si el emulador no queda estable, es el del issue: dos
+recorridos a mano grabados y adjuntos a #195, nunca con el token.
 
 #### Reporte sin conexión (MOB-F05-02, #213)
 
