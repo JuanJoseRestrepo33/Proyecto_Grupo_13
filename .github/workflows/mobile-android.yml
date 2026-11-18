@@ -189,7 +189,7 @@ jobs:
           retention-days: 14
 
   e2e-emulador:
-    # Pruebas instrumentadas contra staging (WEB-F05, #172; WEB-F06, #202). A mano, porque necesitan
+    # Pruebas instrumentadas contra staging (WEB-F05, #172; WEB-F06, #202; MOB-F06, #209). A mano, porque necesitan
     # Cloud SQL encendida, y solo en develop, la rama que admite el environment staging. Un fork no puede lanzarlo.
     name: Android · E2E en emulador contra staging
     needs: android
@@ -208,7 +208,8 @@ jobs:
       BFF_BASE_URL: ${{ vars.BFF_BASE_URL }}
       E2E_CORREO: ${{ secrets.HUMO_CORREO }}
       E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
-      # SeguimientoE2eTest (WEB-F06, #202) cambia el estado del caso con la operación interna del núcleo.
+      # SeguimientoE2eTest (WEB-F06, #202) y PushSiniestroE2eTest (MOB-F06, #209) cambian el estado del caso
+      # con la operación interna del núcleo.
       # Mismos nombres que el E2E web de seguimiento (#201).
       NUCLEO_URL: ${{ vars.NUCLEO_URL }}
       E2E_TOKEN_INTERNO: ${{ secrets.SINIESTROS_TOKEN_INTERNO }}
