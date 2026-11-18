@@ -14,6 +14,8 @@ private val RUTA_CON_ACCION = Regex(
 )
 private val RUTA_EVIDENCIAS = Regex("^siniestros/([^/]+)/evidencias$")
 private val RUTA_SINIESTRO = Regex("^siniestros/([^/]+)$")
+private val RUTA_DISPOSITIVO = Regex("^dispositivos/([^/]+)$")
+private val RUTA_LECTURA = Regex("^notificaciones/([^/]+)/lectura$")
 private val RUTA_POLIZA = Regex("^polizas/([^/]+)(/documento)?$")
 
 /**
@@ -29,6 +31,7 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
     private val polizas = MockPolizas(estado)
     private val siniestros = MockSiniestros(estado, polizas)
     private val evidencias = MockEvidencias(estado, siniestros)
+    private val notificaciones = MockNotificaciones(estado)
 
     /**
      * @param ruta relativa al prefijo del BFF, sin "/" inicial (p. ej. "registros").
@@ -108,7 +111,20 @@ class MockBffMovil(reloj: () -> Instant = Instant::now) {
         if (poliza != null && metodo == "GET") {
             return enrutarPoliza(autorizacion, poliza[1], documento = poliza[2].isNotEmpty())
         }
-        return fallo(404, "ruta_no_simulada")
+        return enrutarPush(metodo, ruta, cuerpo, autorizacion) ?: fallo(404, "ruta_no_simulada")
+    }
+
+    /** Push del siniestro (MOB-F06). */
+    private fun enrutarPush(metodo: String, ruta: String, cuerpo: String, autorizacion: String?): RespuestaMock? {
+        val dispositivo = RUTA_DISPOSITIVO.matchEntire(ruta)?.groupValues?.get(1)
+        val lectura = RUTA_LECTURA.matchEntire(ruta)?.groupValues?.get(1)
+        return when {
+            metodo == "POST" && ruta == "dispositivos" -> notificaciones.registrar(autorizacion, cuerpo)
+            metodo == "GET" && ruta == "notificaciones" -> notificaciones.listar(autorizacion)
+            metodo == "DELETE" && dispositivo != null -> notificaciones.darDeBaja(autorizacion, dispositivo)
+            metodo == "POST" && lectura != null -> notificaciones.marcarLeida(autorizacion, lectura)
+            else -> null
+        }
     }
 
     /** El número llega codificado en la ruta (`Uri.encode`), como el `id` del siniestro. */

@@ -8,6 +8,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
@@ -136,6 +137,31 @@ interface BffApi {
         @Path("id") idSiniestro: String,
         @Tag duenio: DuenioSolicitud? = null,
     ): List<Evidencia>
+
+    // ── Push del siniestro (MOB-F06) ───────────────────────────────────────────────────────────
+    // El proveedor es simulado: la app registra el dispositivo, lee la bandeja y muestra cada
+    // notificación nueva como notificación local (ver "Push" en el contrato).
+
+    /** Idempotente por token: 201 si es nuevo, 200 si ya estaba (queda con esta cuenta). */
+    @POST("dispositivos")
+    suspend fun registrarDispositivo(@Body solicitud: SolicitudDispositivo): Dispositivo
+
+    /**
+     * Al cerrar sesión la sesión ya no está: [autorizacion] lleva el token que tenía (`Bearer …`). Sin él,
+     * la llamada usa el de la sesión vigente.
+     */
+    @DELETE("dispositivos/{id}")
+    suspend fun darDeBajaDispositivo(
+        @Path("id") idDispositivo: String,
+        @Header("Authorization") autorizacion: String? = null,
+    )
+
+    /** De la más reciente a la más antigua. */
+    @GET("notificaciones")
+    suspend fun listarNotificaciones(): List<Notificacion>
+
+    @POST("notificaciones/{id}/lectura")
+    suspend fun marcarNotificacionLeida(@Path("id") idNotificacion: String)
 }
 
 fun parteArchivo(archivo: File, nombre: String, tipoContenido: String): MultipartBody.Part =

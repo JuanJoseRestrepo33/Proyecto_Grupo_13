@@ -74,7 +74,8 @@ jobs:
         run: >-
           ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
           :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest
-          :feature:siniestros:testDebugUnitTest :feature:polizas:testDebugUnitTest
+          :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest
+          :feature:polizas:testDebugUnitTest
           :app:testDebugUnitTest :koverXmlReport :koverVerify
       - name: Publicar cobertura en el resumen del pipeline
         if: always()

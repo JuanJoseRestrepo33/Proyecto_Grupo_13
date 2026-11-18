@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import co.solventa.core.network.Cliente
 import co.solventa.core.network.EstadoIdentidad
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.notificaciones.DependenciasNotificaciones
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.RutaOfertaBiometria
 import co.solventa.feature.onboarding.biometria.debeOfrecerBiometria
@@ -29,6 +30,7 @@ fun SolventaRaiz(
     dependencias: DependenciasOnboarding,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
     dependenciasSiniestros: DependenciasSiniestros? = null,
+    dependenciasNotificaciones: DependenciasNotificaciones? = null,
     dependenciasPolizas: DependenciasPolizas? = null,
 ) {
     val nav = rememberNavController()
@@ -79,12 +81,13 @@ fun SolventaRaiz(
                 identidadVerificada = sesion.identidadVerificada,
                 dependenciasConsentimiento = dependenciasConsentimiento,
                 dependenciasSiniestros = dependenciasSiniestros,
+                dependenciasNotificaciones = dependenciasNotificaciones,
                 dependenciasPolizas = dependenciasPolizas,
                 // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
                 onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
                 avisoBiometriaDesactivada = sesion.biometriaDesactivada,
                 onAvisoAtendido = sesion::avisoBiometriaAtendido,
-                onCerrarSesion = sesion::cerrar,
+                onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones) },
             )
         }
     }
@@ -102,6 +105,12 @@ private fun VolverAlIngresoAlVencer(sesion: GestorSesion, nav: NavHostController
             nav.reiniciarEn(RutasEntrada.INGRESO)
         }
     }
+}
+
+/** La baja del dispositivo usa el token de la sesión: va antes de olvidarla (MOB-F06). */
+private fun cerrarSesion(sesion: GestorSesion, notificaciones: DependenciasNotificaciones?) {
+    notificaciones?.receptor?.darDeBaja()
+    sesion.cerrar()
 }
 
 /** Un cliente sin identidad verificada ve primero el estado de su verificación. */

@@ -52,6 +52,7 @@ import androidx.navigation.navArgument
 import co.solventa.core.designsystem.SolventaSpacing
 import co.solventa.feature.consentimiento.DependenciasConsentimiento
 import co.solventa.feature.consentimiento.RutaConsentimiento
+import co.solventa.feature.notificaciones.DependenciasNotificaciones
 import co.solventa.feature.polizas.DependenciasPolizas
 import co.solventa.feature.polizas.lista.RutaMisPolizas
 import co.solventa.feature.siniestros.DependenciasSiniestros
@@ -70,12 +71,14 @@ import co.solventa.mobile.R
  * requieren identidad verificada quedan fuera de alcance (MOB-F01, criterio 1).
  * @param dependenciasConsentimiento con ellas, Perfil da acceso al consentimiento (MOB-F02).
  * @param dependenciasSiniestros con ellas, Inicio da acceso al reporte de siniestros (WEB-F05).
+ * @param dependenciasNotificaciones con ellas, Inicio explica el permiso de notificaciones y una
+ * notificación tocada abre el detalle de su siniestro (MOB-F06).
  * @param dependenciasPolizas con ellas, la pestaña Pólizas muestra las del cliente (WEB-F04).
  * @param onSesionVencida flujo de sesión al que se delega un 401 del BFF.
  * @param avisoBiometriaDesactivada el token rotado no se pudo guardar: se avisa que la huella se
  * desactivó y [onAvisoAtendido] lo consume.
  * @param onCerrarSesion con él, Perfil ofrece cerrar sesión; si hay borradores sin enviar, avisa (M13).
- * @param navController las pruebas lo pasan para abrir una ruta directamente, como hará el push (#204).
+ * @param navController las pruebas lo pasan para abrir una ruta directamente.
  */
 @Suppress("LongMethod")
 @Composable
@@ -83,6 +86,7 @@ fun SolventaApp(
     identidadVerificada: Boolean = true,
     dependenciasConsentimiento: DependenciasConsentimiento? = null,
     dependenciasSiniestros: DependenciasSiniestros? = null,
+    dependenciasNotificaciones: DependenciasNotificaciones? = null,
     dependenciasPolizas: DependenciasPolizas? = null,
     onSesionVencida: () -> Unit = {},
     avisoBiometriaDesactivada: Boolean = false,
@@ -94,6 +98,7 @@ fun SolventaApp(
     val selected = TopLevelDestination.fromRoute(backStackEntry?.destination?.route)
     val avisos = remember { SnackbarHostState() }
     AvisoBiometriaDesactivada(avisos, avisoBiometriaDesactivada, onAvisoAtendido)
+    AbrirDesdeNotificacion(dependenciasNotificaciones, abrirSiniestros = dependenciasSiniestros != null, navController)
     // Sube cada vez que el cliente toca Pólizas en la barra: «Mis pólizas» se vuelve a consultar (WEB-F04,
     // §2). Sobrevive a la rotación, que no debe consultar (criterio 11).
     var entradasPolizas by rememberSaveable { mutableIntStateOf(0) }
@@ -129,6 +134,12 @@ fun SolventaApp(
                         reporteBloqueado = sinConfirmar,
                     )
                     PlaceholderScreen(destination, avisoIdentidad = aviso, accion = accion) {
+                        AvisoPermisoEnInicio(
+                            destination,
+                            dependenciasNotificaciones,
+                            conSiniestros = dependenciasSiniestros != null,
+                            navController,
+                        )
                         if (destination == TopLevelDestination.HOME && dependenciasSiniestros != null) {
                             // WEB-F06: el seguimiento, junto a «Reportar siniestro».
                             OutlinedButton(
@@ -279,7 +290,7 @@ internal const val RUTA_MIS_SINIESTROS = "home/siniestros"
 
 /**
  * El detalle lleva un segmento propio (`detalle`) para no chocar con `home/siniestros/reporte` ni con
- * `home/siniestros/borradores/{borrador}`. El push de MOB-F06 (#204) abrirá esta misma ruta.
+ * `home/siniestros/borradores/{borrador}`. El push de MOB-F06 abre esta misma ruta.
  */
 internal const val RUTA_DETALLE_SINIESTRO = "home/siniestros/detalle/{${DetalleSiniestroViewModel.ARGUMENTO_ID}}"
 

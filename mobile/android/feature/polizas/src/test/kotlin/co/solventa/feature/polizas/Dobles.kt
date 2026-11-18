@@ -6,12 +6,14 @@ import co.solventa.core.network.Cobertura
 import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.Credenciales
 import co.solventa.core.network.Dinero
+import co.solventa.core.network.Dispositivo
 import co.solventa.core.network.DuenioSolicitud
 import co.solventa.core.network.ErrorBff
 import co.solventa.core.network.EstadoPoliza
 import co.solventa.core.network.Evidencia
 import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
+import co.solventa.core.network.Notificacion
 import co.solventa.core.network.Otp
 import co.solventa.core.network.PolizaDetalle
 import co.solventa.core.network.PolizaResumen
@@ -20,6 +22,7 @@ import co.solventa.core.network.Sesion
 import co.solventa.core.network.Siniestro
 import co.solventa.core.network.SiniestroDetalle
 import co.solventa.core.network.SolicitudConsentimiento
+import co.solventa.core.network.SolicitudDispositivo
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
@@ -192,6 +195,15 @@ class BffFalso : BffApi {
 
     override suspend fun listarEvidencias(idSiniestro: String, duenio: DuenioSolicitud?): List<Evidencia> =
         error(NO_SE_USA)
+
+    // Push (MOB-F06): lo prueba feature/notificaciones.
+    override suspend fun registrarDispositivo(solicitud: SolicitudDispositivo): Dispositivo = error(NO_SE_USA)
+
+    override suspend fun darDeBajaDispositivo(idDispositivo: String, autorizacion: String?) = error(NO_SE_USA)
+
+    override suspend fun listarNotificaciones(): List<Notificacion> = error(NO_SE_USA)
+
+    override suspend fun marcarNotificacionLeida(idNotificacion: String) = error(NO_SE_USA)
 
     private companion object {
         const val NO_SE_USA = "no se usa en pólizas"
