@@ -111,4 +111,6 @@ dependencies {
     androidTestImplementation(libs.androidx.test.junit)
     // UiDevice.pressHome(): el recorrido 2 de ReporteSinConexionE2eTest manda la app a segundo plano (#213).
     androidTestImplementation(libs.androidx.test.uiautomator)
+    // Intercepta el ACTION_VIEW del PDF: el emulador puede no tener visor (ConsultaPolizaE2eTest, #193).
+    androidTestImplementation(libs.androidx.test.espresso.intents)
 }

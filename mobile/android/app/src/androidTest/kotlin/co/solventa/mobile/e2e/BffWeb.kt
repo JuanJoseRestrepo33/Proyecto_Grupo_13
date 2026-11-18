@@ -115,13 +115,60 @@ internal class BffWeb(private val raiz: String) {
         enviar("consentimientos/$id/revocacion", cookie, JSONObject())
     }
 
-    /** Cotiza el seguro de auto con Open Finance; la tarifa depende del consentimiento vigente. */
-    fun cotizarAuto(cookie: String): JSONObject {
+    /**
+     * Cotiza el seguro de auto con Open Finance; la tarifa depende del consentimiento vigente. El núcleo
+     * reutiliza la cotización vigente de una solicitud idéntica: quien vaya a comprar usa una [ciudad] única.
+     */
+    fun cotizarAuto(cookie: String, ciudad: String = "Bogotá"): JSONObject {
         val cuerpo = JSONObject()
             .put("producto", "auto")
-            .put("asegurado", JSONObject().put("edad", EDAD).put("ciudad", "Bogotá"))
+            .put("asegurado", JSONObject().put("edad", EDAD).put("ciudad", ciudad))
             .put("usar_open_finance", true)
         return JSONObject(enviar("cotizaciones", cookie, cuerpo))
+    }
+
+    /** Acepta la cotización (WEB-F03) y devuelve la suscripción. */
+    fun suscribir(cookie: String, cotizacionId: String): JSONObject =
+        JSONObject(enviar("suscripciones", cookie, JSONObject().put("cotizacion_id", cotizacionId)))
+
+    /**
+     * Paga con tarjeta de crédito, que la pasarela simulada aprueba. [clave] es la `Idempotency-Key` de
+     * esta compra: un reintento la reenvía igual y el núcleo no cobra dos veces (P18).
+     */
+    fun pagar(cookie: String, suscripcionId: String, clave: String): JSONObject {
+        val ruta = "suscripciones/$suscripcionId/pagos"
+        val cuerpo = JSONObject().put("medio", "tarjeta_credito")
+        var ultimo: Exception? = null
+        repeat(INTENTOS_PAGO) {
+            try {
+                return JSONObject(enviar(ruta, cookie, cuerpo, mapOf("Idempotency-Key" to clave)))
+            } catch (error: IOException) {
+                ultimo = error
+            } catch (error: FalloBff) {
+                // 409 pago_en_curso o un 5xx: el mismo intento, con la misma clave.
+                if (error.codigo != HTTP_CONFLICTO && error.codigo < HTTP_ERROR_SERVIDOR) throw error
+                ultimo = error
+            }
+            Thread.sleep(PAUSA_PAGO_MS)
+        }
+        throw checkNotNull(ultimo)
+    }
+
+    /** Firma con las condiciones aceptadas y devuelve la suscripción `emitida`, con su `poliza`. */
+    fun firmar(cookie: String, suscripcionId: String): JSONObject = JSONObject(
+        enviar("suscripciones/$suscripcionId/firma", cookie, JSONObject().put("acepta_condiciones", true)),
+    )
+
+    fun poliza(cookie: String, numero: String): JSONObject = JSONObject(obtener("polizas/$numero", cookie))
+
+    /** El PDF que descarga la web para esa póliza. */
+    fun documento(cookie: String, numero: String): ByteArray {
+        val ruta = "polizas/$numero/documento"
+        val solicitud = Request.Builder().url(raiz + ruta).header("Cookie", cookie).build()
+        return cliente.newCall(solicitud).execute().use { respuesta ->
+            exigirExito(respuesta, ruta)
+            respuesta.body!!.bytes()
+        }
     }
 
     private fun obtener(ruta: String, cookie: String): String {
@@ -132,10 +179,16 @@ internal class BffWeb(private val raiz: String) {
         }
     }
 
-    private fun enviar(ruta: String, cookie: String, cuerpo: JSONObject): String {
+    private fun enviar(
+        ruta: String,
+        cookie: String,
+        cuerpo: JSONObject,
+        encabezados: Map<String, String> = emptyMap(),
+    ): String {
         val solicitud = Request.Builder()
             .url(raiz + ruta)
             .header("Cookie", cookie)
+            .apply { encabezados.forEach { (nombre, valor) -> header(nombre, valor) } }
             .post(cuerpo.toString().toRequestBody("application/json".toMediaType()))
             .build()
         return cliente.newCall(solicitud).execute().use { respuesta ->
@@ -144,8 +197,12 @@ internal class BffWeb(private val raiz: String) {
         }
     }
 
-    private fun exigirExito(respuesta: Response, ruta: String) =
-        check(respuesta.isSuccessful) { "$ruta respondió ${respuesta.code}" }
+    private fun exigirExito(respuesta: Response, ruta: String) {
+        if (!respuesta.isSuccessful) throw FalloBff(ruta, respuesta.code)
+    }
+
+    /** Solo la ruta y el código: el cuerpo traería datos de la cuenta. */
+    class FalloBff(ruta: String, val codigo: Int) : IllegalStateException("$ruta respondió $codigo")
 
     private companion object {
         // El primer pedido a Cloud Run tras un rato sin tráfico arranca una instancia.
@@ -154,6 +211,10 @@ internal class BffWeb(private val raiz: String) {
         const val INTENTOS_REPORTE = 3
         const val PAUSA_REPORTE_MS = 3_000L
         const val SERVIDOR = 500
+        const val INTENTOS_PAGO = 3
+        const val PAUSA_PAGO_MS = 2_000L
+        const val HTTP_CONFLICTO = 409
+        const val HTTP_ERROR_SERVIDOR = 500
     }
 }
 
