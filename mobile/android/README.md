@@ -416,6 +416,49 @@ uno con su póliza: la app abierta en Pólizas antes de comprar, la compra por l
 consulta en la app con el APK de `solventa-staging`. Las grabaciones van a #186 con el commit, la URL del
 BFF y los números usados, sin correo ni datos del cliente en pantalla.
 
+#### Push del cambio de estado (MOB-F06, #209)
+
+`PushSiniestroE2eTest` comprueba que un cambio de estado llega como push y que tocarlo abre el detalle del
+caso. Con el proveedor simulado de *staging*, «push recibido» significa que el núcleo crea la notificación,
+el receptor de la app la lee de `GET /notificaciones` y la muestra como notificación local. El estado de
+entrega del proveedor no sale por el BFF y lo cubren las pruebas del núcleo (#205).
+
+- **Antes de abrir la app** (reglas en `RuleChain`): concede `POST_NOTIFICATIONS` con `GrantPermissionRule`,
+  así Inicio no muestra el aviso del permiso. Abre una sesión propia en el router móvil (`BffMovil`), borra
+  de las preferencias `push` lo que la app ya leyó de la bandeja de la cuenta (`vistas_<cliente>`) y cancela
+  los avisos de la app. Conserva el token de la instalación. Si las notificaciones de la app no están
+  permitidas, falla con un mensaje claro.
+- **Recorrido**: reporta un caso por el BFF web con una marca única e inicia sesión en la app. Espera la
+  primera lectura de la bandeja, que no muestra avisos viejos, y comprueba que `POST /dispositivos` con el
+  token de la instalación responde **200** («ya estaba registrado»). Manda la app a segundo plano
+  (`pressHome`) y pasa el caso a `en_evaluacion` con la operación interna.
+- **Push**: antes de 90 s desde la respuesta del cambio, la app debe tener activa la notificación «Tu
+  siniestro {referencia} cambió» / «Ya estamos evaluando tu caso.» en el canal `siniestros`, y debe verse en
+  la bandeja del sistema (UI Automator, expandiendo el grupo si hace falta). Si se vence el tope, el mensaje
+  dice si el BFF tenía la notificación, es decir, si falló el núcleo o la app.
+- **Apertura**: tocar la notificación abre `pantalla-detalle-siniestro` con la referencia, «En evaluación» en
+  la insignia y como evento actual. El atrás del sistema lleva a «Mis siniestros».
+- **Leída**: la notificación deja de estar activa, el BFF la devuelve con `leida: true` y no reaparece
+  después de una vuelta del receptor (30 s más un margen).
+- **`@After`**: `cmd statusbar collapse` y `cancelAll()`, para no dejar la bandeja abierta ni avisos a las
+  pruebas siguientes.
+
+Usa los mismos argumentos que `SeguimientoE2eTest` (`correo`, `clave`, `nucleo` y `tokenInterno`). No
+necesita variables ni secretos nuevos. En local, el emulador debe ser **API 33 o superior**, que es donde existe
+`POST_NOTIFICATIONS` (el de CI es API 34), y tener encendidas las notificaciones de la app en Ajustes. Para
+correr solo esta clase, agregar al comando de `SeguimientoE2eTest`
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.PushSiniestroE2eTest`.
+
+En CI corre en el job `e2e-emulador`, junto con las demás. Necesita Cloud SQL encendida y el humo de
+`/dispositivos` y `/notificaciones` en verde en el último CD. No cubre el push con el proceso de la app
+muerto, porque la instrumentación lo mantiene vivo, ni el permiso negado (`AvisoNotificacionesTest`,
+`NotificadorAndroidTest`).
+
+**Plan B.** Si el emulador no queda estable, se hacen dos recorridos a mano contra *staging* con el APK de
+`solventa-staging`, cada uno con su caso. Por cada recorrido se adjuntan a #204 la grabación de la pantalla y
+la salida de `GET /notificaciones` antes y después de tocar la notificación, con el token tapado. También se
+indican el commit, la URL del BFF y las referencias usadas, nunca el token interno.
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
