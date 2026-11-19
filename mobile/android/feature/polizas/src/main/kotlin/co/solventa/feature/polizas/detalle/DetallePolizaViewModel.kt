@@ -7,13 +7,20 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.solventa.core.network.BffApi
+import co.solventa.core.network.EstadoPoliza
 import co.solventa.core.network.PolizaDetalle
 import co.solventa.core.network.Resultado
 import co.solventa.core.network.llamarBff
+import co.solventa.feature.polizas.billetera.ResultadoSincronizacion
+import co.solventa.feature.polizas.billetera.SincronizadorBilletera
 import co.solventa.feature.polizas.comun.FalloConsulta
 import co.solventa.feature.polizas.comun.HTTP_NO_AUTENTICADO
 import co.solventa.feature.polizas.comun.HTTP_NO_ENCONTRADO
 import co.solventa.feature.polizas.comun.fallo
+import co.solventa.feature.polizas.comun.estadoSinConexion
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,22 +58,46 @@ data class EstadoDetallePoliza(
     val aviso: AvisoPoliza? = null,
     /** PDF recién descargado que la pantalla abre con el visor; lo consume [DetallePolizaViewModel.pdfAbierto]. */
     val pdf: String? = null,
+    /**
+     * Sin conexión (MOB-F03): el detalle viene de la billetera, con el estado según la última
+     * sincronización. [sinActualizar]: hay red pero el BFF no respondió a tiempo.
+     */
+    val sinConexion: Boolean = false,
+    val sinActualizar: Boolean = false,
+    /** Fecha de la última sincronización completa, para la franja. */
+    val sincronizadaEn: Instant? = null,
+    /** Volvió la conexión y se está sincronizando. */
+    val sincronizando: Boolean = false,
+    /** Sin conexión y la póliza no tiene detalle guardado (una que ya llegó vencida del BFF). */
+    val detalleNoGuardado: Boolean = false,
 ) {
-    /** «Descargar PDF» solo si la póliza tiene documento. */
+    /** «Descargar PDF» solo si la póliza tiene documento y hay conexión. */
     val ofreceDescarga: Boolean
-        get() = detalle?.documentoUrl != null && !documentoNoDisponible
+        get() = detalle?.documentoUrl != null && !documentoNoDisponible && !sinConexion
+
+    /** Sin conexión, el botón queda inactivo con «Necesitas conexión para descargar el documento». */
+    val descargaRequiereConexion: Boolean
+        get() = sinConexion && detalle?.documentoUrl != null && !documentoNoDisponible
+
+    /** «Ver credencial» solo si la póliza se muestra vigente. */
+    val ofreceCredencial: Boolean
+        get() = detalle?.estado == EstadoPoliza.VIGENTE
 }
 
 /**
  * Detalle de la póliza (WEB-F04): condiciones, coberturas y documento. Recibe el número por la ruta
- * (`policies/detalle/{numero}`), que la navegación deja en [estadoGuardado]. De la póliza no se guarda
- * nada en disco salvo el PDF que el cliente pide, en la caché de la app.
+ * (`policies/detalle/{numero}`), que la navegación deja en [estadoGuardado]. Sin conexión muestra el
+ * detalle guardado en la billetera (MOB-F03), aunque la póliza haya vencido por fecha después de
+ * sincronizar. El PDF que el cliente pide queda en la caché de la app.
  */
+@Suppress("LongParameterList")
 class DetallePolizaViewModel(
     private val api: BffApi,
     estadoGuardado: SavedStateHandle,
     private val documentos: DocumentosPoliza,
+    private val billetera: SincronizadorBilletera,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val reloj: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
     val numero: String = requireNotNull(estadoGuardado.get<String>(ARGUMENTO_NUMERO)) { "Falta el número de la póliza" }
 
@@ -86,14 +117,78 @@ class DetallePolizaViewModel(
         consulta = viewModelScope.launch {
             val resultado = llamarBff { api.obtenerPoliza(numero) }
             estado = when {
-                resultado is Resultado.Exito ->
-                    estado.copy(detalle = resultado.valor, cargando = false, noEncontrada = false)
+                resultado is Resultado.Exito -> enLinea(resultado.valor)
                 resultado is Resultado.Falla && resultado.http == HTTP_NO_AUTENTICADO ->
                     estado.copy(cargando = false, sesionVencida = true)
                 resultado is Resultado.Falla && resultado.http == HTTP_NO_ENCONTRADO ->
                     estado.copy(cargando = false, noEncontrada = true)
+                resultado == Resultado.SinConexion -> desdeBilletera()
                 else -> estado.copy(cargando = false, error = resultado.fallo())
             }
+        }
+    }
+
+    /** Mientras la pantalla esté visible: al volver la conexión con sesión, se sincroniza sola (§2). */
+    suspend fun vigilarReconexion() = billetera.vigilarReconexion { alReconectar() }
+
+    /**
+     * Volvió la conexión. Sin conexión en pantalla se sincroniza la billetera mostrando lo guardado con el
+     * indicador; si termina bien se vuelve a consultar el detalle, y si falla queda «No pudimos actualizar».
+     */
+    fun alReconectar() {
+        if (consulta?.isActive == true) return
+        if (!estado.sinConexion && !estado.detalleNoGuardado) {
+            viewModelScope.launch { billetera.sincronizar() }
+            return
+        }
+        estado = estado.copy(sincronizando = true)
+        consulta = viewModelScope.launch {
+            val resultado = billetera.sincronizar()
+            estado = estado.copy(sincronizando = false)
+            when (resultado) {
+                is ResultadoSincronizacion.Completa -> {
+                    consulta = null
+                    consultar()
+                }
+                is ResultadoSincronizacion.Fallida -> estado = estado.copy(
+                    sinActualizar = estado.sinConexion,
+                    sesionVencida = resultado.sesionVencida,
+                )
+                ResultadoSincronizacion.Omitida -> Unit
+            }
+        }
+    }
+
+    private fun enLinea(detalle: PolizaDetalle) = estado.copy(
+        detalle = detalle,
+        cargando = false,
+        noEncontrada = false,
+        error = null,
+        sinConexion = false,
+        sinActualizar = false,
+        detalleNoGuardado = false,
+    )
+
+    /** `SinConexion` (sin red o tiempo agotado): el detalle guardado, si lo hay (§4). */
+    private suspend fun desdeBilletera(): EstadoDetallePoliza {
+        val guardada = billetera.cargar()
+        val detalle = guardada?.detalle(numero)
+        return when {
+            guardada == null || detalle == null -> estado.copy(
+                cargando = false,
+                // Si ya se veía el detalle del BFF, se queda con el aviso, como en #190.
+                error = FalloConsulta.SIN_RED.takeIf { estado.detalle != null && !estado.sinConexion },
+                detalleNoGuardado = estado.detalle == null || estado.sinConexion,
+            )
+            else -> estado.copy(
+                detalle = detalle.copy(estado = estadoSinConexion(detalle.resumen, LocalDate.now(reloj))),
+                cargando = false,
+                error = null,
+                sinConexion = true,
+                sinActualizar = billetera.conectado.value,
+                sincronizadaEn = guardada.momento,
+                detalleNoGuardado = false,
+            )
         }
     }
 

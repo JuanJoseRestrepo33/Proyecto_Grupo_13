@@ -1,4 +1,4 @@
-package co.solventa.feature.siniestros.borrador
+package co.solventa.core.almacen
 
 import java.io.DataInputStream
 import java.io.EOFException
@@ -16,18 +16,19 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Cifrado en flujo de los borradores (RC-04). Las pruebas JVM usan un doble o [CifradoAesGcm] con una
- * llave de la JCA; la app, [CifradoAesGcm] con la llave del Android Keystore.
+ * Cifrado en flujo de lo que la app guarda en el teléfono (RC-04): los borradores de siniestros (MOB-F05-02)
+ * y la billetera de pólizas (MOB-F03). Las pruebas JVM usan un doble o [CifradoAesGcm] con una llave de la
+ * JCA; la app, [CifradoAesGcm] con una llave del Android Keystore.
  */
 interface PuertoCifrado {
     /** Lo escrito en el flujo devuelto llega cifrado a [destino]; cerrarlo no cierra [destino]. */
     fun cifrar(destino: OutputStream): OutputStream
 
-    /** @throws BorradorIlegible si no se puede abrir: temporal (reintentar) o permanente. */
+    /** @throws ArchivoIlegible si no se puede abrir: temporal (reintentar) o permanente. */
     fun descifrar(origen: InputStream): InputStream
 }
 
-/** La llave AES-256 del almacén. Descifrar nunca la crea: sin llave el borrador es ilegible. */
+/** La llave AES-256 de un almacén. Descifrar nunca la crea: sin llave el archivo es ilegible. */
 interface FuenteLlave {
     fun paraCifrar(): SecretKey
 
@@ -35,13 +36,13 @@ interface FuenteLlave {
     fun paraDescifrar(): SecretKey
 }
 
-class LlaveInexistente : GeneralSecurityException("La llave de los borradores no existe")
+class LlaveInexistente : GeneralSecurityException("La llave del almacén no existe")
 
 /**
- * El borrador no se pudo leer. [permanente]: la llave ya no existe o el texto cifrado fue alterado, y
+ * El archivo no se pudo leer. [permanente]: la llave ya no existe o el texto cifrado fue alterado, y
  * reintentar no sirve; si no, se conserva y se reintenta después.
  */
-class BorradorIlegible(val permanente: Boolean, causa: Throwable? = null) : IOException(causa)
+class ArchivoIlegible(val permanente: Boolean, causa: Throwable? = null) : IOException(causa)
 
 /**
  * AES-256-GCM con un IV aleatorio por archivo, generado por el proveedor (el Keystore no deja elegirlo).
@@ -65,10 +66,12 @@ class CifradoAesGcm(private val llave: FuenteLlave) : PuertoCifrado {
     override fun descifrar(origen: InputStream): InputStream {
         val datos = DataInputStream(origen)
         val iv = try {
-            if (datos.readUnsignedByte() != VERSION) throw BorradorIlegible(permanente = true)
-            ByteArray(datos.readUnsignedByte()).also(datos::readFully)
+            if (datos.readUnsignedByte() != VERSION) throw ArchivoIlegible(permanente = true)
+            // Un IV de largo cero también es un encabezado alterado.
+            ByteArray(datos.readUnsignedByte().takeIf { it > 0 } ?: throw ArchivoIlegible(permanente = true))
+                .also(datos::readFully)
         } catch (truncado: EOFException) {
-            throw BorradorIlegible(permanente = true, truncado)
+            throw ArchivoIlegible(permanente = true, truncado)
         }
         val cifrador = try {
             Cipher.getInstance(TRANSFORMACION).apply {
@@ -78,7 +81,7 @@ class CifradoAesGcm(private val llave: FuenteLlave) : PuertoCifrado {
             throw clasificar(error)
         } catch (invalido: IllegalArgumentException) {
             // Un IV de largo cero: el encabezado fue alterado.
-            throw BorradorIlegible(permanente = true, invalido)
+            throw ArchivoIlegible(permanente = true, invalido)
         }
         return LecturaClasificada(CipherInputStream(datos, cifrador))
     }
@@ -94,13 +97,13 @@ class CifradoAesGcm(private val llave: FuenteLlave) : PuertoCifrado {
  * Permanente: sin llave, llave invalidada (`KeyPermanentlyInvalidatedException` es una
  * [InvalidKeyException]) o etiqueta que no coincide. Lo demás (`KeyStoreException`, E/S) es temporal.
  */
-internal fun clasificar(error: Throwable): BorradorIlegible {
-    if (error is BorradorIlegible) return error
+fun clasificar(error: Throwable): ArchivoIlegible {
+    if (error is ArchivoIlegible) return error
     val causas = generateSequence(error) { it.cause }.take(PROFUNDIDAD_CAUSAS).toList()
     val permanente = causas.any {
         it is LlaveInexistente || it is InvalidKeyException || it is AEADBadTagException || it is BadPaddingException
     }
-    return BorradorIlegible(permanente, error)
+    return ArchivoIlegible(permanente, error)
 }
 
 private const val PROFUNDIDAD_CAUSAS = 8

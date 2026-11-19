@@ -28,8 +28,25 @@ import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
 import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.VerificacionIdentidad
+import co.solventa.core.almacen.ArchivoCifrado
+import co.solventa.core.almacen.CifradoAesGcm
+import co.solventa.core.almacen.FuenteLlave
+import co.solventa.core.almacen.LlaveInexistente
+import co.solventa.core.almacen.MonitorConectividad
+import co.solventa.feature.polizas.billetera.AlmacenBilletera
+import co.solventa.feature.polizas.billetera.BilleteraGuardada
+import co.solventa.feature.polizas.billetera.CuentaVigente
+import co.solventa.feature.polizas.billetera.SincronizadorBilletera
 import co.solventa.feature.polizas.detalle.DocumentosPoliza
+import java.io.File
 import java.io.InputStream
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -113,6 +130,67 @@ class DocumentosFalsos : DocumentosPoliza {
     }
 }
 
+// ── Billetera (MOB-F03) ───────────────────────────────────────────────────────────────────────
+
+const val CLIENTE = "CLI-2026-000001"
+const val OTRO_CLIENTE = "CLI-2026-000002"
+val ZONA: ZoneId = ZoneId.of("America/Bogota")
+
+/** 18 nov 2026, 08:14 en Bogotá. */
+val SINCRONIZADA: Instant = Instant.parse("2026-11-18T13:14:00Z")
+
+/** Reloj de la prueba en Bogotá; [instante] se mueve para simular el paso del tiempo. */
+class RelojMovil(var instante: Instant = SINCRONIZADA) : Clock() {
+    override fun getZone(): ZoneId = ZONA
+
+    override fun withZone(zone: ZoneId?): Clock = this
+
+    override fun instant(): Instant = instante
+}
+
+/** La billetera que deja una sincronización completa con las pólizas de [BffFalso]. */
+fun billeteraDePrueba(
+    cliente: String = CLIENTE,
+    polizas: List<PolizaResumen> = listOf(VIGENTE, VENCIDA, POR_INICIAR),
+    detalles: List<PolizaDetalle> = listOf(COMPLETA, PolizaDetalle.de(POR_INICIAR, emptyList(), null, null, null)),
+    momento: Instant = SINCRONIZADA,
+) = BilleteraGuardada(cliente, "Ana María Rojas", polizas, detalles, momento.toString())
+
+/** AES-256 de la JCA en lugar del Keystore. */
+class LlaveJca : FuenteLlave {
+    private val llave: SecretKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+    var borrada = false
+
+    override fun paraCifrar(): SecretKey = llave
+
+    override fun paraDescifrar(): SecretKey = if (borrada) throw LlaveInexistente() else llave
+}
+
+class MonitorFalso(inicial: Boolean = true) : MonitorConectividad {
+    override val conectado = MutableStateFlow(inicial)
+}
+
+class CuentaFalsa(
+    override var clienteId: String? = CLIENTE,
+    override var nombreCompleto: String? = "Ana María Rojas",
+) : CuentaVigente
+
+/** La billetera real sobre una carpeta temporal, con la llave de la JCA y todo en el hilo de la prueba. */
+class BilleteraDePrueba(carpeta: File, alcance: CoroutineScope, val reloj: RelojMovil = RelojMovil()) {
+    val api = BffFalso()
+    val monitor = MonitorFalso()
+    val cuenta = CuentaFalsa()
+    val llave = LlaveJca()
+    val archivo = File(File(carpeta, "billetera"), "billetera.bin")
+    val almacen = AlmacenBilletera(ArchivoCifrado(archivo, CifradoAesGcm(llave)), Dispatchers.Unconfined)
+    val sincronizador = SincronizadorBilletera(api, almacen, monitor, cuenta, alcance, reloj)
+
+    /** Deja guardada [billetera] como si hubiera sincronizado. */
+    suspend fun guardar(billetera: BilleteraGuardada = billeteraDePrueba()) {
+        check(almacen.guardarSi(billetera) { true })
+    }
+}
+
 // ── BFF doble ─────────────────────────────────────────────────────────────────────────────────
 
 class BffFalso : BffApi {
@@ -125,7 +203,14 @@ class BffFalso : BffApi {
         return polizas()
     }
 
-    var detalle: suspend (String) -> PolizaDetalle = { COMPLETA }
+    /** El de la póliza pedida; COMPLETA para las que no son de la lista de prueba. */
+    var detalle: suspend (String) -> PolizaDetalle = { numero ->
+        when (numero) {
+            POR_INICIAR.numero -> PolizaDetalle.de(POR_INICIAR, emptyList(), null, null, null)
+            VENCIDA.numero -> SIN_DATOS
+            else -> COMPLETA
+        }
+    }
     var consultasDetalle = 0
         private set
 

@@ -1,5 +1,9 @@
 package co.solventa.feature.siniestros.borrador
 
+import co.solventa.core.almacen.ArchivoIlegible
+import co.solventa.core.almacen.CifradoAesGcm
+import co.solventa.core.almacen.LlaveKeystore
+import co.solventa.core.almacen.MonitorConectividad
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import co.solventa.core.network.BffApi
@@ -105,7 +109,7 @@ class AlmacenKeystoreTest {
         try {
             almacen.leer(borrador.duenio, borrador.id)
             fail("Se descifró un archivo alterado")
-        } catch (ilegible: BorradorIlegible) {
+        } catch (ilegible: ArchivoIlegible) {
             assertTrue(ilegible.permanente)
         }
     }

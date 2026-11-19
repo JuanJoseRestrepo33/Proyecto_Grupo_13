@@ -154,9 +154,9 @@ Revisión ──Enviar──▶ guardar borrador cifrado (clave + datos + manifi
 | Pieza | Qué resuelve | Criterios |
 |---|---|---|
 | `AlmacenBorradoresCifrado` | Borradores en `noBackupFilesDir/borradores/<cliente.id>/<id>/`: `borrador.bin` (manifiesto) y un `<adjunto>.bin` por archivo, más la caché de pólizas y los registros enviados. Escritura atómica (temporal, `fsync` y `rename`). JVM puro. | 1, 6, 10–12 |
-| `CifradoAesGcm` · `LlaveKeystore` | AES-256-GCM en flujo, con un IV por archivo, y la llave `solventa.borradores` del Android Keystore. | 6, 11 |
+| `CifradoAesGcm` · `LlaveKeystore` (`core/almacen`) | AES-256-GCM en flujo, con un IV por archivo, y la llave `solventa.borradores` del Android Keystore. Se comparten con la billetera de pólizas (MOB-F03), que tiene su propia llave. | 6, 11 |
 | `EnviadorBorradores` | Estados, envío al reconectar, esperas, conciliación, evidencia y tarjetas de Inicio. Alcance de aplicación (vive en `Proceso`, en `MainActivity`). | 1, 3–5, 7–9, 12 |
-| `MonitorConectividad` | `NetworkCallback` de la red por defecto con `NET_CAPABILITY_VALIDATED`, detrás de un puerto. | 3 |
+| `MonitorConectividad` (`core/almacen`) | `NetworkCallback` de la red por defecto con `NET_CAPABILITY_VALIDATED`, detrás de un puerto. Una sola instancia por proceso, compartida con la billetera. | 3 |
 | `Conciliacion.kt` | Clasifica la respuesta del `POST` y busca en `listarSiniestros` el reporte de un intento anterior. | 4, 8 |
 | `TarjetasBorradores` · `PantallaGuardado` | Tarjetas de Inicio (M5–M14) y «Reporte guardado» (M4a y M4b). | 1, 3, 5, 7–9, 11, 13 |
 | `InterceptorDuenio` (`core/network`) | Cada solicitud del borrador lleva la etiqueta `DuenioSolicitud`; si la sesión vigente es de otra cuenta, no sale. | 9 |

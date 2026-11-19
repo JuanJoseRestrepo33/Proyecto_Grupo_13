@@ -1,5 +1,7 @@
 package co.solventa.feature.siniestros.borrador
 
+import co.solventa.core.almacen.ArchivoIlegible
+import co.solventa.core.almacen.MonitorConectividad
 import co.solventa.core.network.BffApi
 import co.solventa.core.network.DuenioSolicitud
 import co.solventa.core.network.PolizaResumen
@@ -318,7 +320,7 @@ class EnviadorBorradores(
         return mutex.withLock {
             try {
                 withContext(io) { almacen.leer(cliente, id) }
-            } catch (ignored: BorradorIlegible) {
+            } catch (ignored: ArchivoIlegible) {
                 null
             }
         }
@@ -610,7 +612,7 @@ class EnviadorBorradores(
         val ilegible = try {
             withContext(io) { almacen.verificarArchivo(cliente, borrador.id, adjunto.id) }
             null
-        } catch (error: BorradorIlegible) {
+        } catch (error: ArchivoIlegible) {
             error
         }
         // Temporal (Keystore ocupado): sigue listo y el bucle lo reintenta tras la espera.
@@ -694,7 +696,7 @@ class EnviadorBorradores(
      */
     private suspend fun leerOculto(cliente: String, id: String): Borrador? = try {
         withContext(io) { if (almacen.existe(cliente, id)) almacen.leer(cliente, id) else null }
-    } catch (ilegible: BorradorIlegible) {
+    } catch (ilegible: ArchivoIlegible) {
         if (cliente == duenio) reemplazar(Tarjeta.Ilegible(id, ilegible.permanente))
         null
     }

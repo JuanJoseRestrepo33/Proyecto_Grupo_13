@@ -34,8 +34,10 @@ import co.solventa.feature.onboarding.biometria.DisponibilidadBiometrica
 import co.solventa.feature.onboarding.biometria.PropositoBiometrico
 import co.solventa.feature.onboarding.biometria.ResultadoBiometrico
 import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.billetera.CuentaVigente
 import co.solventa.feature.siniestros.DependenciasSiniestros
-import co.solventa.feature.siniestros.borrador.MonitorConectividad
+import co.solventa.core.almacen.MonitorConectividad
 import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.CODIGO_OTP
@@ -48,6 +50,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,6 +90,65 @@ class SolventaRaizTest {
         dependencias.api,
         enviadorDePrueba(dependencias.api, red) { sesion.clienteId },
     )
+
+    /** La billetera (MOB-F03) del cliente que ingresó. */
+    private val billetera = BilleteraDePrueba(
+        dependencias.api,
+        object : CuentaVigente {
+            override val clienteId: String? get() = sesion.clienteId
+            override val nombreCompleto: String? get() = sesion.sesion?.cliente?.nombreCompleto
+        },
+    )
+
+    private val polizas = DependenciasPolizas(
+        api = dependencias.api,
+        documentos = { _, _ -> error("no se descarga en esta prueba") },
+        urlCotizacion = "https://web.prueba/cotizacion",
+        billetera = billetera.sincronizador,
+    )
+
+    /** Ingresa con la cuenta demo, abre Pólizas y espera a que la billetera quede sincronizada. */
+    private fun conBilleteraSincronizada() {
+        biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
+        compose.setContent {
+            SolventaTheme {
+                SolventaRaiz(dependencias, dependenciasSiniestros = siniestros, dependenciasPolizas = polizas)
+            }
+        }
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("screen-home"))
+        compose.onNode(isSelectable() and hasText("Pólizas")).performClick()
+        compose.esperar(hasTestTag("billetera-disponible"))
+        assertTrue(billetera.archivo.exists())
+    }
+
+    @Test
+    fun `cerrar sesion avisa que las polizas dejan de estar disponibles sin conexion y borra la billetera`() {
+        conBilleteraSincronizada()
+        compose.onNode(isSelectable() and hasText("Perfil")).performClick()
+        compose.onNodeWithTag("cerrar-sesion").performClick()
+
+        compose.onNodeWithText("Tus pólizas dejarán de estar disponibles sin conexión en este teléfono.")
+            .assertIsDisplayed()
+        compose.onNodeWithTag("confirmar-cerrar-sesion").performClick()
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.waitUntil(timeoutMillis = 5_000) { !billetera.archivo.exists() }
+        assertNull(billetera.sincronizador.estado.value.guardada)
+    }
+
+    @Test
+    fun `si la sesion vence la billetera sigue guardada al volver a Ingreso`() {
+        conBilleteraSincronizada()
+
+        compose.runOnIdle { sesion.alVencer(tokenRechazado = false) }
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.waitForIdle()
+        assertTrue(billetera.archivo.exists())
+    }
 
     private fun mostrar() = compose.setContent {
         SolventaTheme { key(apertura) { SolventaRaiz(dependencias, dependenciasSiniestros = siniestros) } }

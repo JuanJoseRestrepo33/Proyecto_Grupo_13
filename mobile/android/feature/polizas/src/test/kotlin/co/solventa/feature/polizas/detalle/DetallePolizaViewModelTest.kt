@@ -1,7 +1,10 @@
 package co.solventa.feature.polizas.detalle
 
 import androidx.lifecycle.SavedStateHandle
-import co.solventa.feature.polizas.BffFalso
+import co.solventa.core.network.EstadoPoliza
+import co.solventa.feature.polizas.BilleteraDePrueba
+import co.solventa.feature.polizas.SINCRONIZADA
+import co.solventa.feature.polizas.VENCIDA
 import co.solventa.feature.polizas.COMPLETA
 import co.solventa.feature.polizas.DocumentosFalsos
 import co.solventa.feature.polizas.NUMERO
@@ -11,6 +14,9 @@ import co.solventa.feature.polizas.comun.FalloConsulta
 import co.solventa.feature.polizas.fallaBff
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CompletableDeferred
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -21,16 +27,33 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class DetallePolizaViewModelTest {
     @get:Rule
     val main = ReglaMain()
 
-    private val api = BffFalso()
+    @get:Rule
+    val carpeta = TemporaryFolder()
+
+    private val billetera by lazy { BilleteraDePrueba(carpeta.root, CoroutineScope(main.dispatcher)) }
+    private val api get() = billetera.api
     private val documentos = DocumentosFalsos()
 
-    private fun detalle(numero: String = NUMERO) =
-        DetallePolizaViewModel(api, SavedStateHandle(mapOf("numero" to numero)), documentos, main.dispatcher)
+    private fun detalle(numero: String = NUMERO) = DetallePolizaViewModel(
+        api,
+        SavedStateHandle(mapOf("numero" to numero)),
+        documentos,
+        billetera.sincronizador,
+        main.dispatcher,
+        billetera.reloj,
+    )
+
+    private fun sinRed() {
+        runBlocking { billetera.guardar() }
+        billetera.monitor.conectado.value = false
+        api.detalle = { throw IOException("sin red") }
+    }
 
     // ── Consulta ────────────────────────────────────────────────────────────────────────────
 
@@ -70,7 +93,8 @@ class DetallePolizaViewModelTest {
     fun `sin red o con 5xx se puede reintentar la consulta`() {
         api.detalle = { throw IOException("sin red") }
         val vm = detalle()
-        assertEquals(FalloConsulta.SIN_RED, vm.estado.error)
+        assertTrue("sin billetera no hay detalle guardado", vm.estado.detalleNoGuardado)
+        assertNull(vm.estado.error)
 
         api.detalle = { throw fallaBff(503) }
         vm.consultar()
@@ -79,8 +103,88 @@ class DetallePolizaViewModelTest {
         api.detalle = { COMPLETA }
         vm.consultar()
         assertNull(vm.estado.error)
+        assertFalse(vm.estado.detalleNoGuardado)
         assertEquals(COMPLETA, vm.estado.detalle)
         assertEquals(3, api.consultasDetalle)
+    }
+
+    // ── Sin conexión (MOB-F03) ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `sin red abre el detalle guardado con la credencial y el PDF inactivo`() {
+        sinRed()
+        val vm = detalle()
+
+        assertTrue(vm.estado.sinConexion)
+        assertFalse(vm.estado.sinActualizar)
+        assertEquals(COMPLETA, vm.estado.detalle)
+        assertEquals(SINCRONIZADA, vm.estado.sincronizadaEn)
+        assertTrue(vm.estado.ofreceCredencial)
+        assertFalse(vm.estado.ofreceDescarga)
+        assertTrue(vm.estado.descargaRequiereConexion)
+        vm.descargar()
+        assertTrue("sin conexión no se intenta descargar", api.descargas.isEmpty())
+    }
+
+    @Test
+    fun `un tiempo agotado con red abre el detalle guardado con no pudimos actualizar`() {
+        sinRed()
+        billetera.monitor.conectado.value = true
+        api.detalle = { throw SocketTimeoutException("tiempo agotado") }
+
+        val vm = detalle()
+
+        assertTrue(vm.estado.sinConexion)
+        assertTrue(vm.estado.sinActualizar)
+    }
+
+    @Test
+    fun `sin red una poliza vencida por fecha despues de sincronizar abre su detalle sin credencial`() {
+        sinRed()
+        billetera.reloj.instante = Instant.parse("2027-10-15T15:00:00Z")
+
+        val vm = detalle()
+
+        assertEquals(EstadoPoliza.VENCIDA, vm.estado.detalle?.estado)
+        assertFalse(vm.estado.ofreceCredencial)
+    }
+
+    @Test
+    fun `sin red una poliza que ya llego vencida no tiene detalle guardado`() {
+        sinRed()
+        val vm = detalle(VENCIDA.numero)
+
+        assertTrue(vm.estado.detalleNoGuardado)
+        assertNull(vm.estado.detalle)
+    }
+
+    @Test
+    fun `al volver la conexion se sincroniza y vuelve a consultar el detalle`() {
+        sinRed()
+        val vm = detalle()
+        assertTrue(vm.estado.sinConexion)
+
+        billetera.monitor.conectado.value = true
+        api.detalle = { COMPLETA }
+        vm.alReconectar()
+
+        assertFalse(vm.estado.sinConexion)
+        assertFalse(vm.estado.sincronizando)
+        assertTrue(vm.estado.ofreceDescarga)
+    }
+
+    @Test
+    fun `si la sincronizacion al reconectar falla queda lo guardado con no pudimos actualizar`() {
+        sinRed()
+        val vm = detalle()
+
+        billetera.monitor.conectado.value = true
+        api.polizas = { throw fallaBff(503) }
+        vm.alReconectar()
+
+        assertTrue(vm.estado.sinConexion)
+        assertTrue(vm.estado.sinActualizar)
+        assertEquals(COMPLETA, vm.estado.detalle)
     }
 
     @Test

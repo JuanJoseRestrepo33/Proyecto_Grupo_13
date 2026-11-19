@@ -27,6 +27,7 @@ subprojects {
 dependencies {
     kover(project(":app"))
     kover(project(":core:network"))
+    kover(project(":core:almacen"))
     kover(project(":core:designsystem"))
     kover(project(":feature:onboarding"))
     kover(project(":feature:consentimiento"))
