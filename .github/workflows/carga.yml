@@ -39,6 +39,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging-infraestructura
     timeout-minutes: 30
+    # Mismo grupo que el E2E web de cd.yml y el E2E del emulador: los dos cambian el estado de la
+    # cuenta de prueba. El 20 nov 2026 un E2E revocó su consentimiento a mitad de la carga y la
+    # mitad de las cotizaciones salió a tarifa estándar.
+    concurrency:
+      group: e2e-cuenta-staging
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write # para obtener el token de Workload Identity Federation
