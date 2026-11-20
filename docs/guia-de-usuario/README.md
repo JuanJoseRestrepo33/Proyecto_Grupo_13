@@ -399,6 +399,15 @@ tu sesión vence, la tarjeta te pide **Ingresar** para enviarlo.
 tarjeta dice *Tu reporte necesita revisión*: pulsa **Revisar** para corregirlo o **Descartar** para
 borrarlo del teléfono sin enviarlo.
 
+**Si la evidencia no alcanzó a subir**, el reporte ya quedó registrado y la tarjeta dice *Falta
+enviar la evidencia: se enviará cuando vuelva la red*. No tienes que reportar de nuevo. Si un envío
+falla, la tarjeta dice *Lo intentaremos de nuevo en unos minutos; no se creará un reporte
+duplicado*.
+
+**Si cambiaste el bloqueo del teléfono** (huella, PIN o patrón), el reporte guardado puede quedar
+ilegible, porque se cifró con la protección anterior. La tarjeta dice *No podemos leer un reporte
+guardado*: pulsa **Eliminar del teléfono** y, si no llegó a enviarse, **Reportar de nuevo**.
+
 ## 20. Asistencia en sitio
 
 | Permiso de ubicación | Asistencia en camino |
