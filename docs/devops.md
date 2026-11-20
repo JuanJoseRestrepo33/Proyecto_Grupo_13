@@ -484,7 +484,7 @@ lados.
 | Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
 | Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
 | Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
-| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`). *Aprovisionar* ya la crea y la monta, pero el núcleo todavía no la lee: las cuentas viven en memoria y por eso el núcleo corre con una sola réplica | `solventa-nucleo` | ARQ-05 |
+| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`): cuentas, registros, refrescos y verificaciones (#136). Con ella todas las réplicas ven las mismas cuentas y sesiones; sin ella, en memoria | `solventa-nucleo` | ARQ-05 |
 | Pool de conexiones a PostgreSQL | `POSTGRES_POOL_MAXIMO` (opcional, 3 por defecto): conexiones máximas por módulo y por réplica (`backend/app/compartido/conexiones.py`). Las ociosas se cierran a los 60 s. Con la `db-f1-micro` (25 conexiones) no conviene subirlo: se multiplica por los módulos en uso y por las réplicas | `solventa-nucleo` | ARQ-05 |
 | Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo. *Aprovisionar* los deja explícitos en *staging*; el modo del proveedor (`PERFILAMIENTO_OPEN_FINANCE_MODO`) no, porque lo cambia *Carga de cotización* | `solventa-nucleo` | ARQ-05 |
 
@@ -510,10 +510,12 @@ puede leer los datos de otro, igual que en el código (ARQ-01).
   montadas desde Secret Manager, apuntando a Cloud SQL. Sin ellas el log de auditoría, las
   cotizaciones y los siniestros viven en memoria y se pierden con cada revisión: válido para una
   demo, no para *staging*.
-- **Instancias.** Consentimiento y perfilamiento guardan su estado en memoria hasta que tengan
-  persistencia propia. Mientras tanto el núcleo corre con **una sola instancia**
-  (`--min-instances=1 --max-instances=1`); con más, un consentimiento otorgado en una instancia no
-  existe en la otra. El BFF y la web no guardan estado y pueden escalar.
+- **Instancias.** El núcleo corre con **dos réplicas fijas** (`--min-instances=2
+  --max-instances=2`, `REPLICAS_NUCLEO` en `scripts/ambiente.py`; ARQ-05, #136). Ningún módulo
+  guarda estado propio en memoria: todos persisten en Cloud SQL (identidad desde #136) o en Cloud
+  Storage. Lo que sí queda por réplica es a propósito: la caché de perfiles y el circuito de Open
+  Finance ([ADR 0002](adr/0002-consentimiento-vigente-antes-de-la-cache.md)). El BFF y la web no
+  guardan estado y pueden escalar.
 
 ### Qué esperan el BFF y la web de la plataforma
 
@@ -877,7 +879,7 @@ gcloud run deploy solventa-nucleo --region=<GCP_REGION> --image="$EJEMPLO" \
   --service-account="$NUCLEO" \
   --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
   --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest,COTIZACION_DATABASE_URL=cotizacion-database-url:latest \
-  --min-instances=1 --max-instances=1 --allow-unauthenticated
+  --min-instances=2 --max-instances=2 --allow-unauthenticated
 URL_NUCLEO=$(gcloud run services describe solventa-nucleo --region=<GCP_REGION> --format='value(status.url)')
 
 gcloud run deploy solventa-bff --region=<GCP_REGION> --image="$EJEMPLO" \
