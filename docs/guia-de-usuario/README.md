@@ -14,7 +14,7 @@ Solventa es una aseguradora digital: puedes cotizar, comprar y administrar tus s
 - [Antes de empezar](#antes-de-empezar)
 - **Web · clientes:** [Iniciar sesión](#1-iniciar-sesión) · [Inicio](#2-inicio) · [Consentimiento de datos](#3-consentimiento-de-datos-financieros) · [Cotizar](#4-cotizar-un-seguro) · [Comprar](#5-comprar-y-recibir-tu-póliza) · [Mis pólizas](#6-consultar-tus-pólizas) · [Modificar, renovar o cancelar](#7-modificar-renovar-o-cancelar-una-póliza) · [Reportar siniestro](#8-reportar-un-siniestro) · [Seguimiento](#9-seguir-tus-siniestros) · [Vida hipotecario](#10-oferta-de-vida-hipotecario) · [Cuenta y ayuda](#11-perfil-configuración-y-ayuda)
 - **Web · equipos internos:** [Tablero operacional](#12-tablero-operacional) · [Portal de socios](#13-portal-de-socios-de-distribución)
-- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Consentimiento](#16-consentimiento-de-datos-financieros-en-la-app) · [Cotizar y comprar](#17-cotizar-y-comprar-desde-el-celular) · [Billetera](#18-billetera-de-pólizas-y-modo-sin-conexión) · [Siniestros](#19-siniestros-desde-el-celular) · [Asistencia](#20-asistencia-en-sitio) · [Escanear](#21-escanear-documentos) · [Notificaciones](#22-notificaciones)
+- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Consentimiento](#16-consentimiento-de-datos-financieros-en-la-app) · [Cotizar y comprar](#17-cotizar-y-comprar-desde-el-celular) · [Pólizas](#18-tus-pólizas-en-el-celular) · [Siniestros](#19-siniestros-desde-el-celular) · [Asistencia](#20-asistencia-en-sitio) · [Escanear](#21-escanear-documentos) · [Notificaciones](#22-notificaciones)
 - [Mensajes que puedes ver y qué hacer](#mensajes-que-puedes-ver-y-qué-hacer) · [Accesibilidad e idioma](#accesibilidad-e-idioma)
 
 ---
@@ -331,15 +331,18 @@ Por ahora la compra se hace en la web: la app todavía no cotiza ni vende. En **
 
 La póliza que compres en la web aparece en la app la próxima vez que abras **Mis pólizas**, con el mismo número.
 
-## 18. Billetera de pólizas y modo sin conexión
+## 18. Tus pólizas en el celular
 
-Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digital** con número y vigencia, útil para mostrarla en un taller o una clínica.
+Toca **Pólizas** en la barra inferior. **Mis pólizas** muestra una tarjeta por póliza con el producto, el estado (*Vigente*, *Vencida* o *Por iniciar*), el número, la vigencia y la prima mensual. Son las mismas pólizas de la web, con el mismo número: una póliza que compraste en la web aparece aquí. Las pestañas **Activas**, **Vencidas** y **Todas** filtran por estado, y el ícono de actualizar (↻), arriba, trae lo último.
 
-| Billetera sin conexión | Credencial sin conexión |
-|---|---|
-| ![Billetera sin conexión](img/mob-billetera-offline.png) | ![Credencial sin conexión](img/mob-credencial-offline.png) |
+Toca una tarjeta para ver **Mi póliza**:
 
-**Sin internet** puedes seguir viendo tus pólizas y coberturas desde la última sincronización (lo indica la franja oscura superior). Las acciones que necesitan conexión (modificar, renovar, cancelar) aparecen en gris y, si las tocas, te lo explicamos. En la demo usa **📴 Simular modo sin conexión** y **📶 Volver a conectarse**.
+- **Información general:** vigencia, prima y fecha de emisión.
+- **Información financiera:** valor asegurado y deducible.
+- **Coberturas:** cada una con su límite. Si la póliza no tiene coberturas registradas, lo dice.
+- **Descargar PDF:** descarga el documento y lo abre con el visor de tu celular. Si la póliza no tiene documento, verás *El documento de esta póliza no está disponible.*
+
+Si no tienes conexión, la app te lo dice (*No tienes conexión. Revisa tu red e intenta de nuevo.*) y puedes **Reintentar**. Ver las pólizas y la credencial sin conexión (billetera) llega con MOB-F03, que no entró en este sprint.
 
 ## 19. Siniestros desde el celular
 
