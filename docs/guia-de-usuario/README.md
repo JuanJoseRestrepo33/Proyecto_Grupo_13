@@ -351,11 +351,19 @@ Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digit
 
 ## 19. Siniestros desde el celular
 
-| Reportar con fotos | Mis siniestros | Pago automático |
-|---|---|---|
-| ![Reportar siniestro móvil](img/mob-siniestro-reportar.png) | ![Siniestros móvil](img/mob-siniestros.png) | ![Siniestro paramétrico](img/mob-siniestro-parametrico.png) |
+Desde **Inicio**, toca **Reportar siniestro**. Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**) y pulsa **Enviar reporte**.
 
-Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**), pulsa **Enviar reporte** y sigue el estado en **Mis siniestros**. Los pagos automáticos muestran el evento que los activó.
+### Seguir tus siniestros desde el celular
+
+Desde **Inicio**, toca **Mis siniestros**. Ves una tarjeta por caso con el tipo de evento, el estado, la referencia, la póliza, la fecha del reporte y el canal (**Web** o **App**). Los casos que reportaste en la web aparecen aquí con la misma referencia, y al revés. Toca **Actualizar** para traer lo último.
+
+Toca una tarjeta para abrir **Tu caso**:
+
+- **Qué ha pasado:** cada cambio de estado con su fecha, desde el reporte. El último dice *Estado actual*.
+- **Resumen del caso:** la fecha del evento, la descripción, el monto estimado, el canal del reporte, el último cambio y el siguiente paso.
+- **Lo que te pedimos:** los requerimientos del analista, cada uno *Pendiente*, *Atendido* o *Cerrado sin respuesta*. Para responder uno pendiente, toca **Responder**, adjunta una foto, un video o un PDF y toca **Enviar respuesta**. Si se cae la conexión, toca **Reintentar envío**: la respuesta no se envía dos veces.
+
+Lo que respondas en la app se ve en la web al actualizar, y al revés.
 
 Las reglas son las mismas de la web (sección 8): la referencia es la misma en los dos canales y, si
 pulsas dos veces o se cae la conexión, no queda un reporte repetido.
