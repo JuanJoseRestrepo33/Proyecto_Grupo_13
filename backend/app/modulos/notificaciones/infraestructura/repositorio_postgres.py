@@ -7,11 +7,13 @@ dos réplicas, deje un solo push. El esquema es idempotente: se aplica en cada a
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from datetime import datetime
 
 import psycopg
-from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+
+from app.compartido.conexiones import conexion as conexion_del_pool
 
 from ..dominio.modelo import Dispositivo, EstadoEntrega, Notificacion, Plataforma
 
@@ -90,10 +92,10 @@ class _Base:
         self._tiempo_espera = tiempo_espera_conexion
         self._preparado = False
 
-    def _abrir(self) -> psycopg.Connection:
-        return psycopg.connect(self._dsn, row_factory=dict_row, connect_timeout=self._tiempo_espera)
+    def _abrir(self) -> AbstractContextManager[psycopg.Connection]:
+        return conexion_del_pool(self._dsn, self._tiempo_espera)
 
-    def _conectar(self) -> psycopg.Connection:
+    def _conectar(self) -> AbstractContextManager[psycopg.Connection]:
         if not self._preparado:
             self.preparar()
         return self._abrir()
