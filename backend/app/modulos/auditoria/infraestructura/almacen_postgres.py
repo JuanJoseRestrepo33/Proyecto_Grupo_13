@@ -8,10 +8,12 @@ exactamente el defecto que EXP-04 destapó y corrigió (criterio 5).
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 
 import psycopg
-from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+
+from app.compartido.conexiones import conexion as conexion_del_pool
 
 from ..dominio import cadena
 from ..dominio.modelo import EventoAuditable, Registro
@@ -53,8 +55,8 @@ class AlmacenPostgres:
         self._tiempo_espera = tiempo_espera_conexion
         self._preparado = False
 
-    def _conectar(self) -> psycopg.Connection:
-        return psycopg.connect(self._dsn, row_factory=dict_row, connect_timeout=self._tiempo_espera)
+    def _conectar(self) -> AbstractContextManager[psycopg.Connection]:
+        return conexion_del_pool(self._dsn, self._tiempo_espera)
 
     def preparar(self) -> None:
         """Aplica el esquema y los permisos. Idempotente."""
