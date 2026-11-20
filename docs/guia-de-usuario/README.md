@@ -148,11 +148,7 @@ En el menú, pulsa **Mis pólizas**. La tabla muestra el número, el producto, e
 
 ## 7. Modificar, renovar o cancelar una póliza
 
-Desde el detalle de la póliza:
-
-- **Modificar cobertura:** marca o desmarca coberturas y adicionales; el nuevo precio se calcula mientras eliges. Debe quedar al menos una cobertura.
-- **Renovar:** revisa la nueva vigencia y la nueva prima y pulsa **Aceptar renovación**.
-- **Cancelar:** marca la casilla *Entiendo las consecuencias…* y confirma en la ventana. Esta acción no se puede deshacer; la póliza queda como *Cancelada* y ya no permite cambios.
+> **Próximamente.** Modificar las coberturas, renovar y cancelar una póliza desde la web o la app todavía no están disponibles: no entraron en el MVP. Por ahora, el detalle de la póliza (sección 6) es de consulta y descarga. Para cualquiera de estos cambios, comunícate con Solventa.
 
 ## 8. Reportar un siniestro
 
