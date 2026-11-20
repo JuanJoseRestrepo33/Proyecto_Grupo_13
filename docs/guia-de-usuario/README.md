@@ -327,17 +327,9 @@ actual.
 
 ## 17. Cotizar y comprar desde el celular
 
-1. Toca **Cotizar** en el inicio.
-2. Elige Dispositivos, Viaje u Hogar.
-3. Revisa tus datos y decide si usar **Open Finance** para un precio personalizado.
-4. Revisa la oferta (precio, coberturas, **¿Por qué este precio?**).
-5. En **Pago** pulsa **Pagar y emitir póliza**.
+Por ahora la compra se hace en la web: la app todavía no cotiza ni vende. En **Mis pólizas**, si aún no tienes ninguna, **Cotizar un seguro** abre el cotizador de la web en el navegador del celular; inicia sesión con la misma cuenta de la app. Sigue los pasos de [Comprar y recibir tu póliza](#5-comprar-y-recibir-tu-póliza).
 
-| Oferta | Póliza emitida |
-|---|---|
-| ![Oferta móvil](img/mob-cotizar-oferta.png) | ![Póliza emitida en el celular](img/mob-suscripcion.png) |
-
-La póliza queda de inmediato en tu **billetera**.
+La póliza que compres en la web aparece en la app la próxima vez que abras **Mis pólizas**, con el mismo número.
 
 ## 18. Billetera de pólizas y modo sin conexión
 
