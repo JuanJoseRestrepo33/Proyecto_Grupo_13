@@ -18,6 +18,7 @@
 
 import http from 'k6/http';
 import { check, fail } from 'k6';
+import exec from 'k6/execution';
 import { Rate, Trend } from 'k6/metrics';
 
 const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
@@ -27,6 +28,11 @@ const ESCENARIO = __ENV.ESCENARIO || 'sano';
 const WEB = `${BASE_URL}/api/v1/web`;
 // Puntos de prueba de ARQ-05: la ciudad del asegurado alterna entre Bogotá y Cali.
 const CIUDADES = ['Bogotá', 'Cali'];
+// El núcleo devuelve la cotización vigente si llega una solicitud idéntica (WEB-F01, criterio 4).
+// Con los mismos datos, casi toda la carga reutilizaba dos cotizaciones y no pasaba por Open
+// Finance: degradado y caído no habrían medido nada. Cada iteración asegura un valor distinto,
+// así que cada solicitud es una cotización nueva con su perfilamiento.
+const VALOR_BASE = 60000000;
 
 const latencia = new Trend('cotizacion_ms', true);
 const sinOferta = new Rate('cotizacion_sin_oferta');
@@ -106,12 +112,13 @@ function asegurarConsentimiento(sesion) {
 }
 
 export default function (datos) {
-  const ciudad = CIUDADES[__ITER % CIUDADES.length];
+  const iteracion = exec.scenario.iterationInTest;
+  const ciudad = CIUDADES[iteracion % CIUDADES.length];
   const res = http.post(
     `${WEB}/cotizaciones`,
     JSON.stringify({
       producto: 'auto',
-      asegurado: { edad: 35, ciudad, valor_asegurado: 60000000 },
+      asegurado: { edad: 35, ciudad, valor_asegurado: VALOR_BASE + iteracion * 1000 },
       usar_open_finance: true,
     }),
     {
