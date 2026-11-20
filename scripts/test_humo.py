@@ -536,6 +536,14 @@ def test_pedir_envia_encabezados_y_cuerpo(servidor):
     assert respuesta == humo.Respuesta(200, b'{"a": 1}')
 
 
+def test_pedir_lee_entera_una_lista_larga(servidor):
+    """La lista de siniestros de la cuenta de prueba superó los 64 KB y el humo la cortaba."""
+    lista = json.dumps([{"referencia": f"SIN-2026-{i:06d}", "x": "a" * 400} for i in range(300)])
+    respuesta = humo.pedir("POST", servidor + "/eco-cuerpo", {}, lista.encode())
+    assert len(respuesta.cuerpo) > 64 * 1024
+    assert humo._lista(respuesta.cuerpo) is None
+
+
 def test_pedir_sin_respuesta_devuelve_none():
     assert humo.pedir("GET", "http://127.0.0.1:9/", {}).estado is None
 

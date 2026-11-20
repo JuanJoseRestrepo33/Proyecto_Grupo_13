@@ -35,8 +35,11 @@ import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 
-# Máximo que se lee de un cuerpo de respuesta; las rutas de humo responden poco.
-LIMITE_CUERPO = 64 * 1024
+# Máximo que se lee de un cuerpo de respuesta. No es poco a propósito: las listas de la cuenta
+# de prueba crecen con cada corrida de las E2E (los siniestros pasaron de 64 KB el 20 nov 2026),
+# y un cuerpo cortado no se puede validar. Sigue acotado para que una respuesta rota no llene
+# la memoria del runner.
+LIMITE_CUERPO = 4 * 1024 * 1024
 
 
 @dataclass(frozen=True)
