@@ -485,7 +485,7 @@ lados.
 | Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
 | Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
 | Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`): cuentas, registros, refrescos y verificaciones (#136). Con ella todas las réplicas ven las mismas cuentas y sesiones; sin ella, en memoria | `solventa-nucleo` | ARQ-05 |
-| Pool de conexiones a PostgreSQL | `POSTGRES_POOL_MAXIMO` (opcional, 3 por defecto): conexiones máximas por módulo y por réplica (`backend/app/compartido/conexiones.py`). Las ociosas se cierran a los 60 s. Con la `db-f1-micro` (25 conexiones) no conviene subirlo: se multiplica por los módulos en uso y por las réplicas | `solventa-nucleo` | ARQ-05 |
+| Pool de conexiones a PostgreSQL | `POSTGRES_POOL_MAXIMO` (opcional, 3 por defecto): conexiones máximas por módulo y por réplica (`backend/app/compartido/conexiones.py`). Las ociosas se cierran a los 60 s. Con la `db-g1-small` (50 conexiones) no conviene subirlo mucho: se multiplica por los módulos en uso y por las réplicas | `solventa-nucleo` | ARQ-05 |
 | Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo. *Aprovisionar* los deja explícitos en *staging*; el modo del proveedor (`PERFILAMIENTO_OPEN_FINANCE_MODO`) no, porque lo cambia *Carga de cotización* | `solventa-nucleo` | ARQ-05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
@@ -714,7 +714,7 @@ gcloud artifacts repositories create <GCP_ARTIFACT_REPOSITORY> \
   --repository-format=docker --location=<GCP_REGION>
 
 gcloud sql instances create solventa-auditoria --database-version=POSTGRES_15 \
-  --tier=db-f1-micro --region=<GCP_REGION>
+  --tier=db-g1-small --region=<GCP_REGION>
 gcloud sql databases create solventa --instance=solventa-auditoria
 gcloud sql users create auditoria --instance=solventa-auditoria --password='<contraseña>'
 ```

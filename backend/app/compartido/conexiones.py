@@ -7,7 +7,7 @@ unas mil cotizaciones seguidas dejaba de dar abasto y la latencia saltaba de 65 
 6 s, sin errores (informe de ARQ-05, sección 3). Con el pool las conexiones se reutilizan.
 
 Cada módulo tiene su propio usuario y, por tanto, su propia cadena y su propio pool. El
-tamaño es chico a propósito: la `db-f1-micro` admite 25 conexiones y se reparten entre los
+tamaño es chico a propósito: la `db-g1-small` admite 50 conexiones y se reparten entre los
 módulos y las réplicas del núcleo. Las conexiones ociosas se cierran solas (`max_idle`), así
 que un módulo que no se usa no ocupa ninguna.
 

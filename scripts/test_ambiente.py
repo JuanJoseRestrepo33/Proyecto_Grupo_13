@@ -43,6 +43,7 @@ class NubeSimulada:
         self.cuentas = {f"{c}@{PROYECTO}.iam.gserviceaccount.com" for c in amb.CUENTAS.values()}
         self.repositorio = True
         self.instancias: dict[str, str] = {}  # nombre → política de activación
+        self.niveles: dict[str, str] = {}  # nombre → tier
         self.bases: set[tuple[str, str]] = set()
         self.usuarios: set[tuple[str, str]] = set()
         self.secretos: dict[str, dict] = {}
@@ -55,6 +56,7 @@ class NubeSimulada:
 
     def completar(self, instancia: str = "solventa-auditoria") -> None:
         self.instancias[instancia] = "ALWAYS"
+        self.niveles[instancia] = amb.NIVEL_SQL
         self.bases.add((instancia, amb.BASE))
         self.usuarios.add((instancia, amb.DUENO))
         for nombre in amb.SECRETOS:
@@ -134,14 +136,21 @@ class NubeSimulada:
         if (grupo, recurso) == ("sql", "instances"):
             if verbo == "list":
                 filas = [
-                    {"name": n, "state": "RUNNABLE", "settings": {"activationPolicy": p}}
+                    {
+                        "name": n,
+                        "state": "RUNNABLE",
+                        "settings": {"activationPolicy": p, "tier": self.niveles.get(n)},
+                    }
                     for n, p in {**self.instancias, "otra-app": "ALWAYS"}.items()
                 ]
                 return amb.Salida(0, json.dumps(filas))
             if verbo == "create":
                 self.instancias[objetivo] = "ALWAYS"
+                self.niveles[objetivo] = self._opcion(args, "tier")
             elif verbo == "patch":
-                self.instancias[objetivo] = self._opcion(args, "activation-policy")
+                politica = self._opcion(args, "activation-policy", self.instancias[objetivo])
+                self.instancias[objetivo] = politica
+                self.niveles[objetivo] = self._opcion(args, "tier", self.niveles.get(objetivo))
             elif verbo == "delete":
                 del self.instancias[objetivo]
             return amb.Salida(0, f"op-{verbo}-{objetivo}\n")
@@ -538,6 +547,22 @@ class TestAprovisionarLoQueYaExiste:
         assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
         assert nube.comandos("sql", "operations", "wait")
         assert not nube.comandos("sql", "instances", "create")
+
+    def test_cambia_una_f1_micro_a_g1_small_sin_recrearla(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.niveles["solventa-auditoria"] = "db-f1-micro"
+        _ambiente(nube, entorno).aprovisionar()
+        assert nube.niveles["solventa-auditoria"] == "db-g1-small"
+        assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
+        assert not nube.comandos("sql", "instances", "create")
+        nube.llamadas.clear()
+        _ambiente(nube, entorno).aprovisionar()
+        assert not nube.comandos("sql", "instances", "patch")
+
+    def test_crea_cloud_sql_en_g1_small(self, entorno):
+        nube = NubeSimulada()
+        _ambiente(nube, entorno).aprovisionar()
+        assert set(nube.niveles.values()) == {"db-g1-small"}
 
     def test_solo_rehace_el_usuario_cuyo_secreto_falta(self, entorno):
         nube = NubeSimulada(completa=True)

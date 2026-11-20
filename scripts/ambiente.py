@@ -81,8 +81,13 @@ UMBRALES_CIRCUITO = {
 # Réplicas fijas del núcleo (ARQ-05, #136). Con identidad en Cloud SQL ningún módulo guarda
 # estado en memoria, y dos réplicas permiten probar la revocación entre ellas y quitar una a
 # mitad de la carga. Mínimo y máximo iguales: el pool de cada réplica cuenta contra las 25
-# conexiones de la db-f1-micro.
+# conexiones de Cloud SQL.
 REPLICAS_NUCLEO = 2
+# Tamaño de Cloud SQL (ARQ-05). La db-f1-micro tiene un tope de 0,2 vCPU: a 1000 cotizaciones por
+# minuto, todas nuevas, aguantó unos 3,5 minutos y luego la CPU quedó pegada en 20 % y el p95
+# pasó de 46 ms a 2,8 s. La db-g1-small da 0,5 vCPU y 1,7 GB. Si la instancia ya existe con otro
+# tamaño, `aprovisionar` la cambia (la base se reinicia uno o dos minutos).
+NIVEL_SQL = "db-g1-small"
 # Imagen de relleno del primer despliegue; el CD la reemplaza por la real.
 IMAGEN_INICIAL = "us-docker.pkg.dev/cloudrun/container/hello"
 CICLO_BUCKET = {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}
@@ -267,7 +272,10 @@ class Ambiente:
 
     def instancias(self) -> list[dict]:
         texto = self.gcloud(
-            "sql", "instances", "list", "--format=json(name,state,settings.activationPolicy)"
+            "sql",
+            "instances",
+            "list",
+            "--format=json(name,state,settings.activationPolicy,settings.tier)",
         )
         todas = json.loads(texto or "[]")
         return [i for i in todas if i["name"].startswith(PREFIJO_INSTANCIA)]
@@ -385,7 +393,7 @@ class Ambiente:
             self.informe.nota(f"Creando Cloud SQL {nombre} (unos 10 minutos)…")
             operacion = self.gcloud(
                 "sql", "instances", "create", nombre, "--database-version=POSTGRES_15",
-                "--tier=db-f1-micro", "--edition=ENTERPRISE", f"--region={self.region}",
+                f"--tier={NIVEL_SQL}", "--edition=ENTERPRISE", f"--region={self.region}",
                 "--storage-size=10", "--availability-type=zonal", "--no-backup",
                 "--async", "--format=value(name)",
             )  # fmt: skip
@@ -397,7 +405,20 @@ class Ambiente:
             self.informe.nota(f"Cloud SQL {nombre} estaba apagada: encendida")
         else:
             self.informe.existe(f"Cloud SQL {nombre}")
+        self._nivel(instancia)
         return nombre
+
+    def _nivel(self, instancia: dict) -> None:
+        actual = instancia["settings"].get("tier")
+        if actual == NIVEL_SQL:
+            return
+        nombre = instancia["name"]
+        self.informe.nota(f"Cloud SQL {nombre}: de {actual} a {NIVEL_SQL} (se reinicia)…")
+        operacion = self.gcloud(
+            "sql", "instances", "patch", nombre, f"--tier={NIVEL_SQL}",
+            "--async", "--format=value(name)",
+        )  # fmt: skip
+        self.esperar(operacion)
 
     def _base(self, instancia: str) -> None:
         if self.gcloud.existe("sql", "databases", "describe", BASE, f"--instance={instancia}"):
