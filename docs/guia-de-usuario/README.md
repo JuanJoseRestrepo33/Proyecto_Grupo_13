@@ -422,9 +422,21 @@ Tus documentos quedan en **Documentos escaneados**.
 
 ## 22. Notificaciones
 
-![Notificaciones](img/mob-notificaciones.png)
+La app te avisa con una notificación del teléfono cuando cambia el estado de un siniestro que reportaste, en la web o en la app.
 
-Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punto y un borde de color. Filtra por **Pólizas** o **Siniestros**, toca una para marcarla como leída o usa **Marcar todo leído**. Cada aviso lleva a su acción: por ejemplo, **Renovar ahora** abre la renovación de esa póliza. Ajusta qué avisos recibes en **⚙️ Preferencias de notificación**.
+**Activarlas.** En **Inicio** verás *Entérate cuando avance tu siniestro*. Toca **Activar notificaciones** y acepta el permiso de Android, o **Ahora no**. Si no las activas, verás *Las notificaciones están desactivadas*: el estado de tus casos se sigue viendo en **Ver mis siniestros**, y puedes activarlas después con **Activar en Ajustes**. Puedes desactivarlas cuando quieras desde los ajustes del teléfono (canal *Estado de tus siniestros*).
+
+**Qué dice cada aviso.** El título es *Tu siniestro SIN-… cambió*, y el texto depende del estado nuevo:
+
+| Estado nuevo | Texto |
+|---|---|
+| En evaluación | Ya estamos evaluando tu caso. |
+| Requiere información | Necesitamos un documento para seguir con tu caso. |
+| Aprobado | Tu caso fue aprobado. |
+| Rechazado | Tu caso fue revisado y no procede. Revisa el detalle. |
+| Pagado | Ya pagamos tu indemnización. |
+
+**Tocar el aviso** abre **Tu caso** de ese siniestro (sección 19). Si no habías iniciado sesión, primero te la pide y después lo abre. Por ahora no hay una bandeja de avisos dentro de la app: la pestaña **Avisos** llega en un sprint siguiente.
 
 ---
 
