@@ -172,7 +172,8 @@ desplegados:
 [`web-staging-suscripcion-pago-aprobado.png`](guia-de-usuario/img/web-staging-suscripcion-pago-aprobado.png) ·
 [`web-staging-suscripcion-firma.png`](guia-de-usuario/img/web-staging-suscripcion-firma.png) ·
 [`web-staging-suscripcion-emitida.png`](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
-(número de póliza, vigencia y descarga del PDF). *Pendiente:* las de la app.
+(número de póliza, vigencia y descarga del PDF). La app no compra (MOB-F04, fuera del MVP): la
+póliza emitida se ve en la app con WEB-F04.
 
 ![Póliza emitida en staging](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
 
