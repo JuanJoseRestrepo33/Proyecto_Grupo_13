@@ -97,7 +97,7 @@ class ConsultaPolizaE2eTest {
         paso(6, "comparar con la lista de la web") { comprobarListaWeb(compra) }
         paso(7, "detalle de la póliza emitida") { comprobarDetalle(compra) }
         paso(8, "descargar el documento") { comprobarDocumento(compra) }
-        paso(9, "detalle de la póliza sembrada") { comprobarPolizaSembrada() }
+        paso(9, "detalle de la póliza sembrada") { comprobarPolizaSembrada(compra.cookie) }
     }
 
     /** Lo que deja la compra por la web: la oferta aceptada y la póliza emitida. */
@@ -202,11 +202,7 @@ class ConsultaPolizaE2eTest {
 
         assertFila("valor-asegurado", R.string.detalle_valor_asegurado, detalle.getString("valor_asegurado"))
         assertFila("deducible", R.string.detalle_deducible, detalle.getString("deducible"))
-        coberturas.forEachIndexed { indice, (nombre, limite) ->
-            val esperada = texto(R.string.fila_descripcion, nombre, limite)
-            assertEquals("Cobertura $indice", esperada, fila("cobertura-$indice"))
-        }
-        assertFalse("La app muestra más coberturas que la web", hay("fila-cobertura-${coberturas.size}"))
+        comprobarCoberturas(coberturas)
         val noDisponible = texto(R.string.no_disponible)
         filas().forEach { (etiqueta, valor) ->
             assertFalse("$etiqueta dice «$noDisponible»", valor.contains(noDisponible))
@@ -236,8 +232,15 @@ class ConsultaPolizaE2eTest {
         assertFalse("Apareció un aviso de error tras abrir el PDF", hayAviso())
     }
 
-    /** La póliza de la semilla no tiene documento ni coberturas: se explica y nada dice `null` (criterio 5). */
-    private fun comprobarPolizaSembrada() {
+    /**
+     * La póliza de la semilla no tiene documento: se explica y no se ofrece la descarga (criterio 5).
+     *
+     * Sus condiciones no son fijas: el núcleo completa las pólizas de prueba con las del catálogo de su
+     * producto (criterio 4 de #186, `ServicioPolizas._completar`), y solo si el producto no está en el
+     * catálogo quedan sin coberturas. La app debe decir lo mismo que el BFF web para esa póliza: sus
+     * coberturas, o «sin coberturas»; su valor asegurado y deducible, o «No disponible».
+     */
+    private fun comprobarPolizaSembrada(cookie: String) {
         tocarFijo("volver")
         esperar { hay("pestana-todas") || hay("reintentar") }
         exigirSinErrorDeCarga()
@@ -249,13 +252,36 @@ class ConsultaPolizaE2eTest {
         abrirTarjeta(numero).performScrollTo().performClick()
         esperarDetalle(numero)
 
-        assertTrue("No dice que no hay coberturas", hay("sin-coberturas"))
         assertTrue("No dice que el documento no está disponible", hay("sin-documento"))
         assertFalse("Ofrece descargar un documento que no existe", hay("descargar-pdf"))
+
+        val detalle = web.poliza(cookie, numero)
+        assertTrue("La web ofrece un documento para la póliza sembrada", detalle.isNull("documento_url"))
         val noDisponible = texto(R.string.no_disponible)
-        assertFila("valor-asegurado", R.string.detalle_valor_asegurado, noDisponible)
-        assertFila("deducible", R.string.detalle_deducible, noDisponible)
+        val valorAsegurado = textoOpcional(detalle, "valor_asegurado") ?: noDisponible
+        assertFila("valor-asegurado", R.string.detalle_valor_asegurado, valorAsegurado)
+        assertFila("deducible", R.string.detalle_deducible, textoOpcional(detalle, "deducible") ?: noDisponible)
+        val coberturas = coberturas(detalle)
+        if (coberturas.isEmpty()) {
+            assertTrue("No dice que no hay coberturas", hay("sin-coberturas"))
+        } else {
+            assertFalse("Dice que no hay coberturas y la web tiene ${coberturas.size}", hay("sin-coberturas"))
+            comprobarCoberturas(coberturas)
+        }
     }
+
+    /** Una fila por cobertura, con su límite, y ninguna de más. */
+    private fun comprobarCoberturas(coberturas: List<Pair<String, String>>) {
+        coberturas.forEachIndexed { indice, (nombre, limite) ->
+            val esperada = texto(R.string.fila_descripcion, nombre, limite)
+            assertEquals("Cobertura $indice", esperada, fila("cobertura-$indice"))
+        }
+        assertFalse("La app muestra más coberturas que la web", hay("fila-cobertura-${coberturas.size}"))
+    }
+
+    /** El texto del campo, o null si falta, es null o está en blanco (la app dice entonces «No disponible»). */
+    private fun textoOpcional(json: JSONObject, campo: String): String? =
+        if (!json.has(campo) || json.isNull(campo)) null else json.getString(campo).takeIf(String::isNotBlank)
 
     private fun esperarDetalle(numero: String) {
         val enEncabezado = hasText(numero) and hasAnyAncestor(hasTestTag("encabezado"))
