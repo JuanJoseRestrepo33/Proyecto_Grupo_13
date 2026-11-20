@@ -54,8 +54,8 @@ MODULOS_BD = (
     "polizas",  # WEB-F03
     "notificaciones",  # MOB-F06
     "consentimiento",  # ARQ-05: con él, el núcleo puede tener varias réplicas
-    # ARQ-05 (#136): se deja listo antes que el código. Mientras las cuentas sigan en memoria, el
-    # núcleo no lee IDENTIDAD_DATABASE_URL y no puede tener más de una réplica.
+    # ARQ-05 (#136): cuentas, registros, refrescos y verificaciones. Con ella ningún módulo
+    # guarda estado en la réplica y el núcleo corre con REPLICAS_NUCLEO instancias.
     "identidad",
 )
 SECRETOS_NUCLEO = {

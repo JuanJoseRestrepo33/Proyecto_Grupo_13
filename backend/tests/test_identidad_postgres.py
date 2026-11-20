@@ -8,6 +8,7 @@ tokens: lo que en *staging* son dos instancias de Cloud Run con la misma llave.
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import psycopg
@@ -18,6 +19,7 @@ from app.compartido.reloj import RelojFijo
 from app.modulos.identidad.aplicacion.cuentas import ServicioDeCuentas
 from app.modulos.identidad.dominio.errores import (
     CorreoYaRegistradoError,
+    DocumentoYaRegistradoError,
     TokenRefrescoInvalidoError,
 )
 from app.modulos.identidad.dominio.modelo import (
@@ -94,6 +96,51 @@ def test_el_correo_ya_registrado_en_otra_replica_se_rechaza(emisor):
 
     with pytest.raises(CorreoYaRegistradoError):
         _replica(emisor).registrar(DATOS, "web")
+
+
+class _CuentasSinComprobacionPrevia(RepositorioDeCuentasPostgres):
+    """La réplica que no ve todavía la cuenta que la otra está creando en ese instante."""
+
+    def por_correo(self, correo: str):
+        return None
+
+    def por_documento(self, numero_documento: str):
+        return None
+
+
+def _replica_en_carrera(emisor: EmisorEs256) -> ServicioDeCuentas:
+    replica = _replica(emisor)
+    replica._cuentas = _CuentasSinComprobacionPrevia(DSN)
+    return replica
+
+
+def test_el_alta_simultanea_con_el_mismo_correo_se_rechaza_y_no_da_500(emisor):
+    _replica(emisor).registrar(DATOS, "movil")
+    otro_documento = replace(DATOS, numero_documento="9080706050")
+
+    with pytest.raises(CorreoYaRegistradoError):
+        _replica_en_carrera(emisor).registrar(otro_documento, "web")
+
+
+def test_el_alta_simultanea_con_el_mismo_documento_se_rechaza_y_no_da_500(emisor):
+    _replica(emisor).registrar(DATOS, "movil")
+    otro_correo = replace(DATOS, correo="otra@ejemplo.co")
+
+    with pytest.raises(DocumentoYaRegistradoError):
+        _replica_en_carrera(emisor).registrar(otro_correo, "web")
+
+
+def test_la_cuenta_que_pierde_la_carrera_no_queda_guardada(emisor):
+    _, ganadora = _replica(emisor).registrar(DATOS, "movil")
+
+    # Con correo y documento repetidos, PostgreSQL informa la primera restricción que revisa:
+    # cualquiera de los dos rechazos es correcto.
+    with pytest.raises((CorreoYaRegistradoError, DocumentoYaRegistradoError)):
+        _replica_en_carrera(emisor).registrar(DATOS, "web")
+
+    with psycopg.connect(DSN) as conexion:
+        cuentas = conexion.execute("SELECT id_cliente FROM identidad.cuentas").fetchall()
+    assert cuentas == [(ganadora.id_cliente,)]
 
 
 def test_el_refresco_es_de_un_solo_uso_entre_replicas(emisor):

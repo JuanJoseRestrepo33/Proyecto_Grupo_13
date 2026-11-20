@@ -6,7 +6,8 @@ SQL todas las réplicas ven las mismas cuentas, los mismos códigos de verificac
 tokens de refresco, y las cuentas sobreviven a cada despliegue.
 
 - El correo y el documento son únicos en la base, no solo en el cerrojo de la réplica: dos
-  altas simultáneas en réplicas distintas no pueden crear la misma cuenta.
+  altas simultáneas en réplicas distintas no pueden crear la misma cuenta, y la que pierde
+  recibe el mismo rechazo de negocio que da la comprobación previa.
 - `tomar` un refresco es un `DELETE … RETURNING`: es de un solo uso aunque dos réplicas lo
   presenten a la vez.
 - Los identificadores salen de secuencias. La de cuentas arranca por encima de los que dio la
@@ -27,6 +28,7 @@ from psycopg.types.json import Jsonb
 from app.compartido.conexiones import conexion as conexion_del_pool
 
 from ..dominio.cuenta import Cuenta, Registro
+from ..dominio.errores import CorreoYaRegistradoError, DocumentoYaRegistradoError
 from ..dominio.modelo import (
     DatosDeIdentidad,
     EstadoVerificacion,
@@ -184,8 +186,36 @@ def _a_cuenta(fila: Mapping[str, object]) -> Cuenta:
     )
 
 
+#: Restricciones `UNIQUE` de `identidad.cuentas` (nombre por defecto de PostgreSQL) y el
+#: rechazo de negocio que corresponde a cada una.
+RECHAZO_POR_RESTRICCION = {
+    "cuentas_correo_key": (CorreoYaRegistradoError, "El correo ya tiene una cuenta"),
+    "cuentas_numero_documento_key": (
+        DocumentoYaRegistradoError,
+        "El documento ya tiene una cuenta",
+    ),
+}
+
+
 class RepositorioDeCuentasPostgres(_Base):
     def guardar(self, cuenta: Cuenta) -> None:
+        """Inserta o actualiza la cuenta.
+
+        El cerrojo de altas de `ServicioDeCuentas` solo serializa dentro de una réplica: dos
+        altas simultáneas con el mismo correo o documento en réplicas distintas pasan las dos
+        la comprobación previa, y la segunda choca con la restricción `UNIQUE`. Ese choque se
+        traduce al mismo rechazo de negocio (409) que da la comprobación, en vez de un 500.
+        """
+        try:
+            self._insertar_o_actualizar(cuenta)
+        except psycopg.errors.UniqueViolation as error:
+            rechazo = RECHAZO_POR_RESTRICCION.get(error.diag.constraint_name or "")
+            if rechazo is None:
+                raise
+            tipo, mensaje = rechazo
+            raise tipo(mensaje) from error
+
+    def _insertar_o_actualizar(self, cuenta: Cuenta) -> None:
         with self._conectar() as conexion:
             conexion.execute(
                 GUARDAR_CUENTA,
