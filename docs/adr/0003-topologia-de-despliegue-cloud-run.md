@@ -37,7 +37,7 @@ topología que resultó y la tensión con la vista del PRY1.
 | Pieza | Qué hay | En lugar de |
 |---|---|---|
 | Cómputo | Tres servicios de Cloud Run: `solventa-nucleo` (monolito modular), `solventa-bff` (dos routers, [ADR 0001](0001-bff-unico-dos-routers.md)) y `solventa-web` (nginx) | GKE regional con HPA |
-| Datos | Una instancia de Cloud SQL para PostgreSQL 15 (`db-f1-micro`, zonal, sin respaldos), con una base y **un esquema y un usuario por módulo** | Cloud SQL HA con réplica de lectura en otra región |
+| Datos | Una instancia de Cloud SQL para PostgreSQL 15 (`db-g1-small`, zonal, sin respaldos), con una base y **un esquema y un usuario por módulo** | Cloud SQL HA con réplica de lectura en otra región |
 | Caché | En la memoria de cada réplica del núcleo; el consentimiento se verifica en Cloud SQL antes de usarla ([ADR 0002](0002-consentimiento-vigente-antes-de-la-cache.md)) | Memorystore |
 | Eventos | Dentro del monolito, por las interfaces públicas de los módulos | Pub/Sub |
 | Archivos | Dos buckets privados de Cloud Storage: evidencias (30 días) y documentos de póliza | - |
@@ -52,7 +52,7 @@ diseñado y medido en el experimento EXP-03, pero no desplegado.
 
 | Alternativa | Por qué no |
 |---|---|
-| **La topología de los experimentos** (GKE multizona, Memorystore, Pub/Sub, región de respaldo) | Cuesta del orden de USD 1.300 a 1.900 al mes encendida. *Staging* paga una instancia `db-f1-micro` y Cloud Run con mínimo de instancias en 0 o 1, una fracción de eso, y se apaga cuando no se usa. Con cuatro personas y tres sprints, operar un clúster le quitaría tiempo al producto, que es lo que se evalúa en el PRY2 |
+| **La topología de los experimentos** (GKE multizona, Memorystore, Pub/Sub, región de respaldo) | Cuesta del orden de USD 1.300 a 1.900 al mes encendida. *Staging* paga una instancia `db-g1-small` y Cloud Run con mínimo de instancias en 0 o 1, una fracción de eso, y se apaga cuando no se usa. Con cuatro personas y tres sprints, operar un clúster le quitaría tiempo al producto, que es lo que se evalúa en el PRY2 |
 | **Terraform para *staging*** | Lo descartó ARQ-01. Con pocos recursos, un script idempotente con pruebas dio lo mismo (crear lo que falta, omitir lo que existe, destruir sin tocar el acceso) sin un estado remoto que cuidar. Si el ambiente crece, migrar a Terraform es el siguiente paso |
 | **Cloud SQL HA (regional) desde ya** | Duplica el costo de la instancia. Se activa con `--availability-type=regional` cuando el producto tenga un ambiente de producción |
 | **Servicios separados por módulo (microservicios)** | RN-03: equipo reducido. El monolito modular conserva las fronteras (import-linter en CI, un esquema por módulo) sin el costo de operar un servicio por módulo |
@@ -66,8 +66,11 @@ diseñado y medido en el experimento EXP-03, pero no desplegado.
   RC-07 (sin región de respaldo). Son la principal diferencia con la vista de despliegue del PRY1, y
   su evidencia sigue siendo el informe de EXP-03.
 - **Escala horizontal:** con identidad en Cloud SQL (#136) ningún módulo guarda estado en la
-  réplica, y el núcleo corre con dos réplicas fijas. El límite ahora es la `db-f1-micro`: 25
-  conexiones, repartidas por el pool de cada réplica (#216).
+  réplica, y el núcleo corre con dos réplicas fijas. El límite ahora es Cloud SQL. La
+  `db-f1-micro` (0,2 vCPU) no sostuvo 1000 cotizaciones nuevas por minuto más de unos 3,5 minutos:
+  su CPU quedó pegada en 20 % y el p95 pasó de 46 ms a 2,8 s. Por eso *staging* usa una
+  `db-g1-small` (0,5 vCPU, 50 conexiones), que `aprovisionar` aplica también a una instancia
+  existente (#216).
 - **Costo controlado:** Cloud SQL se puede apagar fuera de horario (`cloud-sql.yml`; el apagado
   nocturno necesita el environment `staging-apagado`) y los servicios escalan a cero. Apagada la base, el CD avisa y las E2E fallan.
 - **Revisión:** esta ADR se reemplaza si el equipo decide desplegar multirregión, o si las pruebas
