@@ -1,6 +1,7 @@
 # Informe de calidad · ARQ-05 · Verificación de calidad en staging
 
-> **Estado: en curso.** Este informe recoge las corridas hechas hasta el 8 nov 2026. Solo hay
+> **Estado: en curso.** Este informe recoge las corridas hechas hasta el 8 nov 2026 y la causa del
+> bloqueo, encontrada el 20 nov 2026 (sección 3.1). Solo hay
 > corridas con el proveedor de Open Finance **sano**. Las de `degradado` y `caido`, el caos y la
 > verificación de la cadena de auditoría quedan pendientes, por el hallazgo de la
 > [sección 3](#3-hallazgo-el-núcleo-se-traba-cerca-de-la-cotización-1000).
@@ -74,19 +75,40 @@ importar la tasa**:
   instance*"), porque el núcleo no puede escalar más allá de una instancia.
 - **Todas las cotizaciones son del mismo cliente** (la cuenta de prueba).
 
-**Causa: sin confirmar.** Es lo que tiene que investigar el backend. Las hipótesis son dos. Puede
-haber algo por cliente que crezca con cada cotización (una consulta, una lista o la cadena de
-auditoría). O el núcleo puede estar agotando un recurso: memoria (512 MB), hilos o conexiones contra
-la `db-f1-micro`. La prueba que la separa es reproducir en local unas 1.100 cotizaciones del mismo
-cliente.
+### 3.1 Causa: una conexión nueva a PostgreSQL por cada operación
+
+La prueba que separa las dos hipótesis se hizo el 20 nov 2026: 1.300 cotizaciones seguidas del mismo
+cliente contra el núcleo en local, con el mismo recorrido (consentimiento vigente, Open Finance
+sano).
+
+| Configuración local | p50 por cotización | ¿Se traba cerca de la 1.000? |
+|---|---:|---|
+| Sin base (repositorios en memoria) | 2,4 ms | No |
+| PostgreSQL 16 limitado a 0,25 CPU, sin pool | 45 ms | No |
+| PostgreSQL 16 limitado a 0,25 CPU, con pool (#300) | 9 ms | No |
+
+- **No es algo por cliente.** En memoria, la cotización 1.300 tarda lo mismo que la primera. Se
+  descarta la primera hipótesis.
+- **Es el costo de conectarse.** Los ocho repositorios abrían y cerraban una conexión en cada
+  operación, y una cotización hace seis o más (consentimiento, cotización, auditoría). Con la base
+  limitada, eso multiplica por 19 el tiempo de la cotización.
+- **Por qué en staging se traba y en local no.** En staging cada conexión nueva pasa por el socket de
+  Cloud SQL y se autentica contra una `db-f1-micro`, que es de **núcleo compartido**: rinde por
+  ráfagas y, gastado el margen, baja a una fracción de CPU. Eso explica que el corte dependa del
+  número de cotizaciones y no de la tasa, que sea brusco y que no deje errores en ningún registro.
+  Es la explicación más consistente con los datos; la confirma o la descarta repetir k6 con el pool.
+
+**Arreglo: pool de conexiones por módulo (#300).** Las conexiones se reutilizan (máximo 3 por módulo
+y réplica, `POSTGRES_POOL_MAXIMO`), las ociosas se cierran a los 60 s y cada préstamo se verifica,
+para sobrevivir al apagado nocturno de Cloud SQL.
 
 ## 4. Estado de los criterios de ARQ-05
 
 | # | Criterio | Estado | Evidencia |
 |---|---|---|---|
-| 1 | Carga a 1.000/min durante 5 min: p95 ≤ 250 ms y p99 ≤ 500 ms con el proveedor sano, degradado y caído (RC-01) | ❌ **No cumple con el proveedor sano.** Degradado y caído pendientes | Corrida 3. Antes del bloqueo, la corrida 4 da p95 de 75 ms en el núcleo |
+| 1 | Carga a 1.000/min durante 5 min: p95 ≤ 250 ms y p99 ≤ 500 ms con el proveedor sano, degradado y caído (RC-01) | ❌ **No cumple con el proveedor sano** sin el pool. Repetir con #300; degradado y caído pendientes | Corrida 3. Antes del bloqueo, la corrida 4 da p95 de 75 ms en el núcleo. Causa en la sección 3.1 |
 | 2 | Proveedor caído: menos de 0,1 % de fallas y cada oferta dice si usó caché o tarifa estándar (RC-03) | ⏳ Pendiente | Necesita resolver el hallazgo de la sección 3 |
-| 3 | Revocación en una réplica respetada por las dos (RC-04) | 🚫 Bloqueado | Las cuentas viven en memoria; el núcleo no puede tener dos réplicas (#136) |
+| 3 | Revocación en una réplica respetada por las dos (RC-04) | ⏳ Pendiente en staging | Identidad en Cloud SQL y 2 réplicas en #301. En local ya pasa: `test_consentimiento_postgres.py` y `test_identidad_postgres.py` |
 | 4 | El circuito se cierra solo y `/salud` vuelve de `degradado` a `ok` | ⏳ Pendiente | Corrida en `caido` seguida de `sano` |
 | 5 | La cotización degradada queda registrada, con su base en la auditoría | ⏳ Pendiente | Corrida en `degradado` y consulta del log |
 | 6 | Un registro alterado se detecta al verificar la cadena de hash (RC-08) | ⏳ Pendiente | Prueba manual sobre *staging* |
@@ -96,9 +118,8 @@ cliente.
 
 | Paso | Depende de | Issue |
 |---|---|---|
-| Encontrar y corregir por qué el núcleo se traba cerca de la cotización 1.000 | Backend (Sergio) | #216 |
-| Persistir identidad en Cloud SQL. *Aprovisionar* ya deja listos el usuario, el esquema y `identidad-database-url` | Backend (Sergio) | #136 |
-| Subir el núcleo a 2 réplicas (`min-instances=2`) | Cloud (Juan), cuando identidad persista | #136 |
+| ~~Encontrar por qué el núcleo se traba cerca de la cotización 1.000~~ Hecho: sección 3.1. Arreglo en revisión | Revisión del backend (Sergio) | #300 |
+| ~~Persistir identidad en Cloud SQL~~ y subir el núcleo a 2 réplicas. En revisión | Revisión del backend (Sergio); *Aprovisionar* después del merge (Juan) | #301 |
 | Repetir `sano`, `degradado` y `caido` a 1.000/min durante 5 min | Cloud (Juan) | #216 |
 | Revocación entre réplicas, caos (quitar una réplica a mitad de carga) y verificación de la cadena de auditoría | Cloud (Juan) | #216 |
 | Cerrar este informe con todas las corridas | Documentación (Juan) | #217 |
