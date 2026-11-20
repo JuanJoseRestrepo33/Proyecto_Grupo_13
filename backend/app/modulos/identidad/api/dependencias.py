@@ -4,8 +4,13 @@ El proveedor de KYC/AML es el simulado; `IDENTIDAD_KYC_CAIDO=1` lo deja fuera de
 para ensayar el camino de falla sin tocar código. El proveedor real entra aquí, detrás del
 mismo puerto, cuando exista.
 
-Con `HUMO_CORREO` y `HUMO_CLAVE` se siembra al arrancar la cuenta de prueba de *staging*
-(las cuentas viven en memoria y se pierden con cada revisión). Con `IDENTIDAD_OTP_FIJO`
+Con `IDENTIDAD_DATABASE_URL` las cuentas, los registros, los refrescos y las verificaciones
+viven en PostgreSQL, en el esquema `identidad`, y todas las réplicas del núcleo ven lo mismo
+(ARQ-05, #136). Sin ella, en memoria: válido con una sola instancia, y se pierden con cada
+revisión.
+
+Con `HUMO_CORREO` y `HUMO_CLAVE` se siembra al arrancar la cuenta de prueba de *staging*,
+si no existe ya. Con `IDENTIDAD_OTP_FIJO`
 todos los códigos de verificación del correo son ese, para las E2E del registro.
 
 Los tokens se firman con `TOKENS_LLAVE_PRIVADA`. Sin ella, en local se genera una llave
@@ -37,6 +42,12 @@ from ..infraestructura.cuentas_memoria import (
 )
 from ..infraestructura.proveedor_kyc_simulado import NOMBRE, ProveedorKYCSimulado
 from ..infraestructura.repositorio_memoria import RepositorioEnMemoria
+from ..infraestructura.repositorio_postgres import (
+    RepositorioDeCuentasPostgres,
+    RepositorioDeRefrescosPostgres,
+    RepositorioDeRegistrosPostgres,
+    RepositorioDeVerificacionesPostgres,
+)
 from ..infraestructura.tokens_es256 import EmisorEs256, LlaveInvalidaError
 
 VARIABLE_PROVEEDOR_CAIDO = "IDENTIDAD_KYC_CAIDO"
@@ -44,6 +55,7 @@ VARIABLE_LLAVE_PRIVADA = "TOKENS_LLAVE_PRIVADA"
 VARIABLE_LLAVE_PUBLICA = "TOKENS_LLAVE_PUBLICA"
 VARIABLE_CLOUD_RUN = "K_SERVICE"
 VARIABLE_OTP_FIJO = "IDENTIDAD_OTP_FIJO"
+VARIABLE_DSN = "IDENTIDAD_DATABASE_URL"
 #: Credenciales de la cuenta de prueba de *staging*, las mismas que usa el humo de `cd.yml`.
 VARIABLE_CORREO_PRUEBA = "HUMO_CORREO"
 VARIABLE_CLAVE_PRUEBA = "HUMO_CLAVE"
@@ -84,6 +96,17 @@ def crear_emisor(
     return emisor, EstadoDeDependencia("tokens", "ok", f"ES256, kid {emisor.kid}")
 
 
+def _dsn() -> str | None:
+    return os.environ.get(VARIABLE_DSN) or None
+
+
+def _preparar(repositorio: RepositorioDeCuentasPostgres) -> None:
+    try:
+        repositorio.preparar()
+    except Exception:  # noqa: BLE001 - la base caída al arrancar no debe tumbar el núcleo
+        log.exception("No se pudo preparar el esquema de identidad; se reintentará")
+
+
 def _datos_de_identidad(id_cliente: str) -> DatosDeIdentidad:
     """Se resuelve al usarse: las cuentas también dependen del servicio de verificación."""
     return obtener_servicio_de_cuentas().datos_de_identidad(id_cliente)
@@ -93,8 +116,9 @@ def _datos_de_identidad(id_cliente: str) -> DatosDeIdentidad:
 def _componentes() -> tuple[ServicioDeVerificacionDeIdentidad, Reloj, ProveedorKYCSimulado]:
     reloj = RelojDelSistema()
     proveedor = ProveedorKYCSimulado(caido=_proveedor_caido())
+    dsn = _dsn()
     servicio = ServicioDeVerificacionDeIdentidad(
-        repositorio=RepositorioEnMemoria(),
+        repositorio=RepositorioDeVerificacionesPostgres(dsn) if dsn else RepositorioEnMemoria(),
         proveedor=proveedor,
         auditoria=RegistroEnAuditoria(auditoria.obtener_servicio()),
         reloj=reloj,
@@ -111,10 +135,20 @@ def _tokens() -> tuple[EmisorEs256, EstadoDeDependencia]:
 @instancia_unica
 def _cuentas() -> tuple[ServicioDeCuentas, CanalDeCodigosSimulado]:
     codigos = CanalDeCodigosSimulado(os.environ.get(VARIABLE_OTP_FIJO) or None)
+    dsn = _dsn()
+    if dsn:
+        cuentas = RepositorioDeCuentasPostgres(dsn)
+        _preparar(cuentas)
+        registros = RepositorioDeRegistrosPostgres(dsn)
+        refrescos = RepositorioDeRefrescosPostgres(dsn)
+    else:
+        cuentas = RepositorioDeCuentasEnMemoria()
+        registros = RepositorioDeRegistrosEnMemoria()
+        refrescos = RepositorioDeRefrescosEnMemoria()
     servicio = ServicioDeCuentas(
-        cuentas=RepositorioDeCuentasEnMemoria(),
-        registros=RepositorioDeRegistrosEnMemoria(),
-        refrescos=RepositorioDeRefrescosEnMemoria(),
+        cuentas=cuentas,
+        registros=registros,
+        refrescos=refrescos,
         codigos=codigos,
         emisor=obtener_emisor(),
         accesos=RegistroDeAccesosEnAuditoria(auditoria.obtener_servicio()),
@@ -125,8 +159,11 @@ def _cuentas() -> tuple[ServicioDeCuentas, CanalDeCodigosSimulado]:
     correo = os.environ.get(VARIABLE_CORREO_PRUEBA, "").strip()
     clave = os.environ.get(VARIABLE_CLAVE_PRUEBA, "")
     if correo and clave:
-        servicio.sembrar_cuenta_de_prueba(correo, clave)
-        log.info("Cuenta de prueba sembrada")
+        try:
+            servicio.sembrar_cuenta_de_prueba(correo, clave)
+            log.info("Cuenta de prueba sembrada")
+        except Exception:  # noqa: BLE001 - sin base al arrancar, el núcleo sigue y /salud lo dice
+            log.exception("No se pudo sembrar la cuenta de prueba")
     return servicio, codigos
 
 
@@ -157,6 +194,33 @@ def reiniciar() -> None:
     _tokens.cache_clear()
 
 
+def _estado_repositorios() -> tuple[EstadoDeDependencia, ...]:
+    """Las cuentas y las verificaciones comparten base: una sola consulta dice cómo está."""
+    dsn = _dsn()
+    if not dsn:
+        return (
+            EstadoDeDependencia(
+                "repositorio_verificaciones", "simulado", f"En memoria; define {VARIABLE_DSN}"
+            ),
+            EstadoDeDependencia(
+                "repositorio_cuentas", "simulado", "En memoria; se pierde con cada revisión"
+            ),
+        )
+    try:
+        RepositorioDeCuentasPostgres(dsn).verificar_conexion()
+    except Exception as error:  # noqa: BLE001 - cualquier fallo de conexión es "caído"
+        caido = type(error).__name__
+        return (
+            EstadoDeDependencia("repositorio_verificaciones", "caido", caido),
+            EstadoDeDependencia("repositorio_cuentas", "caido", caido),
+        )
+    detalle = "PostgreSQL, esquema identidad"
+    return (
+        EstadoDeDependencia("repositorio_verificaciones", "ok", detalle),
+        EstadoDeDependencia("repositorio_cuentas", "ok", detalle),
+    )
+
+
 def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
     proveedor = _componentes()[2]
     if proveedor.caido:
@@ -168,14 +232,7 @@ def estado_dependencias() -> tuple[EstadoDeDependencia, ...]:
     return (
         estado_kyc,
         _tokens()[1],
-        EstadoDeDependencia(
-            "repositorio_verificaciones",
-            "simulado",
-            "En memoria; persistencia por contexto pendiente",
-        ),
-        EstadoDeDependencia(
-            "repositorio_cuentas", "simulado", "En memoria; se pierde con cada revisión"
-        ),
+        *_estado_repositorios(),
         EstadoDeDependencia("envio_codigos", "simulado", "Correo simulado; no envía correos"),
         EstadoDeDependencia("auditoria", "ok", "Módulo de auditoría del núcleo (ARQ-03)"),
     )

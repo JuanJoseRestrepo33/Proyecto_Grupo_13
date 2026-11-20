@@ -82,7 +82,7 @@ class NubeSimulada:
             **amb.UMBRALES_CIRCUITO,
         )
         self.servicios = {
-            "solventa-nucleo": {"cloudsql": conexion, "env": nucleo},
+            "solventa-nucleo": {"cloudsql": conexion, "env": nucleo, "escala": ("2", "2")},
             "solventa-bff": {"cloudsql": None, "env": {}},
             "solventa-web": {"cloudsql": None, "env": {}},
         }
@@ -172,6 +172,7 @@ class NubeSimulada:
         if (grupo, recurso) == ("run", "deploy"):
             self.servicios[args[2]] = {
                 "cloudsql": self._opcion(args, "add-cloudsql-instances"),
+                "escala": tuple(self._opcion(args, f"{x}-instances") for x in ("min", "max")),
                 "env": {
                     **{v: ("secreto", s.split(":")[0])
                        for v, s in self._pares(self._opcion(args, "set-secrets", "")).items()},
@@ -219,6 +220,11 @@ class NubeSimulada:
             servicio["cloudsql"] = self._opcion(
                 args, "set-cloudsql-instances", servicio["cloudsql"]
             )
+            if self._opcion(args, "min-instances"):
+                servicio["escala"] = (
+                    self._opcion(args, "min-instances"),
+                    self._opcion(args, "max-instances"),
+                )
             for v, s in self._pares(self._opcion(args, "update-secrets", "")).items():
                 servicio["env"][v] = ("secreto", s.split(":")[0])
             servicio["env"].update(self._pares(self._opcion(args, "update-env-vars", "")))
@@ -232,6 +238,10 @@ class NubeSimulada:
             for v, x in servicio["env"].items()
         ]
         anotaciones = {"run.googleapis.com/cloudsql-instances": servicio["cloudsql"]}
+        minimo, maximo = servicio.get("escala") or (None, None)
+        if minimo:
+            anotaciones["autoscaling.knative.dev/minScale"] = minimo
+            anotaciones["autoscaling.knative.dev/maxScale"] = maximo
         plantilla = {
             "metadata": {"annotations": anotaciones},
             "spec": {"containers": [{"env": variables}]},
@@ -354,7 +364,7 @@ class TestAprovisionarDesdeCero:
         _ambiente(nube, entorno).aprovisionar()
         nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
         assert f"--service-account=run-nucleo@{PROYECTO}.iam.gserviceaccount.com" in nucleo
-        assert "--min-instances=1" in nucleo and "--max-instances=1" in nucleo
+        assert "--min-instances=2" in nucleo and "--max-instances=2" in nucleo
         assert f"--image={amb.IMAGEN_INICIAL}" in nucleo
         secretos = next(a for a in nucleo if a.startswith("--set-secrets="))
         assert all(f"{v}={s}:latest" in secretos for v, s in amb.SECRETOS_NUCLEO.items())
@@ -468,6 +478,23 @@ class TestAprovisionarLoQueYaExiste:
         assert ambiente.conexiones == []
         assert ambiente.servicios_creados == []
         assert sum("ya existe, se omite" in linea for linea in ambiente.informe.lineas) >= 10
+
+    def test_el_nucleo_de_una_sola_replica_pasa_a_dos_sin_tocar_lo_demas(self, entorno):
+        """ARQ-05 (#136): staging antes de persistir identidad corría con una instancia."""
+        nube = NubeSimulada(completa=True)
+        nube.servicios["solventa-nucleo"]["escala"] = ("1", "1")
+        ambiente = _ambiente(nube, entorno, ConexionSimulada(roles=set(amb.MODULOS_BD)))
+        ambiente.aprovisionar()
+
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        assert "--min-instances=2" in actualizacion and "--max-instances=2" in actualizacion
+        assert not any(a.startswith("--update-secrets") for a in actualizacion)
+        assert nube.servicios["solventa-nucleo"]["escala"] == ("2", "2")
+        assert any("2 réplicas" in linea for linea in ambiente.informe.lineas)
+
+        nube.llamadas.clear()
+        _ambiente(nube, entorno, ConexionSimulada(roles=set(amb.MODULOS_BD))).aprovisionar()
+        assert _escrituras(nube) == []
 
     def test_el_staging_del_sprint_2_recibe_solo_lo_del_sprint_3(self, entorno):
         """Staging antes de WEB-F03: tres módulos con base y un solo bucket."""

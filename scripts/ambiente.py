@@ -78,6 +78,11 @@ UMBRALES_CIRCUITO = {
     "PERFILAMIENTO_CIRCUITO_VENTANA_S": "30",
     "PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS": "5",
 }
+# Réplicas fijas del núcleo (ARQ-05, #136). Con identidad en Cloud SQL ningún módulo guarda
+# estado en memoria, y dos réplicas permiten probar la revocación entre ellas y quitar una a
+# mitad de la carga. Mínimo y máximo iguales: el pool de cada réplica cuenta contra las 25
+# conexiones de la db-f1-micro.
+REPLICAS_NUCLEO = 2
 # Imagen de relleno del primer despliegue; el CD la reemplaza por la real.
 IMAGEN_INICIAL = "us-docker.pkg.dev/cloudrun/container/hello"
 CICLO_BUCKET = {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}
@@ -666,6 +671,12 @@ class Ambiente:
             anotaciones = plantilla.get("metadata", {}).get("annotations", {})
             if anotaciones.get("run.googleapis.com/cloudsql-instances") != conexion:
                 otros.append(f"--set-cloudsql-instances={conexion}")
+            replicas = str(REPLICAS_NUCLEO)
+            if (
+                anotaciones.get("autoscaling.knative.dev/minScale") != replicas
+                or anotaciones.get("autoscaling.knative.dev/maxScale") != replicas
+            ):
+                otros += [f"--min-instances={replicas}", f"--max-instances={replicas}"]
         if servicio in self.reiniciar:
             # Una revisión nueva para que lea la versión nueva de sus secretos.
             ahora = self.ahora() if self.ahora else datetime.now(UTC)
@@ -680,7 +691,11 @@ class Ambiente:
         if variables:
             args.append("--update-env-vars=" + ",".join(f"{v}={x}" for v, x in variables.items()))
         self.gcloud(*args)
-        cambios = [*secretos, *variables, *(["Cloud SQL"] if otros else [])]
+        cambios = [*secretos, *variables]
+        if any(o.startswith("--set-cloudsql") for o in otros):
+            cambios.append("Cloud SQL")
+        if any(o.startswith("--min-instances") for o in otros):
+            cambios.append(f"{REPLICAS_NUCLEO} réplicas")
         self.informe.nota(f"{servicio}: se actualizó {', '.join(cambios)}")
 
     def _primer_despliegue(self, servicio: str, conexion: str) -> list[str]:
@@ -691,10 +706,9 @@ class Ambiente:
         ]  # fmt: skip
         if servicio == "solventa-nucleo":
             montados, variables = self._configuracion_nucleo()
-            # Una sola instancia mientras haya módulos con estado en memoria.
             args += [
-                "--min-instances=1",
-                "--max-instances=1",
+                f"--min-instances={REPLICAS_NUCLEO}",
+                f"--max-instances={REPLICAS_NUCLEO}",
                 f"--add-cloudsql-instances={conexion}",
             ]
         elif servicio == "solventa-bff":

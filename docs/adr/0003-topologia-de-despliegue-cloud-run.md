@@ -65,9 +65,9 @@ diseñado y medido en el experimento EXP-03, pero no desplegado.
 - **Lo que no se cumple, y se declara:** RC-03 en caída de zona (instancia zonal, sin respaldos) y
   RC-07 (sin región de respaldo). Son la principal diferencia con la vista de despliegue del PRY1, y
   su evidencia sigue siendo el informe de EXP-03.
-- **Escala horizontal limitada por el estado en memoria:** mientras un módulo guarde estado en la
-  réplica (hoy las cuentas de identidad), el núcleo corre con una sola instancia. ARQ-05 sube a dos
-  cuando identidad persista.
+- **Escala horizontal:** con identidad en Cloud SQL (#136) ningún módulo guarda estado en la
+  réplica, y el núcleo corre con dos réplicas fijas. El límite ahora es la `db-f1-micro`: 25
+  conexiones, repartidas por el pool de cada réplica (#216).
 - **Costo controlado:** Cloud SQL se puede apagar fuera de horario (`cloud-sql.yml`; el apagado
   nocturno necesita el environment `staging-apagado`) y los servicios escalan a cero. Apagada la base, el CD avisa y las E2E fallan.
 - **Revisión:** esta ADR se reemplaza si el equipo decide desplegar multirregión, o si las pruebas

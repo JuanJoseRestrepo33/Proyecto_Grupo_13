@@ -13,7 +13,7 @@ import hashlib
 import secrets
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.compartido.eventos import BusDeEventos, Evento
 from app.compartido.reloj import Reloj
@@ -213,15 +213,20 @@ class ServicioDeCuentas:
     def sembrar_cuenta_de_prueba(self, correo: str, contrasena: str) -> Cuenta:
         """Crea, si no existe, la cuenta con correo verificado que usan el humo y las E2E.
 
-        Las cuentas viven en memoria y se pierden con cada revisión del núcleo; sembrarla
-        al arrancar la mantiene disponible sin registrarla a mano. No publica
+        En memoria las cuentas se pierden con cada revisión del núcleo; sembrarla al
+        arrancar la mantiene disponible sin registrarla a mano. En PostgreSQL ya existe, y
+        solo se actualiza la credencial si la clave cambió (se rotó el secreto). No publica
         `ClientRegistered`: no es un cliente que se registró.
         """
         normalizado = normalizar_correo(correo)
         with self._cerrojo_altas:
             existente = self._cuentas.por_correo(normalizado)
             if existente is not None:
-                return existente
+                if credenciales.verificar(contrasena, existente.credencial):
+                    return existente
+                rotada = replace(existente, credencial=credenciales.derivar(contrasena))
+                self._cuentas.guardar(rotada)
+                return rotada
             ahora = self._reloj.ahora()
             cuenta = Cuenta(
                 id_cliente=ID_CUENTA_PRUEBA,
