@@ -121,9 +121,11 @@ class PushSiniestroE2eTest {
             SystemClock.elapsedRealtime()
         }
         val titulo = paso("7 · push recibido") { esperarPush(caso, desde) }
+        Capturas.tomar("app-staging-push-bandeja")
         paso("8 · tocar la notificación y ver el detalle") {
             titulo.click()
             comprobarDetalle(caso)
+            Capturas.tomar("app-staging-push-detalle")
         }
         paso("9 · volver a «Mis siniestros» con el atrás del sistema") { volverConAtras(caso) }
         paso("10 · notificación leída y sin repetirse") { comprobarLeida(caso) }
