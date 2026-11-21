@@ -120,9 +120,11 @@ class ReporteSinConexionE2eTest {
         paso = "enviar sin red"
         avanzarHastaEnviar()
         esperar("revision-sin-conexion")
+        Capturas.tomar("app-staging-sin-conexion-revision")
         // Un solo toque: el borrador ya quedó guardado, y otro toque no es parte del recorrido del cliente.
         tocar("enviar")
         esperar("guardado-sin_conexion")
+        Capturas.tomar("app-staging-sin-conexion-guardado")
         compose.onNodeWithText(VOLVER_AL_INICIO).performScrollTo().performClick()
 
         // Criterio 1: Inicio muestra una tarjeta pendiente nueva con «Esperando conexión» (M5).
@@ -134,6 +136,7 @@ class ReporteSinConexionE2eTest {
             compose.onAllNodes(hasText(ESPERANDO_CONEXION) and enLaTarjeta, useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty(),
         )
+        Capturas.tomar("app-staging-sin-conexion-pendiente")
 
         // Criterio 2: se vuelve la red y la prueba no toca nada más.
         paso = "reconectar sin tocar la app"
@@ -141,6 +144,7 @@ class ReporteSinConexionE2eTest {
         esperarRed(validada = true)
         val reconexion = SystemClock.elapsedRealtime()
         val enviado = esperarEnvio(borrador, previas)
+        Capturas.tomar("app-staging-sin-conexion-enviado")
         val referencia = referenciaDe(enviado)
         assertTrue("Referencia inesperada: $referencia", REFERENCIA.matches(referencia))
 
@@ -178,7 +182,10 @@ class ReporteSinConexionE2eTest {
         paso = "abrir el reporte sin red"
         modoAvion(activar = true)
         esperarRed(validada = false)
-        val poliza = abrirYElegirPoliza(esperarCache = true)
+        // Se elige después de la captura: la guía muestra la lista de pólizas guardadas, no el paso siguiente.
+        val poliza = abrirYElegirPoliza(elegir = false, esperarCache = true)
+        Capturas.tomar("app-staging-sin-conexion-polizas-guardadas")
+        elegirPoliza()
         llenarInformacion("Siniestro en segundo plano ($marca).")
         paso = "enviar sin red y sin evidencia"
         avanzarHastaEnviar()
@@ -247,13 +254,16 @@ class ReporteSinConexionE2eTest {
                 conReintento(listo = { hayPoliza() }) { compose.onNodeWithText(REINTENTAR).performClick() }
             }
         }
-        val nodo = compose.onAllNodes(polizaSembrada()).onFirst()
-        val poliza = nodo.fetchSemanticsNode().config[SemanticsProperties.TestTag].removePrefix("poliza-")
-        if (elegir) {
-            nodo.performScrollTo().performClick()
-            tocar("continuar")
-        }
+        val poliza = compose.onAllNodes(polizaSembrada()).onFirst()
+            .fetchSemanticsNode().config[SemanticsProperties.TestTag].removePrefix("poliza-")
+        if (elegir) elegirPoliza()
         return poliza
+    }
+
+    /** Elige la póliza sembrada y pasa al paso de información. */
+    private fun elegirPoliza() {
+        compose.onAllNodes(polizaSembrada()).onFirst().performScrollTo().performClick()
+        tocar("continuar")
     }
 
     private fun llenarInformacion(descripcion: String) {

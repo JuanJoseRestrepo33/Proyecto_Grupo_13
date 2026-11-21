@@ -292,7 +292,9 @@ En local, con un emulador conectado y las credenciales en `E2E_CORREO` y `E2E_CL
 
 En CI: *Actions → Mobile Android → Run workflow* sobre `develop` lanza el job `e2e-emulador`, con la URL
 y las credenciales del environment `staging`, que solo admite esa rama. No corre en push ni en PR, y no
-publica artefactos porque los resultados del runner podrían incluir los argumentos de instrumentación.
+publica los resultados del runner porque podrían incluir los argumentos de instrumentación. Solo publica
+`capturas-app-staging` (14 días): las PNG que `Capturas.tomar` deja en `/data/local/tmp/capturas` para la
+guía de usuario, sin la pantalla de inicio de sesión.
 Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
 estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
 

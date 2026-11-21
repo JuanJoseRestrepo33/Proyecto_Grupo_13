@@ -85,6 +85,7 @@ class SeguimientoE2eTest {
         paso("6 · actualizar la lista") {
             actualizar()
             esperarTarjeta(caso, R.string.estado_en_evaluacion)
+            Capturas.tomar("app-staging-siniestros")
         }
         paso("7 · abrir el detalle") {
             // La acción de abrir está en la columna clicable dentro de la tarjeta, no en la tarjeta.
@@ -94,6 +95,7 @@ class SeguimientoE2eTest {
             esperar("pantalla-detalle-siniestro")
             esperarInsignia(R.string.estado_en_evaluacion)
             comprobarHistorial(caso, listOf(R.string.seguimiento_evento_reporte, R.string.estado_en_evaluacion))
+            Capturas.tomar("app-staging-siniestro-historial")
         }
         val requerimiento = "Factura de la reparación · $marca"
         paso("8 · cambiar a requiere_informacion en el núcleo") {
@@ -112,6 +114,10 @@ class SeguimientoE2eTest {
             )
             comprobarRequerimiento(caso, requerimiento)
             comprobarSiguientePaso()
+            compose.onNodeWithTag("insignia-estado", useUnmergedTree = true).performScrollTo()
+            Capturas.tomar("app-staging-siniestro-detalle")
+            compose.onNodeWithTag("requerimientos").performScrollTo()
+            Capturas.tomar("app-staging-siniestro-requerimiento")
         }
     }
 

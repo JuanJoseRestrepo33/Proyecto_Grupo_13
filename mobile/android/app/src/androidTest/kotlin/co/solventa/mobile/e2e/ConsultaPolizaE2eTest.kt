@@ -159,6 +159,7 @@ class ConsultaPolizaE2eTest {
             compose.onAllNodes(hasTestTag("pestana-activas") and isSelected()).fetchSemanticsNodes().isNotEmpty(),
         )
         assertEquals("La póliza emitida no es la primera de Activas", compra.numero, tarjetas().firstOrNull())
+        Capturas.tomar("app-staging-polizas")
         val descripcion = descripcionDe(abrirTarjeta(compra.numero))
         listOf(
             compra.producto,
@@ -185,6 +186,7 @@ class ConsultaPolizaE2eTest {
     private fun comprobarDetalle(compra: Compra) {
         abrirTarjeta(compra.numero).performScrollTo().performClick()
         esperarDetalle(compra.numero)
+        Capturas.tomar("app-staging-poliza-detalle")
         assertTrue(
             "El encabezado no tiene la insignia Vigente",
             compose.onAllNodes(hasTestTag("insignia-vigente") and hasAnyAncestor(hasTestTag("encabezado")))
