@@ -245,8 +245,9 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      # Sin artefactos: el enmascarado de GitHub cubre los logs, no los archivos, y los resultados del
-      # runner podrían incluir los argumentos de instrumentación, entre ellos la clave. Si alguna prueba
+      # Sin artefactos del runner: el enmascarado de GitHub cubre los logs, no los archivos, y sus resultados
+      # podrían incluir los argumentos de instrumentación, entre ellos la clave. Solo se publican las capturas
+      # PNG de la guía (paso siguiente). Si alguna prueba
       # falla, scripts/fallos-e2e.sh imprime en el log el stack completo y el logcat del runner, con el
       # emulador aún encendido: Gradle solo muestra la primera línea de cada fallo.
       - name: Pruebas instrumentadas

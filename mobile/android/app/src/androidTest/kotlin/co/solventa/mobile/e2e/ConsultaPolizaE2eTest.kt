@@ -205,7 +205,6 @@ class ConsultaPolizaE2eTest {
         assertFila("valor-asegurado", R.string.detalle_valor_asegurado, detalle.getString("valor_asegurado"))
         assertFila("deducible", R.string.detalle_deducible, detalle.getString("deducible"))
         comprobarCoberturas(coberturas)
-        Capturas.tomar("app-staging-poliza-coberturas")
         val noDisponible = texto(R.string.no_disponible)
         filas().forEach { (etiqueta, valor) ->
             assertFalse("$etiqueta dice «$noDisponible»", valor.contains(noDisponible))
