@@ -3,7 +3,9 @@ package co.solventa.mobile.e2e
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import androidx.annotation.StringRes
@@ -13,7 +15,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
@@ -23,6 +25,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.test.rule.GrantPermissionRule
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
@@ -82,11 +86,17 @@ class PushSiniestroE2eTest {
     private val movil = BffMovil(BuildConfig.BASE_URL)
     private lateinit var nucleo: NucleoInterno
 
-    private val compose = createAndroidComposeRule<MainActivity>()
+    /**
+     * Sin `ActivityScenario`: la app se abre en [abrirApp]. Al tocar el push, `MainActivity` (`singleTop`)
+     * recibe el intent en `onNewIntent` y hace `setIntent`; desde ahí el escenario ignora su `ON_RESUME`
+     * («the intent does not match»), queda en `STARTED` y su `close()` falla con
+     * «Current state was null unexpectedly» aunque el recorrido haya pasado.
+     */
+    private val compose = createEmptyComposeRule()
 
     /**
-     * El permiso por fuera y la app por dentro: queda concedido antes de crear `MainActivity`, así Inicio no
-     * muestra el aviso. El estado inicial también se prepara antes de lanzarla.
+     * El permiso por fuera y Compose por dentro: queda concedido antes de abrir `MainActivity`, así Inicio no
+     * muestra el aviso. El estado inicial también se prepara antes de abrirla.
      */
     @get:Rule
     val reglas: RuleChain = RuleChain
@@ -99,6 +109,18 @@ class PushSiniestroE2eTest {
         // Sin la operación interna no hay cambio de estado: la prueba falla, no se omite.
         assertTrue("Faltan los argumentos nucleo y tokenInterno.", urlNucleo.isNotEmpty() && tokenInterno.isNotEmpty())
         nucleo = NucleoInterno(urlNucleo, tokenInterno)
+        abrirApp()
+    }
+
+    /** Como la abre el launcher, en una tarea nueva y limpia; espera a que la app esté al frente. */
+    private fun abrirApp() {
+        val intento = Intent.makeMainActivity(ComponentName(contexto, MainActivity::class.java))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        contexto.startActivity(intento)
+        assertTrue(
+            "La app no quedó al frente",
+            dispositivo.wait(Until.hasObject(By.pkg(contexto.packageName).depth(0)), ESPERA_MS),
+        )
     }
 
     /** Ni la bandeja abierta ni avisos de la app para las pruebas siguientes, aunque esta falle. */
@@ -107,6 +129,21 @@ class PushSiniestroE2eTest {
         // No hace nada si la bandeja ya está cerrada; pressBack, en cambio, navegaría dentro de la app.
         instrumentacion.uiAutomation.executeShellCommand("cmd statusbar collapse").close()
         gestor.cancelAll()
+        cerrarApp()
+    }
+
+    /** Lo que haría `ActivityScenario.close()`: termina las Activity de la app que sigan vivas. */
+    private fun cerrarApp() {
+        val monitor = ActivityLifecycleMonitorRegistry.getInstance()
+        val vivas = { ETAPAS_VIVAS.flatMap(monitor::getActivitiesInStage) }
+        instrumentacion.runOnMainSync { vivas().forEach { it.finish() } }
+        val limite = SystemClock.elapsedRealtime() + ESPERA_MS
+        while (SystemClock.elapsedRealtime() < limite) {
+            var quedan = true
+            instrumentacion.runOnMainSync { quedan = vivas().isNotEmpty() }
+            if (!quedan) return
+            SystemClock.sleep(SONDEO_MS)
+        }
     }
 
     @Test
@@ -259,7 +296,7 @@ class PushSiniestroE2eTest {
     private fun volverConAtras(caso: Caso) {
         dispositivo.pressBack()
         esperar("pantalla-mis-siniestros")
-        assertFalse("La app se cerró con el atrás", compose.activity.isFinishing)
+        assertEquals("La app se cerró con el atrás", contexto.packageName, dispositivo.currentPackageName)
         esperar("siniestro-${caso.id}")
     }
 
@@ -409,5 +446,9 @@ class PushSiniestroE2eTest {
         const val SONDEO_MS = 1_000L
         val BOGOTA: ZoneId = ZoneId.of("America/Bogota")
         val REFERENCIA = Regex("SIN-\\d{4}-\\d{6}")
+        val ETAPAS_VIVAS = listOf(
+            Stage.PRE_ON_CREATE, Stage.CREATED, Stage.STARTED, Stage.RESTARTED,
+            Stage.RESUMED, Stage.PAUSED, Stage.STOPPED,
+        )
     }
 }
