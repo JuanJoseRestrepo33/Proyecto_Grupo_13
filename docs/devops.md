@@ -297,12 +297,12 @@ funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
 
 | Etapa | Qué hace | Requisito para activarse |
 |---|---|---|
-| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | Solo fuera de `main` (lo que revisa solo existe en `staging`). Las variables de la tabla de abajo |
+| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | En `develop` revisa staging y en `main`, producción (`--ambiente`). Las variables de la tabla de abajo |
 | **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>`, `:<rama>` y `:arbol-<árbol>` y las publica en el registro de paquetes de GitHub. El árbol es `git rev-parse HEAD:<carpeta>`: si ya existe una imagen de ese árbol, el componente no cambió y solo se le agregan las etiquetas nuevas, sin construir | Que exista el `Dockerfile` del componente. No requiere secretos |
 | **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (lo crea [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente)) |
 | **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen y la etiqueta `arbol`. Si el servicio ya corre ese árbol **y su última revisión creada es también la última lista**, no copia ni despliega nada (no hay qué cambiar), pero sí corre la prueba de humo. Si una revisión de ese árbol no arrancó, se vuelve a desplegar. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
 | **Prueba de humo** | [`scripts/humo.py`](../scripts/humo.py) pide las rutas del servicio a la URL que devuelve Cloud Run y comprueba el estado HTTP, sin imprimir respuestas | Igual que la anterior |
-| **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | Solo en `staging` (push a `develop`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE`; sin ellos, se omite con un aviso |
+| **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | En `develop` contra staging y en `main` contra producción (`solventa-web-prd`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE` de cada environment; sin ellos, se omite con un aviso |
 
 Los servicios se despliegan **uno a la vez, en orden núcleo → BFF → web**: si uno falla, los
 siguientes no se despliegan. La web solo se despliega cuando existe `bff/`, porque sin BFF no tiene a
@@ -314,39 +314,79 @@ terminan en segundos tras repetir la prueba de humo.
 Si un servicio no existe todavía en Cloud Run, el CD no lo crea: deja un aviso y sigue. Creado por el
 pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
 
-### Producción (`main`): lista, pero apagada
+### Producción (`main`)
 
-El curso solo pide *staging*, así que no hay infraestructura de producción: no hay proyecto, ni Cloud
-SQL, ni servicios. El pipeline de `main` está completo y corre en cada release. Lo único que no hace
-es desplegar, y lo dice con un aviso en vez de fallar.
+Producción vive **en el mismo proyecto de GCP que staging**, con los mismos nombres más el sufijo
+`-prd`. Así ninguno de los dos toca lo del otro, y staging conserva todos sus nombres. El sufijo lo
+pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
 
-| Al fusionar un release o hotfix en `main` | Qué pasa hoy |
-|---|---|
-| **CI** y **CodeQL** | Corren completos, igual que en `develop` |
-| **release.yml** | Crea el tag `vX.Y.Z` y el release con notas, publica las imágenes `:X.Y.Z` y abre el back-merge `main` → `develop` |
-| **CD · Publicar imágenes** | Construye o reetiqueta `:main` y `:<sha>` en el registro de GitHub |
-| **CD · Desplegar** (environment `produccion`) | Se omite con el aviso *El environment no tiene configurado el despliegue*: `produccion` no tiene variables |
-| **CD · Verificar ambiente** y **E2E web** | No corren en `main`: solo existen para *staging* |
+| Recurso | Staging (`develop`) | Producción (`main`) |
+|---|---|---|
+| Servicios de Cloud Run | `solventa-nucleo`, `solventa-bff`, `solventa-web` | `solventa-nucleo-prd`, `solventa-bff-prd`, `solventa-web-prd` |
+| Cloud SQL | `solventa-…` (hoy `solventa-auditoria`) | `solventa-prd-AAAAMMDD-HHMM` |
+| Secretos | `auditoria-database-url`, `tokens-llave-privada`… | los mismos con `-prd` |
+| Buckets | `<proyecto>-solventa-evidencias`, `…-documentos` | los mismos con `-prd` |
+| Cuentas de ejecución | `run-nucleo`, `run-bff`, `run-web` | `run-nucleo-prd`, `run-bff-prd`, `run-web-prd` |
+| Environment del CD | `staging` | `produccion` |
+| Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura` | `produccion-infraestructura` |
+| Compartido | Workload Identity, las cuentas `infraestructura`, `despliegue` y `apagado`, y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging) | |
 
-**Para encender producción** (si algún día lo piden), sin cambiar código:
+> **Un CD en verde en `main` no siempre significa que hubo despliegue.** Si el environment
+> `produccion` todavía no tiene sus variables o los servicios `-prd` no existen, el CD termina en
+> verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
+> avisos del run, o que el job *E2E web en produccion* haya corrido.
 
-1. **Un proyecto de GCP aparte.** Es lo recomendado: los servicios se llaman igual (`solventa-nucleo`,
-   `solventa-bff`, `solventa-web`), así que en otro proyecto no chocan con *staging*. Se repite en ese
-   proyecto la [configuración manual en GCP](#configuración-manual-en-gcp), pasos 1 a 7, **sin** el
-   paso 8: producción no lleva pólizas de prueba, ni `POLIZAS_SEMILLA`, ni código OTP fijo.
-2. **Environment `produccion`** (Settings → Environments): *Selected branches* → solo `main`, y
-   *Required reviewers* con quien aprueba cada despliegue. Además, las cinco variables de la tabla de
-   arriba, con el proyecto y la cuenta `despliegue` del proyecto nuevo.
-3. **Aprovisionar producción.** [`aprovisionar.yml`](../.github/workflows/aprovisionar.yml) usa
-   `staging-infraestructura`. Para producción se agrega un environment `produccion-infraestructura`
-   con las variables del proyecto nuevo y se corre `scripts/ambiente.py aprovisionar --proyecto
-   <proyecto de producción> --region <región>` desde ese environment. Así se crean Cloud SQL, los
-   secretos, los buckets y el primer despliegue de cada servicio.
-4. **El siguiente release despliega solo:** CD copia las imágenes del release al Artifact Registry
-   del proyecto nuevo, actualiza los tres servicios y corre la prueba de humo contra ellos.
+**Qué corre en cada ambiente**
 
-Costo de referencia, encendida todo el mes: una `db-g1-small` (unos USD 25) más Cloud Run con mínimo
-en 0, que solo cobra mientras atiende.
+- **CD:** un merge a `main` (release o hotfix) publica las imágenes y despliega `solventa-*-prd`
+  en orden. Luego corre la prueba de humo y las E2E web contra `solventa-web-prd`, con la cuenta de
+  prueba de producción.
+- **Aprovisionar, Destruir y Encender o apagar Cloud SQL:** se lanzan a mano y piden el ambiente.
+  `produccion` se corre desde `main` y `staging` desde `develop`. Destruir producción nunca borra
+  las imágenes, porque son compartidas.
+- **Apagado nocturno:** a las 23:00 de Bogotá apaga **las dos** instancias, con la cuenta `apagado`.
+
+**Aprobaciones.** Cada corrida que toca infraestructura o despliega en producción la aprueba **un
+integrante del equipo** (Juan, Sergio, Harold o Edwin). Aplica a `staging-infraestructura`,
+`produccion-infraestructura` y `produccion`: aprovisionar, destruir, encender, apagar, k6, auditoría
+alterada y cada despliegue a producción. GitHub no puede exigir que aprueben los cuatro: basta uno
+de la lista. El CD de `develop` a staging no pide aprobación, y el apagado nocturno tampoco.
+
+**Configuración inicial (una sola vez).** Pasos en orden:
+
+1. **En GCP, las cuentas de producción y el acceso:**
+
+   ```bash
+   P=<GCP_PROJECT_ID>; NUMERO=<número del proyecto>
+   for c in run-nucleo-prd run-bff-prd run-web-prd; do
+     gcloud iam service-accounts create $c --project=$P --display-name="Cloud Run $c"
+     for quien in infraestructura despliegue; do
+       gcloud iam service-accounts add-iam-policy-binding $c@$P.iam.gserviceaccount.com --project=$P \
+         --member="serviceAccount:$quien@$P.iam.gserviceaccount.com" --role=roles/iam.serviceAccountUser
+     done
+   done
+   gcloud projects add-iam-policy-binding $P --condition=None \
+     --member="serviceAccount:run-nucleo-prd@$P.iam.gserviceaccount.com" --role=roles/cloudsql.client
+   gcloud iam service-accounts add-iam-policy-binding infraestructura@$P.iam.gserviceaccount.com \
+     --project=$P --role=roles/iam.workloadIdentityUser \
+     --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/produccion-infraestructura"
+   ```
+
+2. **En GitHub, los environments** `produccion` y `produccion-infraestructura`. Los dos solo aceptan
+   `main`, piden la aprobación de un integrante y llevan las variables `GCP_PROJECT_ID`,
+   `GCP_REGION` y `GCP_WORKLOAD_IDENTITY_PROVIDER`, más `GCP_SERVICE_ACCOUNT`: `despliegue` en
+   `produccion` e `infraestructura` en `produccion-infraestructura`. `produccion` lleva además
+   `GCP_ARTIFACT_REPOSITORY`. Los dos llevan los secretos `HUMO_CORREO` y `HUMO_CLAVE` de la cuenta
+   de prueba de producción.
+3. **Que `main` tenga este código** (un release) y correr **Aprovisionar ambiente** con
+   `ambiente=produccion` desde `main`. Crea la Cloud SQL `-prd`, sus usuarios y secretos, los
+   buckets y los tres servicios, y dispara el CD de `main` para desplegar las imágenes reales.
+4. **Para las E2E de seguimiento en producción:** cargar en `produccion` la variable `NUCLEO_URL`
+   (la URL de `solventa-nucleo-prd`) y el secreto `SINIESTROS_TOKEN_INTERNO`, con el valor del
+   secreto `siniestros-token-interno-prd` de Secret Manager.
+
+Costo de referencia: producción suma otra `db-g1-small` (unos USD 25 al mes encendida todo el
+mes). El apagado nocturno la apaga junto con la de staging.
 
 ### Aprovisionar y destruir el ambiente
 
