@@ -329,6 +329,10 @@ La póliza que compres en la web aparece en la app la próxima vez que abras **M
 
 ## 18. Tus pólizas en el celular
 
+| Mis pólizas | Mi póliza |
+|---|---|
+| ![Mis pólizas en la app, con la pestaña Activas](img/app-staging-polizas.png) | ![Detalle de una póliza en la app](img/app-staging-poliza-detalle.png) |
+
 Toca **Pólizas** en la barra inferior. **Mis pólizas** muestra una tarjeta por póliza con el producto, el estado (*Vigente*, *Vencida* o *Por iniciar*), el número, la vigencia y la prima mensual. Son las mismas pólizas de la web, con el mismo número: una póliza que compraste en la web aparece aquí. Las pestañas **Activas**, **Vencidas** y **Todas** filtran por estado, y el ícono de actualizar (↻), arriba, trae lo último.
 
 Toca una tarjeta para ver **Mi póliza**:
@@ -345,6 +349,10 @@ Si no tienes conexión, la app te lo dice (*No tienes conexión. Revisa tu red e
 Desde **Inicio**, toca **Reportar siniestro**. Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**) y pulsa **Enviar reporte**.
 
 ### Seguir tus siniestros desde el celular
+
+| Mis siniestros | Tu caso | Lo que te pedimos |
+|---|---|---|
+| ![Mis siniestros en la app, cada caso con su estado y su canal](img/app-staging-siniestros.png) | ![Tu caso: estado, referencia, póliza y resumen](img/app-staging-siniestro-detalle.png) | ![Historial del caso y un requerimiento pendiente con Responder](img/app-staging-siniestro-requerimiento.png) |
 
 Desde **Inicio**, toca **Mis siniestros**. Ves una tarjeta por caso con el tipo de evento, el estado, la referencia, la póliza, la fecha del reporte y el canal (**Web** o **App**). Los casos que reportaste en la web aparecen aquí con la misma referencia, y al revés. Toca **Actualizar** para traer lo último.
 
@@ -374,6 +382,14 @@ pulsas dos veces o se cae la conexión, no queda un reporte repetido.
 
 Puedes reportar aunque no tengas conexión en el lugar del evento. La app guarda el reporte y su
 evidencia **cifrados en tu teléfono** y los envía sola cuando vuelve la red.
+
+| Pólizas guardadas | Revisión sin red | Reporte guardado |
+|---|---|---|
+| ![Paso 1 sin conexión, con la última actualización de las pólizas](img/app-staging-sin-conexion-polizas-guardadas.png) | ![Revisión del reporte en modo avión](img/app-staging-sin-conexion-revision.png) | ![Reporte guardado en tu teléfono](img/app-staging-sin-conexion-guardado.png) |
+
+| Esperando conexión | Reporte enviado |
+|---|---|
+| ![Inicio con la tarjeta Reporte pendiente de envío, Esperando conexión](img/app-staging-sin-conexion-pendiente.png) | ![Inicio con la tarjeta Reporte enviado y su número de referencia](img/app-staging-sin-conexion-enviado.png) |
 
 1. **Antes, una vez con conexión.** Para reportar sin señal, la app debe haber consultado tus pólizas
    al menos una vez en ese teléfono. Si no lo ha hecho, verás *Necesitas conexión una vez*.
@@ -431,6 +447,10 @@ Tus documentos quedan en **Documentos escaneados**.
 ## 22. Notificaciones
 
 La app te avisa con una notificación del teléfono cuando cambia el estado de un siniestro que reportaste, en la web o en la app.
+
+| El aviso | Lo que abre |
+|---|---|
+| ![Aviso Tu siniestro SIN-… cambió en la bandeja del teléfono](img/app-staging-push-bandeja.png) | ![Tu caso abierto desde el aviso, con En evaluación como estado actual](img/app-staging-push-detalle.png) |
 
 **Activarlas.** En **Inicio** verás *Entérate cuando avance tu siniestro*. Toca **Activar notificaciones** y acepta el permiso de Android, o **Ahora no**. Si no las activas, verás *Las notificaciones están desactivadas*: el estado de tus casos se sigue viendo en **Ver mis siniestros**, y puedes activarlas después con **Activar en Ajustes**. Puedes desactivarlas cuando quieras desde los ajustes del teléfono (canal *Estado de tus siniestros*).
 
