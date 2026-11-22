@@ -6,9 +6,9 @@
 # existe, no espera los 10 minutos que tarda en crearse. Si crea algún servicio (con una imagen de
 # relleno), al final dispara el CD para que despliegue las imágenes reales.
 #
-# Usa la cuenta `infraestructura`. Staging corre en el environment `staging-infraestructura` (rama
-# develop) y producción en `produccion-infraestructura` (rama main, nombres con -prd); los dos piden
-# aprobación de un integrante del equipo. El acceso (Workload Identity y las
+# Usa la cuenta `infraestructura` y el environment `staging-infraestructura` en los dos ambientes:
+# staging se corre desde develop y producción (nombres con -prd) desde main. Pide la aprobación de un
+# integrante del equipo. El acceso (Workload Identity y las
 # cuentas de servicio) no lo crea: docs/devops.md, "Configuración manual en GCP", pasos 3 y 4.
 name: Aprovisionar ambiente
 
@@ -35,7 +35,7 @@ jobs:
   aprovisionar:
     name: Aprovisionar ${{ inputs.ambiente }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.ambiente == 'produccion' && 'produccion-infraestructura' || 'staging-infraestructura' }}
+    environment: staging-infraestructura
     timeout-minutes: 40
     permissions:
       contents: read

@@ -9,8 +9,8 @@
 # resumen.
 #
 # Dos formas de correr:
-# - A mano (encender o apagar): environment `staging-infraestructura` o `produccion-infraestructura`,
-#   que piden aprobación de un integrante, con la cuenta `infraestructura`, como Aprovisionar.
+# - A mano (encender o apagar): environment `staging-infraestructura` (los dos ambientes), que pide
+#   aprobación de un integrante, con la cuenta `infraestructura`, como Aprovisionar.
 # - Cada noche, a las 23:00 de Bogotá (04:00 UTC), solo apagar, staging y producción: `staging-apagado`, sin
 #   aprobación, con la cuenta `apagado`, que solo puede leer y actualizar la instancia (no crearla,
 #   borrarla ni tocar sus usuarios). docs/devops.md, "Configuración manual en GCP", paso 3.
@@ -55,7 +55,7 @@ jobs:
         ambiente: ${{ fromJSON(github.event_name == 'schedule' && '["staging","produccion"]' || format('["{0}"]', inputs.ambiente)) }}
     # El apagado nocturno no puede esperar una aprobación: usa su propio environment y su cuenta mínima,
     # que puede apagar las dos instancias.
-    environment: ${{ github.event_name == 'schedule' && 'staging-apagado' || (matrix.ambiente == 'produccion' && 'produccion-infraestructura' || 'staging-infraestructura') }}
+    environment: ${{ github.event_name == 'schedule' && 'staging-apagado' || 'staging-infraestructura' }}
     timeout-minutes: 30
     permissions:
       contents: read

@@ -326,15 +326,23 @@ pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
 | Cloud SQL | `solventa-…` (hoy `solventa-auditoria`) | `solventa-prd-AAAAMMDD-HHMM` |
 | Secretos | `auditoria-database-url`, `tokens-llave-privada`… | los mismos con `-prd` |
 | Buckets | `<proyecto>-solventa-evidencias`, `…-documentos` | los mismos con `-prd` |
-| Cuentas de ejecución | `run-nucleo`, `run-bff`, `run-web` | `run-nucleo-prd`, `run-bff-prd`, `run-web-prd` |
 | Environment del CD | `staging` | `produccion` |
-| Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura` | `produccion-infraestructura` |
-| Compartido | Workload Identity, las cuentas `infraestructura`, `despliegue` y `apagado`, y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging) | |
+| Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura`, desde `develop` | `staging-infraestructura`, desde `main` |
+| Compartido | Las cuentas de servicio (`run-nucleo`, `run-bff`, `run-web`, `infraestructura`, `despliegue` y `apagado`), Workload Identity y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging). Producción no necesita ningún permiso nuevo de IAM | |
 
 > **Un CD en verde en `main` no siempre significa que hubo despliegue.** Si el environment
 > `produccion` todavía no tiene sus variables o los servicios `-prd` no existen, el CD termina en
 > verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
 > avisos del run, o que el job *E2E web en produccion* haya corrido.
+
+**Lo que se acepta al compartir las cuentas.** Como los dos ambientes usan las mismas cuentas de
+ejecución, `run-nucleo` puede leer los secretos de staging **y** los de producción (cadenas de
+conexión, llaves de firma, token interno), y escribir y leer en los buckets de los dos. Un núcleo de
+staging comprometido podría llegar a los datos de producción. Para este proyecto, que solo tiene
+datos de prueba, se acepta a cambio de no tocar IAM. Para separarlos en un producto real: cuentas
+`run-*-prd` propias, que se le pasan a `scripts/ambiente.py` en `run()`, y un environment de
+infraestructura de producción con su propio binding de Workload Identity, o directamente un
+proyecto de GCP aparte.
 
 **Qué corre en cada ambiente**
 
@@ -347,37 +355,18 @@ pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
 - **Apagado nocturno:** a las 23:00 de Bogotá apaga **las dos** instancias, con la cuenta `apagado`.
 
 **Aprobaciones.** Cada corrida que toca infraestructura o despliega en producción la aprueba **un
-integrante del equipo** (Juan, Sergio, Harold o Edwin). Aplica a `staging-infraestructura`,
-`produccion-infraestructura` y `produccion`: aprovisionar, destruir, encender, apagar, k6, auditoría
+integrante del equipo** (Juan, Sergio, Harold o Edwin). Aplica a `staging-infraestructura` (los dos
+ambientes) y `produccion`: aprovisionar, destruir, encender, apagar, k6, auditoría
 alterada y cada despliegue a producción. GitHub no puede exigir que aprueben los cuatro: basta uno
 de la lista. El CD de `develop` a staging no pide aprobación, y el apagado nocturno tampoco.
 
-**Configuración inicial (una sola vez).** Pasos en orden:
+**Configuración inicial (una sola vez).** En GCP no hay nada que hacer. En GitHub:
 
-1. **En GCP, las cuentas de producción y el acceso:**
-
-   ```bash
-   P=<GCP_PROJECT_ID>; NUMERO=<número del proyecto>
-   for c in run-nucleo-prd run-bff-prd run-web-prd; do
-     gcloud iam service-accounts create $c --project=$P --display-name="Cloud Run $c"
-     for quien in infraestructura despliegue; do
-       gcloud iam service-accounts add-iam-policy-binding $c@$P.iam.gserviceaccount.com --project=$P \
-         --member="serviceAccount:$quien@$P.iam.gserviceaccount.com" --role=roles/iam.serviceAccountUser
-     done
-   done
-   gcloud projects add-iam-policy-binding $P --condition=None \
-     --member="serviceAccount:run-nucleo-prd@$P.iam.gserviceaccount.com" --role=roles/cloudsql.client
-   gcloud iam service-accounts add-iam-policy-binding infraestructura@$P.iam.gserviceaccount.com \
-     --project=$P --role=roles/iam.workloadIdentityUser \
-     --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/produccion-infraestructura"
-   ```
-
-2. **En GitHub, los environments** `produccion` y `produccion-infraestructura`. Los dos solo aceptan
-   `main`, piden la aprobación de un integrante y llevan las variables `GCP_PROJECT_ID`,
-   `GCP_REGION` y `GCP_WORKLOAD_IDENTITY_PROVIDER`, más `GCP_SERVICE_ACCOUNT`: `despliegue` en
-   `produccion` e `infraestructura` en `produccion-infraestructura`. `produccion` lleva además
-   `GCP_ARTIFACT_REPOSITORY`. Los dos llevan los secretos `HUMO_CORREO` y `HUMO_CLAVE` de la cuenta
-   de prueba de producción.
+1. **Environment `staging-infraestructura`:** admitir también la rama `main` y poner a los cuatro
+   integrantes como *required reviewers*.
+2. **Environment `produccion`:** solo `main`, los cuatro como *required reviewers*, las variables
+   `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_ARTIFACT_REPOSITORY` y
+   `GCP_SERVICE_ACCOUNT` (la cuenta `despliegue`), y los secretos `HUMO_CORREO` y `HUMO_CLAVE`.
 3. **Que `main` tenga este código** (un release) y correr **Aprovisionar ambiente** con
    `ambiente=produccion` desde `main`. Crea la Cloud SQL `-prd`, sus usuarios y secretos, los
    buckets y los tres servicios, y dispara el CD de `main` para desplegar las imágenes reales.
