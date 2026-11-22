@@ -359,6 +359,10 @@ jobs:
           E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
           # El núcleo de staging tiene Open Finance sano: el flujo con el proveedor caído se omite.
           E2E_OPEN_FINANCE: sano
+          # Seguimiento (WEB-F06, #201): la operación interna de cambio de estado del núcleo. Mismos
+          # valores que usa el E2E del emulador; el token solo lo lee Node, nunca el navegador.
+          E2E_NUCLEO_URL: ${{ vars.NUCLEO_URL }}
+          E2E_TOKEN_INTERNO: ${{ secrets.SINIESTROS_TOKEN_INTERNO }}
         run: npm run e2e
       - name: Avisar los flujos de la parte B
         if: steps.web.outputs.url != ''
