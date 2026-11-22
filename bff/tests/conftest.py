@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from app.comun.configuracion import Configuracion
 from app.comun.tokens import EMISOR, huella_jwk
-from app.main import crear_app
+from app.main import crear_bff
 from app.web.dependencias import COOKIE_SESION
 
 CLIENTE = "CLI-2026-000318"
@@ -139,7 +139,7 @@ def configuracion(firmante) -> Configuracion:
 
 @pytest.fixture
 def cliente(nucleo, configuracion) -> TestClient:
-    return TestClient(crear_app(configuracion, nucleo.transporte))
+    return TestClient(crear_bff(configuracion, nucleo.transporte))
 
 
 @dataclass(frozen=True)

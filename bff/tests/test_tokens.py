@@ -26,7 +26,7 @@ from app.comun.tokens import (
     cargar_llave_publica,
     huella_jwk,
 )
-from app.main import crear_app
+from app.main import crear_bff
 
 from .conftest import CLIENTE, Firmante
 
@@ -159,7 +159,7 @@ def test_una_llave_que_no_es_p256_se_rechaza():
 
 @pytest.fixture
 def protegida(configuracion, nucleo) -> TestClient:
-    app = crear_app(configuracion, nucleo.transporte)
+    app = crear_bff(configuracion, nucleo.transporte)
 
     @app.get("/protegida")
     def protegida(request: Request) -> dict[str, str]:
@@ -192,7 +192,7 @@ def test_un_token_de_otro_canal_no_abre_sesion(protegida, firmante):
 
 
 def test_sin_llave_configurada_un_token_es_503_y_no_401(nucleo, firmante):
-    app = crear_app(Configuracion(nucleo_url="http://nucleo.prueba"), nucleo.transporte)
+    app = crear_bff(Configuracion(nucleo_url="http://nucleo.prueba"), nucleo.transporte)
     app.add_exception_handler(ErrorBff, manejar_error_bff)
 
     @app.get("/protegida")
@@ -217,7 +217,7 @@ def test_salud_reporta_los_kids_configurados(cliente, firmante):
 
 
 def test_sin_llave_en_local_la_salud_queda_degradada(nucleo):
-    cliente = TestClient(crear_app(Configuracion(nucleo_url="http://n.prueba"), nucleo.transporte))
+    cliente = TestClient(crear_bff(Configuracion(nucleo_url="http://n.prueba"), nucleo.transporte))
 
     respuesta = cliente.get("/salud")
 
@@ -227,7 +227,7 @@ def test_sin_llave_en_local_la_salud_queda_degradada(nucleo):
 
 def test_sin_llave_en_cloud_run_la_salud_responde_503(nucleo):
     configuracion = Configuracion(nucleo_url="http://n.prueba", en_la_nube=True)
-    cliente = TestClient(crear_app(configuracion, nucleo.transporte))
+    cliente = TestClient(crear_bff(configuracion, nucleo.transporte))
 
     respuesta = cliente.get("/salud")
 
@@ -237,7 +237,7 @@ def test_sin_llave_en_cloud_run_la_salud_responde_503(nucleo):
 
 def test_una_llave_invalida_responde_503_aunque_sea_local(nucleo):
     configuracion = Configuracion(nucleo_url="http://n.prueba", llaves_publicas=("no es pem",))
-    cliente = TestClient(crear_app(configuracion, nucleo.transporte))
+    cliente = TestClient(crear_bff(configuracion, nucleo.transporte))
 
     respuesta = cliente.get("/salud")
 

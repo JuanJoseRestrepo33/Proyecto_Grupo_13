@@ -68,4 +68,8 @@ def crear_app(
     return app
 
 
+# Nombre propio del BFF para las pruebas: el núcleo también tiene un `app.main.crear_app` (con otra
+# firma), y el análisis estático no distingue los dos paquetes `app`.
+crear_bff = crear_app
+
 app = crear_app()
