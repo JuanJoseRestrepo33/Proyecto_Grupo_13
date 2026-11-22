@@ -242,7 +242,10 @@ MOB-F03, como *stretch*. Por eso sube de 5 a 8 puntos.
 [`web-staging-polizas.png`](guia-de-usuario/img/web-staging-polizas.png) (pestaña *Activas*, la
 recién emitida primero) ·
 [`web-staging-poliza-detalle.png`](guia-de-usuario/img/web-staging-poliza-detalle.png) (coberturas,
-deducible, límites y documento). *Pendiente:* las de la app (#190).
+deducible, límites y documento). App (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`): [`app-staging-polizas.png`](guia-de-usuario/img/app-staging-polizas.png) ·
+[`app-staging-poliza-detalle.png`](guia-de-usuario/img/app-staging-poliza-detalle.png).
 
 ![Mis pólizas en staging](guia-de-usuario/img/web-staging-polizas.png)
 
@@ -315,8 +318,13 @@ P26 Ayuda en contexto.
 [`web-staging-siniestros.png`](guia-de-usuario/img/web-staging-siniestros.png) (cada caso con su
 canal y su estado) ·
 [`web-staging-siniestro-detalle.png`](guia-de-usuario/img/web-staging-siniestro-detalle.png) (línea
-de tiempo, resumen y siguiente paso). *Pendiente:* un caso con un requerimiento pendiente, porque
-ninguno de *staging* tiene uno, y las de la app (#199).
+de tiempo, resumen y siguiente paso). App (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057)):
+[`app-staging-siniestros.png`](guia-de-usuario/img/app-staging-siniestros.png) ·
+[`app-staging-siniestro-detalle.png`](guia-de-usuario/img/app-staging-siniestro-detalle.png) ·
+[`app-staging-siniestro-historial.png`](guia-de-usuario/img/app-staging-siniestro-historial.png) ·
+[`app-staging-siniestro-requerimiento.png`](guia-de-usuario/img/app-staging-siniestro-requerimiento.png)
+(un requerimiento *Pendiente* con **Responder**, criterio 5).
 
 ![Mis siniestros en staging](guia-de-usuario/img/web-staging-siniestros.png)
 
@@ -373,7 +381,12 @@ push y el enlace al detalle.
   `/api/v1/web/notificaciones` responda 404.
 
 **Patrones de interfaz.** P20 Permiso en contexto con alternativa.
-**Capturas.** *Pendiente:* el aviso en el teléfono y el detalle que abre, con la parte móvil (#207).
+**Capturas** (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`). [`app-staging-push-bandeja.png`](guia-de-usuario/img/app-staging-push-bandeja.png)
+(el aviso *Tu siniestro SIN-… cambió* en la bandeja) ·
+[`app-staging-push-detalle.png`](guia-de-usuario/img/app-staging-push-detalle.png) (el detalle que
+abre, con *En evaluación* como estado actual).
 
 **Favorece** RC-02 Escalabilidad · **Puntos** 5 · **Responsables** Sergio (backend, integración),
 Edwin (móvil, E2E móvil), Juan (cloud, documentación) · **Depende de** WEB-F06, WEB-F13
@@ -422,8 +435,16 @@ API idempotente de WEB-F05, ya desplegada.
 - **Para reportar sin señal la app necesita haber consultado las pólizas una vez** en ese teléfono.
   Sin conexión no puede confirmar la vigencia: la revisa el núcleo al recibir el reporte.
 
-**Capturas.** *Pendiente:* el reporte guardado sin conexión y la tarjeta de envío en Inicio, en la
-app contra *staging*.
+**Capturas** (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`, en modo avión).
+[`app-staging-sin-conexion-polizas-guardadas.png`](guia-de-usuario/img/app-staging-sin-conexion-polizas-guardadas.png) ·
+[`app-staging-sin-conexion-revision.png`](guia-de-usuario/img/app-staging-sin-conexion-revision.png) ·
+[`app-staging-sin-conexion-guardado.png`](guia-de-usuario/img/app-staging-sin-conexion-guardado.png) ·
+[`app-staging-sin-conexion-pendiente.png`](guia-de-usuario/img/app-staging-sin-conexion-pendiente.png)
+(*Esperando conexión*) ·
+[`app-staging-sin-conexion-enviado.png`](guia-de-usuario/img/app-staging-sin-conexion-enviado.png)
+(*Reporte enviado* con la referencia).
 
 **Favorece** RC-03 Disponibilidad, RC-04 Seguridad · **Puntos** 3 · **Responsables** Edwin (móvil,
 E2E móvil), Juan (documentación) · **Depende de** WEB-F05, MOB-F05
