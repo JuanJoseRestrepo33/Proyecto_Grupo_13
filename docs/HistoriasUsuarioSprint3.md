@@ -520,9 +520,12 @@ historia los mide en *staging*.
 - **Criterio 4:** el circuito se cierra solo y `/salud` vuelve a `ok`, en una prueba automática.
 - **Criterio 5:** la base de cada decisión queda en el log.
 - **Criterio 7:** verificar el consentimiento cuesta +15 ms en el p95 del servidor.
-- **Pendientes:** el criterio 6 (auditoría alterada) y el caos se corren con #318. El informe trae
-  el detalle, y también los dos hallazgos previos: una conexión por operación y una
-  `db-f1-micro` sin CPU.
+- **Criterio 6:** un registro alterado del log se detecta en *staging*
+  ([44995232437](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995232437)).
+- **Caos:** quitar una réplica a mitad de la carga no dejó ningún error, con p95 de 99 ms
+  ([44995225221](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995225221)).
+- El informe trae el detalle, y también los dos hallazgos previos: una conexión por operación y
+  una `db-f1-micro` sin CPU.
 
 **Favorece** RC-01 Latencia, RC-03 Disponibilidad, RC-04 Seguridad, RC-08 Trazabilidad ·
 **Puntos** 5 · **Responsables** Sergio (backend), Juan (cloud, pruebas de carga y caos,
