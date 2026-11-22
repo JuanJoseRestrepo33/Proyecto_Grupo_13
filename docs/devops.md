@@ -314,6 +314,40 @@ terminan en segundos tras repetir la prueba de humo.
 Si un servicio no existe todavía en Cloud Run, el CD no lo crea: deja un aviso y sigue. Creado por el
 pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
 
+### Producción (`main`): lista, pero apagada
+
+El curso solo pide *staging*, así que no hay infraestructura de producción: no hay proyecto, ni Cloud
+SQL, ni servicios. El pipeline de `main` está completo y corre en cada release. Lo único que no hace
+es desplegar, y lo dice con un aviso en vez de fallar.
+
+| Al fusionar un release o hotfix en `main` | Qué pasa hoy |
+|---|---|
+| **CI** y **CodeQL** | Corren completos, igual que en `develop` |
+| **release.yml** | Crea el tag `vX.Y.Z` y el release con notas, publica las imágenes `:X.Y.Z` y abre el back-merge `main` → `develop` |
+| **CD · Publicar imágenes** | Construye o reetiqueta `:main` y `:<sha>` en el registro de GitHub |
+| **CD · Desplegar** (environment `produccion`) | Se omite con el aviso *El environment no tiene configurado el despliegue*: `produccion` no tiene variables |
+| **CD · Verificar ambiente** y **E2E web** | No corren en `main`: solo existen para *staging* |
+
+**Para encender producción** (si algún día lo piden), sin cambiar código:
+
+1. **Un proyecto de GCP aparte.** Es lo recomendado: los servicios se llaman igual (`solventa-nucleo`,
+   `solventa-bff`, `solventa-web`), así que en otro proyecto no chocan con *staging*. Se repite en ese
+   proyecto la [configuración manual en GCP](#configuración-manual-en-gcp), pasos 1 a 7, **sin** el
+   paso 8: producción no lleva pólizas de prueba, ni `POLIZAS_SEMILLA`, ni código OTP fijo.
+2. **Environment `produccion`** (Settings → Environments): *Selected branches* → solo `main`, y
+   *Required reviewers* con quien aprueba cada despliegue. Además, las cinco variables de la tabla de
+   arriba, con el proyecto y la cuenta `despliegue` del proyecto nuevo.
+3. **Aprovisionar producción.** [`aprovisionar.yml`](../.github/workflows/aprovisionar.yml) usa
+   `staging-infraestructura`. Para producción se agrega un environment `produccion-infraestructura`
+   con las variables del proyecto nuevo y se corre `scripts/ambiente.py aprovisionar --proyecto
+   <proyecto de producción> --region <región>` desde ese environment. Así se crean Cloud SQL, los
+   secretos, los buckets y el primer despliegue de cada servicio.
+4. **El siguiente release despliega solo:** CD copia las imágenes del release al Artifact Registry
+   del proyecto nuevo, actualiza los tres servicios y corre la prueba de humo contra ellos.
+
+Costo de referencia, encendida todo el mes: una `db-g1-small` (unos USD 25) más Cloud Run con mínimo
+en 0, que solo cobra mientras atiende.
+
 ### Aprovisionar y destruir el ambiente
 
 Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
