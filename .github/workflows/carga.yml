@@ -25,6 +25,10 @@ on:
       duracion:
         description: Duración de la carga (por ejemplo 5m o 90s)
         default: "5m"
+      caos:
+        description: "Caos (#216): a los 2 min deja el núcleo en 1 réplica y a los 3 min 30 s lo vuelve a 2 (solo con 5m)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ambiente-staging
@@ -35,7 +39,7 @@ permissions:
 
 jobs:
   carga:
-    name: k6 · ${{ inputs.escenario }}
+    name: k6 · ${{ inputs.escenario }}${{ inputs.caos && ' · caos' || '' }}
     runs-on: ubuntu-latest
     environment: staging-infraestructura
     timeout-minutes: 30
@@ -54,6 +58,7 @@ jobs:
       ESCENARIO: ${{ inputs.escenario }}
       RPM: ${{ inputs.rpm }}
       DURACION: ${{ inputs.duracion }}
+      CAOS: ${{ inputs.caos }}
       K6_VERSION: v0.54.0
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +69,8 @@ jobs:
             || { echo "::error::rpm debe ser un entero entre 1 y 6000"; exit 1; }
           [[ "$DURACION" =~ ^[0-9]{1,3}(s|m)$ ]] \
             || { echo "::error::duracion debe ser como 90s o 5m"; exit 1; }
+          [[ "$CAOS" != "true" || "$DURACION" == "5m" ]] \
+            || { echo "::error::el caos está calibrado para una carga de 5m"; exit 1; }
 
       - name: Instalar k6 ${{ env.K6_VERSION }} (checksum verificado)
         run: |
@@ -96,9 +103,22 @@ jobs:
         run: |
           set -o pipefail
           estado=0
+          caos=""
+          if [[ "$CAOS" == "true" ]]; then
+            # 120 s con dos réplicas, 90 s con una y el resto otra vez con dos.
+            scripts/carga/caos_replica.sh 120 90 &
+            caos=$!
+          fi
           k6 run --quiet --no-color -e BASE_URL="$BFF_URL" -e RPM="$RPM" -e DURACION="$DURACION" \
             -e ESCENARIO="$ESCENARIO" scripts/carga/cotizacion.js | tee salida-k6.txt || estado=$?
+          if [[ -n "$caos" ]]; then
+            wait "$caos" || { echo "::error::el caos no pudo cambiar las réplicas"; estado=1; }
+          fi
           cat "carga-${ESCENARIO}.md" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f caos.log ]]; then
+            { echo; echo "#### Caos: réplicas del núcleo (UTC)"; echo; sed 's/^/    /' caos.log; } \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
           # 99: algún umbral de RC-01 o RC-03 no se cumplió. Queda en el resumen y la corrida falla.
           exit "$estado"
 
@@ -110,7 +130,15 @@ jobs:
           path: |
             carga-*.json
             carga-*.md
+            caos.log
           if-no-files-found: warn
+
+      - name: Devolver el núcleo a 2 réplicas
+        # Si la corrida se canceló a mitad del caos, el núcleo no se queda con una sola réplica.
+        if: always() && inputs.caos
+        run: |
+          gcloud run services update solventa-nucleo --region="$REGION" --project="$PROYECTO" \
+            --quiet --min-instances=2 --max-instances=2 > /dev/null
 
       - name: Devolver el proveedor a «sano»
         if: always() && inputs.escenario != 'sano'
