@@ -501,12 +501,28 @@ historia los mide en *staging*.
   p95 ≤ 250 ms.
 - **Umbrales del circuito como configuración:** `PERFILAMIENTO_CIRCUITO_UMBRAL` (10 %),
   `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30 s) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5).
-- **Bloqueo para las dos réplicas:** las cuentas de identidad (WEB-F13) todavía viven en memoria
-  (`RepositorioDeCuentasEnMemoria`). Con dos réplicas, una cuenta registrada en una no existe en la
-  otra, así que el inicio de sesión fallaría al azar. Las réplicas (#136) esperan a que identidad
-  persista en Cloud SQL, como ya lo hacen el consentimiento y los demás módulos.
+- **Dos réplicas:** identidad pasó a Cloud SQL (#301), así que ningún módulo guarda estado en la
+  réplica y el núcleo corre con dos réplicas fijas.
 - El guion de carga reutiliza `solventa-experiments/exp01-resiliencia/carga.js` apuntando a
   *staging*.
+
+**Resultado en *staging*** ([informe de calidad](calidad/informe-arq05.md)). Con Cloud SQL en
+`db-g1-small` (#314), dos réplicas (#301) y el pool de conexiones (#300), k6 a 1.000/min durante
+5 min cumple los criterios 1 y 2 en los tres escenarios:
+
+| Escenario | p95 | p99 | Sin oferta | 5xx | Corrida |
+|---|---:|---:|---:|---:|---|
+| Sano | 110 ms | 123 ms | 0 % | 0 % | [44830122689](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44830122689) |
+| Degradado | 249 ms | 259 ms | 0 % | 0 % | [44845951108](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44845951108) |
+| Caído | 109 ms | 122 ms | 0 % | 0 % | [44847398759](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44847398759) |
+
+- **Criterio 3:** la revocación hecha en una réplica la respetan las dos.
+- **Criterio 4:** el circuito se cierra solo y `/salud` vuelve a `ok`, en una prueba automática.
+- **Criterio 5:** la base de cada decisión queda en el log.
+- **Criterio 7:** verificar el consentimiento cuesta +15 ms en el p95 del servidor.
+- **Pendientes:** el criterio 6 (auditoría alterada) y el caos se corren con #318. El informe trae
+  el detalle, y también los dos hallazgos previos: una conexión por operación y una
+  `db-f1-micro` sin CPU.
 
 **Favorece** RC-01 Latencia, RC-03 Disponibilidad, RC-04 Seguridad, RC-08 Trazabilidad ·
 **Puntos** 5 · **Responsables** Sergio (backend), Juan (cloud, pruebas de carga y caos,
