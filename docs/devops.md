@@ -331,6 +331,11 @@ pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
 | Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura` | `produccion-infraestructura` |
 | Compartido | Workload Identity, las cuentas `infraestructura`, `despliegue` y `apagado`, y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging) | |
 
+> **Un CD en verde en `main` no siempre significa que hubo despliegue.** Si el environment
+> `produccion` todavía no tiene sus variables o los servicios `-prd` no existen, el CD termina en
+> verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
+> avisos del run, o que el job *E2E web en produccion* haya corrido.
+
 **Qué corre en cada ambiente**
 
 - **CD:** un merge a `main` (release o hotfix) publica las imágenes y despliega `solventa-*-prd`
