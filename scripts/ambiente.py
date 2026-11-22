@@ -17,9 +17,10 @@ Nunca imprime contraseñas, llaves ni cadenas de conexión: se generan en memori
 Manager por la entrada estándar de gcloud.
 
 Dos ambientes en el mismo proyecto (`--ambiente`): `staging` usa los nombres de siempre y
-`produccion` los mismos con el sufijo `-prd` (servicios, instancia de Cloud SQL, secretos, buckets y
-cuentas `run-*`). Así uno nunca toca lo del otro. Workload Identity, las cuentas `infraestructura` y
-`despliegue` y el repositorio de imágenes son compartidos.
+`produccion` los mismos con el sufijo `-prd` (servicios, Cloud SQL, secretos y buckets).
+Así uno nunca toca lo del otro. Las cuentas de servicio (`run-*`, `infraestructura`, `despliegue` y
+`apagado`), Workload Identity y el repositorio de imágenes son compartidos: producción no necesita
+ningún permiso nuevo.
 
 Uso: ambiente.py {verificar,aprovisionar,destruir,encender,apagar} --proyecto P --region R
      [--ambiente staging|produccion] [--confirmar P]
@@ -267,7 +268,8 @@ class Ambiente:
         return f"{secreto}{self.sufijo}"
 
     def run(self, cuenta: str) -> str:
-        return f"{cuenta}{self.sufijo}"
+        """Las cuentas de ejecución son las mismas en los dos ambientes."""
+        return cuenta
 
     @property
     def prefijo_instancia(self) -> str:

@@ -6,8 +6,8 @@
 # de servicio y el repositorio de imágenes, para que "Aprovisionar ambiente" pueda rehacerlo todo.
 # La configuración del repo en GitHub (variables y secretos de los environments) no se toca.
 #
-# Pide escribir el ID del proyecto y la aprobación del environment `staging-infraestructura` o
-# `produccion-infraestructura`.
+# Pide escribir el ID del proyecto y la aprobación del environment `staging-infraestructura`, que
+# sirve a los dos ambientes.
 # Mientras no se aprovisione de nuevo, el CD de cada merge avisa que falta el ambiente y no despliega.
 name: Destruir ambiente
 
@@ -38,7 +38,7 @@ jobs:
   destruir:
     name: Destruir ${{ inputs.ambiente }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.ambiente == 'produccion' && 'produccion-infraestructura' || 'staging-infraestructura' }}
+    environment: staging-infraestructura
     timeout-minutes: 30
     permissions:
       contents: read

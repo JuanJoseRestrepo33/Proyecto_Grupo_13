@@ -991,11 +991,7 @@ class TestProduccion:
 
     @pytest.fixture
     def nube(self):
-        nube = NubeSimulada(completa=True)  # staging completo
-        nube.cuentas |= {
-            f"{c}-prd@{PROYECTO}.iam.gserviceaccount.com" for c in amb.CUENTAS.values()
-        }
-        return nube
+        return NubeSimulada(completa=True)  # staging completo, con sus cuentas
 
     def test_aprovisionar_produccion_crea_todo_con_sufijo(self, nube, entorno):
         staging = {
@@ -1021,12 +1017,12 @@ class TestProduccion:
         objetivos = {c[3] for c in _escrituras(nube) if len(c) > 3}
         assert not objetivos & (staging["servicios"] | set(staging["secretos"]))
 
-    def test_el_nucleo_de_produccion_usa_sus_secretos_y_su_cuenta(self, nube, entorno):
+    def test_el_nucleo_de_produccion_usa_sus_secretos_y_la_misma_cuenta(self, nube, entorno):
         _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
         despliegue = next(
             c for c in nube.llamadas if c[:3] == ["run", "deploy", "solventa-nucleo-prd"]
         )
-        assert f"--service-account=run-nucleo-prd@{PROYECTO}.iam.gserviceaccount.com" in despliegue
+        assert f"--service-account=run-nucleo@{PROYECTO}.iam.gserviceaccount.com" in despliegue
         secretos = next(a for a in despliegue if a.startswith("--set-secrets="))
         assert "AUDITORIA_DATABASE_URL=auditoria-database-url-prd:latest" in secretos
         assert "auditoria-database-url:latest" not in secretos
