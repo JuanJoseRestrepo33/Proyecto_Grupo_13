@@ -42,10 +42,14 @@ def test_confirma_al_salir_y_revierte_si_hay_una_excepcion():
         c.execute("TRUNCATE public.prueba_pool")
     with conexiones.conexion(DSN) as c:
         c.execute("INSERT INTO public.prueba_pool VALUES (1)")
-    with pytest.raises(RuntimeError):  # noqa: SIM117 - dos `with` para que se vea qué se espera
+
+    def inserta_y_falla():
         with conexiones.conexion(DSN) as c:
             c.execute("INSERT INTO public.prueba_pool VALUES (2)")
             raise RuntimeError("falla a mitad de la operación")
+
+    with pytest.raises(RuntimeError):
+        inserta_y_falla()
     with conexiones.conexion(DSN) as c:
         valores = [f["valor"] for f in c.execute("SELECT valor FROM public.prueba_pool").fetchall()]
         c.execute("DROP TABLE public.prueba_pool")
