@@ -1,6 +1,8 @@
 # Despliegue continuo (ARQ-04, WEB-F01), según GitFlow:
-#   push a develop → imágenes :develop → environment "staging"
-#   push a main    → imágenes :main    → environment "produccion" (main solo recibe releases y hotfixes)
+#   push a develop → imágenes :develop → environment "staging"    → servicios solventa-*
+#   push a main    → imágenes :main    → environment "produccion" → servicios solventa-*-prd
+#   (main solo recibe releases y hotfixes). Los dos ambientes viven en el mismo proyecto de GCP:
+#   producción usa los mismos nombres con el sufijo -prd (scripts/ambiente.py --ambiente).
 #
 # Despliega tres servicios de Cloud Run, uno por componente: el núcleo (backend/), el BFF (bff/) y la
 # web estática (apps/web/, nginx que reenvía /api/ al BFF). Cada servicio de Cloud Run se llama igual
@@ -40,11 +42,9 @@ permissions:
 jobs:
   ambiente:
     name: Verificar ambiente
-    # Lo que verifica (Cloud SQL, secretos, bucket) solo se aprovisiona en staging. Ningún otro
-    # job depende de este.
-    if: github.ref_name != 'main'
+    # Ningún otro job depende de este.
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
     permissions:
       contents: read
       id-token: write # para obtener el token de Workload Identity Federation
@@ -73,7 +73,9 @@ jobs:
       - name: Verificar
         if: steps.config.outputs.lista == 'true'
         # Solo lee y nunca falla: lo que falte queda como aviso en el resumen del run.
-        run: python3 scripts/ambiente.py verificar --proyecto "$PROYECTO" --region "$REGION"
+        run: >-
+          python3 scripts/ambiente.py verificar --proyecto "$PROYECTO" --region "$REGION"
+          --ambiente ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
 
   publicar:
     name: Publicar ${{ matrix.servicio }}
@@ -160,7 +162,9 @@ jobs:
             contexto: apps/web
             requiere: apps/web/Dockerfile bff/Dockerfile
     env:
-      SERVICIO: ${{ matrix.servicio }}
+      # La imagen se llama como el componente; el servicio, con el sufijo del ambiente.
+      IMAGEN: ${{ matrix.servicio }}
+      SERVICIO: ${{ matrix.servicio }}${{ github.ref_name == 'main' && '-prd' || '' }}
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
       PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -190,7 +194,7 @@ jobs:
             echo "lista=false" >> "$GITHUB_OUTPUT"
           else
             echo "lista=true" >> "$GITHUB_OUTPUT"
-            echo "imagen=${REGION}-docker.pkg.dev/${PROYECTO}/${REPOSITORIO}/${SERVICIO}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "imagen=${REGION}-docker.pkg.dev/${PROYECTO}/${REPOSITORIO}/${IMAGEN}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
             echo "arbol=$(git rev-parse "HEAD:$CONTEXTO")" >> "$GITHUB_OUTPUT"
           fi
       - name: Autenticar en Google Cloud
@@ -278,17 +282,17 @@ jobs:
         run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"
 
   e2e:
-    # Los flujos de la web de punta a punta, después de desplegar (WEB-F01, #166). Solo en staging:
-    # inician sesión con la cuenta de prueba y cambian su estado, cosa que no se hace en producción.
-    name: E2E web en staging
+    # Los flujos de la web de punta a punta, después de desplegar (WEB-F01, #166), en staging y en
+    # producción, cada uno con su propia cuenta de prueba (secretos HUMO_* de su environment).
+    name: E2E web en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
     needs: desplegar
-    if: github.ref_name == 'develop'
+    if: github.ref_name == 'develop' || github.ref_name == 'main'
     runs-on: ubuntu-latest
-    environment: staging
-    # Mismo grupo que el E2E en emulador de mobile-android.yml: los dos cambian el estado de la cuenta
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    # Mismo grupo que el E2E en emulador de mobile-android.yml y que k6: cambian el estado de la cuenta
     # de prueba (por ejemplo, su consentimiento de cotización) y no deben correr a la vez.
     concurrency:
-      group: e2e-cuenta-staging
+      group: e2e-cuenta-${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -298,6 +302,7 @@ jobs:
       REGION: ${{ vars.GCP_REGION }}
       PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
       CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      SUFIJO: ${{ github.ref_name == 'main' && '-prd' || '' }}
     defaults:
       run:
         working-directory: apps/web
@@ -332,10 +337,10 @@ jobs:
         if: steps.config.outputs.lista == 'true'
         id: web
         run: |
-          url=$(gcloud run services describe solventa-web --region="$REGION" --project="$PROYECTO" \
-                  --format='value(status.url)' 2>/dev/null || true)
+          url=$(gcloud run services describe "solventa-web$SUFIJO" --region="$REGION" \
+                  --project="$PROYECTO" --format='value(status.url)' 2>/dev/null || true)
           if [ -z "$url" ]; then
-            echo "::warning::No se encontró solventa-web en Cloud Run; no hay contra qué correr las E2E."
+            echo "::warning::No se encontró solventa-web$SUFIJO en Cloud Run; no hay contra qué correr las E2E."
             echo "url=" >> "$GITHUB_OUTPUT"
           else
             echo "url=$url" >> "$GITHUB_OUTPUT"

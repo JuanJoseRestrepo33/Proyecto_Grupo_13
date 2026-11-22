@@ -312,7 +312,7 @@ def entorno():
     return {"HUMO_CORREO": "humo@solventa.test", "HUMO_CLAVE": "clave-del-humo"}
 
 
-def _ambiente(nube, entorno=None, conexion=None):
+def _ambiente(nube, entorno=None, conexion=None, sufijo=""):
     conexiones = []
 
     def conectar(destino, usuario, clave):
@@ -326,6 +326,7 @@ def _ambiente(nube, entorno=None, conexion=None):
         conectar=conectar,
         generar_llaves=lambda: ("PRIVADA-PEM", "PUBLICA-PEM"),
         ahora=lambda: datetime(2026, 11, 2, 9, 30, tzinfo=UTC),
+        sufijo=sufijo,
     )
     ambiente.conexiones = conexiones
     return ambiente
@@ -983,3 +984,69 @@ class TestVerificarSoloAvisa:
         nube.fallas[("sql", "instances", "list")] = "503 Service Unavailable"
         argumentos = [accion, "--proyecto", PROYECTO, "--region", REGION, "--confirmar", PROYECTO]
         assert amb.main(argumentos, _ambiente(nube, entorno)) == 1
+
+
+class TestProduccion:
+    """Producción vive en el mismo proyecto con el sufijo -prd y nunca toca lo de staging."""
+
+    @pytest.fixture
+    def nube(self):
+        nube = NubeSimulada(completa=True)  # staging completo
+        nube.cuentas |= {
+            f"{c}-prd@{PROYECTO}.iam.gserviceaccount.com" for c in amb.CUENTAS.values()
+        }
+        return nube
+
+    def test_aprovisionar_produccion_crea_todo_con_sufijo(self, nube, entorno):
+        staging = {
+            "instancias": dict(nube.instancias),
+            "secretos": {k: list(v["versiones"]) for k, v in nube.secretos.items()},
+            "servicios": set(nube.servicios),
+            "buckets": set(nube.buckets),
+        }
+        nube.llamadas.clear()
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+
+        assert "solventa-prd-20261102-0930" in nube.instancias
+        assert {"solventa-nucleo-prd", "solventa-bff-prd", "solventa-web-prd"} <= set(
+            nube.servicios
+        )
+        assert {f"{s}-prd" for s in amb.SECRETOS} <= set(nube.secretos)
+        assert f"gs://{PROYECTO}-solventa-evidencias-prd" in nube.buckets
+        assert f"gs://{PROYECTO}-solventa-documentos-prd" in nube.buckets
+        # Lo de staging queda igual: ni una versión nueva de sus secretos.
+        for nombre, versiones in staging["secretos"].items():
+            assert nube.secretos[nombre]["versiones"] == versiones, nombre
+        assert {k: nube.instancias[k] for k in staging["instancias"]} == staging["instancias"]
+        objetivos = {c[3] for c in _escrituras(nube) if len(c) > 3}
+        assert not objetivos & (staging["servicios"] | set(staging["secretos"]))
+
+    def test_el_nucleo_de_produccion_usa_sus_secretos_y_su_cuenta(self, nube, entorno):
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+        despliegue = next(
+            c for c in nube.llamadas if c[:3] == ["run", "deploy", "solventa-nucleo-prd"]
+        )
+        assert f"--service-account=run-nucleo-prd@{PROYECTO}.iam.gserviceaccount.com" in despliegue
+        secretos = next(a for a in despliegue if a.startswith("--set-secrets="))
+        assert "AUDITORIA_DATABASE_URL=auditoria-database-url-prd:latest" in secretos
+        assert "auditoria-database-url:latest" not in secretos
+
+    def test_staging_no_toma_la_instancia_de_produccion(self, nube):
+        nube.instancias["solventa-prd-20261102-0930"] = "ALWAYS"
+        assert [i["name"] for i in _ambiente(nube).instancias()] == ["solventa-auditoria"]
+        produccion = _ambiente(nube, sufijo="-prd").instancias()
+        assert [i["name"] for i in produccion] == ["solventa-prd-20261102-0930"]
+
+    def test_destruir_produccion_no_toca_staging_ni_las_imagenes(self, nube, entorno):
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+        _ambiente(nube, sufijo="-prd").destruir()
+        assert set(nube.servicios) == {"solventa-nucleo", "solventa-bff", "solventa-web"}
+        assert list(nube.instancias) == ["solventa-auditoria"]
+        assert set(amb.SECRETOS) <= set(nube.secretos)
+        assert not any(s.endswith("-prd") for s in nube.secretos)
+        assert nube.paquetes == set(amb.SERVICIOS)
+
+    def test_main_acepta_el_ambiente(self, nube, entorno):
+        ambiente = _ambiente(nube, sufijo="-prd")
+        args = ["verificar", "--proyecto", PROYECTO, "--region", REGION, "--ambiente", "produccion"]
+        assert amb.main(args, ambiente) == 0

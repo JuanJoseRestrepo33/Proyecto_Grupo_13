@@ -1,4 +1,4 @@
-# Encender o apagar Cloud SQL de staging. Manual.
+# Encender o apagar Cloud SQL de staging o de producción. Manual, y cada noche apaga las dos.
 #
 # Solo cambia la política de activación de la instancia (ALWAYS / NEVER): no crea ni borra nada.
 # Apagada conserva los datos y deja de cobrar CPU y memoria (sigue el disco); mientras tanto el núcleo
@@ -9,9 +9,9 @@
 # resumen.
 #
 # Dos formas de correr:
-# - A mano (encender o apagar): environment `staging-infraestructura`, que pide aprobación, con la
-#   cuenta `infraestructura`, como Aprovisionar y Destruir.
-# - Cada noche, a las 23:00 de Bogotá (04:00 UTC), solo apagar: environment `staging-apagado`, sin
+# - A mano (encender o apagar): environment `staging-infraestructura` o `produccion-infraestructura`,
+#   que piden aprobación de un integrante, con la cuenta `infraestructura`, como Aprovisionar.
+# - Cada noche, a las 23:00 de Bogotá (04:00 UTC), solo apagar, staging y producción: `staging-apagado`, sin
 #   aprobación, con la cuenta `apagado`, que solo puede leer y actualizar la instancia (no crearla,
 #   borrarla ni tocar sus usuarios). docs/devops.md, "Configuración manual en GCP", paso 3.
 name: Encender o apagar Cloud SQL
@@ -26,11 +26,19 @@ on:
         options:
           - encender
           - apagar
+      ambiente:
+        description: "staging (rama develop) o produccion (rama main, nombres con -prd)"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - produccion
   schedule:
     - cron: "0 4 * * *" # 23:00 en Bogotá (UTC-5)
 
 concurrency:
-  group: ambiente-staging
+  group: cloud-sql-${{ inputs.ambiente || 'nocturno' }}
   cancel-in-progress: false
 
 permissions:
@@ -38,10 +46,16 @@ permissions:
 
 jobs:
   cloud-sql:
-    name: Cloud SQL · ${{ inputs.accion || 'apagado nocturno' }}
+    name: Cloud SQL ${{ matrix.ambiente }} · ${{ inputs.accion || 'apagado nocturno' }}
     runs-on: ubuntu-latest
-    # El apagado nocturno no puede esperar una aprobación: usa su propio environment y su cuenta mínima.
-    environment: ${{ github.event_name == 'schedule' && 'staging-apagado' || 'staging-infraestructura' }}
+    # A mano, el ambiente elegido; de noche, los dos.
+    strategy:
+      fail-fast: false
+      matrix:
+        ambiente: ${{ fromJSON(github.event_name == 'schedule' && '["staging","produccion"]' || format('["{0}"]', inputs.ambiente)) }}
+    # El apagado nocturno no puede esperar una aprobación: usa su propio environment y su cuenta mínima,
+    # que puede apagar las dos instancias.
+    environment: ${{ github.event_name == 'schedule' && 'staging-apagado' || (matrix.ambiente == 'produccion' && 'produccion-infraestructura' || 'staging-infraestructura') }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -50,6 +64,8 @@ jobs:
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
       ACCION: ${{ inputs.accion || 'apagar' }}
+      AMBIENTE: ${{ matrix.ambiente }}
+      SUFIJO: ${{ matrix.ambiente == 'produccion' && '-prd' || '' }}
     steps:
       - name: Configuración del environment
         env:
@@ -67,14 +83,16 @@ jobs:
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
       - name: Cloud SQL · ${{ inputs.accion || 'apagar' }}
-        run: python3 scripts/ambiente.py "$ACCION" --proyecto "$PROYECTO" --region "$REGION"
+        run: >-
+          python3 scripts/ambiente.py "$ACCION" --proyecto "$PROYECTO" --region "$REGION"
+          --ambiente "$AMBIENTE"
       - name: Esperar a que el núcleo responda
         if: env.ACCION == 'encender'
         run: |
-          url=$(gcloud run services describe solventa-nucleo --region="$REGION" --project="$PROYECTO" \
-            --format='value(status.url)' 2>/dev/null || true)
+          url=$(gcloud run services describe "solventa-nucleo$SUFIJO" --region="$REGION" \
+            --project="$PROYECTO" --format='value(status.url)' 2>/dev/null || true)
           if [ -z "$url" ]; then
-            echo "::warning::No se encontró solventa-nucleo en Cloud Run; no se verifica su salud."
+            echo "::warning::No se encontró solventa-nucleo$SUFIJO en Cloud Run; no se verifica su salud."
             exit 0
           fi
           for _ in $(seq 40); do
