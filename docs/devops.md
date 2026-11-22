@@ -335,6 +335,15 @@ pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
 > verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
 > avisos del run, o que el job *E2E web en produccion* haya corrido.
 
+**Lo que se acepta al compartir las cuentas.** Como los dos ambientes usan las mismas cuentas de
+ejecución, `run-nucleo` puede leer los secretos de staging **y** los de producción (cadenas de
+conexión, llaves de firma, token interno), y escribir y leer en los buckets de los dos. Un núcleo de
+staging comprometido podría llegar a los datos de producción. Para este proyecto, que solo tiene
+datos de prueba, se acepta a cambio de no tocar IAM. Para separarlos en un producto real: cuentas
+`run-*-prd` propias, que se le pasan a `scripts/ambiente.py` en `run()`, y un environment de
+infraestructura de producción con su propio binding de Workload Identity, o directamente un
+proyecto de GCP aparte.
+
 **Qué corre en cada ambiente**
 
 - **CD:** un merge a `main` (release o hotfix) publica las imágenes y despliega `solventa-*-prd`
