@@ -87,8 +87,14 @@ class ReporteSiniestroE2eTest {
         esperar("ingreso-correo")
         compose.onNodeWithTag("ingreso-correo").performTextInput(correo)
         compose.onNodeWithTag("ingreso-contrasena").performTextInput(clave)
-        conReintento(listo = { hay("ir-reportar-siniestro") || hay("oferta") }) {
+        conReintento(listo = { hay("ir-reportar-siniestro") || hay("oferta") || hay("kyc-aprobada") }) {
             compose.onNodeWithText("Iniciar sesión").performScrollTo().performClick()
+        }
+        // Sin la identidad verificada, la app muestra antes el resultado de la verificación
+        // (destinoTrasIngreso). En staging pasa en el primer ingreso de la cuenta en la corrida.
+        if (hay("kyc-aprobada")) {
+            compose.onNodeWithText("Continuar").performScrollTo().performClick()
+            esperar { hay("ir-reportar-siniestro") || hay("oferta") }
         }
         // Solo aparece en un dispositivo con huella registrada.
         if (hay("oferta")) {

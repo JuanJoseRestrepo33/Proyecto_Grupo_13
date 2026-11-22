@@ -1,24 +1,34 @@
-# Destruir el ambiente de staging en Google Cloud (WEB-F01, #165). Manual e irreversible.
+# Destruir el ambiente de staging o de producción en Google Cloud (WEB-F01, #165). Manual e
+# irreversible. Uno nunca toca al otro; las imágenes, compartidas, solo las borra destruir staging.
 #
 # Borra los servicios de Cloud Run, Cloud SQL (con todos sus datos), los secretos, el bucket de
 # evidencias y las imágenes de Artifact Registry. Conserva el acceso: Workload Identity, las cuentas
 # de servicio y el repositorio de imágenes, para que "Aprovisionar ambiente" pueda rehacerlo todo.
 # La configuración del repo en GitHub (variables y secretos de los environments) no se toca.
 #
-# Pide escribir el ID del proyecto y la aprobación del environment `staging-infraestructura`.
+# Pide escribir el ID del proyecto y la aprobación del environment `staging-infraestructura`, que
+# sirve a los dos ambientes.
 # Mientras no se aprovisione de nuevo, el CD de cada merge avisa que falta el ambiente y no despliega.
 name: Destruir ambiente
 
 on:
   workflow_dispatch:
     inputs:
+      ambiente:
+        description: "staging (rama develop) o produccion (rama main, nombres con -prd)"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - produccion
       confirmar:
-        description: "Borra staging y sus datos. Para confirmar, escribe el ID del proyecto de GCP"
+        description: "Borra el ambiente y sus datos. Para confirmar, escribe el ID del proyecto de GCP"
         required: true
         type: string
 
 concurrency:
-  group: ambiente-staging
+  group: ambiente-${{ inputs.ambiente }}
   cancel-in-progress: false
 
 permissions:
@@ -26,7 +36,7 @@ permissions:
 
 jobs:
   destruir:
-    name: Destruir staging
+    name: Destruir ${{ inputs.ambiente }}
     runs-on: ubuntu-latest
     environment: staging-infraestructura
     timeout-minutes: 30
@@ -36,6 +46,7 @@ jobs:
     env:
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
+      AMBIENTE: ${{ inputs.ambiente }}
     steps:
       - name: Confirmación
         env:
@@ -57,4 +68,4 @@ jobs:
           CONFIRMAR: ${{ inputs.confirmar }}
         run: >-
           python3 scripts/ambiente.py destruir --proyecto "$PROYECTO" --region "$REGION"
-          --confirmar "$CONFIRMAR"
+          --confirmar "$CONFIRMAR" --ambiente "$AMBIENTE"

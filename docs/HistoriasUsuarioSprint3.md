@@ -172,7 +172,8 @@ desplegados:
 [`web-staging-suscripcion-pago-aprobado.png`](guia-de-usuario/img/web-staging-suscripcion-pago-aprobado.png) ·
 [`web-staging-suscripcion-firma.png`](guia-de-usuario/img/web-staging-suscripcion-firma.png) ·
 [`web-staging-suscripcion-emitida.png`](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
-(número de póliza, vigencia y descarga del PDF). *Pendiente:* las de la app.
+(número de póliza, vigencia y descarga del PDF). La app no compra (MOB-F04, fuera del MVP): la
+póliza emitida se ve en la app con WEB-F04.
 
 ![Póliza emitida en staging](guia-de-usuario/img/web-staging-suscripcion-emitida.png)
 
@@ -241,7 +242,10 @@ MOB-F03, como *stretch*. Por eso sube de 5 a 8 puntos.
 [`web-staging-polizas.png`](guia-de-usuario/img/web-staging-polizas.png) (pestaña *Activas*, la
 recién emitida primero) ·
 [`web-staging-poliza-detalle.png`](guia-de-usuario/img/web-staging-poliza-detalle.png) (coberturas,
-deducible, límites y documento). *Pendiente:* las de la app (#190).
+deducible, límites y documento). App (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`): [`app-staging-polizas.png`](guia-de-usuario/img/app-staging-polizas.png) ·
+[`app-staging-poliza-detalle.png`](guia-de-usuario/img/app-staging-poliza-detalle.png).
 
 ![Mis pólizas en staging](guia-de-usuario/img/web-staging-polizas.png)
 
@@ -314,8 +318,13 @@ P26 Ayuda en contexto.
 [`web-staging-siniestros.png`](guia-de-usuario/img/web-staging-siniestros.png) (cada caso con su
 canal y su estado) ·
 [`web-staging-siniestro-detalle.png`](guia-de-usuario/img/web-staging-siniestro-detalle.png) (línea
-de tiempo, resumen y siguiente paso). *Pendiente:* un caso con un requerimiento pendiente, porque
-ninguno de *staging* tiene uno, y las de la app (#199).
+de tiempo, resumen y siguiente paso). App (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057)):
+[`app-staging-siniestros.png`](guia-de-usuario/img/app-staging-siniestros.png) ·
+[`app-staging-siniestro-detalle.png`](guia-de-usuario/img/app-staging-siniestro-detalle.png) ·
+[`app-staging-siniestro-historial.png`](guia-de-usuario/img/app-staging-siniestro-historial.png) ·
+[`app-staging-siniestro-requerimiento.png`](guia-de-usuario/img/app-staging-siniestro-requerimiento.png)
+(un requerimiento *Pendiente* con **Responder**, criterio 5).
 
 ![Mis siniestros en staging](guia-de-usuario/img/web-staging-siniestros.png)
 
@@ -372,7 +381,12 @@ push y el enlace al detalle.
   `/api/v1/web/notificaciones` responda 404.
 
 **Patrones de interfaz.** P20 Permiso en contexto con alternativa.
-**Capturas.** *Pendiente:* el aviso en el teléfono y el detalle que abre, con la parte móvil (#207).
+**Capturas** (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`). [`app-staging-push-bandeja.png`](guia-de-usuario/img/app-staging-push-bandeja.png)
+(el aviso *Tu siniestro SIN-… cambió* en la bandeja) ·
+[`app-staging-push-detalle.png`](guia-de-usuario/img/app-staging-push-detalle.png) (el detalle que
+abre, con *En evaluación* como estado actual).
 
 **Favorece** RC-02 Escalabilidad · **Puntos** 5 · **Responsables** Sergio (backend, integración),
 Edwin (móvil, E2E móvil), Juan (cloud, documentación) · **Depende de** WEB-F06, WEB-F13
@@ -421,8 +435,16 @@ API idempotente de WEB-F05, ya desplegada.
 - **Para reportar sin señal la app necesita haber consultado las pólizas una vez** en ese teléfono.
   Sin conexión no puede confirmar la vigencia: la revisa el núcleo al recibir el reporte.
 
-**Capturas.** *Pendiente:* el reporte guardado sin conexión y la tarjeta de envío en Inicio, en la
-app contra *staging*.
+**Capturas** (*staging*, 21 nov 2026, corrida
+[44863525057](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44863525057) de
+`e2e-emulador`, en modo avión).
+[`app-staging-sin-conexion-polizas-guardadas.png`](guia-de-usuario/img/app-staging-sin-conexion-polizas-guardadas.png) ·
+[`app-staging-sin-conexion-revision.png`](guia-de-usuario/img/app-staging-sin-conexion-revision.png) ·
+[`app-staging-sin-conexion-guardado.png`](guia-de-usuario/img/app-staging-sin-conexion-guardado.png) ·
+[`app-staging-sin-conexion-pendiente.png`](guia-de-usuario/img/app-staging-sin-conexion-pendiente.png)
+(*Esperando conexión*) ·
+[`app-staging-sin-conexion-enviado.png`](guia-de-usuario/img/app-staging-sin-conexion-enviado.png)
+(*Reporte enviado* con la referencia).
 
 **Favorece** RC-03 Disponibilidad, RC-04 Seguridad · **Puntos** 3 · **Responsables** Edwin (móvil,
 E2E móvil), Juan (documentación) · **Depende de** WEB-F05, MOB-F05
@@ -479,12 +501,31 @@ historia los mide en *staging*.
   p95 ≤ 250 ms.
 - **Umbrales del circuito como configuración:** `PERFILAMIENTO_CIRCUITO_UMBRAL` (10 %),
   `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30 s) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5).
-- **Bloqueo para las dos réplicas:** las cuentas de identidad (WEB-F13) todavía viven en memoria
-  (`RepositorioDeCuentasEnMemoria`). Con dos réplicas, una cuenta registrada en una no existe en la
-  otra, así que el inicio de sesión fallaría al azar. Las réplicas (#136) esperan a que identidad
-  persista en Cloud SQL, como ya lo hacen el consentimiento y los demás módulos.
+- **Dos réplicas:** identidad pasó a Cloud SQL (#301), así que ningún módulo guarda estado en la
+  réplica y el núcleo corre con dos réplicas fijas.
 - El guion de carga reutiliza `solventa-experiments/exp01-resiliencia/carga.js` apuntando a
   *staging*.
+
+**Resultado en *staging*** ([informe de calidad](calidad/informe-arq05.md)). Con Cloud SQL en
+`db-g1-small` (#314), dos réplicas (#301) y el pool de conexiones (#300), k6 a 1.000/min durante
+5 min cumple los criterios 1 y 2 en los tres escenarios:
+
+| Escenario | p95 | p99 | Sin oferta | 5xx | Corrida |
+|---|---:|---:|---:|---:|---|
+| Sano | 110 ms | 123 ms | 0 % | 0 % | [44830122689](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44830122689) |
+| Degradado | 249 ms | 259 ms | 0 % | 0 % | [44845951108](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44845951108) |
+| Caído | 109 ms | 122 ms | 0 % | 0 % | [44847398759](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44847398759) |
+
+- **Criterio 3:** la revocación hecha en una réplica la respetan las dos.
+- **Criterio 4:** el circuito se cierra solo y `/salud` vuelve a `ok`, en una prueba automática.
+- **Criterio 5:** la base de cada decisión queda en el log.
+- **Criterio 7:** verificar el consentimiento cuesta +15 ms en el p95 del servidor.
+- **Criterio 6:** un registro alterado del log se detecta en *staging*
+  ([44995232437](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995232437)).
+- **Caos:** quitar una réplica a mitad de la carga no dejó ningún error, con p95 de 99 ms
+  ([44995225221](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995225221)).
+- El informe trae el detalle, y también los dos hallazgos previos: una conexión por operación y
+  una `db-f1-micro` sin CPU.
 
 **Favorece** RC-01 Latencia, RC-03 Disponibilidad, RC-04 Seguridad, RC-08 Trazabilidad ·
 **Puntos** 5 · **Responsables** Sergio (backend), Juan (cloud, pruebas de carga y caos,

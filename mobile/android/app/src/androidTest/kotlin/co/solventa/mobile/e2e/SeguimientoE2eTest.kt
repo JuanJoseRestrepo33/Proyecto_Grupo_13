@@ -85,6 +85,7 @@ class SeguimientoE2eTest {
         paso("6 · actualizar la lista") {
             actualizar()
             esperarTarjeta(caso, R.string.estado_en_evaluacion)
+            Capturas.tomar("app-staging-siniestros")
         }
         paso("7 · abrir el detalle") {
             // La acción de abrir está en la columna clicable dentro de la tarjeta, no en la tarjeta.
@@ -94,6 +95,7 @@ class SeguimientoE2eTest {
             esperar("pantalla-detalle-siniestro")
             esperarInsignia(R.string.estado_en_evaluacion)
             comprobarHistorial(caso, listOf(R.string.seguimiento_evento_reporte, R.string.estado_en_evaluacion))
+            Capturas.tomar("app-staging-siniestro-historial")
         }
         val requerimiento = "Factura de la reparación · $marca"
         paso("8 · cambiar a requiere_informacion en el núcleo") {
@@ -112,6 +114,10 @@ class SeguimientoE2eTest {
             )
             comprobarRequerimiento(caso, requerimiento)
             comprobarSiguientePaso()
+            compose.onNodeWithTag("insignia-estado", useUnmergedTree = true).performScrollTo()
+            Capturas.tomar("app-staging-siniestro-detalle")
+            compose.onNodeWithTag("requerimientos").performScrollTo()
+            Capturas.tomar("app-staging-siniestro-requerimiento")
         }
     }
 
@@ -148,7 +154,13 @@ class SeguimientoE2eTest {
         compose.onNodeWithTag("ingreso-correo").performTextInput(correo)
         compose.onNodeWithTag("ingreso-contrasena").performTextInput(clave)
         compose.onNodeWithText(texto(RIngreso.string.ingreso_boton)).performScrollTo().performClick()
-        esperar("Inicio") { hay("ir-mis-siniestros") || hay("oferta") }
+        esperar("Inicio") { hay("ir-mis-siniestros") || hay("oferta") || hay("kyc-aprobada") }
+        // Sin la identidad verificada, la app muestra antes el resultado de la verificación
+        // (destinoTrasIngreso). En staging pasa en el primer ingreso de la cuenta en la corrida.
+        if (hay("kyc-aprobada")) {
+            compose.onNodeWithText(texto(RIngreso.string.boton_continuar)).performScrollTo().performClick()
+            esperar("Inicio tras la verificación") { hay("ir-mis-siniestros") || hay("oferta") }
+        }
         // Solo aparece en un dispositivo con huella registrada.
         if (hay("oferta")) {
             compose.onNodeWithText(texto(RIngreso.string.oferta_ahora_no)).performScrollTo().performClick()

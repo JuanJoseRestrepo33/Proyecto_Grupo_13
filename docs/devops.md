@@ -297,12 +297,12 @@ funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
 
 | Etapa | Qué hace | Requisito para activarse |
 |---|---|---|
-| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | Solo fuera de `main` (lo que revisa solo existe en `staging`). Las variables de la tabla de abajo |
+| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | En `develop` revisa staging y en `main`, producción (`--ambiente`). Las variables de la tabla de abajo |
 | **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>`, `:<rama>` y `:arbol-<árbol>` y las publica en el registro de paquetes de GitHub. El árbol es `git rev-parse HEAD:<carpeta>`: si ya existe una imagen de ese árbol, el componente no cambió y solo se le agregan las etiquetas nuevas, sin construir | Que exista el `Dockerfile` del componente. No requiere secretos |
 | **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (lo crea [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente)) |
 | **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen y la etiqueta `arbol`. Si el servicio ya corre ese árbol **y su última revisión creada es también la última lista**, no copia ni despliega nada (no hay qué cambiar), pero sí corre la prueba de humo. Si una revisión de ese árbol no arrancó, se vuelve a desplegar. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
 | **Prueba de humo** | [`scripts/humo.py`](../scripts/humo.py) pide las rutas del servicio a la URL que devuelve Cloud Run y comprueba el estado HTTP, sin imprimir respuestas | Igual que la anterior |
-| **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | Solo en `staging` (push a `develop`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE`; sin ellos, se omite con un aviso |
+| **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | En `develop` contra staging y en `main` contra producción (`solventa-web-prd`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE` de cada environment; sin ellos, se omite con un aviso |
 
 Los servicios se despliegan **uno a la vez, en orden núcleo → BFF → web**: si uno falla, los
 siguientes no se despliegan. La web solo se despliega cuando existe `bff/`, porque sin BFF no tiene a
@@ -314,6 +314,69 @@ terminan en segundos tras repetir la prueba de humo.
 Si un servicio no existe todavía en Cloud Run, el CD no lo crea: deja un aviso y sigue. Creado por el
 pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
 
+### Producción (`main`)
+
+Producción vive **en el mismo proyecto de GCP que staging**, con los mismos nombres más el sufijo
+`-prd`. Así ninguno de los dos toca lo del otro, y staging conserva todos sus nombres. El sufijo lo
+pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
+
+| Recurso | Staging (`develop`) | Producción (`main`) |
+|---|---|---|
+| Servicios de Cloud Run | `solventa-nucleo`, `solventa-bff`, `solventa-web` | `solventa-nucleo-prd`, `solventa-bff-prd`, `solventa-web-prd` |
+| Cloud SQL | `solventa-…` (hoy `solventa-auditoria`) | `solventa-prd-AAAAMMDD-HHMM` |
+| Secretos | `auditoria-database-url`, `tokens-llave-privada`… | los mismos con `-prd` |
+| Buckets | `<proyecto>-solventa-evidencias`, `…-documentos` | los mismos con `-prd` |
+| Environment del CD | `staging` | `produccion` |
+| Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura`, desde `develop` | `staging-infraestructura`, desde `main` |
+| Compartido | Las cuentas de servicio (`run-nucleo`, `run-bff`, `run-web`, `infraestructura`, `despliegue` y `apagado`), Workload Identity y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging). Producción no necesita ningún permiso nuevo de IAM | |
+
+> **Un CD en verde en `main` no siempre significa que hubo despliegue.** Si el environment
+> `produccion` todavía no tiene sus variables o los servicios `-prd` no existen, el CD termina en
+> verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
+> avisos del run, o que el job *E2E web en produccion* haya corrido.
+
+**Lo que se acepta al compartir las cuentas.** Como los dos ambientes usan las mismas cuentas de
+ejecución, `run-nucleo` puede leer los secretos de staging **y** los de producción (cadenas de
+conexión, llaves de firma, token interno), y escribir y leer en los buckets de los dos. Un núcleo de
+staging comprometido podría llegar a los datos de producción. Para este proyecto, que solo tiene
+datos de prueba, se acepta a cambio de no tocar IAM. Para separarlos en un producto real: cuentas
+`run-*-prd` propias, que se le pasan a `scripts/ambiente.py` en `run()`, y un environment de
+infraestructura de producción con su propio binding de Workload Identity, o directamente un
+proyecto de GCP aparte.
+
+**Qué corre en cada ambiente**
+
+- **CD:** un merge a `main` (release o hotfix) publica las imágenes y despliega `solventa-*-prd`
+  en orden. Luego corre la prueba de humo y las E2E web contra `solventa-web-prd`, con la cuenta de
+  prueba de producción.
+- **Aprovisionar, Destruir y Encender o apagar Cloud SQL:** se lanzan a mano y piden el ambiente.
+  `produccion` se corre desde `main` y `staging` desde `develop`. Destruir producción nunca borra
+  las imágenes, porque son compartidas.
+- **Apagado nocturno:** a las 23:00 de Bogotá apaga **las dos** instancias, con la cuenta `apagado`.
+
+**Aprobaciones.** Cada corrida que toca infraestructura o despliega en producción la aprueba **un
+integrante del equipo** (Juan, Sergio, Harold o Edwin). Aplica a `staging-infraestructura` (los dos
+ambientes) y `produccion`: aprovisionar, destruir, encender, apagar, k6, auditoría
+alterada y cada despliegue a producción. GitHub no puede exigir que aprueben los cuatro: basta uno
+de la lista. El CD de `develop` a staging no pide aprobación, y el apagado nocturno tampoco.
+
+**Configuración inicial (una sola vez).** En GCP no hay nada que hacer. En GitHub:
+
+1. **Environment `staging-infraestructura`:** admitir también la rama `main` y poner a los cuatro
+   integrantes como *required reviewers*.
+2. **Environment `produccion`:** solo `main`, los cuatro como *required reviewers*, las variables
+   `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_ARTIFACT_REPOSITORY` y
+   `GCP_SERVICE_ACCOUNT` (la cuenta `despliegue`), y los secretos `HUMO_CORREO` y `HUMO_CLAVE`.
+3. **Que `main` tenga este código** (un release) y correr **Aprovisionar ambiente** con
+   `ambiente=produccion` desde `main`. Crea la Cloud SQL `-prd`, sus usuarios y secretos, los
+   buckets y los tres servicios, y dispara el CD de `main` para desplegar las imágenes reales.
+4. **Para las E2E de seguimiento en producción:** cargar en `produccion` la variable `NUCLEO_URL`
+   (la URL de `solventa-nucleo-prd`) y el secreto `SINIESTROS_TOKEN_INTERNO`, con el valor del
+   secreto `siniestros-token-interno-prd` de Secret Manager.
+
+Costo de referencia: producción suma otra `db-g1-small` (unos USD 25 al mes encendida todo el
+mes). El apagado nocturno la apaga junto con la de staging.
+
 ### Aprovisionar y destruir el ambiente
 
 Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
@@ -324,7 +387,7 @@ Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) 
 | [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el token interno de siniestros, los buckets de evidencias y de documentos de póliza y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
 | [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, los buckets con las evidencias y los documentos de póliza, y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
 | [Encender o apagar Cloud SQL](../.github/workflows/cloud-sql.yml) | Solo cambia la política de activación de la instancia: `encender` (`ALWAYS`) o `apagar` (`NEVER`). Apagada **conserva los datos** y no cobra CPU ni memoria, solo el disco; mientras tanto el núcleo responde 500 en auditoría, cotización y siniestros y su `/salud` dice `caido`. Al encender, espera a que el `/salud` del núcleo vuelva a `ok` y lo muestra en el resumen. Si no hay instancia, falla y pide Aprovisionar. **Además se apaga sola cada noche a las 23:00 de Bogotá** (04:00 UTC), sin aprobación, en el environment `staging-apagado`; para trabajar de noche, enciéndela a mano después de esa hora | 1-3 minutos, más hasta 10 de espera al encender |
-| [Carga de cotización (k6)](../.github/workflows/carga.yml) | ARQ-05: pone el proveedor simulado de Open Finance del núcleo en `sano`, `degradado` o `caido` (`PERFILAMIENTO_OPEN_FINANCE_MODO`, una revisión nueva), corre [`scripts/carga/cotizacion.js`](../scripts/carga/cotizacion.js) contra el BFF con la cuenta de prueba, a la que antes le otorga el consentimiento de `cotizacion` si no lo tiene (sin él, toda oferta sale a tarifa estándar y la carga no pasa por el perfil ni por la caché) (por defecto 1.000 cotizaciones por minuto durante 5 minutos, con Bogotá y Cali como ciudad del asegurado) y deja el resumen en la corrida y como artefacto. Falla si no se cumplen RC-01 (p95 ≤ 250 ms, p99 ≤ 500 ms) o RC-03 (menos de 0,1 % sin oferta o con 5xx). Al final, pase lo que pase, devuelve el proveedor a `sano`. Environment `staging-infraestructura`; comparte el grupo de concurrencia con Aprovisionar y Cloud SQL | La duración elegida más 2 a 3 minutos |
+| [Carga de cotización (k6)](../.github/workflows/carga.yml) | ARQ-05: pone el proveedor simulado de Open Finance del núcleo en `sano`, `degradado` o `caido` (`PERFILAMIENTO_OPEN_FINANCE_MODO`, una revisión nueva), corre [`scripts/carga/cotizacion.js`](../scripts/carga/cotizacion.js) contra el BFF con la cuenta de prueba, a la que antes le otorga el consentimiento de `cotizacion` si no lo tiene (sin él, toda oferta sale a tarifa estándar y la carga no pasa por el perfil ni por la caché) (por defecto 1.000 cotizaciones por minuto durante 5 minutos, con Bogotá y Cali como ciudad del asegurado y un valor asegurado distinto en cada solicitud, para que ninguna reutilice una cotización vigente y todas pasen por el perfilamiento) y deja el resumen en la corrida y como artefacto. Falla si no se cumplen RC-01 (p95 ≤ 250 ms, p99 ≤ 500 ms) o RC-03 (menos de 0,1 % sin oferta o con 5xx). Al final, pase lo que pase, devuelve el proveedor a `sano`. Environment `staging-infraestructura`; comparte el grupo de concurrencia con Aprovisionar y Cloud SQL, y su job el de las E2E (`e2e-cuenta-staging`), para que ninguna cambie el consentimiento de la cuenta de prueba a mitad de la carga | La duración elegida más 2 a 3 minutos |
 
 Con `gcloud` autenticado también se puede desde la terminal:
 `python3 scripts/ambiente.py encender --proyecto <GCP_PROJECT_ID> --region <GCP_REGION>` (o `apagar`).
@@ -484,7 +547,8 @@ lados.
 | Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
 | Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
 | Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
-| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`). *Aprovisionar* ya la crea y la monta, pero el núcleo todavía no la lee: las cuentas viven en memoria y por eso el núcleo corre con una sola réplica | `solventa-nucleo` | ARQ-05 |
+| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`): cuentas, registros, refrescos y verificaciones (#136). Con ella todas las réplicas ven las mismas cuentas y sesiones; sin ella, en memoria | `solventa-nucleo` | ARQ-05 |
+| Pool de conexiones a PostgreSQL | `POSTGRES_POOL_MAXIMO` (opcional, 3 por defecto): conexiones máximas por módulo y por réplica (`backend/app/compartido/conexiones.py`). Las ociosas se cierran a los 60 s. Con la `db-g1-small` (50 conexiones) no conviene subirlo mucho: se multiplica por los módulos en uso y por las réplicas | `solventa-nucleo` | ARQ-05 |
 | Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo. *Aprovisionar* los deja explícitos en *staging*; el modo del proveedor (`PERFILAMIENTO_OPEN_FINANCE_MODO`) no, porque lo cambia *Carga de cotización* | `solventa-nucleo` | ARQ-05 |
 
 **Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
@@ -509,10 +573,12 @@ puede leer los datos de otro, igual que en el código (ARQ-01).
   montadas desde Secret Manager, apuntando a Cloud SQL. Sin ellas el log de auditoría, las
   cotizaciones y los siniestros viven en memoria y se pierden con cada revisión: válido para una
   demo, no para *staging*.
-- **Instancias.** Consentimiento y perfilamiento guardan su estado en memoria hasta que tengan
-  persistencia propia. Mientras tanto el núcleo corre con **una sola instancia**
-  (`--min-instances=1 --max-instances=1`); con más, un consentimiento otorgado en una instancia no
-  existe en la otra. El BFF y la web no guardan estado y pueden escalar.
+- **Instancias.** El núcleo corre con **dos réplicas fijas** (`--min-instances=2
+  --max-instances=2`, `REPLICAS_NUCLEO` en `scripts/ambiente.py`; ARQ-05, #136). Ningún módulo
+  guarda estado propio en memoria: todos persisten en Cloud SQL (identidad desde #136) o en Cloud
+  Storage. Lo que sí queda por réplica es a propósito: la caché de perfiles y el circuito de Open
+  Finance ([ADR 0002](adr/0002-consentimiento-vigente-antes-de-la-cache.md)). El BFF y la web no
+  guardan estado y pueden escalar.
 
 ### Qué esperan el BFF y la web de la plataforma
 
@@ -711,7 +777,7 @@ gcloud artifacts repositories create <GCP_ARTIFACT_REPOSITORY> \
   --repository-format=docker --location=<GCP_REGION>
 
 gcloud sql instances create solventa-auditoria --database-version=POSTGRES_15 \
-  --tier=db-f1-micro --region=<GCP_REGION>
+  --tier=db-g1-small --region=<GCP_REGION>
 gcloud sql databases create solventa --instance=solventa-auditoria
 gcloud sql users create auditoria --instance=solventa-auditoria --password='<contraseña>'
 ```
@@ -876,7 +942,7 @@ gcloud run deploy solventa-nucleo --region=<GCP_REGION> --image="$EJEMPLO" \
   --service-account="$NUCLEO" \
   --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
   --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest,COTIZACION_DATABASE_URL=cotizacion-database-url:latest \
-  --min-instances=1 --max-instances=1 --allow-unauthenticated
+  --min-instances=2 --max-instances=2 --allow-unauthenticated
 URL_NUCLEO=$(gcloud run services describe solventa-nucleo --region=<GCP_REGION> --format='value(status.url)')
 
 gcloud run deploy solventa-bff --region=<GCP_REGION> --image="$EJEMPLO" \

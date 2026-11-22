@@ -14,7 +14,7 @@ Solventa es una aseguradora digital: puedes cotizar, comprar y administrar tus s
 - [Antes de empezar](#antes-de-empezar)
 - **Web · clientes:** [Iniciar sesión](#1-iniciar-sesión) · [Inicio](#2-inicio) · [Consentimiento de datos](#3-consentimiento-de-datos-financieros) · [Cotizar](#4-cotizar-un-seguro) · [Comprar](#5-comprar-y-recibir-tu-póliza) · [Mis pólizas](#6-consultar-tus-pólizas) · [Modificar, renovar o cancelar](#7-modificar-renovar-o-cancelar-una-póliza) · [Reportar siniestro](#8-reportar-un-siniestro) · [Seguimiento](#9-seguir-tus-siniestros) · [Vida hipotecario](#10-oferta-de-vida-hipotecario) · [Cuenta y ayuda](#11-perfil-configuración-y-ayuda)
 - **Web · equipos internos:** [Tablero operacional](#12-tablero-operacional) · [Portal de socios](#13-portal-de-socios-de-distribución)
-- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Consentimiento](#16-consentimiento-de-datos-financieros-en-la-app) · [Cotizar y comprar](#17-cotizar-y-comprar-desde-el-celular) · [Billetera](#18-billetera-de-pólizas-y-modo-sin-conexión) · [Siniestros](#19-siniestros-desde-el-celular) · [Asistencia](#20-asistencia-en-sitio) · [Escanear](#21-escanear-documentos) · [Notificaciones](#22-notificaciones)
+- **App móvil:** [Crear cuenta](#14-crear-tu-cuenta) · [Ingresar](#15-ingresar-a-la-app) · [Consentimiento](#16-consentimiento-de-datos-financieros-en-la-app) · [Cotizar y comprar](#17-cotizar-y-comprar-desde-el-celular) · [Pólizas](#18-tus-pólizas-en-el-celular) · [Siniestros](#19-siniestros-desde-el-celular) · [Asistencia](#20-asistencia-en-sitio) · [Escanear](#21-escanear-documentos) · [Notificaciones](#22-notificaciones)
 - [Mensajes que puedes ver y qué hacer](#mensajes-que-puedes-ver-y-qué-hacer) · [Accesibilidad e idioma](#accesibilidad-e-idioma)
 
 ---
@@ -148,11 +148,7 @@ En el menú, pulsa **Mis pólizas**. La tabla muestra el número, el producto, e
 
 ## 7. Modificar, renovar o cancelar una póliza
 
-Desde el detalle de la póliza:
-
-- **Modificar cobertura:** marca o desmarca coberturas y adicionales; el nuevo precio se calcula mientras eliges. Debe quedar al menos una cobertura.
-- **Renovar:** revisa la nueva vigencia y la nueva prima y pulsa **Aceptar renovación**.
-- **Cancelar:** marca la casilla *Entiendo las consecuencias…* y confirma en la ventana. Esta acción no se puede deshacer; la póliza queda como *Cancelada* y ya no permite cambios.
+> **Próximamente.** Modificar las coberturas, renovar y cancelar una póliza desde la web o la app todavía no están disponibles: no entraron en el MVP. Por ahora, el detalle de la póliza (sección 6) es de consulta y descarga. Para cualquiera de estos cambios, comunícate con Solventa.
 
 ## 8. Reportar un siniestro
 
@@ -327,35 +323,46 @@ actual.
 
 ## 17. Cotizar y comprar desde el celular
 
-1. Toca **Cotizar** en el inicio.
-2. Elige Dispositivos, Viaje u Hogar.
-3. Revisa tus datos y decide si usar **Open Finance** para un precio personalizado.
-4. Revisa la oferta (precio, coberturas, **¿Por qué este precio?**).
-5. En **Pago** pulsa **Pagar y emitir póliza**.
+Por ahora la compra se hace en la web: la app todavía no cotiza ni vende. En **Mis pólizas**, si aún no tienes ninguna, **Cotizar un seguro** abre el cotizador de la web en el navegador del celular; inicia sesión con la misma cuenta de la app. Sigue los pasos de [Comprar y recibir tu póliza](#5-comprar-y-recibir-tu-póliza).
 
-| Oferta | Póliza emitida |
+La póliza que compres en la web aparece en la app la próxima vez que abras **Mis pólizas**, con el mismo número.
+
+## 18. Tus pólizas en el celular
+
+| Mis pólizas | Mi póliza |
 |---|---|
-| ![Oferta móvil](img/mob-cotizar-oferta.png) | ![Póliza emitida en el celular](img/mob-suscripcion.png) |
+| ![Mis pólizas en la app, con la pestaña Activas](img/app-staging-polizas.png) | ![Detalle de una póliza en la app](img/app-staging-poliza-detalle.png) |
 
-La póliza queda de inmediato en tu **billetera**.
+Toca **Pólizas** en la barra inferior. **Mis pólizas** muestra una tarjeta por póliza con el producto, el estado (*Vigente*, *Vencida* o *Por iniciar*), el número, la vigencia y la prima mensual. Son las mismas pólizas de la web, con el mismo número: una póliza que compraste en la web aparece aquí. Las pestañas **Activas**, **Vencidas** y **Todas** filtran por estado, y el ícono de actualizar (↻), arriba, trae lo último.
 
-## 18. Billetera de pólizas y modo sin conexión
+Toca una tarjeta para ver **Mi póliza**:
 
-Toca **Pólizas** en la barra inferior. Cada póliza tiene su **credencial digital** con número y vigencia, útil para mostrarla en un taller o una clínica.
+- **Información general:** vigencia, prima y fecha de emisión.
+- **Información financiera:** valor asegurado y deducible.
+- **Coberturas:** cada una con su límite. Si la póliza no tiene coberturas registradas, lo dice.
+- **Descargar PDF:** descarga el documento y lo abre con el visor de tu celular. Si la póliza no tiene documento, verás *El documento de esta póliza no está disponible.*
 
-| Billetera sin conexión | Credencial sin conexión |
-|---|---|
-| ![Billetera sin conexión](img/mob-billetera-offline.png) | ![Credencial sin conexión](img/mob-credencial-offline.png) |
-
-**Sin internet** puedes seguir viendo tus pólizas y coberturas desde la última sincronización (lo indica la franja oscura superior). Las acciones que necesitan conexión (modificar, renovar, cancelar) aparecen en gris y, si las tocas, te lo explicamos. En la demo usa **📴 Simular modo sin conexión** y **📶 Volver a conectarse**.
+Si no tienes conexión, la app te lo dice (*No tienes conexión. Revisa tu red e intenta de nuevo.*) y puedes **Reintentar**. Ver las pólizas y la credencial sin conexión (billetera) llega con MOB-F03, que no entró en este sprint.
 
 ## 19. Siniestros desde el celular
 
-| Reportar con fotos | Mis siniestros | Pago automático |
-|---|---|---|
-| ![Reportar siniestro móvil](img/mob-siniestro-reportar.png) | ![Siniestros móvil](img/mob-siniestros.png) | ![Siniestro paramétrico](img/mob-siniestro-parametrico.png) |
+Desde **Inicio**, toca **Reportar siniestro**. Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**) y pulsa **Enviar reporte**.
 
-Reporta en tres pasos (**Información**, **Evidencia** con la cámara o archivos, **Revisión**), pulsa **Enviar reporte** y sigue el estado en **Mis siniestros**. Los pagos automáticos muestran el evento que los activó.
+### Seguir tus siniestros desde el celular
+
+| Mis siniestros | Tu caso | Lo que te pedimos |
+|---|---|---|
+| ![Mis siniestros en la app, cada caso con su estado y su canal](img/app-staging-siniestros.png) | ![Tu caso: estado, referencia, póliza y resumen](img/app-staging-siniestro-detalle.png) | ![Historial del caso y un requerimiento pendiente con Responder](img/app-staging-siniestro-requerimiento.png) |
+
+Desde **Inicio**, toca **Mis siniestros**. Ves una tarjeta por caso con el tipo de evento, el estado, la referencia, la póliza, la fecha del reporte y el canal (**Web** o **App**). Los casos que reportaste en la web aparecen aquí con la misma referencia, y al revés. Toca **Actualizar** para traer lo último.
+
+Toca una tarjeta para abrir **Tu caso**:
+
+- **Qué ha pasado:** cada cambio de estado con su fecha, desde el reporte. El último dice *Estado actual*.
+- **Resumen del caso:** la fecha del evento, la descripción, el monto estimado, el canal del reporte, el último cambio y el siguiente paso.
+- **Lo que te pedimos:** los requerimientos del analista, cada uno *Pendiente*, *Atendido* o *Cerrado sin respuesta*. Para responder uno pendiente, toca **Responder**, adjunta una foto, un video o un PDF y toca **Enviar respuesta**. Si se cae la conexión, toca **Reintentar envío**: la respuesta no se envía dos veces.
+
+Lo que respondas en la app se ve en la web al actualizar, y al revés.
 
 Las reglas son las mismas de la web (sección 8): la referencia es la misma en los dos canales y, si
 pulsas dos veces o se cae la conexión, no queda un reporte repetido.
@@ -375,6 +382,14 @@ pulsas dos veces o se cae la conexión, no queda un reporte repetido.
 
 Puedes reportar aunque no tengas conexión en el lugar del evento. La app guarda el reporte y su
 evidencia **cifrados en tu teléfono** y los envía sola cuando vuelve la red.
+
+| Pólizas guardadas | Revisión sin red | Reporte guardado |
+|---|---|---|
+| ![Paso 1 sin conexión, con la última actualización de las pólizas](img/app-staging-sin-conexion-polizas-guardadas.png) | ![Revisión del reporte en modo avión](img/app-staging-sin-conexion-revision.png) | ![Reporte guardado en tu teléfono](img/app-staging-sin-conexion-guardado.png) |
+
+| Esperando conexión | Reporte enviado |
+|---|---|
+| ![Inicio con la tarjeta Reporte pendiente de envío, Esperando conexión](img/app-staging-sin-conexion-pendiente.png) | ![Inicio con la tarjeta Reporte enviado y su número de referencia](img/app-staging-sin-conexion-enviado.png) |
 
 1. **Antes, una vez con conexión.** Para reportar sin señal, la app debe haber consultado tus pólizas
    al menos una vez en ese teléfono. Si no lo ha hecho, verás *Necesitas conexión una vez*.
@@ -399,6 +414,15 @@ tu sesión vence, la tarjeta te pide **Ingresar** para enviarlo.
 tarjeta dice *Tu reporte necesita revisión*: pulsa **Revisar** para corregirlo o **Descartar** para
 borrarlo del teléfono sin enviarlo.
 
+**Si la evidencia no alcanzó a subir**, el reporte ya quedó registrado y la tarjeta dice *Falta
+enviar la evidencia: se enviará cuando vuelva la red*. No tienes que reportar de nuevo. Si un envío
+falla, la tarjeta dice *Lo intentaremos de nuevo en unos minutos; no se creará un reporte
+duplicado*.
+
+**Si cambiaste el bloqueo del teléfono** (huella, PIN o patrón), el reporte guardado puede quedar
+ilegible, porque se cifró con la protección anterior. La tarjeta dice *No podemos leer un reporte
+guardado*: pulsa **Eliminar del teléfono** y, si no llegó a enviarse, **Reportar de nuevo**.
+
 ## 20. Asistencia en sitio
 
 | Permiso de ubicación | Asistencia en camino |
@@ -422,9 +446,25 @@ Tus documentos quedan en **Documentos escaneados**.
 
 ## 22. Notificaciones
 
-![Notificaciones](img/mob-notificaciones.png)
+La app te avisa con una notificación del teléfono cuando cambia el estado de un siniestro que reportaste, en la web o en la app.
 
-Toca **Avisos** en la barra inferior. Las notificaciones sin leer tienen un punto y un borde de color. Filtra por **Pólizas** o **Siniestros**, toca una para marcarla como leída o usa **Marcar todo leído**. Cada aviso lleva a su acción: por ejemplo, **Renovar ahora** abre la renovación de esa póliza. Ajusta qué avisos recibes en **⚙️ Preferencias de notificación**.
+| El aviso | Lo que abre |
+|---|---|
+| ![Aviso Tu siniestro SIN-… cambió en la bandeja del teléfono](img/app-staging-push-bandeja.png) | ![Tu caso abierto desde el aviso, con En evaluación como estado actual](img/app-staging-push-detalle.png) |
+
+**Activarlas.** En **Inicio** verás *Entérate cuando avance tu siniestro*. Toca **Activar notificaciones** y acepta el permiso de Android, o **Ahora no**. Si no las activas, verás *Las notificaciones están desactivadas*: el estado de tus casos se sigue viendo en **Ver mis siniestros**, y puedes activarlas después con **Activar en Ajustes**. Puedes desactivarlas cuando quieras desde los ajustes del teléfono (canal *Estado de tus siniestros*).
+
+**Qué dice cada aviso.** El título es *Tu siniestro SIN-… cambió*, y el texto depende del estado nuevo:
+
+| Estado nuevo | Texto |
+|---|---|
+| En evaluación | Ya estamos evaluando tu caso. |
+| Requiere información | Necesitamos un documento para seguir con tu caso. |
+| Aprobado | Tu caso fue aprobado. |
+| Rechazado | Tu caso fue revisado y no procede. Revisa el detalle. |
+| Pagado | Ya pagamos tu indemnización. |
+
+**Tocar el aviso** abre **Tu caso** de ese siniestro (sección 19). Si no habías iniciado sesión, primero te la pide y después lo abre. Por ahora no hay una bandeja de avisos dentro de la app: la pestaña **Avisos** llega en un sprint siguiente.
 
 ---
 

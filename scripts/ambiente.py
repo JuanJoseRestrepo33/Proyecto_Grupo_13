@@ -16,8 +16,14 @@
 Nunca imprime contraseñas, llaves ni cadenas de conexión: se generan en memoria y llegan a Secret
 Manager por la entrada estándar de gcloud.
 
+Dos ambientes en el mismo proyecto (`--ambiente`): `staging` usa los nombres de siempre y
+`produccion` los mismos con el sufijo `-prd` (servicios, Cloud SQL, secretos y buckets).
+Así uno nunca toca lo del otro. Las cuentas de servicio (`run-*`, `infraestructura`, `despliegue` y
+`apagado`), Workload Identity y el repositorio de imágenes son compartidos: producción no necesita
+ningún permiso nuevo.
+
 Uso: ambiente.py {verificar,aprovisionar,destruir,encender,apagar} --proyecto P --region R
-     [--confirmar P]
+     [--ambiente staging|produccion] [--confirmar P]
 """
 
 from __future__ import annotations
@@ -41,6 +47,8 @@ REPOSITORIO = "solventa"
 # Cloud SQL no deja reutilizar el nombre de una instancia borrada durante una semana: cada instancia
 # nueva lleva la fecha, y se reconoce por el prefijo.
 PREFIJO_INSTANCIA = "solventa-"
+# Sufijo de los nombres de producción. Staging no lleva sufijo: sus nombres no cambian.
+SUFIJOS = {"staging": "", "produccion": "-prd"}
 BASE = "solventa"
 # El dueño de la base se crea con gcloud; los demás, con SQL y sin cloudsqlsuperuser.
 DUENO = "auditoria"
@@ -54,8 +62,8 @@ MODULOS_BD = (
     "polizas",  # WEB-F03
     "notificaciones",  # MOB-F06
     "consentimiento",  # ARQ-05: con él, el núcleo puede tener varias réplicas
-    # ARQ-05 (#136): se deja listo antes que el código. Mientras las cuentas sigan en memoria, el
-    # núcleo no lee IDENTIDAD_DATABASE_URL y no puede tener más de una réplica.
+    # ARQ-05 (#136): cuentas, registros, refrescos y verificaciones. Con ella ningún módulo
+    # guarda estado en la réplica y el núcleo corre con REPLICAS_NUCLEO instancias.
     "identidad",
 )
 SECRETOS_NUCLEO = {
@@ -78,6 +86,16 @@ UMBRALES_CIRCUITO = {
     "PERFILAMIENTO_CIRCUITO_VENTANA_S": "30",
     "PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS": "5",
 }
+# Réplicas fijas del núcleo (ARQ-05, #136). Con identidad en Cloud SQL ningún módulo guarda
+# estado en memoria, y dos réplicas permiten probar la revocación entre ellas y quitar una a
+# mitad de la carga. Mínimo y máximo iguales: el pool de cada réplica cuenta contra las 25
+# conexiones de Cloud SQL.
+REPLICAS_NUCLEO = 2
+# Tamaño de Cloud SQL (ARQ-05). La db-f1-micro tiene un tope de 0,2 vCPU: a 1000 cotizaciones por
+# minuto, todas nuevas, aguantó unos 3,5 minutos y luego la CPU quedó pegada en 20 % y el p95
+# pasó de 46 ms a 2,8 s. La db-g1-small da 0,5 vCPU y 1,7 GB. Si la instancia ya existe con otro
+# tamaño, `aprovisionar` la cambia (la base se reinicia uno o dos minutos).
+NIVEL_SQL = "db-g1-small"
 # Imagen de relleno del primer despliegue; el CD la reemplaza por la real.
 IMAGEN_INICIAL = "us-docker.pkg.dev/cloudrun/container/hello"
 CICLO_BUCKET = {"rule": [{"action": {"type": "Delete"}, "condition": {"age": 30}}]}
@@ -235,22 +253,43 @@ class Ambiente:
     # Servicios que ya existían y leen un secreto que recibió una versión nueva: Cloud Run lee
     # `latest` al arrancar, así que sin una revisión nueva seguirían con el valor anterior.
     reiniciar: set[str] = field(default_factory=set)
+    # "" en staging y "-prd" en producción (SUFIJOS).
+    sufijo: str = ""
 
     @property
     def proyecto(self) -> str:
         return self.gcloud.proyecto
 
+    # Los nombres lógicos (los de staging) se traducen aquí al ambiente.
+    def svc(self, servicio: str) -> str:
+        return f"{servicio}{self.sufijo}"
+
+    def sec(self, secreto: str) -> str:
+        return f"{secreto}{self.sufijo}"
+
+    def run(self, cuenta: str) -> str:
+        """Las cuentas de ejecución son las mismas en los dos ambientes."""
+        return cuenta
+
+    @property
+    def prefijo_instancia(self) -> str:
+        return (
+            f"{PREFIJO_INSTANCIA}{self.sufijo.lstrip('-')}-" if self.sufijo else PREFIJO_INSTANCIA
+        )
+
     @property
     def bucket(self) -> str:
-        return f"{self.proyecto}-solventa-evidencias"
+        return f"{self.proyecto}-solventa-evidencias{self.sufijo}"
 
     @property
     def bucket_documentos(self) -> str:
-        return f"{self.proyecto}-solventa-documentos"
+        return f"{self.proyecto}-solventa-documentos{self.sufijo}"
 
     def buckets(self) -> dict[str, tuple[dict | None, str]]:
         """Nombre de cada bucket → (ciclo de vida, etiqueta historia)."""
-        return {f"{self.proyecto}-{sufijo}": valor for sufijo, valor in BUCKETS.items()}
+        return {
+            f"{self.proyecto}-{nombre}{self.sufijo}": valor for nombre, valor in BUCKETS.items()
+        }
 
     def cuenta(self, nombre: str) -> str:
         return f"{nombre}@{self.proyecto}.iam.gserviceaccount.com"
@@ -262,20 +301,32 @@ class Ambiente:
 
     def instancias(self) -> list[dict]:
         texto = self.gcloud(
-            "sql", "instances", "list", "--format=json(name,state,settings.activationPolicy)"
+            "sql",
+            "instances",
+            "list",
+            "--format=json(name,state,settings.activationPolicy,settings.tier)",
         )
         todas = json.loads(texto or "[]")
-        return [i for i in todas if i["name"].startswith(PREFIJO_INSTANCIA)]
+        # Las de producción (`solventa-prd-…`) también empiezan por `solventa-`; staging las omite.
+        otras = [f"{PREFIJO_INSTANCIA}{s.lstrip('-')}-" for s in SUFIJOS.values() if s]
+        return [
+            i
+            for i in todas
+            if i["name"].startswith(self.prefijo_instancia)
+            and (self.sufijo or not any(i["name"].startswith(o) for o in otras))
+        ]
 
     def instancia(self) -> dict | None:
         return next(iter(sorted(self.instancias(), key=lambda i: i["name"])), None)
 
     def secreto_existe(self, nombre: str) -> bool:
-        return self.gcloud.existe("secrets", "versions", "describe", "latest", f"--secret={nombre}")
+        return self.gcloud.existe(
+            "secrets", "versions", "describe", "latest", f"--secret={self.sec(nombre)}"
+        )
 
     def instancia_del_secreto(self, nombre: str) -> str | None:
         """La etiqueta `instancia` del secreto: "" si no la tiene y None si el secreto no existe."""
-        args = ("secrets", "describe", nombre, "--format=value(labels.instancia)")
+        args = ("secrets", "describe", self.sec(nombre), "--format=value(labels.instancia)")
         salida = self.gcloud.intentar(*args)
         if salida.codigo == 0:
             return salida.texto.strip()
@@ -285,12 +336,12 @@ class Ambiente:
 
     def servicio_existe(self, servicio: str) -> bool:
         return self.gcloud.existe(
-            "run", "services", "describe", servicio, f"--region={self.region}"
+            "run", "services", "describe", self.svc(servicio), f"--region={self.region}"
         )
 
     def url(self, servicio: str) -> str:
         return self.gcloud(
-            "run", "services", "describe", servicio, f"--region={self.region}",
+            "run", "services", "describe", self.svc(servicio), f"--region={self.region}",
             "--format=value(status.url)",
         )  # fmt: skip
 
@@ -298,6 +349,7 @@ class Ambiente:
 
     def agregar_version(self, nombre: str, valor: str, etiquetas: str = "") -> None:
         """Crea el secreto si falta y le agrega una versión, por la entrada estándar."""
+        nombre = self.sec(nombre)
         if not self.gcloud.existe("secrets", "describe", nombre):
             self.gcloud("secrets", "create", nombre, "--replication-policy=automatic")
         self.gcloud("secrets", "versions", "add", nombre, "--data-file=-", entrada=valor)
@@ -311,7 +363,7 @@ class Ambiente:
 
     def verificar(self) -> int:
         faltan = 0
-        for cuenta in CUENTAS.values():
+        for cuenta in map(self.run, CUENTAS.values()):
             if not self.gcloud.existe("iam", "service-accounts", "describe", self.cuenta(cuenta)):
                 faltan += 1
                 self.informe.aviso(f"Falta la cuenta de servicio {cuenta} (acceso, paso 4)")
@@ -328,14 +380,18 @@ class Ambiente:
         for nombre in SECRETOS:
             if not self.secreto_existe(nombre):
                 faltan += 1
-                self.informe.aviso(f"Falta el secreto {nombre}: corre el workflow Aprovisionar")
+                self.informe.aviso(
+                    f"Falta el secreto {self.sec(nombre)}: corre el workflow Aprovisionar"
+                )
         if instancia is not None:
             for modulo in MODULOS_BD:
                 secreto = f"{modulo}-database-url"
                 etiqueta = self.instancia_del_secreto(secreto)
                 if etiqueta and etiqueta != instancia["name"]:
                     faltan += 1
-                    self.informe.aviso(f"{secreto} apunta a {etiqueta}, no a {instancia['name']}")
+                    self.informe.aviso(
+                        f"{self.sec(secreto)} apunta a {etiqueta}, no a {instancia['name']}"
+                    )
         for bucket in self.buckets():
             if not self.gcloud.existe("storage", "buckets", "describe", f"gs://{bucket}"):
                 faltan += 1
@@ -343,7 +399,9 @@ class Ambiente:
         for servicio in SERVICIOS:
             if not self.servicio_existe(servicio):
                 faltan += 1
-                self.informe.aviso(f"Falta el servicio {servicio}: corre el workflow Aprovisionar")
+                self.informe.aviso(
+                    f"Falta el servicio {self.svc(servicio)}: corre el workflow Aprovisionar"
+                )
         if not faltan:
             self.informe.nota("Ambiente completo")
         return faltan
@@ -363,7 +421,7 @@ class Ambiente:
         self._servicios(instancia)
 
     def _acceso(self) -> None:
-        for cuenta in CUENTAS.values():
+        for cuenta in map(self.run, CUENTAS.values()):
             if not self.gcloud.existe("iam", "service-accounts", "describe", self.cuenta(cuenta)):
                 raise FaltaAccesoError(f"Falta la cuenta {cuenta}; ver docs/devops.md, paso 4")
         if not self.gcloud.existe(
@@ -376,11 +434,11 @@ class Ambiente:
         instancia = self.instancia()
         if instancia is None:
             ahora = self.ahora() if self.ahora else datetime.now(UTC)
-            nombre = f"{PREFIJO_INSTANCIA}{ahora:%Y%m%d-%H%M}"
+            nombre = f"{self.prefijo_instancia}{ahora:%Y%m%d-%H%M}"
             self.informe.nota(f"Creando Cloud SQL {nombre} (unos 10 minutos)…")
             operacion = self.gcloud(
                 "sql", "instances", "create", nombre, "--database-version=POSTGRES_15",
-                "--tier=db-f1-micro", "--edition=ENTERPRISE", f"--region={self.region}",
+                f"--tier={NIVEL_SQL}", "--edition=ENTERPRISE", f"--region={self.region}",
                 "--storage-size=10", "--availability-type=zonal", "--no-backup",
                 "--async", "--format=value(name)",
             )  # fmt: skip
@@ -392,7 +450,20 @@ class Ambiente:
             self.informe.nota(f"Cloud SQL {nombre} estaba apagada: encendida")
         else:
             self.informe.existe(f"Cloud SQL {nombre}")
+        self._nivel(instancia)
         return nombre
+
+    def _nivel(self, instancia: dict) -> None:
+        actual = instancia["settings"].get("tier")
+        if actual == NIVEL_SQL:
+            return
+        nombre = instancia["name"]
+        self.informe.nota(f"Cloud SQL {nombre}: de {actual} a {NIVEL_SQL} (se reinicia)…")
+        operacion = self.gcloud(
+            "sql", "instances", "patch", nombre, f"--tier={NIVEL_SQL}",
+            "--async", "--format=value(name)",
+        )  # fmt: skip
+        self.esperar(operacion)
 
     def _base(self, instancia: str) -> None:
         if self.gcloud.existe("sql", "databases", "describe", BASE, f"--instance={instancia}"):
@@ -425,7 +496,11 @@ class Ambiente:
             self._guardar_cadena(DUENO, clave_dueno, instancia)
         else:
             cadena = self.gcloud(
-                "secrets", "versions", "access", "latest", f"--secret={DUENO}-database-url"
+                "secrets",
+                "versions",
+                "access",
+                "latest",
+                f"--secret={self.sec(f'{DUENO}-database-url')}",
             )
             clave_dueno = urllib.parse.unquote(urllib.parse.urlsplit(cadena).password or "")
         otros = [m for m in pendientes if m != DUENO]
@@ -454,8 +529,8 @@ class Ambiente:
         Uno sin etiqueta (creado a mano) cuya cadena ya usa el socket de esta instancia se adopta:
         se etiqueta sin rotar la contraseña. La cadena se lee pero nunca se imprime.
         """
-        secreto = f"{modulo}-database-url"
-        etiqueta = self.instancia_del_secreto(secreto)
+        etiqueta = self.instancia_del_secreto(f"{modulo}-database-url")
+        secreto = self.sec(f"{modulo}-database-url")
         if etiqueta == instancia:
             return True
         if etiqueta != "":  # falta, o es de otra instancia
@@ -490,8 +565,9 @@ class Ambiente:
             return
         if privada_existe:
             privada = self.gcloud(
-                "secrets", "versions", "access", "latest", "--secret=tokens-llave-privada"
-            )
+                "secrets", "versions", "access", "latest",
+                f"--secret={self.sec('tokens-llave-privada')}",
+            )  # fmt: skip
             publica = publica_de(privada)
         else:
             # Un par nuevo: los tokens emitidos con el anterior dejan de valer.
@@ -511,26 +587,26 @@ class Ambiente:
         }
         for nombre, valor in valores.items():
             if self.secreto_existe(nombre):
-                self.informe.existe(f"Secreto {nombre}")
+                self.informe.existe(f"Secreto {self.sec(nombre)}")
             elif not (correo and clave):
-                self.informe.aviso(f"Sin HUMO_CORREO y HUMO_CLAVE no se crea {nombre}")
+                self.informe.aviso(f"Sin HUMO_CORREO y HUMO_CLAVE no se crea {self.sec(nombre)}")
             else:
                 self.agregar_version(nombre, valor)
-                self.informe.creado(f"Secreto {nombre}")
+                self.informe.creado(f"Secreto {self.sec(nombre)}")
         if self.secreto_existe("identidad-otp-fijo"):
-            self.informe.existe("Secreto identidad-otp-fijo")
+            self.informe.existe(f"Secreto {self.sec('identidad-otp-fijo')}")
         else:
             # 6 dígitos al azar, no un 123456 adivinable.
             self.agregar_version("identidad-otp-fijo", f"{secrets.randbelow(10**6):06d}")
-            self.informe.creado("Secreto identidad-otp-fijo")
+            self.informe.creado(f"Secreto {self.sec('identidad-otp-fijo')}")
 
     def _token_interno(self) -> None:
         """Token de la operación interna de cambio de estado del siniestro (WEB-F06)."""
         if self.secreto_existe("siniestros-token-interno"):
-            self.informe.existe("Secreto siniestros-token-interno")
+            self.informe.existe(f"Secreto {self.sec('siniestros-token-interno')}")
             return
         self.agregar_version("siniestros-token-interno", secrets.token_urlsafe(32))
-        self.informe.creado("Secreto siniestros-token-interno")
+        self.informe.creado(f"Secreto {self.sec('siniestros-token-interno')}")
 
     def _accesos_a_secretos(self) -> None:
         """Acceso por secreto, no por proyecto. Agregar un permiso que ya existe no cambia nada."""
@@ -539,8 +615,8 @@ class Ambiente:
         for secreto, cuenta in accesos:
             if self.secreto_existe(secreto):
                 self.gcloud(
-                    "secrets", "add-iam-policy-binding", secreto,
-                    f"--member=serviceAccount:{self.cuenta(cuenta)}",
+                    "secrets", "add-iam-policy-binding", self.sec(secreto),
+                    f"--member=serviceAccount:{self.cuenta(self.run(cuenta))}",
                     "--role=roles/secretmanager.secretAccessor",
                 )  # fmt: skip
         self.informe.nota("Accesos a los secretos al día")
@@ -593,7 +669,7 @@ class Ambiente:
         politica = json.loads(
             self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json") or "{}"
         )
-        miembro = f"serviceAccount:{self.cuenta('run-nucleo')}"
+        miembro = f"serviceAccount:{self.cuenta(self.run('run-nucleo'))}"
         # Crear y leer, sin borrar: ni la evidencia de un siniestro ni el documento de una póliza
         # se eliminan desde la aplicación.
         for rol in ("roles/storage.objectCreator", "roles/storage.objectViewer"):
@@ -613,12 +689,14 @@ class Ambiente:
         conexion = self.conexion(instancia)
         for servicio in SERVICIOS:
             if self.servicio_existe(servicio):
-                self.informe.existe(f"Servicio {servicio}")
+                self.informe.existe(f"Servicio {self.svc(servicio)}")
                 self._reconciliar(servicio, conexion)
                 continue
             self.gcloud(*self._primer_despliegue(servicio, conexion))
-            self.servicios_creados.append(servicio)
-            self.informe.creado(f"Servicio {servicio} (imagen de relleno hasta el próximo CD)")
+            self.servicios_creados.append(self.svc(servicio))
+            self.informe.creado(
+                f"Servicio {self.svc(servicio)} (imagen de relleno hasta el próximo CD)"
+            )
 
     def _configuracion_nucleo(self) -> tuple[dict[str, str], dict[str, str]]:
         """Secretos (variable → secreto) y variables que debe tener el núcleo."""
@@ -649,7 +727,7 @@ class Ambiente:
         otros: list[str] = []
         if servicio == "solventa-nucleo":
             descripcion = self.gcloud(
-                "run", "services", "describe", servicio, f"--region={self.region}",
+                "run", "services", "describe", self.svc(servicio), f"--region={self.region}",
                 "--format=json(spec.template)",
             )  # fmt: skip
             plantilla = json.loads(descripcion or "{}").get("spec", {}).get("template", {})
@@ -658,7 +736,7 @@ class Ambiente:
             esperados, valores = self._configuracion_nucleo()
             for variable, secreto in esperados.items():
                 referencia = actuales.get(variable, {}).get("valueFrom", {}).get("secretKeyRef", {})
-                if referencia.get("name") != secreto:
+                if referencia.get("name") != self.sec(secreto):
                     secretos[variable] = secreto
             for variable, valor in valores.items():
                 if actuales.get(variable, {}).get("value") != valor:
@@ -666,35 +744,47 @@ class Ambiente:
             anotaciones = plantilla.get("metadata", {}).get("annotations", {})
             if anotaciones.get("run.googleapis.com/cloudsql-instances") != conexion:
                 otros.append(f"--set-cloudsql-instances={conexion}")
+            replicas = str(REPLICAS_NUCLEO)
+            if (
+                anotaciones.get("autoscaling.knative.dev/minScale") != replicas
+                or anotaciones.get("autoscaling.knative.dev/maxScale") != replicas
+            ):
+                otros += [f"--min-instances={replicas}", f"--max-instances={replicas}"]
         if servicio in self.reiniciar:
             # Una revisión nueva para que lea la versión nueva de sus secretos.
             ahora = self.ahora() if self.ahora else datetime.now(UTC)
             variables["CREDENCIALES_ROTADAS"] = f"{ahora:%Y%m%dT%H%M%SZ}"
         if not (secretos or variables or otros):
             return
-        args = ["run", "services", "update", servicio, f"--region={self.region}", *otros]
+        args = ["run", "services", "update", self.svc(servicio), f"--region={self.region}", *otros]
         if secretos:
             args.append(
-                "--update-secrets=" + ",".join(f"{v}={s}:latest" for v, s in secretos.items())
+                "--update-secrets="
+                + ",".join(f"{v}={self.sec(s)}:latest" for v, s in secretos.items())
             )
         if variables:
             args.append("--update-env-vars=" + ",".join(f"{v}={x}" for v, x in variables.items()))
         self.gcloud(*args)
-        cambios = [*secretos, *variables, *(["Cloud SQL"] if otros else [])]
-        self.informe.nota(f"{servicio}: se actualizó {', '.join(cambios)}")
+        cambios = [*secretos, *variables]
+        if any(o.startswith("--set-cloudsql") for o in otros):
+            cambios.append("Cloud SQL")
+        if any(o.startswith("--min-instances") for o in otros):
+            cambios.append(f"{REPLICAS_NUCLEO} réplicas")
+        self.informe.nota(f"{self.svc(servicio)}: se actualizó {', '.join(cambios)}")
 
     def _primer_despliegue(self, servicio: str, conexion: str) -> list[str]:
         """El primer despliegue fija la cuenta, las variables y los secretos; el CD los conserva."""
         args = [
-            "run", "deploy", servicio, f"--image={IMAGEN_INICIAL}", f"--region={self.region}",
-            f"--service-account={self.cuenta(CUENTAS[servicio])}", "--allow-unauthenticated",
+            "run", "deploy", self.svc(servicio), f"--image={IMAGEN_INICIAL}",
+            f"--region={self.region}",
+            f"--service-account={self.cuenta(self.run(CUENTAS[servicio]))}",
+            "--allow-unauthenticated",
         ]  # fmt: skip
         if servicio == "solventa-nucleo":
             montados, variables = self._configuracion_nucleo()
-            # Una sola instancia mientras haya módulos con estado en memoria.
             args += [
-                "--min-instances=1",
-                "--max-instances=1",
+                f"--min-instances={REPLICAS_NUCLEO}",
+                f"--max-instances={REPLICAS_NUCLEO}",
                 f"--add-cloudsql-instances={conexion}",
             ]
         elif servicio == "solventa-bff":
@@ -703,7 +793,10 @@ class Ambiente:
         else:
             montados, variables = {}, {"BFF_URL": self.url("solventa-bff")}
         if montados:
-            args.append("--set-secrets=" + ",".join(f"{v}={s}:latest" for v, s in montados.items()))
+            args.append(
+                "--set-secrets="
+                + ",".join(f"{v}={self.sec(s)}:latest" for v, s in montados.items())
+            )
         args.append("--set-env-vars=" + ",".join(f"{v}={x}" for v, x in variables.items()))
         return args
 
@@ -749,10 +842,12 @@ class Ambiente:
         """Borra en orden inverso. Lo que ya no existe se omite; el acceso se conserva."""
         for servicio in reversed(SERVICIOS):
             if self.servicio_existe(servicio):
-                self.gcloud("run", "services", "delete", servicio, f"--region={self.region}")
-                self.informe.borrado(f"Servicio {servicio}")
+                self.gcloud(
+                    "run", "services", "delete", self.svc(servicio), f"--region={self.region}"
+                )
+                self.informe.borrado(f"Servicio {self.svc(servicio)}")
             else:
-                self.informe.ausente(f"Servicio {servicio}")
+                self.informe.ausente(f"Servicio {self.svc(servicio)}")
         instancias = self.instancias()
         for instancia in instancias:
             operacion = self.gcloud(
@@ -762,7 +857,7 @@ class Ambiente:
             self.informe.borrado(f"Cloud SQL {instancia['name']}")
         if not instancias:
             self.informe.ausente("Cloud SQL")
-        for nombre in SECRETOS:
+        for nombre in map(self.sec, SECRETOS):
             if self.gcloud.existe("secrets", "describe", nombre):
                 self.gcloud("secrets", "delete", nombre)
                 self.informe.borrado(f"Secreto {nombre}")
@@ -776,7 +871,9 @@ class Ambiente:
                 self.informe.borrado(f"Bucket {bucket}")
             else:
                 self.informe.ausente(f"Bucket {bucket}")
-        for servicio in SERVICIOS:
+        # Las imágenes son compartidas: producción despliega las mismas que staging. Solo las borra
+        # destruir staging.
+        for servicio in SERVICIOS if not self.sufijo else ():
             ubicacion = (f"--repository={REPOSITORIO}", f"--location={self.region}")
             if self.gcloud.existe("artifacts", "packages", "describe", servicio, *ubicacion):
                 self.gcloud("artifacts", "packages", "delete", servicio, *ubicacion)
@@ -795,12 +892,15 @@ def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int
     )
     parser.add_argument("--proyecto", required=True)
     parser.add_argument("--region", required=True)
+    parser.add_argument("--ambiente", choices=list(SUFIJOS), default="staging")
     parser.add_argument("--confirmar", default="", help="destruir: el ID del proyecto")
     parser.add_argument(
         "--github-output", default=os.environ.get("GITHUB_OUTPUT", ""), help=argparse.SUPPRESS
     )
     args = parser.parse_args(argv)
-    ambiente = ambiente or Ambiente(Gcloud(args.proyecto), args.region)
+    ambiente = ambiente or Ambiente(
+        Gcloud(args.proyecto), args.region, sufijo=SUFIJOS[args.ambiente]
+    )
 
     try:
         if args.accion == "verificar":

@@ -43,6 +43,7 @@ class NubeSimulada:
         self.cuentas = {f"{c}@{PROYECTO}.iam.gserviceaccount.com" for c in amb.CUENTAS.values()}
         self.repositorio = True
         self.instancias: dict[str, str] = {}  # nombre → política de activación
+        self.niveles: dict[str, str] = {}  # nombre → tier
         self.bases: set[tuple[str, str]] = set()
         self.usuarios: set[tuple[str, str]] = set()
         self.secretos: dict[str, dict] = {}
@@ -55,6 +56,7 @@ class NubeSimulada:
 
     def completar(self, instancia: str = "solventa-auditoria") -> None:
         self.instancias[instancia] = "ALWAYS"
+        self.niveles[instancia] = amb.NIVEL_SQL
         self.bases.add((instancia, amb.BASE))
         self.usuarios.add((instancia, amb.DUENO))
         for nombre in amb.SECRETOS:
@@ -82,7 +84,7 @@ class NubeSimulada:
             **amb.UMBRALES_CIRCUITO,
         )
         self.servicios = {
-            "solventa-nucleo": {"cloudsql": conexion, "env": nucleo},
+            "solventa-nucleo": {"cloudsql": conexion, "env": nucleo, "escala": ("2", "2")},
             "solventa-bff": {"cloudsql": None, "env": {}},
             "solventa-web": {"cloudsql": None, "env": {}},
         }
@@ -134,14 +136,21 @@ class NubeSimulada:
         if (grupo, recurso) == ("sql", "instances"):
             if verbo == "list":
                 filas = [
-                    {"name": n, "state": "RUNNABLE", "settings": {"activationPolicy": p}}
+                    {
+                        "name": n,
+                        "state": "RUNNABLE",
+                        "settings": {"activationPolicy": p, "tier": self.niveles.get(n)},
+                    }
                     for n, p in {**self.instancias, "otra-app": "ALWAYS"}.items()
                 ]
                 return amb.Salida(0, json.dumps(filas))
             if verbo == "create":
                 self.instancias[objetivo] = "ALWAYS"
+                self.niveles[objetivo] = self._opcion(args, "tier")
             elif verbo == "patch":
-                self.instancias[objetivo] = self._opcion(args, "activation-policy")
+                politica = self._opcion(args, "activation-policy", self.instancias[objetivo])
+                self.instancias[objetivo] = politica
+                self.niveles[objetivo] = self._opcion(args, "tier", self.niveles.get(objetivo))
             elif verbo == "delete":
                 del self.instancias[objetivo]
             return amb.Salida(0, f"op-{verbo}-{objetivo}\n")
@@ -172,6 +181,7 @@ class NubeSimulada:
         if (grupo, recurso) == ("run", "deploy"):
             self.servicios[args[2]] = {
                 "cloudsql": self._opcion(args, "add-cloudsql-instances"),
+                "escala": tuple(self._opcion(args, f"{x}-instances") for x in ("min", "max")),
                 "env": {
                     **{v: ("secreto", s.split(":")[0])
                        for v, s in self._pares(self._opcion(args, "set-secrets", "")).items()},
@@ -219,6 +229,11 @@ class NubeSimulada:
             servicio["cloudsql"] = self._opcion(
                 args, "set-cloudsql-instances", servicio["cloudsql"]
             )
+            if self._opcion(args, "min-instances"):
+                servicio["escala"] = (
+                    self._opcion(args, "min-instances"),
+                    self._opcion(args, "max-instances"),
+                )
             for v, s in self._pares(self._opcion(args, "update-secrets", "")).items():
                 servicio["env"][v] = ("secreto", s.split(":")[0])
             servicio["env"].update(self._pares(self._opcion(args, "update-env-vars", "")))
@@ -232,6 +247,10 @@ class NubeSimulada:
             for v, x in servicio["env"].items()
         ]
         anotaciones = {"run.googleapis.com/cloudsql-instances": servicio["cloudsql"]}
+        minimo, maximo = servicio.get("escala") or (None, None)
+        if minimo:
+            anotaciones["autoscaling.knative.dev/minScale"] = minimo
+            anotaciones["autoscaling.knative.dev/maxScale"] = maximo
         plantilla = {
             "metadata": {"annotations": anotaciones},
             "spec": {"containers": [{"env": variables}]},
@@ -293,7 +312,7 @@ def entorno():
     return {"HUMO_CORREO": "humo@solventa.test", "HUMO_CLAVE": "clave-del-humo"}
 
 
-def _ambiente(nube, entorno=None, conexion=None):
+def _ambiente(nube, entorno=None, conexion=None, sufijo=""):
     conexiones = []
 
     def conectar(destino, usuario, clave):
@@ -307,6 +326,7 @@ def _ambiente(nube, entorno=None, conexion=None):
         conectar=conectar,
         generar_llaves=lambda: ("PRIVADA-PEM", "PUBLICA-PEM"),
         ahora=lambda: datetime(2026, 11, 2, 9, 30, tzinfo=UTC),
+        sufijo=sufijo,
     )
     ambiente.conexiones = conexiones
     return ambiente
@@ -354,7 +374,7 @@ class TestAprovisionarDesdeCero:
         _ambiente(nube, entorno).aprovisionar()
         nucleo = nube.comandos("run", "deploy", "solventa-nucleo")[0]
         assert f"--service-account=run-nucleo@{PROYECTO}.iam.gserviceaccount.com" in nucleo
-        assert "--min-instances=1" in nucleo and "--max-instances=1" in nucleo
+        assert "--min-instances=2" in nucleo and "--max-instances=2" in nucleo
         assert f"--image={amb.IMAGEN_INICIAL}" in nucleo
         secretos = next(a for a in nucleo if a.startswith("--set-secrets="))
         assert all(f"{v}={s}:latest" in secretos for v, s in amb.SECRETOS_NUCLEO.items())
@@ -469,6 +489,23 @@ class TestAprovisionarLoQueYaExiste:
         assert ambiente.servicios_creados == []
         assert sum("ya existe, se omite" in linea for linea in ambiente.informe.lineas) >= 10
 
+    def test_el_nucleo_de_una_sola_replica_pasa_a_dos_sin_tocar_lo_demas(self, entorno):
+        """ARQ-05 (#136): staging antes de persistir identidad corría con una instancia."""
+        nube = NubeSimulada(completa=True)
+        nube.servicios["solventa-nucleo"]["escala"] = ("1", "1")
+        ambiente = _ambiente(nube, entorno, ConexionSimulada(roles=set(amb.MODULOS_BD)))
+        ambiente.aprovisionar()
+
+        (actualizacion,) = nube.comandos("run", "services", "update", "solventa-nucleo")
+        assert "--min-instances=2" in actualizacion and "--max-instances=2" in actualizacion
+        assert not any(a.startswith("--update-secrets") for a in actualizacion)
+        assert nube.servicios["solventa-nucleo"]["escala"] == ("2", "2")
+        assert any("2 réplicas" in linea for linea in ambiente.informe.lineas)
+
+        nube.llamadas.clear()
+        _ambiente(nube, entorno, ConexionSimulada(roles=set(amb.MODULOS_BD))).aprovisionar()
+        assert _escrituras(nube) == []
+
     def test_el_staging_del_sprint_2_recibe_solo_lo_del_sprint_3(self, entorno):
         """Staging antes de WEB-F03: tres módulos con base y un solo bucket."""
         nube = NubeSimulada(completa=True)
@@ -511,6 +548,22 @@ class TestAprovisionarLoQueYaExiste:
         assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
         assert nube.comandos("sql", "operations", "wait")
         assert not nube.comandos("sql", "instances", "create")
+
+    def test_cambia_una_f1_micro_a_g1_small_sin_recrearla(self, entorno):
+        nube = NubeSimulada(completa=True)
+        nube.niveles["solventa-auditoria"] = "db-f1-micro"
+        _ambiente(nube, entorno).aprovisionar()
+        assert nube.niveles["solventa-auditoria"] == "db-g1-small"
+        assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
+        assert not nube.comandos("sql", "instances", "create")
+        nube.llamadas.clear()
+        _ambiente(nube, entorno).aprovisionar()
+        assert not nube.comandos("sql", "instances", "patch")
+
+    def test_crea_cloud_sql_en_g1_small(self, entorno):
+        nube = NubeSimulada()
+        _ambiente(nube, entorno).aprovisionar()
+        assert set(nube.niveles.values()) == {"db-g1-small"}
 
     def test_solo_rehace_el_usuario_cuyo_secreto_falta(self, entorno):
         nube = NubeSimulada(completa=True)
@@ -931,3 +984,65 @@ class TestVerificarSoloAvisa:
         nube.fallas[("sql", "instances", "list")] = "503 Service Unavailable"
         argumentos = [accion, "--proyecto", PROYECTO, "--region", REGION, "--confirmar", PROYECTO]
         assert amb.main(argumentos, _ambiente(nube, entorno)) == 1
+
+
+class TestProduccion:
+    """Producción vive en el mismo proyecto con el sufijo -prd y nunca toca lo de staging."""
+
+    @pytest.fixture
+    def nube(self):
+        return NubeSimulada(completa=True)  # staging completo, con sus cuentas
+
+    def test_aprovisionar_produccion_crea_todo_con_sufijo(self, nube, entorno):
+        staging = {
+            "instancias": dict(nube.instancias),
+            "secretos": {k: list(v["versiones"]) for k, v in nube.secretos.items()},
+            "servicios": set(nube.servicios),
+            "buckets": set(nube.buckets),
+        }
+        nube.llamadas.clear()
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+
+        assert "solventa-prd-20261102-0930" in nube.instancias
+        assert {"solventa-nucleo-prd", "solventa-bff-prd", "solventa-web-prd"} <= set(
+            nube.servicios
+        )
+        assert {f"{s}-prd" for s in amb.SECRETOS} <= set(nube.secretos)
+        assert f"gs://{PROYECTO}-solventa-evidencias-prd" in nube.buckets
+        assert f"gs://{PROYECTO}-solventa-documentos-prd" in nube.buckets
+        # Lo de staging queda igual: ni una versión nueva de sus secretos.
+        for nombre, versiones in staging["secretos"].items():
+            assert nube.secretos[nombre]["versiones"] == versiones, nombre
+        assert {k: nube.instancias[k] for k in staging["instancias"]} == staging["instancias"]
+        objetivos = {c[3] for c in _escrituras(nube) if len(c) > 3}
+        assert not objetivos & (staging["servicios"] | set(staging["secretos"]))
+
+    def test_el_nucleo_de_produccion_usa_sus_secretos_y_la_misma_cuenta(self, nube, entorno):
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+        despliegue = next(
+            c for c in nube.llamadas if c[:3] == ["run", "deploy", "solventa-nucleo-prd"]
+        )
+        assert f"--service-account=run-nucleo@{PROYECTO}.iam.gserviceaccount.com" in despliegue
+        secretos = next(a for a in despliegue if a.startswith("--set-secrets="))
+        assert "AUDITORIA_DATABASE_URL=auditoria-database-url-prd:latest" in secretos
+        assert "auditoria-database-url:latest" not in secretos
+
+    def test_staging_no_toma_la_instancia_de_produccion(self, nube):
+        nube.instancias["solventa-prd-20261102-0930"] = "ALWAYS"
+        assert [i["name"] for i in _ambiente(nube).instancias()] == ["solventa-auditoria"]
+        produccion = _ambiente(nube, sufijo="-prd").instancias()
+        assert [i["name"] for i in produccion] == ["solventa-prd-20261102-0930"]
+
+    def test_destruir_produccion_no_toca_staging_ni_las_imagenes(self, nube, entorno):
+        _ambiente(nube, entorno, ConexionSimulada(), sufijo="-prd").aprovisionar()
+        _ambiente(nube, sufijo="-prd").destruir()
+        assert set(nube.servicios) == {"solventa-nucleo", "solventa-bff", "solventa-web"}
+        assert list(nube.instancias) == ["solventa-auditoria"]
+        assert set(amb.SECRETOS) <= set(nube.secretos)
+        assert not any(s.endswith("-prd") for s in nube.secretos)
+        assert nube.paquetes == set(amb.SERVICIOS)
+
+    def test_main_acepta_el_ambiente(self, nube, entorno):
+        ambiente = _ambiente(nube, sufijo="-prd")
+        args = ["verificar", "--proyecto", PROYECTO, "--region", REGION, "--ambiente", "produccion"]
+        assert amb.main(args, ambiente) == 0

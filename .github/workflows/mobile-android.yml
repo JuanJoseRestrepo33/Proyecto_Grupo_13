@@ -245,8 +245,11 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      # Sin artefactos: el enmascarado de GitHub cubre los logs, no los archivos, y los resultados del
-      # runner podrían incluir los argumentos de instrumentación, entre ellos la clave.
+      # Sin artefactos del runner: el enmascarado de GitHub cubre los logs, no los archivos, y sus resultados
+      # podrían incluir los argumentos de instrumentación, entre ellos la clave. Solo se publican las capturas
+      # PNG de la guía (paso siguiente). Si alguna prueba
+      # falla, scripts/fallos-e2e.sh imprime en el log el stack completo y el logcat del runner, con el
+      # emulador aún encendido: Gradle solo muestra la primera línea de cada fallo.
       - name: Pruebas instrumentadas
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
         with:
@@ -263,8 +266,19 @@ jobs:
           # instrumentación muere a mitad, la red se restaura aquí, antes de que el runner apague el
           # emulador. La acción corre cada línea del script por separado.
           script: |
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" || { adb shell cmd connectivity airplane-mode disable; exit 1; }
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" || { bash scripts/fallos-e2e.sh; adb pull /data/local/tmp/capturas capturas || true; adb shell cmd connectivity airplane-mode disable; exit 1; }
+            adb pull /data/local/tmp/capturas capturas || true
             adb shell cmd connectivity airplane-mode disable
+      # Las capturas de la guía de usuario (#194, #203, #210, #214) son solo imágenes de pantallas sin la
+      # clave escrita: a diferencia de los resultados del runner, no llevan argumentos de instrumentación.
+      - name: Publicar capturas para la guía de usuario
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: capturas-app-staging
+          path: mobile/android/capturas/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Restaurar la red del emulador
         # Por si el paso anterior se canceló o venció con el emulador aún encendido. Si ya se apagó, no
         # queda red que restaurar y el paso no falla.
