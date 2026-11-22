@@ -1,13 +1,14 @@
 # Informe de calidad · ARQ-05 · Verificación de calidad en staging
 
-> **Estado:** cerrado el 22 nov 2026.
+> **Estado:** cerrado el 22 nov 2026. Los siete criterios y el caos cumplen.
 >
 > - Con Cloud SQL en `db-g1-small` y el núcleo con dos réplicas, la carga a 1.000 cotizaciones por
 >   minuto durante 5 minutos **cumple RC-01 y RC-03** con el proveedor de Open Finance sano,
 >   degradado y caído (sección 2).
 > - En *staging* también se verificaron la revocación entre réplicas (RC-04), la base de la
 >   decisión en el log y el costo de verificar el consentimiento (sección 4).
-> - El caos y la auditoría alterada (RC-08) se corren con #318 y quedan en la sección 4.
+> - El caos (una réplica menos a mitad de la carga) no dejó ningún error, y un registro alterado
+>   en el log se detecta (RC-08). Los dos se probaron en *staging* el 22 nov (secciones 2.3 y 4).
 > - Las secciones 3 y 3.2 cuentan los dos hallazgos que hubo que resolver antes de cumplir.
 >
 > **Historia:** ARQ-05 (#124) · **Partes:** #136 (Cloud), #216 (pruebas de carga y caos), #217
@@ -67,6 +68,42 @@ A 1.000/min durante 5 min, con `db-g1-small`, dos réplicas, pool y cotizaciones
 
 "Sin oferta" cuenta toda respuesta distinta de 201. Incluye los 5xx y también los 429 con los que
 Cloud Run aborta las solicitudes que esperan demasiado por una instancia libre.
+
+### 2.3 Caos: una réplica menos a mitad de la carga
+
+Corrida [44995225221](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995225221)
+(22 nov, `carga.yml` con `caos=true`): sano a 1.000/min durante 5 min. A los 2 minutos, el núcleo
+pasa de 2 réplicas a 1 (mínimo y máximo 1, revisión nueva) y, 90 s después, vuelve a 2.
+
+| Hora (UTC) | Qué pasó | Instancias del núcleo atendiendo |
+|---|---|---|
+| 06:48 a 06:50 | Carga con 2 réplicas | 2 (revisión `00058`) |
+| 06:50:43 | Empieza el cambio a 1 réplica | 2 → 1 |
+| 06:50:57 | 1 réplica sirviendo (revisión `00059`) | **1 durante todo el minuto 06:51** |
+| 06:52:27 | Empieza la vuelta a 2 réplicas | 1 → 2 |
+| 06:53 | 2 réplicas otra vez (revisión `00060`) | 2 |
+
+Latencia del BFF por minuto, en `POST /api/v1/web/cotizaciones`:
+
+| Minuto (UTC) | Solicitudes | Respuestas 201 | p50 | p95 | Máx |
+|---|---:|---:|---:|---:|---:|
+| 06:49 | 1.000 | 1.000 | 53 ms | 68 ms | 213 ms |
+| 06:50 | 1.000 | 1.000 | 49 ms | 62 ms | 551 ms |
+| 06:51 | 1.000 | 1.000 | 44 ms | 55 ms | 116 ms |
+| 06:52 | 1.000 | 1.000 | 42 ms | 50 ms | 598 ms |
+| 06:53 | 740 | 740 | 41 ms | 52 ms | 666 ms |
+
+**Resultado en k6** (de extremo a extremo): 5.001 solicitudes, p50 83 ms, **p95 99 ms, p99 166 ms**,
+máximo 1.490 ms, **0 % sin oferta y 0 % de 5xx**. Cumple RC-01 y RC-03.
+
+- **Ninguna solicitud falló** al quitar ni al devolver la réplica. Cloud Run mueve el tráfico a la
+  revisión nueva cuando ya está lista y deja terminar las solicitudes en curso de la anterior.
+- **Una sola réplica aguanta 1.000/min:** durante el minuto 06:51 la atendió una sola instancia,
+  con p95 de 55 ms en el BFF.
+- **Los picos de 0,5 a 1,5 s** coinciden con los dos cambios de revisión: son las primeras
+  solicitudes que llegan a una instancia recién arrancada. No pasan el p99.
+- **No hubo estado perdido:** la sesión de la cuenta de prueba siguió válida en la réplica nueva,
+  porque identidad y consentimiento viven en Cloud SQL (#301).
 
 ## 3. Hallazgo 1: el núcleo se traba cerca de la cotización 1.000
 
@@ -152,16 +189,15 @@ tamaño y cambia el de una instancia existente. Con ella, las corridas de la sec
 | 3 | Revocación en una réplica respetada por las dos (RC-04) | ✅ Cumple en *staging* | 20 nov, cliente `CLI-RC04-1795194106`: antes de revocar, 30 de 30 cotizaciones con consentimiento, atendidas por las dos réplicas. Revocación a las 17:01:55 en una réplica. Después, 30 de 30 `sin_consentimiento`, repartidas entre las dos (14 y 16) |
 | 4 | El circuito se cierra solo y `/salud` vuelve de `degradado` a `ok` | ✅ Cumple (prueba automática) | `test_el_circuito_se_cierra_solo_cuando_el_proveedor_vuelve_y_salud_pasa_a_ok` (#318), sobre la app completa y sin reiniciar el núcleo. En *staging* no se puede probar así: cambiar el modo del proveedor crea una revisión nueva, es decir, reinicia el núcleo |
 | 5 | Una cotización calculada sin el perfil en vivo queda registrada como tal, con su base en la auditoría | ✅ Cumple en *staging* | 22 nov, `QT-2026-29139`: en la secuencia 21.859 del log, `base_perfilamiento: estandar` y `motivo_tarifa: sin_consentimiento` en el resultado y en las variables. `GET …/recalculo` vuelve a dar la misma prima (`coincide: true`). Las corridas en degradado y caído dejaron 10.002 decisiones a tarifa estándar en el log, conforme |
-| 6 | Un registro alterado se detecta al verificar la cadena de hash (RC-08) | ⏳ Se corre con #318 | Workflow *Auditoría alterada (RC-08)*. Ya verificado: la cadena de 21.535 registros es conforme después de las tres corridas, y en local `test_auditoria.py` detecta el registro alterado |
+| 6 | Un registro alterado se detecta al verificar la cadena de hash (RC-08) | ✅ Cumple en *staging* | Corrida [44995232437](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/44995232437) del 22 nov (*Auditoría alterada*). (1) Antes: 27.103 registros, conforme. (2) Un `UPDATE` normal lo rechaza la base: *auditoria.registros es append-only: UPDATE no está permitido*. (3) Como dueño, con el trigger apagado en una transacción, la prima de la secuencia 27.104 (`QT-2026-34381`) pasa de 148.000 a 147.000. (4) `/v1/auditoria/integridad` responde `conforme: false` y señala solo la secuencia 27.104, por `hash_no_coincide`. (5) Restaurado el valor, vuelve a ser conforme con 27.104 registros |
 | 7 | El costo de verificar el consentimiento cabe en p95 ≤ 250 ms | ✅ Cumple | 22 nov, 240 cotizaciones intercaladas contra el núcleo de *staging*, latencia del servidor en Cloud Run. Con consentimiento y perfil: p50 31 ms, p95 39 ms. Sin Open Finance (ni consentimiento ni perfil): p50 19 ms, p95 24 ms. **Costo: +12 ms en p50 y +15 ms en p95**, que ya está dentro de los 110 ms de p95 de la corrida en sano |
-| Caos | Quitar una réplica a mitad de la carga (#216) | ⏳ Se corre con #318 | `carga.yml` con `caos=true`: de 2 réplicas a 1 entre los minutos 2 y 3,5 |
+| Caos | Quitar una réplica a mitad de la carga (#216) | ✅ Cumple en *staging* | Sección 2.3: p95 99 ms, p99 166 ms, 0 % de 5xx y 0 % sin oferta, con una sola instancia durante el minuto 06:51 |
 
-## 5. Qué falta y de quién depende
+## 5. Qué falta
 
-| Paso | Depende de | Issue |
-|---|---|---|
-| Fusionar #318 y correr *Carga* con `caos=true` y *Auditoría alterada (RC-08)* | Revisión (Sergio); corridas y aprobación (Juan) | #216 |
-| Poner aquí el resultado de las dos corridas (criterio 6 y caos) | Documentación (Juan) | #217 |
+Nada de ARQ-05: los siete criterios y el caos tienen evidencia en *staging* o, en el caso del
+criterio 4, en una prueba automática. Las corridas se pueden repetir desde `develop` con
+*Carga de cotización (k6)* (con o sin `caos`) y *Auditoría alterada (RC-08)*, ambas con aprobación.
 
 ## 6. Límites de esta medición
 
