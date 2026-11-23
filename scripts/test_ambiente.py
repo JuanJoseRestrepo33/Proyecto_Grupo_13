@@ -199,7 +199,8 @@ class NubeSimulada:
         if bucket is None:
             return self._falta(args)
         if verbo == "describe" and "--format=json(lifecycle_config)" in args:
-            descripcion = {"lifecycle_config": bucket["ciclo"]} if bucket["ciclo"] else {}
+            # Como gcloud: sin ciclo de vida, `null` (así se ve un bucket recién creado).
+            descripcion = {"lifecycle_config": bucket["ciclo"]} if bucket["ciclo"] else None
             return amb.Salida(0, json.dumps(descripcion))
         if verbo == "update":
             if etiqueta := self._opcion(args, "update-labels"):

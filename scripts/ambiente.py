@@ -654,7 +654,9 @@ class Ambiente:
         """
         completado = []
         formato = "--format=json(lifecycle_config)"
+        # Un bucket sin ciclo de vida (uno recién creado) se describe como `null`, no como `{}`.
         actual = json.loads(self.gcloud("storage", "buckets", "describe", destino, formato) or "{}")
+        actual = actual or {}
         if ciclo is not None and actual.get("lifecycle_config") != ciclo:
             with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as archivo:
                 json.dump(ciclo, archivo)
@@ -666,8 +668,12 @@ class Ambiente:
             finally:
                 os.unlink(archivo.name)
             completado.append("el ciclo de vida")
-        politica = json.loads(
-            self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json") or "{}"
+        politica = (
+            json.loads(
+                self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json")
+                or "{}"
+            )
+            or {}
         )
         miembro = f"serviceAccount:{self.cuenta(self.run('run-nucleo'))}"
         # Crear y leer, sin borrar: ni la evidencia de un siniestro ni el documento de una póliza
