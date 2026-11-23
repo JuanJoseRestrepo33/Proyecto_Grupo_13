@@ -297,6 +297,8 @@ con huella si la tienes activa.
 
 Si el correo o la contraseña no son correctos, verás un mensaje que no dice cuál de los dos falló.
 
+Sin señal, **Ingreso** te deja ver tus pólizas guardadas con **Ver mis pólizas sin conexión**; ver [Tus pólizas sin conexión](#tus-pólizas-sin-conexión).
+
 ![Inicio en la app](img/mob-inicio.png)
 
 ## 16. Consentimiento de datos financieros en la app
@@ -356,7 +358,15 @@ Ten en cuenta:
 - Sin conexión, la app no puede saber si la póliza cambió después de guardarse. Por eso calcula la vigencia con la fecha del teléfono: si la póliza terminó desde la última sincronización, se muestra *Vencida* y ya no ofrece credencial.
 - La credencial es una **copia informativa**: quien la reciba puede confirmar la cobertura con Solventa usando el número de póliza.
 - **Cerrar sesión borra la billetera** de ese teléfono, y el diálogo de cierre lo avisa. Si la sesión solo vence, la billetera se conserva.
-- La billetera se lee con la app abierta y la sesión iniciada. Entrar sin conexión desde **Ingreso** todavía no está disponible.
+- Si el celular cerró la app y no tienes señal, puedes abrir la billetera desde **Ingreso**, sin iniciar sesión (ver abajo).
+
+**Sin señal y con la app cerrada.** El ingreso necesita conexión, así que la pantalla de **Ingreso** te avisa *No tienes conexión.* y ofrece **Ver mis pólizas sin conexión**:
+
+1. Toca **Ver mis pólizas sin conexión** y desbloquea con tu huella o el PIN del teléfono (*Usa tu huella o el PIN del teléfono*). Si cancelas, vuelves a **Ingreso**.
+2. Verás tus pólizas guardadas, su detalle y la credencial, solo para consultar: no hay barra inferior ni se actualiza nada.
+3. Cuando vuelva la señal, la franja dice *Ya tienes conexión · Ingresa para actualizar*. Toca **Ingresar**; al entrar, tus pólizas se actualizan solas.
+
+La opción solo aparece si el teléfono tiene bloqueo de pantalla (huella, rostro, PIN o patrón) y una billetera guardada. Cada vez que vuelvas a **Ingreso** te pedirá el desbloqueo de nuevo.
 
 Si nunca abriste **Mis pólizas** con conexión en este teléfono, verás *Necesitas conexión una vez para guardar tus pólizas en este teléfono.* con **Reintentar**.
 

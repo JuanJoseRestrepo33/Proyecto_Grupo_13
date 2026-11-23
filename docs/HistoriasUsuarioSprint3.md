@@ -556,9 +556,9 @@ si no, queda como avance y se re-estima.
 
 **Favorece** RC-03 Disponibilidad · **Puntos** 13 · **Responsable** Edwin · **Depende de** WEB-F04
 
-**Estado al cierre del sprint (22 nov 2026).** La entrega 1 de #134 está en `develop` con #328: cubre
-los tres criterios con la app abierta y no cambia el contrato `bff-movil`. #134 y #139 siguen
-abiertos.
+**Estado al cierre del sprint (22 nov 2026).** Las dos entregas de #134 están en `develop`: #328
+cubre los tres criterios con la app abierta y #330 agrega la entrada sin conexión desde Ingreso cuando
+Android cerró el proceso. Ninguna cambia el contrato `bff-movil` ni el backend.
 
 - **Billetera:** copia cifrada en el teléfono (AES-256-GCM, llave del Android Keystore, fuera de las
   copias de seguridad) con la lista y el detalle de las pólizas vigentes y por iniciar. Se sincroniza
@@ -568,16 +568,20 @@ abiertos.
   del teléfono, para no mostrar como vigente una póliza que ya terminó.
 - **Credencial digital** de cada póliza vigente, leída siempre de la billetera (criterio 3). Es una
   copia informativa que se contrasta por el número de póliza, no una prueba criptográfica.
+- **Entrada desde Ingreso (#330):** sin red, con una billetera guardada y con bloqueo de pantalla,
+  Ingreso ofrece «Ver mis pólizas sin conexión». Pide el desbloqueo del teléfono (`BiometricPrompt`
+  con huella o PIN) y muestra lista, detalle y credencial en solo lectura, sin sincronizar. Al volver
+  la red ofrece «Ingresar», y al ingresar se sincroniza. Las rutas que necesitan sesión vuelven a
+  Ingreso si Android restauró el proceso sin ella.
 - **Diseño y pruebas:** [`feature/polizas`](../mobile/android/feature/polizas/README.md#mob-f03--billetera-y-credencial-sin-conexión)
   y [`core/almacen`](../mobile/android/core/almacen/README.md). Uso:
   [guía de usuario, sección 18](guia-de-usuario/README.md#tus-pólizas-sin-conexión).
 
 **Falta:**
 
-- La entrega 2: entrar sin conexión desde Ingreso cuando Android cerró el proceso. Es la que cierra
-  #134.
 - La comprobación manual contra *staging* con el build de release, con video y capturas de la
-  billetera y la credencial. En debug el mock responde sin red, así que el modo avión no la prueba.
+  billetera, la credencial y la entrada desde Ingreso. En debug el mock responde sin red, así que el
+  modo avión no la prueba.
 - Que el PO confirme si la copia informativa cumple «completa y verificable» (criterio 3).
 
 ---
