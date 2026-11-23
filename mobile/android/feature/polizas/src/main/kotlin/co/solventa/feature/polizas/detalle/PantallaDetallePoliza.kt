@@ -115,6 +115,7 @@ fun PantallaDetallePoliza(
     onAvisoMostrado: () -> Unit,
     onCredencial: () -> Unit = {},
     zona: ZoneId = ZoneId.systemDefault(),
+    soloLectura: Boolean = false,
 ) {
     val avisos = remember { SnackbarHostState() }
     val aviso = estado.aviso
@@ -132,7 +133,8 @@ fun PantallaDetallePoliza(
         }
     }
     Box(Modifier.fillMaxSize()) {
-        val franja = franjaDe(estado.sinConexion, estado.sinActualizar, estado.sincronizando)
+        // Sin sesión (MOB-F03, entrega 2) la franja la pone el marco.
+        val franja = franjaDe(estado.sinConexion, estado.sinActualizar, estado.sincronizando).takeUnless { soloLectura }
         PlantillaPolizas(
             titulo = stringResource(R.string.detalle_titulo),
             onVolver = onVolver,
@@ -143,7 +145,7 @@ fun PantallaDetallePoliza(
             val error = estado.error
             when {
                 estado.noEncontrada -> NoEncontrada(onVolver)
-                estado.detalleNoGuardado -> DetalleNoGuardado(onReintentar, onVolver)
+                estado.detalleNoGuardado -> DetalleNoGuardado(onReintentar.takeUnless { soloLectura }, onVolver)
                 detalle == null && error != null ->
                     ErrorConsulta(textoFallo(error, R.string.detalle_error), onReintentar)
                 detalle == null -> Cargando(stringResource(R.string.detalle_cargando))
@@ -272,17 +274,19 @@ private fun Documento(estado: EstadoDetallePoliza, onDescargar: () -> Unit) {
 
 /** Sin conexión, una póliza sin detalle guardado (ya llegó vencida del BFF). */
 @Composable
-private fun DetalleNoGuardado(onReintentar: () -> Unit, onVolver: () -> Unit) {
+private fun DetalleNoGuardado(onReintentar: (() -> Unit)?, onVolver: () -> Unit) {
     Mensaje(
         stringResource(R.string.detalle_no_guardado),
         modifier = Modifier.testTag("detalle-no-guardado"),
         esError = false,
     )
-    BotonSecundario(
-        stringResource(R.string.reintentar),
-        onClick = onReintentar,
-        modifier = Modifier.testTag("reintentar"),
-    )
+    if (onReintentar != null) {
+        BotonSecundario(
+            stringResource(R.string.reintentar),
+            onClick = onReintentar,
+            modifier = Modifier.testTag("reintentar"),
+        )
+    }
     BotonSecundario(
         stringResource(R.string.volver_lista),
         onClick = onVolver,

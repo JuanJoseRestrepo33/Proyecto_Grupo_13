@@ -62,6 +62,18 @@ class SincronizadorBilletera(
     private val reloj: Clock = Clock.systemUTC(),
 ) {
     private val generacion = AtomicInteger()
+
+    /** La entrada sin sesión (§7) se desbloqueó; la revocan [cerrarSinSesion] y cualquier cambio de cuenta. */
+    @Volatile
+    private var desbloqueadaSinSesion = false
+
+    /** El cliente abrió la billetera sin sesión: al ingresar se sincroniza (§7). */
+    @Volatile
+    private var sincronizarAlIngresar = false
+
+    /** Impide ofrecer la copia mientras termina el borrado solicitado al cerrar sesión. */
+    @Volatile
+    private var borradoPendiente = false
     private val _estado = MutableStateFlow(EstadoBilletera())
     val estado: StateFlow<EstadoBilletera> = _estado.asStateFlow()
 
@@ -110,6 +122,49 @@ class SincronizadorBilletera(
     /** `ObservadorCuenta.antes`: corre antes de que cambie la sesión (otra cuenta, cierre o vencimiento). */
     fun cambioDeCuenta() {
         generacion.incrementAndGet()
+        desbloqueadaSinSesion = false
+    }
+
+    // ── Entrada sin sesión (MOB-F03, entrega 2, §7) ──────────────────────────────────────────
+
+    /**
+     * Si Ingreso puede ofrecer «Ver mis pólizas sin conexión»: no hay sesión y hay una billetera legible. Un
+     * archivo ilegible se borra al leerlo, como siempre.
+     */
+    suspend fun hayBilleteraSinSesion(): Boolean {
+        if (borradoPendiente || cuenta.clienteId != null) return false
+        val guardada = almacen.leer { true } != null
+        return guardada && !borradoPendiente && cuenta.clienteId == null
+    }
+
+    /**
+     * El cliente superó el desbloqueo del teléfono. Solo sin sesión: con una sesión abierta, la billetera se
+     * ve en la pestaña Pólizas. @return true si quedó desbloqueada.
+     */
+    fun abrirSinSesion(): Boolean {
+        if (borradoPendiente || cuenta.clienteId != null) return false
+        desbloqueadaSinSesion = true
+        sincronizarAlIngresar = true
+        return true
+    }
+
+    /** Se volvió a Ingreso: la próxima entrada sin sesión pide otra vez el desbloqueo. */
+    fun cerrarSinSesion() {
+        desbloqueadaSinSesion = false
+    }
+
+    /** Si la entrada sin sesión está desbloqueada; la navegación no muestra la billetera si no lo está. */
+    val sinSesionDesbloqueada: Boolean get() = desbloqueadaSinSesion && !borradoPendiente && cuenta.clienteId == null
+
+    /**
+     * La billetera del último cliente que sincronizó, sin sesión y solo si el desbloqueo se superó. En el
+     * teléfono hay una sola billetera, la de ese cliente: su dueño es el del archivo. La de una cuenta que
+     * cerró sesión ya no está, porque cerrar sesión la borra.
+     */
+    suspend fun cargarSinSesion(): BilleteraGuardada? {
+        if (!sinSesionDesbloqueada) return null
+        val billetera = almacen.leer { true }
+        return billetera.takeIf { sinSesionDesbloqueada }
     }
 
     /**
@@ -119,14 +174,26 @@ class SincronizadorBilletera(
      */
     fun cuentaCambiada(cliente: String?) {
         _estado.update { if (cliente != null && it.guardada?.clienteId == cliente) it else it.copy(guardada = null) }
-        if (cliente != null) alcance.launch { almacen.borrarSiNoEsDe(cliente) }
+        if (cliente == null) return
+        // Al ingresar desde la billetera sin sesión se sincroniza enseguida (§7), después del borrado.
+        val sincronizar = sincronizarAlIngresar.also { sincronizarAlIngresar = false }
+        alcance.launch {
+            almacen.borrarSiNoEsDe(cliente)
+            if (sincronizar) sincronizar()
+        }
     }
 
     /** El cliente cierra sesión: sus pólizas dejan de estar disponibles sin conexión en este teléfono. */
     fun cerrarSesion() {
+        borradoPendiente = true
         generacion.incrementAndGet()
+        desbloqueadaSinSesion = false
+        sincronizarAlIngresar = false
         _estado.update { it.copy(guardada = null) }
-        alcance.launch { almacen.borrar() }
+        alcance.launch {
+            almacen.borrar()
+            borradoPendiente = false
+        }
     }
 
     private suspend fun ejecutar(dada: List<PolizaResumen>?): ResultadoSincronizacion {

@@ -110,14 +110,16 @@ fun PantallaMisPolizas(
     onCotizar: () -> Unit,
     onCredencial: (String) -> Unit = {},
     zona: ZoneId = ZoneId.systemDefault(),
+    soloLectura: Boolean = false,
 ) {
     val polizas = estado.mostradas
-    val franja = estado.franja()
+    // Sin sesión (MOB-F03, entrega 2) la franja la pone el marco y no hay nada que actualizar.
+    val franja = estado.franja().takeUnless { soloLectura }
     PlantillaPolizas(
         titulo = stringResource(R.string.lista_titulo),
         onVolver = null,
         actualizando = estado.actualizando,
-        onActualizar = onActualizar,
+        onActualizar = onActualizar.takeUnless { soloLectura },
         modifier = Modifier.testTag("pantalla-mis-polizas"),
         franja = franja?.let { { FranjaBilletera(it, estado.billetera?.momento, zona, onReintentar = onActualizar) } },
     ) {
