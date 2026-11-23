@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pone el proveedor simulado de Open Finance del núcleo de staging en un modo (ARQ-05).
 #
-#   PROYECTO=… REGION=… scripts/carga/modo_proveedor.sh {sano|degradado|caido}
+#   PROYECTO=… REGION=… [SUFIJO=-prd] scripts/carga/modo_proveedor.sh {sano|degradado|caido}
 #
 # Cambia solo PERFILAMIENTO_OPEN_FINANCE_MODO (`--update-env-vars`, sin tocar lo demás) y espera a
 # que la revisión nueva esté lista. Si ya está en ese modo, no crea otra revisión.
@@ -16,9 +16,11 @@ case "$modo" in
     ;;
 esac
 : "${PROYECTO:?Falta PROYECTO}" "${REGION:?Falta REGION}"
+# "" en staging y "-prd" en producción.
+nucleo="solventa-nucleo${SUFIJO:-}"
 
 actual=$(
-  gcloud run services describe solventa-nucleo --region="$REGION" --project="$PROYECTO" \
+  gcloud run services describe "$nucleo" --region="$REGION" --project="$PROYECTO" \
     --format=json | python3 -c '
 import json, sys
 env = json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0].get("env", [])
@@ -31,6 +33,6 @@ if [[ "$actual" == "$modo" ]]; then
   exit 0
 fi
 
-gcloud run services update solventa-nucleo --region="$REGION" --project="$PROYECTO" --quiet \
+gcloud run services update "$nucleo" --region="$REGION" --project="$PROYECTO" --quiet \
   --update-env-vars="PERFILAMIENTO_OPEN_FINANCE_MODO=$modo"
 echo "Proveedor de Open Finance: «$actual» → «$modo»"

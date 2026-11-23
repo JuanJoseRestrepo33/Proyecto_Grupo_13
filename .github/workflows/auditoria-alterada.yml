@@ -3,14 +3,21 @@
 # Altera el resultado de una decisión propia del log de auditoría, comprueba que
 # GET /v1/auditoria/integridad la señala y la restaura (scripts/carga/auditoria_alterada.py).
 # Usa la cuenta `infraestructura`, la misma de Aprovisionar, que puede leer la cadena del dueño de
-# la base: por eso el environment `staging-infraestructura`, que pide aprobación y solo acepta develop.
+# la base: por eso el environment `staging-infraestructura`, que pide aprobación. Sirve a los dos
+# ambientes: producción usa el núcleo y el secreto del dueño con -prd.
 name: Auditoría alterada (RC-08)
 
 on:
   workflow_dispatch:
+    inputs:
+      ambiente:
+        description: "staging o produccion (servicios con -prd)"
+        type: choice
+        default: staging
+        options: [staging, produccion]
 
 concurrency:
-  group: ambiente-staging
+  group: ambiente-${{ inputs.ambiente }}
   cancel-in-progress: false
 
 permissions:
@@ -28,6 +35,7 @@ jobs:
     env:
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
+      SUFIJO: ${{ inputs.ambiente == 'produccion' && '-prd' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,10 +52,11 @@ jobs:
         run: |
           set -o pipefail
           estado=0
-          nucleo=$(gcloud run services describe solventa-nucleo --region="$REGION" \
+          nucleo=$(gcloud run services describe "solventa-nucleo$SUFIJO" --region="$REGION" \
             --project="$PROYECTO" --format='value(status.url)')
           python3 scripts/carga/auditoria_alterada.py --nucleo "$nucleo" --proyecto "$PROYECTO" \
+            --sufijo="$SUFIJO" \
             | tee salida.txt || estado=$?
-          { echo "### Auditoría alterada en staging (RC-08)"; echo; sed 's/^/    /' salida.txt; } \
+          { echo "### Auditoría alterada en solventa-nucleo$SUFIJO (RC-08)"; echo; sed 's/^/    /' salida.txt; } \
             >> "$GITHUB_STEP_SUMMARY"
           exit "$estado"
