@@ -1046,3 +1046,18 @@ class TestProduccion:
         ambiente = _ambiente(nube, sufijo="-prd")
         args = ["verificar", "--proyecto", PROYECTO, "--region", REGION, "--ambiente", "produccion"]
         assert amb.main(args, ambiente) == 0
+
+
+class TestApagadoNocturnoSinInstancia:
+    def test_con_si_existe_no_falla_si_el_ambiente_no_tiene_instancia(self, capsys):
+        nube = NubeSimulada(completa=True)
+        ambiente = _ambiente(nube, sufijo="-prd")
+        args = ["apagar", "--proyecto", PROYECTO, "--region", REGION, "--ambiente", "produccion"]
+        assert amb.main([*args, "--si-existe"], ambiente) == 0
+        assert "::notice::" in capsys.readouterr().out
+        assert nube.instancias == {"solventa-auditoria": "ALWAYS"}
+
+    def test_sin_si_existe_sigue_fallando(self):
+        ambiente = _ambiente(NubeSimulada(completa=True), sufijo="-prd")
+        args = ["apagar", "--proyecto", PROYECTO, "--region", REGION, "--ambiente", "produccion"]
+        assert amb.main(args, ambiente) == 1
