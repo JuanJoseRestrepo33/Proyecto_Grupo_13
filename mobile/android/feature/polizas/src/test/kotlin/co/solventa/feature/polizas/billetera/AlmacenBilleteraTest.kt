@@ -11,6 +11,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.security.ProviderException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -150,5 +151,38 @@ class AlmacenBilleteraTest {
         }
 
         override fun descifrar(origen: InputStream): InputStream = real.descifrar(origen)
+    }
+
+    @Test
+    fun `un fallo del Keystore al escribir deja la billetera anterior sin cerrar la app`() = runBlocking {
+        val anterior = billeteraDePrueba()
+        almacen.guardarSi(anterior) { true }
+        val fallido = conKeystoreRoto(alCifrar = true)
+
+        assertFalse(fallido.guardarSi(billeteraDePrueba(cliente = OTRO_CLIENTE)) { true })
+
+        assertEquals(anterior, leer())
+    }
+
+    @Test
+    fun `un fallo del Keystore al leer se trata como sin billetera y se borra`() = runBlocking {
+        almacen.guardarSi(billeteraDePrueba()) { true }
+        val fallido = conKeystoreRoto(alCifrar = false)
+
+        assertNull(fallido.leer { true })
+
+        assertFalse(archivo.exists())
+    }
+
+    private fun conKeystoreRoto(alCifrar: Boolean) =
+        AlmacenBilletera(ArchivoCifrado(archivo, KeystoreRoto(CifradoAesGcm(llave), alCifrar)), Dispatchers.Unconfined)
+
+    /** El Keystore de algunos equipos lanza ProviderException (no verificada) al usar la llave. */
+    private class KeystoreRoto(private val real: PuertoCifrado, private val alCifrar: Boolean) : PuertoCifrado {
+        override fun cifrar(destino: OutputStream): OutputStream =
+            if (alCifrar) throw ProviderException("Keystore no disponible") else real.cifrar(destino)
+
+        override fun descifrar(origen: InputStream): InputStream =
+            if (alCifrar) real.descifrar(origen) else throw ProviderException("Keystore no disponible")
     }
 }

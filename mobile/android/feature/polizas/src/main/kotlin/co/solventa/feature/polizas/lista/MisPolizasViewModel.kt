@@ -107,6 +107,7 @@ class MisPolizasViewModel(
         private set
     private var consulta: Job? = null
     private var ultimaEntrada = entradaInicial
+    private val vigia = billetera.vigia()
 
     init {
         // La fecha de sincronización se actualiza sola cuando termina una sincronización en segundo plano.
@@ -153,19 +154,49 @@ class MisPolizasViewModel(
         actualizar()
     }
 
-    /** Mientras la pantalla esté visible: al volver la conexión con sesión, se sincroniza sola (§2). */
-    suspend fun vigilarReconexion() = billetera.vigilarReconexion { alReconectar() }
+    /**
+     * Mientras la pantalla esté visible: si se pierde la red se pasa a la billetera, y al volver con sesión
+     * se sincroniza sola (§2). Un cambio que llega con una consulta en curso espera a que termine.
+     */
+    suspend fun vigilarConexion() = vigia.vigilar(
+        alPerder = {
+            consulta?.join()
+            alPerder()
+        },
+        alReconectar = {
+            consulta?.join()
+            alReconectar()
+        },
+    )
+
+    /**
+     * Se perdió la red con la lista del BFF en pantalla: si hay billetera, se muestra con la franja «Sin
+     * conexión · datos del …» (§4). Sin billetera queda la lista como estaba.
+     */
+    fun alPerder() {
+        if (consulta?.isActive == true || estado.modo == ModoPolizas.SIN_BILLETERA) return
+        consulta = viewModelScope.launch {
+            val guardada = billetera.cargar() ?: return@launch
+            estado = estado.copy(
+                modo = ModoPolizas.SIN_CONEXION,
+                billetera = guardada,
+                billeteraLeida = true,
+                error = null,
+                cargando = false,
+                hoy = LocalDate.now(reloj),
+            )
+        }
+    }
 
     /**
      * Volvió la conexión. Con la billetera en pantalla se sincroniza y, mientras tanto, se sigue mostrando
-     * con el indicador; si falla, queda la billetera con «No pudimos actualizar». Sin billetera se consulta
-     * la lista como siempre; con la lista del BFF en pantalla, se sincroniza sin cambiar nada visible.
+     * con el indicador; si falla, queda la billetera con «No pudimos actualizar». Sin billetera, o con la
+     * lista del BFF en pantalla, se consulta la lista como siempre, que también sincroniza.
      */
     fun alReconectar() {
         if (consulta?.isActive == true) return
         when {
-            estado.modo == ModoPolizas.SIN_BILLETERA -> actualizar()
-            !estado.sinConexion -> viewModelScope.launch { billetera.sincronizar() }
+            !estado.sinConexion -> actualizar()
             else -> {
                 estado = estado.copy(sincronizando = true, hoy = LocalDate.now(reloj))
                 consulta = viewModelScope.launch {

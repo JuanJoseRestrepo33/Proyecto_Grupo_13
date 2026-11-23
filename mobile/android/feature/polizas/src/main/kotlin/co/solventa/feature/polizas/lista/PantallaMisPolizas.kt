@@ -77,8 +77,9 @@ fun RutaMisPolizas(
         MisPolizasViewModel(dependencias.api, dependencias.billetera, entrada, dependencias.reloj)
     }
     LaunchedEffect(entrada) { viewModel.alEntrar(entrada) }
-    // Solo mientras la pestaña está en pantalla: al volver la conexión se sincroniza sola (MOB-F03, §2).
-    LaunchedEffect(viewModel) { viewModel.vigilarReconexion() }
+    // Solo mientras la pestaña está en pantalla: sin red pasa a la billetera y al volver la red se sincroniza
+    // sola (MOB-F03, §2).
+    LaunchedEffect(viewModel) { viewModel.vigilarConexion() }
     val estado = viewModel.estado
     LaunchedEffect(estado.sesionVencida) {
         if (estado.sesionVencida) {

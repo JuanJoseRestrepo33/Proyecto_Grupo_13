@@ -1,5 +1,8 @@
 package co.solventa.feature.polizas.detalle
 
+import co.solventa.feature.polizas.VIGENTE
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.launch
 import androidx.lifecycle.SavedStateHandle
 import co.solventa.core.network.EstadoPoliza
 import co.solventa.feature.polizas.BilleteraDePrueba
@@ -323,5 +326,58 @@ class DetallePolizaViewModelTest {
         assertNull(vm.estado.pdf)
         vm.avisoMostrado()
         assertNull(vm.estado.aviso)
+    }
+
+    // ── Pérdida y vuelta de la red con el detalle abierto ────────────────────────────────────
+
+    @Test
+    fun `si se pierde la red con el detalle en pantalla pasa al guardado con la franja`() = runTest(main.dispatcher) {
+        runBlocking { billetera.guardar() }
+        val vm = detalle()
+        assertFalse(vm.estado.sinConexion)
+        val vigilancia = launch { vm.vigilarConexion() }
+
+        billetera.monitor.conectado.value = false
+
+        assertTrue(vm.estado.sinConexion)
+        assertFalse(vm.estado.sinActualizar)
+        assertEquals(SINCRONIZADA, vm.estado.sincronizadaEn)
+        assertTrue(vm.estado.descargaRequiereConexion)
+        vigilancia.cancel()
+    }
+
+    @Test
+    fun `un 5xx al reintentar sin conexion quita la franja y no mezcla lo guardado`() {
+        sinRed()
+        val vm = detalle()
+        assertTrue(vm.estado.sinConexion)
+
+        billetera.monitor.conectado.value = true
+        api.detalle = { throw fallaBff(503) }
+        vm.consultar()
+
+        assertFalse(vm.estado.sinConexion)
+        assertFalse(vm.estado.sinActualizar)
+        assertNull(vm.estado.detalle)
+        assertEquals(FalloConsulta.GENERICO, vm.estado.error)
+    }
+
+    @Test
+    fun `reintentar desde no pudimos actualizar vuelve a sincronizar y luego consulta`() {
+        sinRed()
+        val vm = detalle()
+        billetera.monitor.conectado.value = true
+        api.polizas = { throw fallaBff(503) }
+        vm.alReconectar()
+        assertTrue(vm.estado.sinActualizar)
+        val consultas = api.consultasPolizas
+
+        api.polizas = { listOf(VIGENTE) }
+        api.detalle = { COMPLETA }
+        vm.reintentar()
+
+        assertEquals(consultas + 1, api.consultasPolizas)
+        assertFalse(vm.estado.sinConexion)
+        assertTrue(vm.estado.ofreceDescarga)
     }
 }

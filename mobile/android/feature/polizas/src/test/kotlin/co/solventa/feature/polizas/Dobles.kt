@@ -33,6 +33,7 @@ import co.solventa.core.almacen.CifradoAesGcm
 import co.solventa.core.almacen.FuenteLlave
 import co.solventa.core.almacen.LlaveInexistente
 import co.solventa.core.almacen.MonitorConectividad
+import co.solventa.core.almacen.PuertoCifrado
 import co.solventa.feature.polizas.billetera.AlmacenBilletera
 import co.solventa.feature.polizas.billetera.BilleteraGuardada
 import co.solventa.feature.polizas.billetera.CuentaVigente
@@ -40,6 +41,7 @@ import co.solventa.feature.polizas.billetera.SincronizadorBilletera
 import co.solventa.feature.polizas.detalle.DocumentosPoliza
 import java.io.File
 import java.io.InputStream
+import java.io.OutputStream
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -182,7 +184,17 @@ class BilleteraDePrueba(carpeta: File, alcance: CoroutineScope, val reloj: Reloj
     val cuenta = CuentaFalsa()
     val llave = LlaveJca()
     val archivo = File(File(carpeta, "billetera"), "billetera.bin")
-    val almacen = AlmacenBilletera(ArchivoCifrado(archivo, CifradoAesGcm(llave)), Dispatchers.Unconfined)
+
+    /** Corre dentro del candado del almacén, mientras se escribe o se lee el archivo. */
+    var alCifrar: () -> Unit = {}
+    var alDescifrar: () -> Unit = {}
+    private val cifrado = CifradoAesGcm(llave)
+    private val conGanchos = object : PuertoCifrado {
+        override fun cifrar(destino: OutputStream): OutputStream = cifrado.cifrar(destino).also { alCifrar() }
+
+        override fun descifrar(origen: InputStream): InputStream = cifrado.descifrar(origen).also { alDescifrar() }
+    }
+    val almacen = AlmacenBilletera(ArchivoCifrado(archivo, conGanchos), Dispatchers.Unconfined)
     val sincronizador = SincronizadorBilletera(api, almacen, monitor, cuenta, alcance, reloj)
 
     /** Deja guardada [billetera] como si hubiera sincronizado. */

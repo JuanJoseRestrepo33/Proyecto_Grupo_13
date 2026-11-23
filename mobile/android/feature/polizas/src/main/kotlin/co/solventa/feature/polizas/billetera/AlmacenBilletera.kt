@@ -4,6 +4,7 @@ import co.solventa.core.almacen.ArchivoCifrado
 import co.solventa.core.almacen.ArchivoIlegible
 import co.solventa.core.network.NetworkClient
 import java.io.IOException
+import java.security.ProviderException
 import java.time.format.DateTimeParseException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,9 @@ class AlmacenBilletera(
             true
         } catch (ignored: IOException) {
             // Queda la billetera anterior, que sigue siendo coherente.
+            false
+        } catch (ignored: ProviderException) {
+            // El Keystore del equipo no pudo crear o usar la llave: igual que un fallo de escritura.
             false
         }
     }
@@ -85,6 +89,7 @@ class AlmacenBilletera(
         return leida.getOrNull()
     }
 
+    /** [ProviderException]: el Keystore del equipo falló al usar la llave; no debe cerrar la app. */
     private fun Throwable.esIlegible() = this is ArchivoIlegible || this is SerializationException ||
-        this is IllegalArgumentException || this is DateTimeParseException
+        this is IllegalArgumentException || this is DateTimeParseException || this is ProviderException
 }

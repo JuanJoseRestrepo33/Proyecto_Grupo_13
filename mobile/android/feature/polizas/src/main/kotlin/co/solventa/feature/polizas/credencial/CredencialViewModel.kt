@@ -41,6 +41,8 @@ data class EstadoCredencial(
     val sinConexion: Boolean = false,
     /** Volvió la conexión y se está sincronizando. */
     val sincronizando: Boolean = false,
+    /** Falló la sincronización al volver la conexión: franja «No pudimos actualizar» con «Reintentar» (§2). */
+    val sinActualizar: Boolean = false,
     val motivo: SinCredencial? = null,
     val sesionVencida: Boolean = false,
 )
@@ -60,6 +62,7 @@ class CredencialViewModel(
     var estado by mutableStateOf(EstadoCredencial(sinConexion = !billetera.conectado.value))
         private set
     private var carga: Job? = null
+    private val vigia = billetera.vigia()
 
     init {
         viewModelScope.launch {
@@ -88,9 +91,19 @@ class CredencialViewModel(
         }
     }
 
-    /** Mientras la pantalla esté visible: al volver la conexión con sesión, se sincroniza sola (§2). */
-    suspend fun vigilarReconexion() = billetera.vigilarReconexion { alReconectar() }
+    /**
+     * Mientras la pantalla esté visible: al volver la conexión con sesión, se sincroniza sola (§2). La
+     * franja «Sin conexión» sigue al monitor, así que perder la red no necesita nada más.
+     */
+    suspend fun vigilarConexion() = vigia.vigilar(
+        alPerder = {},
+        alReconectar = {
+            carga?.join()
+            alReconectar()
+        },
+    )
 
+    /** Al volver la conexión y con «Reintentar» de la franja «No pudimos actualizar». */
     fun alReconectar() {
         if (carga?.isActive == true) return
         estado = estado.copy(sincronizando = true)
@@ -106,14 +119,18 @@ class CredencialViewModel(
 
     private suspend fun sincronizarYMostrar() {
         when (val resultado = billetera.sincronizar()) {
-            is ResultadoSincronizacion.Completa ->
+            is ResultadoSincronizacion.Completa -> {
+                estado = estado.copy(sinActualizar = false)
                 if (resultado.billetera.detalle(numero) != null) {
                     mostrar(resultado.billetera)
                 } else {
                     estado = estado.copy(cargando = false, detalle = null, motivo = SinCredencial.NO_GUARDADA)
                 }
+            }
             is ResultadoSincronizacion.Fallida -> estado = estado.copy(
                 cargando = false,
+                // Con una credencial en pantalla se queda la que había, con «No pudimos actualizar».
+                sinActualizar = estado.detalle != null,
                 sesionVencida = resultado.sesionVencida,
                 // Con una credencial en pantalla, se queda la que había.
                 motivo = estado.motivo.takeIf { estado.detalle != null } ?: motivoSinDetalle(),

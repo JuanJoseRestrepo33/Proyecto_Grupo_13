@@ -57,7 +57,7 @@ fun RutaCredencial(
     val viewModel = viewModel {
         CredencialViewModel(createSavedStateHandle(), dependencias.billetera, dependencias.reloj)
     }
-    LaunchedEffect(viewModel) { viewModel.vigilarReconexion() }
+    LaunchedEffect(viewModel) { viewModel.vigilarConexion() }
     val estado = viewModel.estado
     LaunchedEffect(estado.sesionVencida) {
         if (estado.sesionVencida) {
@@ -66,7 +66,13 @@ fun RutaCredencial(
         }
     }
     BackHandler(onBack = onVolver)
-    PantallaCredencial(estado, onVolver, onReintentar = viewModel::cargar, zona = dependencias.reloj.zone)
+    PantallaCredencial(
+        estado,
+        onVolver,
+        onReintentar = viewModel::cargar,
+        zona = dependencias.reloj.zone,
+        onReintentarSincronizacion = viewModel::alReconectar,
+    )
 }
 
 /**
@@ -79,17 +85,21 @@ fun PantallaCredencial(
     onVolver: () -> Unit,
     onReintentar: () -> Unit,
     zona: ZoneId = ZoneId.systemDefault(),
+    onReintentarSincronizacion: () -> Unit = onReintentar,
 ) {
     val franja = when {
         estado.sincronizando -> Franja.SINCRONIZANDO
         estado.sinConexion -> Franja.SOLO_SIN_CONEXION
+        estado.sinActualizar -> Franja.SIN_ACTUALIZAR
         else -> null
     }
     PlantillaPolizas(
         titulo = stringResource(R.string.credencial_titulo),
         onVolver = onVolver,
         modifier = Modifier.testTag("pantalla-credencial"),
-        franja = franja?.let { { FranjaBilletera(it, estado.sincronizadaEn, zona) } },
+        franja = franja?.let {
+            { FranjaBilletera(it, estado.sincronizadaEn, zona, onReintentar = onReintentarSincronizacion) }
+        },
     ) {
         val detalle = estado.detalle
         when {

@@ -139,7 +139,9 @@ No se guarda el PDF ni ningún token: el token de refresco sigue en `AlmacenToke
 - **Cuándo:** cada vez que la lista llega bien con sesión (primera carga, entrada a la pestaña,
   «Actualizar», deslizar) y al volver la conexión. Después de la lista se piden, de a uno, los detalles de
   las `vigente` y `por_iniciar`.
-- **Una a la vez:** un segundo disparo espera la sincronización en curso y recibe su resultado.
+- **Una a la vez:** un segundo disparo espera la sincronización en curso y recibe su resultado. Solo
+  si es de la misma cuenta: una de la cuenta anterior va a descartar lo que traiga, así que la cuenta
+  nueva lanza la suya.
 - **Todo o nada:** si la lista y todos esos detalles llegan bien, se reemplaza la billetera y
   `sincronizada_en` pasa a ser la hora del final. Si algún detalle falla (un 5xx, sin red o un 404 de una
   póliza que desapareció entre las dos llamadas), la lista en pantalla se actualiza igual, como en #190,
@@ -147,9 +149,12 @@ No se guarda el PDF ni ningún token: el token de refresco sigue en `AlmacenToke
 - **El detalle manda:** si el detalle y el resumen de la misma póliza difieren, el resumen guardado se
   toma del detalle, que se pidió después. Lista y detalles son llamadas separadas: la billetera es una
   foto aproximada, no una instantánea transaccional del servidor.
-- **Al volver la conexión:** con la pestaña Pólizas, un detalle o una credencial en pantalla y una sesión
-  vigente, cuando `MonitorConectividad.conectado` pasa de `false` a `true` se sincroniza sola. Cada
-  `Ruta…` lo vigila con un `LaunchedEffect`, así que solo corre mientras la pantalla está en composición.
+- **Al perder y al volver la conexión:** con la pestaña Pólizas, un detalle o una credencial en
+  pantalla, cuando `MonitorConectividad.conectado` pasa a `false` la lista y el detalle pasan a lo
+  guardado con «Sin conexión · datos del …», y cuando pasa de `false` a `true` con una sesión vigente se
+  sincroniza sola. Cada pantalla tiene su `VigiaConexion`, que recuerda la última red que vio aunque
+  salga de composición: si la red volvió mientras el cliente estaba en otra pantalla, al regresar se
+  sincroniza. Un cambio que llega con una consulta en curso se atiende cuando esa consulta termina.
   Mientras tanto se ve lo guardado con «Conexión recuperada · actualizando tus pólizas…». Si falla
   (una red validada no garantiza llegar al BFF), queda la billetera con «No pudimos actualizar» y
   «Reintentar».
@@ -159,7 +164,8 @@ No se guarda el PDF ni ningún token: el token de refresco sigue en `AlmacenToke
 - Una **generación** (contador atómico) sube en `ObservadorCuenta.antes`, antes de que cambie la sesión,
   y al cerrar sesión. Cada sincronización anota el cliente y la generación con que empezó y, **dentro del
   candado** y justo antes de reemplazar el archivo, comprueba que no cambiaron; si cambiaron, descarta lo
-  que trae.
+  que trae. Lo mismo vale para lo que se publica en memoria: una billetera escrita o leída cuando la cuenta
+  ya cambió no llega a ninguna pantalla, y una sincronización no pide más detalles si la cuenta cambió.
 - La sesión cambia bajo el candado de `GestorSesion`, no bajo este, así que queda una ventana entre la
   comprobación y la escritura. La cierran dos reglas: el borrado por cambio de cuenta corre en
   `ObservadorCuenta.despues` con el mismo candado (siempre llega después de una escritura que se coló), y
@@ -249,11 +255,11 @@ siniestro, historial de pagos) y la credencial en la web.
 | `PantallasPolizasTest` (Compose) | Lista con datos, pestaña vacía, sin pólizas, error, detalle completo, detalle con datos faltantes y sin documento, no encontrada, descargando y avisos. También TalkBack y 48 dp |
 | `SolventaAppTest` (app) | La tarjeta abre `policies/detalle/{numero}` con Pólizas marcada, entrar de nuevo consulta, volver del detalle no, y el acceso directo a la ruta. «Ver credencial» abre `policies/credencial/{numero}` con Pólizas marcada, desde la lista y desde el detalle |
 | `SolventaRaizTest` (app) | Cerrar sesión avisa en el diálogo y borra la billetera; el vencimiento de la sesión no la borra |
-| `AlmacenBilleteraTest` | Guardar y leer sin texto en claro en el disco, escritura atómica ante un corte, archivo alterado, truncado o sin llave, billetera vacía, una sola billetera y la de otro dueño |
-| `SincronizadorBilleteraTest` | Todo o nada (5xx, sin red y 404 de un detalle), una a la vez, el detalle manda sobre el resumen, la lista que ya trajo la pantalla, 401, sin sesión; carreras: otra cuenta durante una sincronización, cierre durante una sincronización, escritura que se coló y dueño distinto tras reiniciar el proceso; vencimiento que no borra y cierre que sí; reconexión con y sin sesión |
-| `MisPolizasViewModelTest` (MOB-F03) | Una prueba por fila de la tabla de sin conexión, la vencida por fecha sin credencial, la reconexión que actualiza la fecha, la que falla y el indicador mientras sincroniza |
-| `DetallePolizaViewModelTest` (MOB-F03) | Detalle guardado con el PDF inactivo, tiempo agotado, vencida por fecha, detalle no guardado y la reconexión que vuelve a consultar o falla |
-| `CredencialViewModelTest` | Con y sin conexión lee la billetera, sincroniza primero si falta, necesita conexión, no vigente, por iniciar que ya empezó, no guardada y la reconexión |
+| `AlmacenBilleteraTest` | Guardar y leer sin texto en claro en el disco, escritura atómica ante un corte, archivo alterado, truncado o sin llave, un fallo del Keystore (`ProviderException`) al escribir o leer, billetera vacía, una sola billetera y la de otro dueño |
+| `SincronizadorBilleteraTest` | Todo o nada (5xx, sin red y 404 de un detalle), una a la vez, el detalle manda sobre el resumen, la lista que ya trajo la pantalla, 401, sin sesión; carreras: otra cuenta durante una sincronización, cierre durante una sincronización, escritura que se coló, otra cuenta justo después de escribir o mientras se lee, la sincronización de la cuenta anterior que no se comparte y dueño distinto tras reiniciar el proceso; vencimiento que no borra y cierre que sí; la vigía: pérdida, vuelta con y sin sesión y el cambio que llegó mientras la pantalla no vigilaba |
+| `MisPolizasViewModelTest` (MOB-F03) | Una prueba por fila de la tabla de sin conexión, la vencida por fecha sin credencial, la red que se pierde con la lista en pantalla (con y sin billetera), la reconexión que actualiza la fecha, la que falla, la que llega con una consulta en curso o mientras el cliente estaba en otra pantalla y el indicador mientras sincroniza |
+| `DetallePolizaViewModelTest` (MOB-F03) | Detalle guardado con el PDF inactivo, tiempo agotado, vencida por fecha, detalle no guardado, la red que se pierde con el detalle en pantalla, un 5xx que quita la franja, la reconexión que vuelve a consultar o falla y «Reintentar» que vuelve a sincronizar |
+| `CredencialViewModelTest` | Con y sin conexión lee la billetera, sincroniza primero si falta, necesita conexión, no vigente, por iniciar que ya empezó, no guardada y la reconexión, también la que falla con «No pudimos actualizar» y «Reintentar» |
 | `ReglasPolizaTest` (MOB-F03) | Una prueba por fila de la vigencia sin conexión, con los bordes `inicio` y `fin`, y los formatos de la fecha de sincronización |
 | `PantallasBilleteraTest` (Compose) | Con conexión, sin conexión, tiempo agotado, sincronizando, sin billetera, billetera vacía, vencida por fecha, detalle sin conexión y no guardado, credencial con y sin conexión, con datos faltantes y sin credencial. También TalkBack y 48 dp |
 | `MockPolizasTest` · `MockSiniestrosTest` (app) | Escenarios del mock. Las pólizas del asistente de reporte conservan su número |

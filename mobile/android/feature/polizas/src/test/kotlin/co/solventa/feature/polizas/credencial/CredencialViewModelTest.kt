@@ -138,4 +138,21 @@ class CredencialViewModelTest {
         assertEquals(SINCRONIZADA, vm.estado.sincronizadaEn)
         assertNull(vm.estado.motivo)
     }
+
+    @Test
+    fun `si la sincronizacion al reconectar falla la credencial ofrece reintentar y luego se actualiza`() {
+        runBlocking { b.guardar() }
+        val vm = credencial()
+        b.api.polizas = { throw fallaBff(503) }
+        vm.alReconectar()
+        assertTrue(vm.estado.sinActualizar)
+
+        val luego = Instant.parse("2026-11-18T16:00:00Z")
+        b.reloj.instante = luego
+        b.api.polizas = { listOf(VIGENTE) }
+        vm.alReconectar()
+
+        assertFalse(vm.estado.sinActualizar)
+        assertEquals(luego, vm.estado.sincronizadaEn)
+    }
 }

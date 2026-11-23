@@ -1,5 +1,7 @@
 package co.solventa.feature.polizas.lista
 
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.launch
 import co.solventa.core.network.EstadoPoliza
 import co.solventa.feature.polizas.BilleteraDePrueba
 import co.solventa.feature.polizas.COMPLETA
@@ -322,5 +324,77 @@ class MisPolizasViewModelTest {
         assertEquals(3, vm.estado.mostradas?.size)
         respuesta.complete(Unit)
         assertFalse(vm.estado.sincronizando)
+    }
+
+    // ── Pérdida y vuelta de la red con la pantalla abierta ───────────────────────────────────
+
+    @Test
+    fun `si se pierde la red con la lista en pantalla pasa a la billetera con la franja sin conexion`() =
+        runTest(main.dispatcher) {
+        val vm = vm()
+        assertEquals(ModoPolizas.EN_LINEA, vm.estado.modo)
+        val vigilancia = launch { vm.vigilarConexion() }
+
+        billetera.monitor.conectado.value = false
+
+        assertEquals(ModoPolizas.SIN_CONEXION, vm.estado.modo)
+        assertEquals(SINCRONIZADA, vm.estado.billetera?.momento)
+        assertEquals(3, vm.estado.mostradas?.size)
+        vigilancia.cancel()
+    }
+
+    @Test
+    fun `si se pierde la red y nunca hubo una sincronizacion completa queda la lista del BFF`() =
+        runTest(main.dispatcher) {
+        api.detalle = { throw fallaBff(503) }
+        val vm = vm()
+        val vigilancia = launch { vm.vigilarConexion() }
+
+        billetera.monitor.conectado.value = false
+
+        assertEquals(ModoPolizas.EN_LINEA, vm.estado.modo)
+        assertEquals(3, vm.estado.polizas?.size)
+        vigilancia.cancel()
+    }
+
+    @Test
+    fun `una reconexion que llega con una consulta en curso se atiende al terminarla`() = runTest(main.dispatcher) {
+        guardada()
+        billetera.monitor.conectado.value = false
+        val respuesta = CompletableDeferred<Unit>()
+        api.polizas = {
+            respuesta.await()
+            throw IOException("sin red")
+        }
+        val vm = vm()
+        val vigilancia = launch { vm.vigilarConexion() }
+
+        billetera.monitor.conectado.value = true
+        api.polizas = { listOf(VIGENTE) }
+        respuesta.complete(Unit)
+
+        assertEquals("se sincronizó sola al terminar la consulta", ModoPolizas.EN_LINEA, vm.estado.modo)
+        assertEquals(listOf(COMPLETA.resumen), vm.estado.polizas)
+        vigilancia.cancel()
+    }
+
+    @Test
+    fun `si la red volvio mientras el cliente estaba en otra pantalla al regresar se sincroniza`() =
+        runTest(main.dispatcher) {
+        guardada()
+        billetera.monitor.conectado.value = false
+        api.polizas = { throw IOException("sin red") }
+        val vm = vm()
+        val primera = launch { vm.vigilarConexion() }
+        // Abre el detalle: la lista sale de composición y deja de vigilar.
+        primera.cancel()
+
+        billetera.monitor.conectado.value = true
+        api.polizas = { listOf(VIGENTE) }
+        val segunda = launch { vm.vigilarConexion() }
+
+        assertEquals(ModoPolizas.EN_LINEA, vm.estado.modo)
+        assertEquals(listOf(COMPLETA.resumen), vm.estado.polizas)
+        segunda.cancel()
     }
 }

@@ -80,7 +80,7 @@ fun RutaDetallePoliza(
             dependencias.reloj,
         )
     }
-    LaunchedEffect(viewModel) { viewModel.vigilarReconexion() }
+    LaunchedEffect(viewModel) { viewModel.vigilarConexion() }
     val contexto = LocalContext.current
     val visor = remember(contexto) { dependencias.visor ?: VisorPdfAndroid(contexto) }
     val estado = viewModel.estado
@@ -97,7 +97,7 @@ fun RutaDetallePoliza(
     PantallaDetallePoliza(
         estado = estado,
         onVolver = onVolver,
-        onReintentar = viewModel::consultar,
+        onReintentar = viewModel::reintentar,
         onDescargar = viewModel::descargar,
         onAvisoMostrado = viewModel::avisoMostrado,
         onCredencial = { onCredencial(viewModel.numero) },

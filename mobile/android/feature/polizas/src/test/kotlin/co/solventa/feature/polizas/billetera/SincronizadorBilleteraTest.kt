@@ -239,31 +239,113 @@ class SincronizadorBilleteraTest {
         assertEquals(0, b.api.consultasPolizas)
     }
 
-    // ── Reconexión ───────────────────────────────────────────────────────────────────────────
+    // ── Carreras de publicación (§3) ─────────────────────────────────────────────────────────
 
     @Test
-    fun `al pasar de sin red a con red y con sesion avisa una vez`() = runTest(main.dispatcher) {
-        b.monitor.conectado.value = false
-        var reconexiones = 0
-        val vigilancia = launch { sincronizador.vigilarReconexion { reconexiones += 1 } }
+    fun `si otra cuenta entra justo despues de escribir la billetera no se publica ni queda en disco`() =
+        runTest(main.dispatcher) {
+        // La comprobación dentro del candado pasó y el archivo se está escribiendo: en ese momento entra
+        // OTRO_CLIENTE (antes y la sesión nueva); su despues llega cuando termina la escritura.
+        b.alCifrar = {
+            b.alCifrar = {}
+            sincronizador.cambioDeCuenta()
+            b.cuenta.clienteId = OTRO_CLIENTE
+        }
 
+        val resultado = sincronizador.sincronizar()
+        sincronizador.cuentaCambiada(OTRO_CLIENTE)
+
+        assertEquals(ResultadoSincronizacion.Omitida, resultado)
+        assertNull("la cuenta nueva no ve la billetera de la anterior", sincronizador.estado.value.guardada)
+        assertNull(enDisco())
+    }
+
+    @Test
+    fun `si la cuenta cambia mientras se lee la billetera no se devuelve ni se publica`() = runTest(main.dispatcher) {
+        b.guardar()
+        b.alDescifrar = {
+            b.alDescifrar = {}
+            sincronizador.cambioDeCuenta()
+            b.cuenta.clienteId = OTRO_CLIENTE
+        }
+
+        assertNull(sincronizador.cargar())
+        assertNull(sincronizador.estado.value.guardada)
+    }
+
+    @Test
+    fun `una sincronizacion de la cuenta anterior no se comparte con la nueva`() = runTest(main.dispatcher) {
+        val detalle = CompletableDeferred<Unit>()
+        b.api.detalle = {
+            detalle.await()
+            COMPLETA
+        }
+        val anterior = async { sincronizador.sincronizar(listOf(VIGENTE)) }
+
+        sincronizador.cambioDeCuenta()
+        b.cuenta.clienteId = OTRO_CLIENTE
+        sincronizador.cuentaCambiada(OTRO_CLIENTE)
+        val nueva = async { sincronizador.sincronizar(listOf(VIGENTE)) }
+        detalle.complete(Unit)
+
+        assertEquals(ResultadoSincronizacion.Omitida, anterior.await())
+        val guardada = (nueva.await() as ResultadoSincronizacion.Completa).billetera
+        assertEquals(OTRO_CLIENTE, guardada.clienteId)
+        assertEquals(OTRO_CLIENTE, enDisco()?.clienteId)
+    }
+
+    @Test
+    fun `si la cuenta cambia a mitad de la sincronizacion no se piden los detalles que faltan`() =
+        runTest(main.dispatcher) {
+        b.api.detalle = { numero ->
+            sincronizador.cambioDeCuenta()
+            b.cuenta.clienteId = null
+            if (numero == POR_INICIAR.numero) error("no debía pedirse") else COMPLETA
+        }
+
+        assertEquals(ResultadoSincronizacion.Omitida, sincronizador.sincronizar())
+        assertEquals(1, b.api.consultasDetalle)
+    }
+
+    // ── Vigía de la conexión ─────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `avisa la perdida de la red y la vuelta con sesion`() = runTest(main.dispatcher) {
+        val eventos = mutableListOf<String>()
+        val vigia = sincronizador.vigia()
+        val vigilancia = launch { vigia.vigilar({ eventos += "perdida" }, { eventos += "vuelta" }) }
+
+        b.monitor.conectado.value = false
         b.monitor.conectado.value = true
         b.monitor.conectado.value = false
         b.cuenta.clienteId = null
         b.monitor.conectado.value = true
 
-        assertEquals("sin sesión no hay a quién sincronizar", 1, reconexiones)
+        assertEquals("sin sesión no hay a quién sincronizar", listOf("perdida", "vuelta", "perdida"), eventos)
         vigilancia.cancel()
     }
 
     @Test
     fun `con red desde el principio no avisa`() = runTest(main.dispatcher) {
-        var reconexiones = 0
-        val vigilancia = launch { sincronizador.vigilarReconexion { reconexiones += 1 } }
+        var eventos = 0
+        val vigilancia = launch { sincronizador.vigia().vigilar({ eventos += 1 }, { eventos += 1 }) }
 
         b.monitor.conectado.value = true
 
-        assertEquals(0, reconexiones)
+        assertEquals(0, eventos)
+        vigilancia.cancel()
+    }
+
+    @Test
+    fun `un cambio de red mientras la pantalla no vigilaba se avisa al volver a vigilar`() = runTest(main.dispatcher) {
+        b.monitor.conectado.value = false
+        val vigia = sincronizador.vigia()
+        val eventos = mutableListOf<String>()
+
+        b.monitor.conectado.value = true
+        val vigilancia = launch { vigia.vigilar({ eventos += "perdida" }, { eventos += "vuelta" }) }
+
+        assertEquals(listOf("vuelta"), eventos)
         vigilancia.cancel()
     }
 }

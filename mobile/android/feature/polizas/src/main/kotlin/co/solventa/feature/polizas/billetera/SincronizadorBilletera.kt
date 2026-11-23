@@ -68,42 +68,44 @@ class SincronizadorBilletera(
     /** Si hay una red validada; con red, un `SinConexion` del BFF es un tiempo agotado. */
     val conectado: StateFlow<Boolean> get() = monitor.conectado
 
-    private var enCurso: Deferred<ResultadoSincronizacion>? = null
+    private var enCurso: EnCurso? = null
     private val candadoEnCurso = Any()
+
+    /** La sincronización en curso y la cuenta (cliente y generación) para la que empezó. */
+    private class EnCurso(val cliente: String?, val generacion: Int, val trabajo: Deferred<ResultadoSincronizacion>)
 
     /** Lee la billetera del cliente de la sesión. Una de otro dueño se borra y no se muestra. */
     suspend fun cargar(): BilleteraGuardada? {
-        val cliente = cuenta.clienteId
-        val billetera = if (cliente == null) null else almacen.leer { it == cliente }
-        // Solo se publica si la cuenta no cambió mientras se leía.
-        if (cuenta.clienteId == cliente) _estado.update { it.copy(guardada = billetera) }
-        return billetera
+        val cliente = cuenta.clienteId ?: return null
+        val inicio = generacion.get()
+        val billetera = almacen.leer { it == cliente }
+        // Solo se publica y se devuelve si la cuenta no cambió mientras se leía (§3).
+        val sigue = { generacion.get() == inicio && cuenta.clienteId == cliente }
+        val publicada = publicarSi(sigue) { it.copy(guardada = billetera) }
+        return billetera.takeIf { publicada && sigue() }
     }
 
     /**
      * Sincroniza con [lista] si la pantalla ya la trajo (así no se pide dos veces) o pidiéndola. Si ya hay
-     * una sincronización en curso, devuelve su resultado.
+     * una sincronización en curso **de la misma cuenta**, devuelve su resultado. Una de la cuenta anterior
+     * no se comparte: va a descartar lo que traiga, y la cuenta nueva necesita la suya.
      */
     suspend fun sincronizar(lista: List<PolizaResumen>? = null): ResultadoSincronizacion {
         val trabajo = synchronized(candadoEnCurso) {
-            enCurso?.takeIf { it.isActive } ?: alcance.async { ejecutar(lista) }.also { enCurso = it }
+            val cliente = cuenta.clienteId
+            val actual = generacion.get()
+            enCurso?.takeIf { it.trabajo.isActive && it.cliente == cliente && it.generacion == actual }?.trabajo
+                ?: alcance.async { ejecutar(lista) }.also { enCurso = EnCurso(cliente, actual, it) }
         }
         return trabajo.await()
     }
 
     /**
-     * Mientras quien llama esté activo (la pestaña Pólizas, un detalle o una credencial en pantalla), cada
-     * vez que [MonitorConectividad.conectado] pasa de false a true con una sesión vigente, llama a
-     * [alReconectar]. Sin sesión no hay a quién sincronizar.
+     * Una vigía por pantalla (la pestaña Pólizas, un detalle o una credencial): recuerda la última red que
+     * esa pantalla vio, también mientras está fuera de composición. Así, si la red volvió mientras el
+     * cliente miraba otra pantalla, al regresar se trata como una reconexión.
      */
-    suspend fun vigilarReconexion(alReconectar: suspend () -> Unit) {
-        var anterior = monitor.conectado.value
-        monitor.conectado.collect { ahora ->
-            val reconecta = !anterior && ahora
-            anterior = ahora
-            if (reconecta && cuenta.clienteId != null) alReconectar()
-        }
-    }
+    fun vigia(): VigiaConexion = VigiaConexion(monitor.conectado) { cuenta.clienteId != null }
 
     /** `ObservadorCuenta.antes`: corre antes de que cambie la sesión (otra cuenta, cierre o vencimiento). */
     fun cambioDeCuenta() {
@@ -116,7 +118,7 @@ class SincronizadorBilletera(
      * son justo los casos que cubre la billetera; el cierre de sesión borra con [cerrarSesion].
      */
     fun cuentaCambiada(cliente: String?) {
-        _estado.update { if (it.guardada?.clienteId == cliente) it else it.copy(guardada = null) }
+        _estado.update { if (cliente != null && it.guardada?.clienteId == cliente) it else it.copy(guardada = null) }
         if (cliente != null) alcance.launch { almacen.borrarSiNoEsDe(cliente) }
     }
 
@@ -132,14 +134,17 @@ class SincronizadorBilletera(
         val inicio = generacion.get()
         _estado.update { it.copy(sincronizando = true) }
         return try {
-            val lista = dada ?: pedir { api.listarPolizas() }
+            val sigue = { generacion.get() == inicio && cuenta.clienteId == cliente }
+            val lista = dada ?: pedir(sigue) { api.listarPolizas() }
             // De a uno; el primer fallo (5xx, sin red o un 404 de una póliza que desapareció entre las dos
-            // llamadas) deja la billetera anterior.
+            // llamadas) deja la billetera anterior. Si la cuenta cambia, no se piden los que faltan.
             val detalles = lista.filter(BilleteraGuardada::guardaDetalle)
-                .map { pedir { api.obtenerPoliza(it.numero) } }
+                .map { pedir(sigue) { api.obtenerPoliza(it.numero) } }
             guardar(cliente, inicio, lista, detalles)
         } catch (ignored: FalloAlTraer) {
             fallida(ignored.resultado)
+        } catch (ignored: CuentaCambiada) {
+            ResultadoSincronizacion.Omitida
         } finally {
             _estado.update { it.copy(sincronizando = false) }
         }
@@ -163,23 +168,68 @@ class SincronizadorBilletera(
         )
         val vigente = { generacion.get() == inicio && cuenta.clienteId == cliente }
         val guardada = almacen.guardarSi(billetera, vigente)
-        if (guardada) _estado.update { it.copy(guardada = billetera) }
+        // La cuenta pudo cambiar entre la escritura y este punto: entonces la billetera ya no se publica (la
+        // borra el observador, que llega después) y nadie de la cuenta nueva la ve.
+        val publicada = guardada && publicarSi(vigente) { it.copy(guardada = billetera) }
         return when {
-            guardada -> ResultadoSincronizacion.Completa(billetera)
+            publicada -> ResultadoSincronizacion.Completa(billetera)
             !vigente() -> ResultadoSincronizacion.Omitida
             else -> ResultadoSincronizacion.Fallida()
         }
     }
 
-    private suspend fun <T> pedir(llamada: suspend () -> T): T = when (val resultado = llamarBff(llamada)) {
-        is Resultado.Exito -> resultado.valor
-        else -> throw FalloAlTraer(resultado)
+    /**
+     * Aplica [cambio] solo si [vigente] sigue siendo cierta. La comprobación va dentro del `update`: si el
+     * observador de cuenta cambia el estado entre la comprobación y la escritura, el `update` reintenta y
+     * vuelve a comprobar. @return true si se aplicó.
+     */
+    private fun publicarSi(vigente: () -> Boolean, cambio: (EstadoBilletera) -> EstadoBilletera): Boolean {
+        var aplicado = false
+        _estado.update { actual ->
+            aplicado = vigente()
+            if (aplicado) cambio(actual) else actual
+        }
+        return aplicado
+    }
+
+    private suspend fun <T> pedir(sigue: () -> Boolean, llamada: suspend () -> T): T {
+        if (!sigue()) throw CuentaCambiada()
+        return when (val resultado = llamarBff(llamada)) {
+            is Resultado.Exito -> resultado.valor
+            else -> throw FalloAlTraer(resultado)
+        }
     }
 
     /** Una llamada de la sincronización no llegó bien: corta el resto. */
     private class FalloAlTraer(val resultado: Resultado<*>) : Exception()
 
+    /** La cuenta cambió a mitad de la sincronización: no se piden los detalles que faltan. */
+    private class CuentaCambiada : Exception()
+
     private fun fallida(resultado: Resultado<*>) = ResultadoSincronizacion.Fallida(
         sesionVencida = resultado is Resultado.Falla && resultado.http == HTTP_NO_AUTENTICADO,
     )
+}
+
+/**
+ * Lo último que una pantalla vio de la red (MOB-F03, §2 y §4). [vigilar] avisa cuando la red se pierde y
+ * cuando vuelve con una sesión vigente. Lo visto se conserva entre composiciones: una pantalla que vuelve a
+ * componerse después de que la red cambió recibe el aviso que se perdió.
+ */
+class VigiaConexion internal constructor(
+    private val conectado: StateFlow<Boolean>,
+    private val conSesion: () -> Boolean,
+) {
+    private var visto = conectado.value
+
+    suspend fun vigilar(alPerder: suspend () -> Unit, alReconectar: suspend () -> Unit) {
+        conectado.collect { ahora ->
+            val antes = visto
+            visto = ahora
+            when {
+                antes && !ahora -> alPerder()
+                !antes && ahora && conSesion() -> alReconectar()
+            }
+        }
+    }
 }
