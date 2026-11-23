@@ -72,7 +72,7 @@ jobs:
           # ContraMockoonTest: el cliente renueva solo un token vencido contra el BFF simulado.
           MOCKOON_URL: http://localhost:3001/api/v1/movil/
         run: >-
-          ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
+          ./gradlew --no-daemon :core:network:test :core:almacen:testDebugUnitTest :core:designsystem:testDebugUnitTest
           :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest
           :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest
           :feature:polizas:testDebugUnitTest

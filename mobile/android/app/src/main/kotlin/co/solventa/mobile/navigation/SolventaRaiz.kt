@@ -87,7 +87,7 @@ fun SolventaRaiz(
                 onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
                 avisoBiometriaDesactivada = sesion.biometriaDesactivada,
                 onAvisoAtendido = sesion::avisoBiometriaAtendido,
-                onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones) },
+                onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones, dependenciasPolizas) },
             )
         }
     }
@@ -107,9 +107,18 @@ private fun VolverAlIngresoAlVencer(sesion: GestorSesion, nav: NavHostController
     }
 }
 
-/** La baja del dispositivo usa el token de la sesión: va antes de olvidarla (MOB-F06). */
-private fun cerrarSesion(sesion: GestorSesion, notificaciones: DependenciasNotificaciones?) {
+/**
+ * La baja del dispositivo usa el token de la sesión: va antes de olvidarla (MOB-F06). La billetera se
+ * borra al cerrar sesión (MOB-F03) y no al vencer: `ObservadorCuenta` recibe null en los dos casos, así
+ * que el borrado va aquí y no en el observador.
+ */
+internal fun cerrarSesion(
+    sesion: GestorSesion,
+    notificaciones: DependenciasNotificaciones?,
+    polizas: DependenciasPolizas? = null,
+) {
     notificaciones?.receptor?.darDeBaja()
+    polizas?.billetera?.cerrarSesion()
     sesion.cerrar()
 }
 

@@ -1,11 +1,16 @@
 package co.solventa.mobile.navigation
 
+import co.solventa.core.almacen.ArchivoCifrado
 import co.solventa.core.network.BffApi
+import co.solventa.feature.polizas.billetera.AlmacenBilletera
+import co.solventa.feature.polizas.billetera.CuentaVigente
+import co.solventa.feature.polizas.billetera.SincronizadorBilletera
+import java.io.File
 import co.solventa.feature.siniestros.borrador.AlmacenBorradoresCifrado
-import co.solventa.feature.siniestros.borrador.CifradoAesGcm
+import co.solventa.core.almacen.CifradoAesGcm
 import co.solventa.feature.siniestros.borrador.EnviadorBorradores
-import co.solventa.feature.siniestros.borrador.FuenteLlave
-import co.solventa.feature.siniestros.borrador.MonitorConectividad
+import co.solventa.core.almacen.FuenteLlave
+import co.solventa.core.almacen.MonitorConectividad
 import java.nio.file.Files
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -38,3 +43,22 @@ fun enviadorDePrueba(
     alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     io = Dispatchers.Main,
 )
+
+/** La billetera real (MOB-F03), cifrada en una carpeta temporal con una llave de la JCA. */
+class BilleteraDePrueba(
+    api: BffApi,
+    cuenta: CuentaVigente,
+    monitor: MonitorConectividad = MonitorConectividad.Siempre,
+) {
+    val archivo = File(Files.createTempDirectory("billetera").toFile().apply { deleteOnExit() }, "billetera.bin")
+    val sincronizador = SincronizadorBilletera(
+        api = api,
+        almacen = AlmacenBilletera(ArchivoCifrado(archivo, CifradoAesGcm(LlaveEnMemoria())), Dispatchers.Main),
+        monitor = monitor,
+        cuenta = cuenta,
+        alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    )
+}
+
+/** Una cuenta fija, para las pruebas que no pasan por el ingreso. */
+class CuentaFija(override val clienteId: String?, override val nombreCompleto: String? = "Cliente Demo") : CuentaVigente

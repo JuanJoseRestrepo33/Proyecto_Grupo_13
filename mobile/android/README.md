@@ -16,7 +16,7 @@ Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :core:network:test :core:almacen:testDebugUnitTest :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest :feature:polizas:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :koverXmlReport :koverVerify
 ./gradlew :koverHtmlReport
 ./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
@@ -24,7 +24,7 @@ Desde esta carpeta:
 ./gradlew :app:installDebug
 ```
 
-Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y los módulos `feature/*` en la raíz.
+Kover 0.9.1 agrega `app`, `core/network`, `core/almacen`, `core/designsystem` y los módulos `feature/*` en la raíz.
 `:koverVerify` falla si la cobertura total de líneas es menor al **70%**; XML:
 `build/reports/kover/report.xml`, HTML: `build/reports/kover/html/index.html`.
 El total incluye las variantes debug y release de Android y el módulo JVM; las tareas
@@ -47,6 +47,9 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
   AppCompat porque el diálogo de huella de API 26–27 usa diálogos AppCompat.
 - `core/network`: módulo Kotlin/JVM; Retrofit, OkHttp y kotlinx.serialization,
   sin dependencia de Android. API suspend, timeouts explícitos y sin logging de cuerpos.
+- `core/almacen`: lo que la app guarda cifrado en el teléfono: AES-256-GCM en flujo, llaves del Android
+  Keystore, escritura atómica y el monitor de conectividad. Lo usan los borradores de siniestros
+  (MOB-F05-02) y la billetera de pólizas (MOB-F03); ver [su README](core/almacen/README.md).
 - `core/designsystem`: biblioteca Compose con colores, escala tipográfica, radios y
   espaciado del **Design System v2 PDF**, que tiene prioridad sobre el JSON v1.
 - `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
@@ -58,9 +61,9 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/notificaciones`: **MOB-F06**. Push del siniestro con el proveedor simulado: registro del
   dispositivo, lectura de la bandeja, notificación local que abre el detalle del siniestro y aviso del
   permiso con alternativa (P20). Ver [su README](feature/notificaciones/README.md).
-- `feature/polizas`: **WEB-F04** en la app. «Mis pólizas» en la pestaña Pólizas (Activas, Vencidas y
-  Todas) y el detalle con coberturas, deducible, límites y el PDF de la póliza. Ver
-  [su README](feature/polizas/README.md).
+- `feature/polizas`: **WEB-F04** y **MOB-F03** en la app. «Mis pólizas» en la pestaña Pólizas (Activas,
+  Vencidas y Todas), el detalle con coberturas, deducible, límites y el PDF de la póliza, y la billetera
+  cifrada con la credencial digital para consultarlas sin conexión. Ver [su README](feature/polizas/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -234,6 +237,7 @@ sin interceptor y requiere configurar la URL del ambiente.
 | Responder un requerimiento | «Responder» en el caso que requiere información: queda atendido; otra respuesta recibe 409 `requerimiento_ya_atendido`. Un caso rechazado o pagado responde 409 `siniestro_cerrado`. Con lugar `#perdida` la respuesta se pierde y la app concilia antes de reenviar |
 | Push del siniestro (MOB-F06) | `ana@ejemplo.co`: 20 s después de registrar el dispositivo (al iniciar sesión), la bandeja trae «Tu siniestro SIN-2026-000902 cambió»; la app lo muestra en la lectura siguiente (cada 30 s o al volver a la app) y tocarlo abre ese caso. Con el permiso negado, Inicio explica y ofrece «Ver mis siniestros». Las demás cuentas tienen la bandeja vacía |
 | Reporte sin conexión (MOB-F05-02) | Modo avión en el emulador: el mock no simula la falta de red; en las pruebas JVM se usa un `MonitorConectividad` falso |
+| Billetera sin conexión (MOB-F03) | El mock responde sin salir a la red, así que el modo avión **no** produce `SinConexion` en debug. Las pruebas JVM y de Compose usan un `BffApi` que lanza `IOException` y un `MonitorConectividad` falso; la red cortada de verdad se comprueba con el build de release contra staging |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.

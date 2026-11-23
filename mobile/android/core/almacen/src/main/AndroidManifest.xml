@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- MonitorConectividad: los borradores (MOB-F05-02) y la billetera (MOB-F03) actúan al volver una red validada. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+</manifest>

@@ -118,6 +118,7 @@ fun SolventaApp(
                             dependencias = dependenciasPolizas,
                             entrada = entradasPolizas,
                             onAbrir = { numero -> navController.navigate(rutaDetallePoliza(numero)) },
+                            onCredencial = { numero -> navController.navigate(rutaCredencial(numero)) },
                             onSesionVencida = onSesionVencida,
                         )
                         return@composable
@@ -161,7 +162,11 @@ fun SolventaApp(
                             )
                         }
                         if (destination == TopLevelDestination.PROFILE && onCerrarSesion != null) {
-                            CerrarSesion(dependenciasSiniestros, onCerrarSesion)
+                            CerrarSesion(
+                                dependenciasSiniestros,
+                                conBilletera = dependenciasPolizas != null,
+                                onCerrar = onCerrarSesion,
+                            )
                         }
                     }
                 }
@@ -308,13 +313,16 @@ private fun volverAMisSiniestros(navController: NavHostController) {
     }
 }
 
-/** Perfil: cerrar sesión. Con borradores sin enviar se avisa que siguen guardados para esta cuenta (M13). */
+/**
+ * Perfil: cerrar sesión. Con borradores sin enviar se avisa que siguen guardados para esta cuenta (M13).
+ * Con la billetera (MOB-F03) se avisa que las pólizas dejarán de estar disponibles sin conexión.
+ */
 @Composable
-private fun CerrarSesion(siniestros: DependenciasSiniestros?, onCerrar: () -> Unit) {
+private fun CerrarSesion(siniestros: DependenciasSiniestros?, conBilletera: Boolean, onCerrar: () -> Unit) {
     var confirmando by rememberSaveable { mutableStateOf(false) }
     val pendientes = siniestros?.enviador?.tarjetas?.collectAsState()?.value.orEmpty().count { it !is Tarjeta.Enviada }
     OutlinedButton(
-        onClick = { if (pendientes > 0) confirmando = true else onCerrar() },
+        onClick = { if (pendientes > 0 || conBilletera) confirmando = true else onCerrar() },
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = SolventaSpacing.touchTarget)
@@ -323,8 +331,24 @@ private fun CerrarSesion(siniestros: DependenciasSiniestros?, onCerrar: () -> Un
     if (confirmando) {
         AlertDialog(
             onDismissRequest = { confirmando = false },
-            title = { Text(pluralStringResource(R.plurals.cerrar_pendientes_titulo, pendientes, pendientes)) },
-            text = { Text(stringResource(R.string.cerrar_pendientes_texto)) },
+            title = {
+                if (pendientes > 0) {
+                    Text(pluralStringResource(R.plurals.cerrar_pendientes_titulo, pendientes, pendientes))
+                } else {
+                    Text(stringResource(R.string.cerrar_titulo))
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(SolventaSpacing.sm)) {
+                    if (pendientes > 0) Text(stringResource(R.string.cerrar_pendientes_texto))
+                    if (conBilletera) {
+                        Text(
+                            stringResource(R.string.cerrar_billetera_texto),
+                            modifier = Modifier.testTag("cerrar-billetera-texto"),
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

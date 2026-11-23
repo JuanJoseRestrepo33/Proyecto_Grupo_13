@@ -39,6 +39,8 @@ kover {
 dependencies {
     // api: la app construye las dependencias del flujo con tipos de core/network (BffApi).
     api(project(":core:network"))
+    // Cifrado, llave del Keystore y monitor de conectividad, compartidos con la billetera (MOB-F03).
+    api(project(":core:almacen"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

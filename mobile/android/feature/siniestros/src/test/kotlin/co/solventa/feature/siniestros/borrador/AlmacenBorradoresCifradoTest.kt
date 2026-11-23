@@ -1,5 +1,7 @@
 package co.solventa.feature.siniestros.borrador
 
+import co.solventa.core.almacen.ArchivoIlegible
+import co.solventa.core.almacen.CifradoAesGcm
 import co.solventa.core.network.Dinero
 import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.TipoEventoSiniestro
@@ -107,7 +109,7 @@ class AlmacenBorradoresCifradoTest {
         val bytes = manifiesto.readBytes()
         bytes[bytes.size - 5] = (bytes[bytes.size - 5].toInt() xor 0x01).toByte()
         manifiesto.writeBytes(bytes)
-        val error = assertThrows(BorradorIlegible::class.java) { almacen.leer(CLIENTE, "B-1") }
+        val error = assertThrows(ArchivoIlegible::class.java) { almacen.leer(CLIENTE, "B-1") }
         assertTrue(error.permanente)
         assertEquals(listOf(EntradaBorrador.Ilegible("B-1", permanente = true)), almacen.listar(CLIENTE))
         // Nunca se descarta solo.
@@ -115,7 +117,7 @@ class AlmacenBorradoresCifradoTest {
 
         val evidencia = File(raiz, "$CLIENTE/B-1/ADJ-1.bin")
         evidencia.writeBytes(evidencia.readBytes().also { it[it.size - 1] = (it[it.size - 1].toInt() xor 1).toByte() })
-        val enArchivo = assertThrows(BorradorIlegible::class.java) { almacen.verificarArchivo(CLIENTE, "B-1", "ADJ-1") }
+        val enArchivo = assertThrows(ArchivoIlegible::class.java) { almacen.verificarArchivo(CLIENTE, "B-1", "ADJ-1") }
         assertTrue(enArchivo.permanente)
     }
 
@@ -123,7 +125,7 @@ class AlmacenBorradoresCifradoTest {
     fun `sin la llave el borrador queda ilegible de forma permanente`() {
         almacen.guardarNuevo(borrador(), emptyMap())
         llave.llave = null
-        assertTrue(assertThrows(BorradorIlegible::class.java) { almacen.leer(CLIENTE, "B-1") }.permanente)
+        assertTrue(assertThrows(ArchivoIlegible::class.java) { almacen.leer(CLIENTE, "B-1") }.permanente)
     }
 
     @Test
@@ -164,7 +166,7 @@ class AlmacenBorradoresCifradoTest {
         almacen.guardarNuevo(borrador(id = "B-3", duenio = OTRO_CLIENTE), emptyMap())
         assertEquals(listOf("B-1", "B-2"), almacen.listar(CLIENTE).map { it.id })
         assertEquals(listOf("B-3"), almacen.listar(OTRO_CLIENTE).map { it.id })
-        assertThrows(BorradorIlegible::class.java) { almacen.leer(OTRO_CLIENTE, "B-1") }
+        assertThrows(ArchivoIlegible::class.java) { almacen.leer(OTRO_CLIENTE, "B-1") }
     }
 
     @Test

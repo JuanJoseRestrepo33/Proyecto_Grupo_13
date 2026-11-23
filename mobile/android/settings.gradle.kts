@@ -20,6 +20,7 @@ rootProject.name = "Solventa"
 include(
     ":app",
     ":core:network",
+    ":core:almacen",
     ":core:designsystem",
     ":feature:onboarding",
     ":feature:consentimiento",

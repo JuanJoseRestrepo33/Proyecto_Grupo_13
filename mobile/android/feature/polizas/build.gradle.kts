@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 android {
     namespace = "co.solventa.feature.polizas"
@@ -34,6 +35,8 @@ kover {
 dependencies {
     // api: la app construye las dependencias del flujo con tipos de core/network (BffApi).
     api(project(":core:network"))
+    // Billetera sin conexión (MOB-F03): cifrado, llave del Keystore y monitor de conectividad.
+    api(project(":core:almacen"))
     implementation(project(":core:designsystem"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
