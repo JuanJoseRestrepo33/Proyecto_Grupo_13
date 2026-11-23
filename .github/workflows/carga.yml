@@ -14,6 +14,11 @@ name: Carga de cotización (k6)
 on:
   workflow_dispatch:
     inputs:
+      ambiente:
+        description: "staging o produccion (servicios con -prd)"
+        type: choice
+        default: staging
+        options: [staging, produccion]
       escenario:
         description: Estado del proveedor de Open Finance durante la carga
         type: choice
@@ -31,7 +36,7 @@ on:
         default: false
 
 concurrency:
-  group: ambiente-staging
+  group: ambiente-${{ inputs.ambiente }}
   cancel-in-progress: false
 
 permissions:
@@ -39,7 +44,7 @@ permissions:
 
 jobs:
   carga:
-    name: k6 · ${{ inputs.escenario }}${{ inputs.caos && ' · caos' || '' }}
+    name: k6 · ${{ inputs.ambiente }} · ${{ inputs.escenario }}${{ inputs.caos && ' · caos' || '' }}
     runs-on: ubuntu-latest
     environment: staging-infraestructura
     timeout-minutes: 30
@@ -47,7 +52,7 @@ jobs:
     # cuenta de prueba. El 20 nov 2026 un E2E revocó su consentimiento a mitad de la carga y la
     # mitad de las cotizaciones salió a tarifa estándar.
     concurrency:
-      group: e2e-cuenta-staging
+      group: e2e-cuenta-${{ inputs.ambiente }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -56,6 +61,7 @@ jobs:
       PROYECTO: ${{ vars.GCP_PROJECT_ID }}
       REGION: ${{ vars.GCP_REGION }}
       ESCENARIO: ${{ inputs.escenario }}
+      SUFIJO: ${{ inputs.ambiente == 'produccion' && '-prd' || '' }}
       RPM: ${{ inputs.rpm }}
       DURACION: ${{ inputs.duracion }}
       CAOS: ${{ inputs.caos }}
@@ -93,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           scripts/carga/modo_proveedor.sh "$ESCENARIO"
-          echo "BFF_URL=$(gcloud run services describe solventa-bff --region="$REGION" \
+          echo "BFF_URL=$(gcloud run services describe "solventa-bff$SUFIJO" --region="$REGION" \
             --project="$PROYECTO" --format='value(status.url)')" >> "$GITHUB_ENV"
 
       - name: Correr k6
@@ -137,7 +143,7 @@ jobs:
         # Si la corrida se canceló a mitad del caos, el núcleo no se queda con una sola réplica.
         if: always() && inputs.caos
         run: |
-          gcloud run services update solventa-nucleo --region="$REGION" --project="$PROYECTO" \
+          gcloud run services update "solventa-nucleo$SUFIJO" --region="$REGION" --project="$PROYECTO" \
             --quiet --min-instances=2 --max-instances=2 > /dev/null
 
       - name: Devolver el proveedor a «sano»

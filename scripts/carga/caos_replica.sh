@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Caos de ARQ-05 (#216): quita una réplica del núcleo a mitad de la carga y después la devuelve.
 #
-#   PROYECTO=… REGION=… scripts/carga/caos_replica.sh <segundos antes> <segundos con una réplica>
+#   PROYECTO=… REGION=… [SUFIJO=-prd] scripts/carga/caos_replica.sh <segundos antes> <segundos con una réplica>
 #
 # Deja `solventa-nucleo` con mínimo y máximo 1 (una revisión nueva con una sola instancia: Cloud Run
 # apaga las dos de antes al mover el tráfico) y, pasado el tiempo, lo vuelve a 2 y 2, como lo deja
@@ -13,7 +13,7 @@ antes="${1:?Falta los segundos antes del caos}"
 durante="${2:?Falta los segundos con una réplica}"
 
 escalar() {
-  gcloud run services update solventa-nucleo --region="$REGION" --project="$PROYECTO" --quiet \
+  gcloud run services update "solventa-nucleo${SUFIJO:-}" --region="$REGION" --project="$PROYECTO" --quiet \
     --min-instances="$1" --max-instances="$1" > /dev/null
 }
 
