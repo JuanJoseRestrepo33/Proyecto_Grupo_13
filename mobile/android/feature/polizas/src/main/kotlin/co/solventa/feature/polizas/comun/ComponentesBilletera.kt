@@ -52,6 +52,9 @@ enum class Franja {
 
     /** «Sin conexión», sin fecha: la credencial ya la lleva en el pie. */
     SOLO_SIN_CONEXION,
+
+    /** Sin sesión y con red (entrega 2): «Ya tienes conexión · Ingresa para actualizar» con «Ingresar». */
+    YA_CONECTADO,
 }
 
 /**
@@ -71,8 +74,13 @@ internal fun FranjaBilletera(
         Franja.SIN_ACTUALIZAR -> stringResource(R.string.franja_sin_actualizar, datos)
         Franja.SINCRONIZANDO -> stringResource(R.string.franja_sincronizando)
         Franja.SOLO_SIN_CONEXION -> stringResource(R.string.franja_solo_sin_conexion)
+        Franja.YA_CONECTADO -> stringResource(R.string.franja_ya_conectado)
     }
-    val color = if (franja == Franja.SINCRONIZANDO) SolventaColors.secondary else SolventaColors.warning
+    val color = when (franja) {
+        Franja.SINCRONIZANDO -> SolventaColors.secondary
+        Franja.YA_CONECTADO -> SolventaColors.success
+        else -> SolventaColors.warning
+    }
     Column(
         verticalArrangement = Arrangement.spacedBy(SolventaSpacing.xs),
         modifier = Modifier
@@ -92,20 +100,35 @@ internal fun FranjaBilletera(
                     liveRegion = LiveRegionMode.Polite
                 },
         ) {
-            if (franja == Franja.SINCRONIZANDO) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-            }
+            IconoFranja(franja)
             Text(texto, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         }
-        if (franja == Franja.SIN_ACTUALIZAR && onReintentar != null) {
-            OutlinedButton(
-                onClick = onReintentar,
-                modifier = Modifier.heightIn(min = SolventaSpacing.touchTarget).testTag("franja-reintentar"),
-            ) { Text(stringResource(R.string.reintentar)) }
-        }
+        if (onReintentar != null) AccionFranja(franja, onReintentar)
     }
+}
+
+@Composable
+private fun IconoFranja(franja: Franja) {
+    when (franja) {
+        Franja.SINCRONIZANDO -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        Franja.YA_CONECTADO ->
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+        else -> Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** «Reintentar» en «No pudimos actualizar» e «Ingresar» en «Ya tienes conexión»: un control aparte de 48 dp. */
+@Composable
+private fun AccionFranja(franja: Franja, onClick: () -> Unit) {
+    val (texto, etiqueta) = when (franja) {
+        Franja.SIN_ACTUALIZAR -> R.string.reintentar to "franja-reintentar"
+        Franja.YA_CONECTADO -> R.string.sin_sesion_ingresar to "franja-ingresar"
+        else -> return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.heightIn(min = SolventaSpacing.touchTarget).testTag(etiqueta),
+    ) { Text(stringResource(texto)) }
 }
 
 /** La franja que corresponde, o null si no hay que mostrar ninguna. */

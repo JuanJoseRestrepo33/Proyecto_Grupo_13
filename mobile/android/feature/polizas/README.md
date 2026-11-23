@@ -52,8 +52,9 @@ que no consultan. `SolventaApp` conserva el estado de los destinos (`saveState`/
 el refresco va al tocar la pestaña y no al recomponer.
 
 Si Android cierra el proceso, la sesión (solo en memoria, MOB-F01) se pierde y la app vuelve a Ingreso
-sin restaurar la lista ni el detalle (criterio 12). En disco quedan el PDF que el cliente pidió, en la
-caché de la app, y la billetera cifrada (MOB-F03).
+sin restaurar la lista ni el detalle (criterio 12): la navegación sí se restaura, pero `SolventaRaiz`
+manda a Ingreso las rutas que necesitan sesión (`SoloSi`). En disco quedan el PDF que el cliente pidió, en
+la caché de la app, y la billetera cifrada (MOB-F03), que se puede abrir sin sesión desde Ingreso.
 
 ### Descarga del documento
 
@@ -106,8 +107,9 @@ La app aún no tiene cotizador. «Cotizar un seguro» abre `WEB_URL` + `cotizaci
 El cliente puede mostrar su póliza aunque no tenga señal: sin conexión ve sus pólizas y abre la credencial
 de una póliza vigente con los datos de la última sincronización, sabe de cuándo son esos datos, y cuando
 vuelve la conexión se actualizan solos. No cambia el contrato `bff-movil`: usa `GET /polizas` y
-`GET /polizas/{numero}`. Esta es la **entrega 1** de #134 (con la app abierta); la entrada sin conexión
-desde Ingreso cuando Android cerró el proceso es la entrega 2.
+`GET /polizas/{numero}`. La **entrega 1** de #134 cubre la app abierta con la sesión viva; la
+**entrega 2**, la [entrada sin conexión desde Ingreso](#entrada-sin-conexión-desde-ingreso-entrega-2) cuando
+Android cerró el proceso.
 
 ```text
 Pólizas ──┬── con red ──▶ Lista (#190) ──▶ sincroniza ──┬── ok ──▶ «Disponible sin conexión · sincronizada hoy 08:14»
@@ -231,11 +233,46 @@ prueba criptográfica de cobertura: una firma o un QR verificable en línea nece
 el BFF. Falta confirmar con el PO que esto cumple «completa y verificable» (criterio 3 de #139). No lleva
 `FLAG_SECURE`: el cliente puede necesitar una captura para enviarla.
 
+### Entrada sin conexión desde Ingreso (entrega 2)
+
+Si Android cerró el proceso, la app vuelve a Ingreso, y el ingreso con huella necesita red
+(`POST /sesiones/renovacion`): sin señal, el cliente no llegaría a su billetera. Por eso:
+
+```text
+Ingreso sin red ──▶ «Ver mis pólizas sin conexión» ──▶ desbloqueo ──┬── ok ──▶ billetera sin sesión (solo lectura)
+                                                                    │            └── vuelve la red ──▶ «Ya tienes conexión · Ingresa para actualizar»
+                                                                    └── cancelado ──▶ Ingreso
+```
+
+- Ingreso muestra «No tienes conexión.» y «Ver mis pólizas sin conexión» solo si no hay una red
+  validada, hay una billetera legible y el teléfono tiene bloqueo de pantalla (`ofertaSinConexion` en
+  `app`). Sin bloqueo de pantalla la opción no aparece: sin un desbloqueo local, cualquiera con el
+  teléfono vería las pólizas.
+- Antes de mostrar nada se pide el desbloqueo del teléfono con `BiometricPrompt`
+  (`DesbloqueoTelefono` de `feature/onboarding`): `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`, es decir,
+  huella, rostro, PIN o patrón. En Android 9 y 10 la librería no admite esa combinación y se usa
+  `BIOMETRIC_WEAK or DEVICE_CREDENTIAL`.
+- Superado, `SincronizadorBilletera.abrirSinSesion` desbloquea la entrada y la ruta
+  `sin-sesion/polizas` abre `RutaBilleteraSinSesion` (paquete `sinsesion`): Mis pólizas, detalle guardado
+  y credencial, con las mismas pantallas en modo `soloLectura` y sin la barra inferior. Su ViewModel no
+  recibe el cliente del BFF: sin sesión no hay nada que pedir ni sincronizar.
+- Arriba va la franja «Sin conexión · datos del …» con «Ingresar». Cuando vuelve la conexión, la franja
+  cambia a «Ya tienes conexión · Ingresa para actualizar», con «Ingresar». Al ingresar desde aquí se
+  sincroniza enseguida (en `ObservadorCuenta.despues`), como en §2.
+- El desbloqueo vive en memoria. Lo revocan volver a Ingreso, cualquier cambio de cuenta y el cierre de
+  sesión; un proceso nuevo empieza sin él. Si Android restaura la ruta sin el desbloqueo, se vuelve a
+  Ingreso sin mostrar nada.
+- Sin sesión, la billetera que se lee es la del archivo, que es la del último cliente que sincronizó:
+  cerrar sesión la borra, y al entrar otra cuenta se borra la de un dueño distinto.
+
 ### Modelo de confianza
 
 Como la de los borradores, la llave `solventa.billetera` no exige autenticación: la app la usa con la
 sesión abierta sin pedir la huella cada vez. Protegen los datos el aislamiento de la app, la llave ligada
-al Keystore y la carpeta sin copia de seguridad (ver [`core/almacen`](../../core/almacen/README.md)).
+al Keystore y la carpeta sin copia de seguridad (ver [`core/almacen`](../../core/almacen/README.md)). La
+entrada sin sesión se protege con el desbloqueo del teléfono, así que quien conozca el PIN del teléfono
+puede ver la billetera. Se acepta: es lo mismo que podría ver con la app abierta. En Android 9 y 10 el
+desbloqueo admite también la biometría débil del equipo.
 
 ### Fuera de alcance
 
@@ -262,6 +299,10 @@ siniestro, historial de pagos) y la credencial en la web.
 | `CredencialViewModelTest` | Con y sin conexión lee la billetera, sincroniza primero si falta, necesita conexión, no vigente, por iniciar que ya empezó, no guardada y la reconexión, también la que falla con «No pudimos actualizar» y «Reintentar» |
 | `ReglasPolizaTest` (MOB-F03) | Una prueba por fila de la vigencia sin conexión, con los bordes `inicio` y `fin`, y los formatos de la fecha de sincronización |
 | `PantallasBilleteraTest` (Compose) | Con conexión, sin conexión, tiempo agotado, sincronizando, sin billetera, billetera vacía, vencida por fecha, detalle sin conexión y no guardado, credencial con y sin conexión, con datos faltantes y sin credencial. También TalkBack y 48 dp |
+| `SincronizadorBilleteraTest` (entrega 2) | Sin desbloqueo no se lee, con sesión no se ofrece ni se abre, sin billetera o tras cerrar sesión no se ofrece, volver a Ingreso o un cambio de cuenta revocan el desbloqueo, ingresar desde la billetera sin sesión sincroniza y un ingreso normal no |
+| `BilleteraSinSesionViewModelTest` | Lista, detalle (y el no guardado) y credencial desde la billetera sin llamar al BFF, la vencida por fecha sin credencial, la vuelta de la red sin sincronizar y que sin desbloqueo no muestra nada |
+| `PantallasBilleteraTest` (entrega 2) | Billetera sin sesión sin «Actualizar», con una sola franja e «Ingresar» arriba, y la franja «Ya tienes conexión» con su botón de 48 dp |
+| `SolventaRaizTest` (app, entrega 2) | Ingreso sin red ofrece la entrada y, tras el desbloqueo, muestra la billetera sin barra inferior; con la red de vuelta, «Ingresar»; sin bloqueo de pantalla no se ofrece; desbloqueo cancelado; tras cerrar sesión no se ofrece; la navegación restaurada sin sesión, o sin el desbloqueo, vuelve a Ingreso; volver a Ingreso pide otra vez el desbloqueo |
 | `MockPolizasTest` · `MockSiniestrosTest` (app) | Escenarios del mock. Las pólizas del asistente de reporte conservan su número |
 | `ReporteViewModelTest` (siniestros) | El asistente lista y reporta igual con el `PolizaResumen` ampliado |
 | `NetworkClientTest` (core) | Campos nuevos con valor, en `null` o ausentes, número codificado en la ruta y PDF con `@Streaming` |

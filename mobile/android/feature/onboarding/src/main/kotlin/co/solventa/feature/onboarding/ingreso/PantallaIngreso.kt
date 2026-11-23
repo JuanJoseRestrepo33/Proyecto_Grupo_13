@@ -21,12 +21,21 @@ import co.solventa.feature.onboarding.comun.CampoTexto
 import co.solventa.feature.onboarding.comun.Mensaje
 import co.solventa.feature.onboarding.comun.PlantillaPantalla
 
+/**
+ * @param onVerSinConexion con él, Ingreso avisa que no hay conexión y ofrece «Ver mis pólizas sin conexión»
+ * (MOB-F03, entrega 2). La app lo pasa solo sin red, con billetera guardada y con bloqueo de pantalla.
+ */
 @Composable
-fun RutaIngreso(dependencias: DependenciasOnboarding, onIngresado: (Cliente) -> Unit, onCrearCuenta: () -> Unit) {
+fun RutaIngreso(
+    dependencias: DependenciasOnboarding,
+    onIngresado: (Cliente) -> Unit,
+    onCrearCuenta: () -> Unit,
+    onVerSinConexion: (() -> Unit)? = null,
+) {
     val viewModel = viewModel {
         with(dependencias) { IngresoViewModel(api, sesion, almacen, biometria.disponibilidad()) }
     }
-    PantallaIngreso(viewModel, dependencias, onIngresado, onCrearCuenta)
+    PantallaIngreso(viewModel, dependencias, onIngresado, onCrearCuenta, onVerSinConexion)
 }
 
 /** Ingreso con contraseña y, si está activa, con huella o rostro (P22 con respaldo). */
@@ -36,6 +45,7 @@ fun PantallaIngreso(
     dependencias: DependenciasOnboarding,
     onIngresado: (Cliente) -> Unit,
     onCrearCuenta: () -> Unit,
+    onVerSinConexion: (() -> Unit)? = null,
 ) {
     val estado = viewModel.estado
     LaunchedEffect(estado.ingresado) {
@@ -46,6 +56,9 @@ fun PantallaIngreso(
     }
     PlantillaPantalla(stringResource(R.string.ingreso_titulo), onVolver = null) {
         Text(stringResource(R.string.ingreso_subtitulo), style = MaterialTheme.typography.bodyLarge)
+        if (onVerSinConexion != null) {
+            Mensaje(stringResource(R.string.ingreso_sin_conexion), modifier = Modifier.testTag("ingreso-sin-conexion"))
+        }
         CampoTexto(
             valor = estado.correo,
             onCambio = viewModel::cambiarCorreo,
@@ -67,23 +80,30 @@ fun PantallaIngreso(
             onClick = viewModel::ingresar,
             cargando = estado.enviando,
         )
-        if (estado.biometriaActiva) {
+        if (estado.biometriaActiva) BotonBiometria(viewModel, dependencias)
+        if (onVerSinConexion != null) {
             BotonSecundario(
-                stringResource(R.string.ingreso_biometria),
-                habilitado = !estado.enviando,
-                onClick = {
-                    val cipher = viewModel.prepararBiometria()
-                    if (cipher != null) {
-                        dependencias.biometria.autenticar(
-                            cipher,
-                            PropositoBiometrico.INGRESAR,
-                            viewModel::resultadoBiometrico,
-                        )
-                    }
-                },
+                stringResource(R.string.ingreso_ver_sin_conexion),
+                onClick = onVerSinConexion,
+                modifier = Modifier.testTag("ver-sin-conexion"),
             )
         }
         Text(stringResource(R.string.ingreso_nuevo), style = MaterialTheme.typography.bodyMedium)
         BotonTexto(stringResource(R.string.boton_crear_cuenta), onClick = onCrearCuenta)
     }
+}
+
+/** «Ingresar con huella o rostro»: desbloquea el token guardado y renueva la sesión. */
+@Composable
+private fun BotonBiometria(viewModel: IngresoViewModel, dependencias: DependenciasOnboarding) {
+    BotonSecundario(
+        stringResource(R.string.ingreso_biometria),
+        habilitado = !viewModel.estado.enviando,
+        onClick = {
+            val cipher = viewModel.prepararBiometria()
+            if (cipher != null) {
+                dependencias.biometria.autenticar(cipher, PropositoBiometrico.INGRESAR, viewModel::resultadoBiometrico)
+            }
+        },
+    )
 }

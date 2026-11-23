@@ -73,6 +73,8 @@
     <string name="franja_sin_actualizar">No pudimos actualizar · datos del %1$s</string>
     <string name="franja_sincronizando">Conexión recuperada · actualizando tus pólizas…</string>
     <string name="franja_solo_sin_conexion">Sin conexión</string>
+    <string name="franja_ya_conectado">Ya tienes conexión · Ingresa para actualizar</string>
+    <string name="sin_sesion_ingresar">Ingresar</string>
     <string name="sin_billetera">Necesitas conexión una vez para guardar tus pólizas en este teléfono.</string>
     <string name="cotizar_requiere_conexion">Necesitas conexión para cotizar.</string>
     <string name="detalle_no_guardado">Necesitas conexión para ver este detalle.</string>

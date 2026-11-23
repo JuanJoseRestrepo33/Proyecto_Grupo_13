@@ -29,6 +29,7 @@ import co.solventa.feature.polizas.detalle.DocumentosPolizaAndroid
 import co.solventa.core.almacen.ArchivoCifrado
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
+import co.solventa.feature.onboarding.biometria.DesbloqueoTelefonoAndroid
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import co.solventa.feature.onboarding.sesion.ObservadorCuenta
 import co.solventa.feature.siniestros.borrador.AlmacenBorradoresCifrado
@@ -51,6 +52,7 @@ class MainActivity : FragmentActivity() {
             sesion = proceso.sesion,
             almacen = proceso.almacen,
             biometria = BiometriaAndroid(this),
+            desbloqueo = DesbloqueoTelefonoAndroid(this),
         )
         val dependenciasConsentimiento = DependenciasConsentimiento(
             api = proceso.bffApi,

@@ -19,6 +19,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -347,5 +349,92 @@ class SincronizadorBilleteraTest {
 
         assertEquals(listOf("vuelta"), eventos)
         vigilancia.cancel()
+    }
+
+    // ── Entrada sin sesión (entrega 2, §7) ───────────────────────────────────────────────────
+
+    @Test
+    fun `sin el desbloqueo no se lee la billetera sin sesion`() = runTest(main.dispatcher) {
+        b.guardar()
+        b.cuenta.clienteId = null
+
+        assertTrue(sincronizador.hayBilleteraSinSesion())
+        assertNull(sincronizador.cargarSinSesion())
+        assertTrue(sincronizador.abrirSinSesion())
+        assertEquals(billeteraDePrueba(), sincronizador.cargarSinSesion())
+    }
+
+    @Test
+    fun `con sesion la billetera sin sesion no se ofrece ni se abre`() = runTest(main.dispatcher) {
+        b.guardar()
+
+        assertFalse(sincronizador.hayBilleteraSinSesion())
+        assertFalse(sincronizador.abrirSinSesion())
+        assertNull(sincronizador.cargarSinSesion())
+    }
+
+    @Test
+    fun `sin billetera guardada o tras cerrar sesion no se ofrece`() = runTest(main.dispatcher) {
+        b.cuenta.clienteId = null
+        assertFalse(sincronizador.hayBilleteraSinSesion())
+
+        b.cuenta.clienteId = CLIENTE
+        b.guardar()
+        sincronizador.cerrarSesion()
+        b.cuenta.clienteId = null
+        assertFalse(sincronizador.hayBilleteraSinSesion())
+    }
+
+    @Test
+    fun `al cerrar sesion no se ofrece la billetera mientras espera el borrado`() = runTest {
+        val prueba = BilleteraDePrueba(carpeta.root, CoroutineScope(StandardTestDispatcher(testScheduler)))
+        prueba.guardar()
+        prueba.sincronizador.cerrarSesion()
+        prueba.cuenta.clienteId = null
+
+        assertFalse(prueba.sincronizador.hayBilleteraSinSesion())
+        assertFalse(prueba.sincronizador.abrirSinSesion())
+        runCurrent()
+        assertFalse(prueba.sincronizador.hayBilleteraSinSesion())
+    }
+
+    @Test
+    fun `volver a ingreso o un cambio de cuenta piden otra vez el desbloqueo`() = runTest(main.dispatcher) {
+        b.guardar()
+        b.cuenta.clienteId = null
+        sincronizador.abrirSinSesion()
+        sincronizador.cerrarSinSesion()
+        assertNull(sincronizador.cargarSinSesion())
+
+        sincronizador.abrirSinSesion()
+        sincronizador.cambioDeCuenta()
+        assertFalse(sincronizador.sinSesionDesbloqueada)
+        assertNull(sincronizador.cargarSinSesion())
+    }
+
+    @Test
+    fun `al ingresar desde la billetera sin sesion se sincroniza enseguida`() = runTest(main.dispatcher) {
+        b.guardar()
+        b.cuenta.clienteId = null
+        sincronizador.abrirSinSesion()
+        val luego = Instant.parse("2026-11-19T10:00:00Z")
+        b.reloj.instante = luego
+
+        sincronizador.cambioDeCuenta()
+        b.cuenta.clienteId = CLIENTE
+        sincronizador.cuentaCambiada(CLIENTE)
+
+        assertEquals(1, b.api.consultasPolizas)
+        assertEquals(luego, enDisco()?.momento)
+    }
+
+    @Test
+    fun `un ingreso normal no sincroniza por su cuenta`() = runTest(main.dispatcher) {
+        b.cuenta.clienteId = null
+        sincronizador.cambioDeCuenta()
+        b.cuenta.clienteId = CLIENTE
+        sincronizador.cuentaCambiada(CLIENTE)
+
+        assertEquals(0, b.api.consultasPolizas)
     }
 }

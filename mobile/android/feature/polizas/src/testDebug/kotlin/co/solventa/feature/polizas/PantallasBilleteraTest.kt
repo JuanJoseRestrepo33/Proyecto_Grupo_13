@@ -1,5 +1,8 @@
 package co.solventa.feature.polizas
 
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasTestTag
+import co.solventa.feature.polizas.sinsesion.MarcoSinSesion
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -303,5 +306,51 @@ class PantallasBilleteraTest {
 
         compose.onNodeWithText("La credencial solo está disponible para pólizas vigentes.").assertIsDisplayed()
         compose.onNodeWithTag("credencial").assertDoesNotExist()
+    }
+
+    // ── Sin sesión (entrega 2) ───────────────────────────────────────────────────────────────
+
+    private var ingresar = 0
+
+    private fun sinSesion(conectado: Boolean) {
+        compose.setContent {
+            SolventaTheme {
+                MarcoSinSesion(conectado, billetera.momento, ZONA, onIngresar = { ingresar += 1 }) {
+                    PantallaMisPolizas(
+                        estado = sinConexion(),
+                        onActualizar = { actualizar += 1 },
+                        onElegir = {},
+                        onAbrir = { abierta = it },
+                        onCotizar = {},
+                        onCredencial = { credencial = it },
+                        zona = ZONA,
+                        soloLectura = true,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `sin sesion la billetera se lee sin actualizar, con la franja una sola vez e Ingresar arriba`() {
+        sinSesion(conectado = false)
+
+        compose.onNodeWithTag("franja-sin-conexion").assertIsDisplayed()
+        compose.onAllNodes(hasTestTag("franja-sin-conexion")).assertCountEquals(1)
+        compose.onNodeWithTag("actualizar").assertDoesNotExist()
+        compose.onNodeWithTag("credencial-$NUMERO").performScrollTo().performClick()
+        assertEquals(NUMERO, credencial)
+        compose.onNodeWithTag("sin-sesion-ingresar").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, ingresar)
+    }
+
+    @Test
+    fun `sin sesion y con conexion la franja invita a ingresar para actualizar`() {
+        sinSesion(conectado = true)
+
+        compose.onNode(hasContentDescription("Ya tienes conexión · Ingresa para actualizar")).assertIsDisplayed()
+        compose.onNodeWithTag("sin-sesion-ingresar").assertDoesNotExist()
+        compose.onNodeWithTag("franja-ingresar").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, ingresar)
     }
 }

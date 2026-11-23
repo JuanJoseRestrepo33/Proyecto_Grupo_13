@@ -16,7 +16,6 @@ import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.RutaOfertaBiometria
 import co.solventa.feature.onboarding.biometria.debeOfrecerBiometria
 import co.solventa.feature.onboarding.identidad.RutaIdentidad
-import co.solventa.feature.onboarding.ingreso.RutaIngreso
 import co.solventa.feature.onboarding.otp.RutaOtp
 import co.solventa.feature.onboarding.registro.RutaRegistro
 import co.solventa.feature.onboarding.sesion.GestorSesion
@@ -39,10 +38,12 @@ fun SolventaRaiz(
     val alIngresar = { cliente: Cliente -> nav.reiniciarEn(destinoTrasIngreso(cliente, dependencias)) }
     val alAprobar = { nav.reiniciarEn(destinoTrasAprobacion(dependencias)) }
     val alInicio = { nav.reiniciarEn(RutasEntrada.INICIO) }
+    val alIngreso = { nav.reiniciarEn(RutasEntrada.INGRESO) }
+    // Si Android cerró el proceso, la navegación restaura la última ruta pero la sesión (en memoria) ya no
+    // está: las rutas que la necesitan vuelven a Ingreso (MOB-F03, entrega 2).
+    val conSesion = { sesion.sesion != null }
     NavHost(nav, startDestination = RutasEntrada.INGRESO) {
-        composable(RutasEntrada.INGRESO) {
-            RutaIngreso(dependencias, onIngresado = alIngresar, onCrearCuenta = { nav.navigate(RutasEntrada.REGISTRO) })
-        }
+        entradaSinConexion(nav, dependencias, dependenciasPolizas, alIngresar, alIngreso)
         composable(RutasEntrada.REGISTRO) {
             RutaRegistro(
                 dependencias.api,
@@ -73,24 +74,46 @@ fun SolventaRaiz(
             )
         }
         composable(RutasEntrada.IDENTIDAD) {
-            RutaIdentidad(dependencias.api, dependencias.sesion, onAprobada = alAprobar, onIrAlInicio = alInicio)
+            SoloSi(conSesion, alNegar = alIngreso) {
+                RutaIdentidad(dependencias.api, dependencias.sesion, onAprobada = alAprobar, onIrAlInicio = alInicio)
+            }
         }
-        composable(RutasEntrada.BIOMETRIA) { RutaOfertaBiometria(dependencias, onTerminar = alInicio) }
+        composable(RutasEntrada.BIOMETRIA) {
+            SoloSi(conSesion, alNegar = alIngreso) { RutaOfertaBiometria(dependencias, onTerminar = alInicio) }
+        }
         composable(RutasEntrada.INICIO) {
-            SolventaApp(
-                identidadVerificada = sesion.identidadVerificada,
-                dependenciasConsentimiento = dependenciasConsentimiento,
-                dependenciasSiniestros = dependenciasSiniestros,
-                dependenciasNotificaciones = dependenciasNotificaciones,
-                dependenciasPolizas = dependenciasPolizas,
-                // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
-                onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
-                avisoBiometriaDesactivada = sesion.biometriaDesactivada,
-                onAvisoAtendido = sesion::avisoBiometriaAtendido,
-                onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones, dependenciasPolizas) },
-            )
+            SoloSi(conSesion, alNegar = alIngreso) {
+                Inicio(
+                    dependencias, dependenciasConsentimiento, dependenciasSiniestros, dependenciasNotificaciones,
+                    dependenciasPolizas,
+                )
+            }
         }
     }
+}
+
+/** La navegación principal, con la sesión abierta. */
+@Composable
+private fun Inicio(
+    dependencias: DependenciasOnboarding,
+    dependenciasConsentimiento: DependenciasConsentimiento?,
+    dependenciasSiniestros: DependenciasSiniestros?,
+    dependenciasNotificaciones: DependenciasNotificaciones?,
+    dependenciasPolizas: DependenciasPolizas?,
+) {
+    val sesion = dependencias.sesion
+    SolventaApp(
+        identidadVerificada = sesion.identidadVerificada,
+        dependenciasConsentimiento = dependenciasConsentimiento,
+        dependenciasSiniestros = dependenciasSiniestros,
+        dependenciasNotificaciones = dependenciasNotificaciones,
+        dependenciasPolizas = dependenciasPolizas,
+        // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
+        onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
+        avisoBiometriaDesactivada = sesion.biometriaDesactivada,
+        onAvisoAtendido = sesion::avisoBiometriaAtendido,
+        onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones, dependenciasPolizas) },
+    )
 }
 
 /**

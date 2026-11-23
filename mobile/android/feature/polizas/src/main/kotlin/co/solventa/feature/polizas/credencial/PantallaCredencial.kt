@@ -86,8 +86,11 @@ fun PantallaCredencial(
     onReintentar: () -> Unit,
     zona: ZoneId = ZoneId.systemDefault(),
     onReintentarSincronizacion: () -> Unit = onReintentar,
+    soloLectura: Boolean = false,
 ) {
     val franja = when {
+        // Sin sesión (MOB-F03, entrega 2) la franja la pone el marco.
+        soloLectura -> null
         estado.sincronizando -> Franja.SINCRONIZANDO
         estado.sinConexion -> Franja.SOLO_SIN_CONEXION
         estado.sinActualizar -> Franja.SIN_ACTUALIZAR
