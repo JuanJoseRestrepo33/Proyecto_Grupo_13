@@ -66,6 +66,8 @@ jobs:
       ACCION: ${{ inputs.accion || 'apagar' }}
       AMBIENTE: ${{ matrix.ambiente }}
       SUFIJO: ${{ matrix.ambiente == 'produccion' && '-prd' || '' }}
+      # De noche, un ambiente sin instancia (producción antes de aprovisionarla) no es un error.
+      SI_EXISTE: ${{ github.event_name == 'schedule' && '--si-existe' || '' }}
     steps:
       - name: Configuración del environment
         env:
@@ -85,7 +87,7 @@ jobs:
       - name: Cloud SQL · ${{ inputs.accion || 'apagar' }}
         run: >-
           python3 scripts/ambiente.py "$ACCION" --proyecto "$PROYECTO" --region "$REGION"
-          --ambiente "$AMBIENTE"
+          --ambiente "$AMBIENTE" $SI_EXISTE
       - name: Esperar a que el núcleo responda
         if: env.ACCION == 'encender'
         run: |
