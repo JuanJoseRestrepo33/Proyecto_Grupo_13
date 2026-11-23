@@ -6,7 +6,7 @@ import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
-from app.main import crear_app
+from app.main import crear_bff
 from app.movil.dependencias import ClienteMovil
 from app.web.dependencias import COOKIE_SESION, ClienteWeb
 
@@ -16,7 +16,7 @@ from .conftest import CLIENTE
 @pytest.fixture
 def canales(configuracion, nucleo) -> TestClient:
     """El BFF con una ruta protegida de prueba en cada canal."""
-    app = crear_app(configuracion, nucleo.transporte)
+    app = crear_bff(configuracion, nucleo.transporte)
     web, movil = APIRouter(prefix="/api/v1/web"), APIRouter(prefix="/api/v1/movil")
 
     @web.get("/quien")
