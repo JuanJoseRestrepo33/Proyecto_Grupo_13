@@ -102,8 +102,9 @@ app Android ─────────────/api/v1/movil/──▶ ┘  
   mismo origen que el BFF. Cotización, consentimientos, compra y consulta de pólizas, reporte y
   seguimiento de siniestros, operaciones y socios.
 - **Cliente móvil** ([`mobile/android`](mobile/android/README.md)): Kotlin y Jetpack Compose, un módulo
-  `feature/*` por historia. Registro con KYC, ingreso con biometría, consentimiento, pólizas, reporte de
-  siniestros con cámara y sin conexión, seguimiento y notificaciones push.
+  `feature/*` por historia y `core/almacen` para lo que se guarda cifrado en el teléfono. Registro con
+  KYC, ingreso con biometría, consentimiento, pólizas con billetera y credencial digital sin conexión,
+  reporte de siniestros con cámara y sin conexión, seguimiento y notificaciones push.
 - **Integraciones externas (simuladas):** Open Finance (con *circuit breaker* y caché que respeta el
   consentimiento vigente, [ADR 0002](docs/adr/0002-consentimiento-vigente-antes-de-la-cache.md)),
   KYC/AML, pasarela de pagos, firma electrónica y proveedor de push.

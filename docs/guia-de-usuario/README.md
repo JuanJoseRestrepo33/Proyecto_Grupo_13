@@ -342,7 +342,23 @@ Toca una tarjeta para ver **Mi póliza**:
 - **Coberturas:** cada una con su límite. Si la póliza no tiene coberturas registradas, lo dice.
 - **Descargar PDF:** descarga el documento y lo abre con el visor de tu celular. Si la póliza no tiene documento, verás *El documento de esta póliza no está disponible.*
 
-Si no tienes conexión, la app te lo dice (*No tienes conexión. Revisa tu red e intenta de nuevo.*) y puedes **Reintentar**. Ver las pólizas y la credencial sin conexión (billetera) llega con MOB-F03, que no entró en este sprint.
+### Tus pólizas sin conexión
+
+Cada vez que abres **Mis pólizas** con conexión, la app guarda en el teléfono una copia cifrada de tus pólizas vigentes y por iniciar: la **billetera**. Bajo el título verás *Disponible sin conexión · sincronizada hoy 08:14*, o *Aún no disponible sin conexión* si todavía no se ha guardado ninguna.
+
+1. **Sin señal**, abre **Pólizas** como siempre. Arriba aparece la franja *Sin conexión · datos del 18 nov., 08:14*, con la fecha de la última vez que se guardaron. Las pestañas y las tarjetas son las mismas.
+2. **Toca una tarjeta** para ver el detalle guardado. **Descargar PDF** queda inactivo (*Necesitas conexión para descargar el documento.*), porque el PDF no se guarda en el teléfono.
+3. **Toca Ver credencial** en una póliza vigente para abrir tu **credencial digital**: titular, producto, número de póliza, vigencia, coberturas con su límite, valor asegurado y deducible. Al pie dice *Datos sincronizados el …*. El número se puede seleccionar para copiarlo, y puedes tomar una captura para enviarla.
+4. **Cuando vuelve la red**, la app se actualiza sola (*Conexión recuperada · actualizando tus pólizas…*). Si no lo logra, verás *No pudimos actualizar* y puedes pulsar **Reintentar**.
+
+Ten en cuenta:
+
+- Sin conexión, la app no puede saber si la póliza cambió después de guardarse. Por eso calcula la vigencia con la fecha del teléfono: si la póliza terminó desde la última sincronización, se muestra *Vencida* y ya no ofrece credencial.
+- La credencial es una **copia informativa**: quien la reciba puede confirmar la cobertura con Solventa usando el número de póliza.
+- **Cerrar sesión borra la billetera** de ese teléfono, y el diálogo de cierre lo avisa. Si la sesión solo vence, la billetera se conserva.
+- La billetera se lee con la app abierta y la sesión iniciada. Entrar sin conexión desde **Ingreso** todavía no está disponible.
+
+Si nunca abriste **Mis pólizas** con conexión en este teléfono, verás *Necesitas conexión una vez para guardar tus pólizas en este teléfono.* con **Reintentar**.
 
 ## 19. Siniestros desde el celular
 
@@ -497,6 +513,9 @@ La app te avisa con una notificación del teléfono cuando cambia el estado de u
 | *…: no se adjuntó porque el almacén de evidencias no respondió.* | No pudimos guardar el archivo en ese momento. El reporte sí quedó. | Agrégala después desde **Evidencias**. |
 | *Requiere conexión* | Estás sin internet. | Vuelve a intentarlo cuando tengas conexión. |
 | *Necesitas conexión una vez* (app) | La app nunca consultó tus pólizas en este teléfono, así que no puede reportar sin señal. | Conéctate un momento y abre el reporte; después podrás reportar sin señal. |
+| *Sin conexión · datos del …* (app) | Estás sin internet y ves tus pólizas guardadas en el teléfono, con la fecha en que se guardaron. | Nada: se actualizan solas cuando vuelva la red. |
+| *No pudimos actualizar · datos del …* (app) | Hay red, pero no pudimos traer tus pólizas. Ves las guardadas. | Pulsa **Reintentar**. |
+| *Necesitas conexión una vez para guardar tus pólizas en este teléfono.* (app) | La app todavía no guardó tus pólizas en este teléfono. | Conéctate y abre **Mis pólizas**; después podrás verlas sin señal. |
 | *Reporte guardado en tu teléfono* (app) | No hay conexión: el reporte quedó cifrado en el teléfono. | Nada: se envía solo cuando vuelva la red, mientras tengas la sesión abierta. |
 | *Ingresa para enviar tu reporte pendiente* (app) | Tu sesión terminó y hay un reporte guardado. | Pulsa **Ingresar**; el reporte se envía al entrar. |
 | *No podemos leer un reporte guardado* (app) | La protección del teléfono cambió y el borrador ya no se puede abrir. | Si no llegó a enviarse, pulsa **Reportar de nuevo**. |
