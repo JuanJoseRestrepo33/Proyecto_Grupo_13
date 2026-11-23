@@ -55,6 +55,7 @@ El mercado de seguros en América Latina arrastra baja penetración, procesos ma
 | [Backlog y plan de sprints](docs/backlog-sprint-plan.md) | Features, estimación y plan |
 | Historias de usuario | Criterios de aceptación, partición y asignación por sprint: [Sprint 1](docs/HistoriasUsuarioSprint1.md), [Sprint 2](docs/HistoriasUsuarioSprint2.md) y [Sprint 3](docs/HistoriasUsuarioSprint3.md) |
 | [Ambiente DevOps](docs/devops.md) | Flujo de trabajo, versionamiento, convención de commits, CI/CD, pruebas y tablero |
+| [Retrospectiva del proyecto (DAKI)](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/wiki/Retrospectiva-DAKI) | Qué dejar, agregar, conservar y mejorar, con el [tablero de Miro](https://miro.com/app/board/uXjVEKiUvHQ=/) de la retrospectiva |
 
 ### Mockups navegables (publicados con GitHub Pages)
 
