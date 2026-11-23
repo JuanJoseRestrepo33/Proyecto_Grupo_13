@@ -157,7 +157,7 @@ def main() -> int:
 
     for fallo in fallos:
         print(f"::error::{fallo}")
-    print("RC-08 verificado en staging" if not fallos else "RC-08 NO verificado")
+    print(f"RC-08 verificado en {nucleo}" if not fallos else f"RC-08 NO verificado en {nucleo}")
     return 1 if fallos else 0
 
 

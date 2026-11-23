@@ -105,6 +105,33 @@ máximo 1.490 ms, **0 % sin oferta y 0 % de 5xx**. Cumple RC-01 y RC-03.
 - **No hubo estado perdido:** la sesión de la cuenta de prueba siguió válida en la réplica nueva,
   porque identidad y consentimiento viven en Cloud SQL (#301).
 
+### 2.4 Las mismas pruebas en producción (23 nov)
+
+Producción (`solventa-*-prd`, Cloud SQL `solventa-prd-20261123-0427`, `db-g1-small`, 2 réplicas) vive
+en el mismo proyecto que staging, con sus propios datos (`docs/devops.md`, *Producción*). Desde #335,
+`carga.yml` y `auditoria-alterada.yml` aceptan `ambiente=produccion`. Todas las corridas fueron a
+1.000/min durante 5 min.
+
+| Prueba | Ambiente | p50 | p95 | p99 | Máx | Sin oferta | 5xx | Tarifa estándar | Corrida |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Sano | staging | 138 ms | 153 ms | 171 ms | 344 ms | 0 % | 0 % | 0 % | [45115080174](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45115080174) |
+| Sano | producción | 118 ms | 140 ms | 154 ms | 345 ms | 0 % | 0 % | 0 % | [45115422075](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45115422075) |
+| Degradado | producción | 62 ms | 179 ms | 191 ms | 685 ms | 0 % | 0 % | 100 % | [45116298023](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45116298023) |
+| Caído | producción | 63 ms | 71 ms | 79 ms | 1.029 ms | 0 % | 0 % | 100 % | [45116977414](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45116977414) |
+| Sano con caos | producción | 85 ms | 100 ms | 118 ms | 683 ms | 0 % | 0 % | 0 % | [45117707154](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45117707154) |
+
+- **Producción cumple RC-01 y RC-03 en los tres escenarios y con caos.** En el caos, el núcleo
+  `-prd` pasó a 1 réplica a las 05:28:20 (lista a las 05:28:34) y volvió a 2 a las 05:30:04 (lista
+  a las 05:30:20), sin un solo error.
+- **RC-08 en producción** ([45118356096](https://github.com/JuanJoseRestrepo33/Proyecto_Grupo_13/actions/runs/45118356096)):
+  con 20.044 registros, la alteración de la secuencia 20.045 dio `conforme: false` y solo esa
+  secuencia, por `hash_no_coincide`. Restaurada, la cadena volvió a ser conforme.
+- **Los datos de los dos ambientes no se mezclan.** Una cotización en producción subió su
+  auditoría de 36 a 37 registros mientras staging seguía en 27.538. Cada base numera sus
+  cotizaciones por separado, así que un mismo `QT-…` puede existir en las dos con datos distintos.
+- **Producción va algo más rápida** que staging en sano, por la red del runner y porque su base
+  tenía menos datos al empezar.
+
 ## 3. Hallazgo 1: el núcleo se traba cerca de la cotización 1.000
 
 Corridas 1 a 4. Según los registros de Cloud Run, el núcleo **se trababa después de unas 1.000
