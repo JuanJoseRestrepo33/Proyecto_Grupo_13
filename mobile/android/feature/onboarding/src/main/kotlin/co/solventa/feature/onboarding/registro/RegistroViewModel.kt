@@ -10,8 +10,8 @@ import co.solventa.core.network.BffApi
 import co.solventa.core.network.Registro
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.feature.onboarding.R
-import co.solventa.feature.onboarding.comun.Resultado
-import co.solventa.feature.onboarding.comun.llamarBff
+import co.solventa.core.network.Resultado
+import co.solventa.core.network.llamarBff
 import kotlinx.coroutines.launch
 
 data class EstadoRegistro(

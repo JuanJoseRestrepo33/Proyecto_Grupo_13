@@ -11,6 +11,7 @@ renombrarlo o cambiar su tipo obliga a publicar `v2` y a mantener `v1` en pie.
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,8 +19,15 @@ from app.modulos.cotizacion.dominio.modelo import (
     BasePerfilamiento,
     Cotizacion,
     EstadoCotizacion,
+    FactorAplicado,
+    MotivoTarifa,
     ProductoId,
 )
+
+
+class Canal(StrEnum):
+    WEB = "web"
+    MOVIL = "movil"
 
 
 class _Dto(BaseModel):
@@ -42,6 +50,13 @@ class SolicitudCotizacionDto(_Dto):
         description=(
             "Cliente autenticado. Sin él se cotiza a precio estándar: no hay "
             "consentimiento que verificar."
+        ),
+    )
+    usar_open_finance: bool = Field(
+        default=True,
+        description=(
+            "En false el cliente pide cotizar sin sus datos financieros: tarifa estándar con "
+            "motivo `open_finance_desactivado`, sin consultar el consentimiento."
         ),
     )
 
@@ -68,6 +83,9 @@ class OfertaDto(_Dto):
     base_perfilamiento: BasePerfilamiento
     uso_open_finance: bool
     version_regla: str
+    factores: tuple[FactorDto, ...] = Field(
+        default=(), description="Los mismos de la explicación, para no pedirla aparte"
+    )
 
 
 class CotizacionDto(_Dto):
@@ -81,6 +99,12 @@ class CotizacionDto(_Dto):
     oferta: OfertaDto
     id_consentimiento: str | None = None
     id_cotizacion_origen: str | None = None
+    id_cliente: str | None = Field(
+        default=None, description="Dueño de la cotización; el BFF la niega a cualquier otro"
+    )
+    motivo_tarifa: MotivoTarifa | None = Field(
+        default=None, description="Por qué la prima es la estándar; null si es personalizada"
+    )
 
 
 class ExplicacionDto(_Dto):
@@ -92,6 +116,17 @@ class ExplicacionDto(_Dto):
     prima_estandar: int
     prima_mensual: int
     factores: tuple[FactorDto, ...]
+
+
+class RecalculoDto(_Dto):
+    """La prima recalculada con la decisión auditada (WEB-F01, criterio 5; RC-08)."""
+
+    id_cotizacion: str
+    id_decision: str
+    version_regla: str | None
+    prima_emitida: int
+    prima_recalculada: int
+    coincide: bool
 
 
 class ProductoDto(_Dto):
@@ -109,6 +144,13 @@ class ProductoDto(_Dto):
 # Vive aquí, del lado de la API, para que el dominio no conozca a pydantic.
 
 
+def _factores_dto(factores: tuple[FactorAplicado, ...]) -> tuple[FactorDto, ...]:
+    return tuple(
+        FactorDto(nombre=f.nombre, efecto=f.efecto, efecto_porcentual=f.efecto_porcentual)
+        for f in factores
+    )
+
+
 def a_oferta_dto(cotizacion: Cotizacion) -> OfertaDto:
     oferta = cotizacion.oferta
     return OfertaDto(
@@ -122,6 +164,7 @@ def a_oferta_dto(cotizacion: Cotizacion) -> OfertaDto:
         base_perfilamiento=oferta.base_perfilamiento,
         uso_open_finance=oferta.base_perfilamiento.uso_open_finance,
         version_regla=oferta.version_regla,
+        factores=_factores_dto(oferta.factores),
     )
 
 
@@ -137,6 +180,8 @@ def a_cotizacion_dto(cotizacion: Cotizacion, ahora: datetime) -> CotizacionDto:
         oferta=a_oferta_dto(cotizacion),
         id_consentimiento=cotizacion.id_consentimiento,
         id_cotizacion_origen=cotizacion.id_cotizacion_origen,
+        id_cliente=cotizacion.id_cliente,
+        motivo_tarifa=cotizacion.motivo_tarifa,
     )
 
 
@@ -148,12 +193,5 @@ def a_explicacion_dto(cotizacion: Cotizacion) -> ExplicacionDto:
         base_perfilamiento=oferta.base_perfilamiento,
         prima_estandar=oferta.prima_estandar.monto,
         prima_mensual=oferta.prima_mensual.monto,
-        factores=tuple(
-            FactorDto(
-                nombre=f.nombre,
-                efecto=f.efecto,
-                efecto_porcentual=f.efecto_porcentual,
-            )
-            for f in oferta.factores
-        ),
+        factores=_factores_dto(oferta.factores),
     )

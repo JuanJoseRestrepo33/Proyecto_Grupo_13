@@ -6,11 +6,19 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "psycopg[binary]>=3.2",
+    # Pool de conexiones por módulo (ARQ-05, #216): app/compartido/conexiones.py.
+    "psycopg-pool>=3.2",
     "pydantic>=2.9",
+    # Tokens de sesión firmados con ES256 (WEB-F13); [crypto] trae cryptography.
+    "pyjwt[crypto]>=2.9",
     "uvicorn[standard]>=0.32",
 ]
 
 [project.optional-dependencies]
+# Almacén de evidencias en Cloud Storage (MOB-F05); la imagen del núcleo lo instala.
+gcs = [
+    "google-cloud-storage>=2.18",
+]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",

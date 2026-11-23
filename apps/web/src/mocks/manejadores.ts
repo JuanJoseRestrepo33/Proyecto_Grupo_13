@@ -1,22 +1,40 @@
 /**
  * Mocks del BFF web (MSW). Implementan contratos/bff-web/openapi.yaml con un estado en memoria
  * que reproduce el guion del Sprint 1: sin consentimiento la cotización usa tarifa estándar,
- * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar.
+ * al otorgarlo pasa a personalizada y al revocarlo vuelve a estándar. El checkout (WEB-F03)
+ * paga contra una pasarela simulada que responde según `estado.pasarela` y emite la póliza al
+ * firmar. El proveedor de Open Finance responde según `estado.openFinance`. Los siniestros (WEB-F05) se reportan sobre
+ * `estado.polizas`, con la misma `Idempotency-Key` reconocida como reintento, y reciben evidencia
+ * (MOB-F05) con los mismos límites del BFF. El formato se toma del tipo del archivo; el BFF real lo
+ * comprueba con el contenido. Sin sesión
+ * (`estado.sesion` en `null`), toda ruta protegida responde 401 `sesion_no_vigente` (WEB-F13).
  */
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 
-import { PREFIJO_BFF } from '../api/cliente'
+import { PREFIJO_BFF, SESION_NO_VIGENTE } from '../api/cliente'
 import type {
   Consentimiento,
+  Credenciales,
+  ErrorVigencia,
+  Evidencia,
   Cotizacion,
   DatosAsegurado,
   ErrorApi,
   EventoConsentimiento,
+  Pago,
   Producto,
   SolicitudConsentimiento,
   SolicitudCotizacion,
+  SolicitudFirma,
+  SolicitudPago,
+  SolicitudSiniestro,
+  SolicitudSuscripcion,
+  Siniestro,
+  Suscripcion,
 } from '../api/tipos'
+import { diaLocal, diaRelativo } from '../formato'
 import {
+  CREDENCIALES_PRUEBA,
   ENTIDADES,
   FACTORES_ESTANDAR,
   FACTORES_OPEN_FINANCE,
@@ -26,7 +44,7 @@ import {
   VERSION_REGLA,
   VIGENCIA_COTIZACION_MS,
 } from './datos'
-import { type ConsentimientoGuardado, estado, siguienteId } from './estado'
+import { type ConsentimientoGuardado, estado, type PagoGuardado, siguienteId, type SeguimientoSiniestro } from './estado'
 
 const ruta = (camino: string) => `*${PREFIJO_BFF}${camino}`
 
@@ -99,10 +117,18 @@ function aseguradoValido(asegurado: DatosAsegurado | undefined): boolean {
   return edadValida && ciudadValida && valorValido
 }
 
+/** Por qué la prima es la estándar; `null` si se puede personalizar. */
+function motivoTarifa(solicitud: SolicitudCotizacion): Cotizacion['motivo_tarifa'] {
+  if (!solicitud.usar_open_finance) return 'open_finance_desactivado'
+  if (!tieneConsentimientoVigente('cotizacion')) return 'sin_consentimiento'
+  if (estado.openFinance === 'caido') return 'proveedor_no_disponible'
+  return null
+}
+
 /** Cálculo aditivo: prima = estándar × (1 + suma de efectos de los factores). */
 function cotizar(producto: Producto, solicitud: SolicitudCotizacion): Cotizacion {
-  const conConsentimiento = tieneConsentimientoVigente('cotizacion')
-  const personalizada = solicitud.usar_open_finance && conConsentimiento
+  const motivo = motivoTarifa(solicitud)
+  const personalizada = motivo === null
   const factores = personalizada ? FACTORES_OPEN_FINANCE : FACTORES_ESTANDAR
   const efectoTotal = factores.reduce((total, f) => total + f.efecto, 0)
   const estandar = producto.prima_estandar
@@ -118,12 +144,12 @@ function cotizar(producto: Producto, solicitud: SolicitudCotizacion): Cotizacion
     prima_estandar: estandar,
     ahorro_mensual: { valor: Math.max(estandar.valor - prima, 0), moneda: estandar.moneda },
     tipo_tarifa: personalizada ? 'personalizada' : 'estandar',
-    base_perfilamiento: personalizada ? 'open_finance' : 'estandar',
-    motivo_tarifa: personalizada
-      ? null
-      : solicitud.usar_open_finance
-        ? 'sin_consentimiento'
-        : 'open_finance_desactivado',
+    base_perfilamiento: !personalizada
+      ? 'estandar'
+      : estado.openFinance === 'degradado'
+        ? 'open_finance_en_cache'
+        : 'open_finance',
+    motivo_tarifa: motivo,
     factores,
     version_regla: VERSION_REGLA,
     valor_asegurado: producto.valor_asegurado,
@@ -142,8 +168,136 @@ function conEstadoActual(cotizacion: Cotizacion): Cotizacion {
   return { ...cotizacion, estado: vencida ? 'vencida' : 'vigente' }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const MEDIOS: SolicitudPago['medio'][] = ['tarjeta_credito', 'pse']
+const TIPOS_EVENTO: SolicitudSiniestro['tipo_evento'][] = [
+  'accidente_vehiculo',
+  'hurto',
+  'dano_hogar',
+  'retraso_vuelo',
+  'equipo_danado_o_perdido',
+  'cancelacion_viaje',
+  'otro',
+]
+const TIPOS_EVIDENCIA: Evidencia['tipo_contenido'][] = ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'application/pdf']
+/** 10 MB, el límite del BFF para cada evidencia. */
+const TAMANO_MAXIMO_EVIDENCIA = 10 * 1024 * 1024
+/** Lo que tarda el núcleo en registrar un reporte; visible en el navegador, corto en las pruebas. */
+const LATENCIA_REPORTE_MS = import.meta.env.MODE === 'test' ? 20 : 600
+
+function solicitudSiniestroValida(solicitud: Partial<SolicitudSiniestro>): boolean {
+  const { numero_poliza: poliza, tipo_evento: tipo, ocurrido_el: dia, descripcion, monto_estimado: monto } = solicitud
+  return (
+    typeof poliza === 'string' &&
+    poliza.length > 0 &&
+    TIPOS_EVENTO.includes(tipo!) &&
+    typeof dia === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(dia) &&
+    typeof descripcion === 'string' &&
+    descripcion.length >= 10 &&
+    descripcion.length <= 2000 &&
+    (monto === undefined || monto === null || (Number.isInteger(monto.valor) && monto.valor >= 0))
+  )
+}
+/** Lo que tarda la pasarela simulada; visible en el navegador, corto en las pruebas. */
+const LATENCIA_PASARELA_MS = import.meta.env.MODE === 'test' ? 20 : 1200
+
+/** El seguimiento del siniestro; sin cambios de estado, solo tiene el evento del reporte. */
+function seguimientoDe(siniestro: Siniestro): SeguimientoSiniestro {
+  const guardado = estado.seguimientos.get(siniestro.id)
+  if (guardado) return guardado
+  const nuevo: SeguimientoSiniestro = {
+    historial: [
+      {
+        id: `${siniestro.id}-reporte`,
+        estado_anterior: null,
+        estado: 'reportado',
+        ocurrido_en: siniestro.reportado_en,
+        motivo: null,
+      },
+    ],
+    requerimientos: [],
+  }
+  estado.seguimientos.set(siniestro.id, nuevo)
+  return nuevo
+}
+
+function suscripcionConPago(id: string): Suscripcion | undefined {
+  const guardada = estado.suscripciones.get(id)
+  if (!guardada) return undefined
+  const { pagoId, ...suscripcion } = guardada
+  const pago = pagoId ? estado.pagos.get(pagoId) : undefined
+  return { ...suscripcion, pago: pago ? { ...pago, reintento: false } : null }
+}
+
+/** Emite la póliza de una suscripción pagada y la deja en las pólizas del cliente. */
+function emitirPoliza(id: string): void {
+  const suscripcion = estado.suscripciones.get(id)!
+  const numero = `POL-2026-${String(++estado.secuencia).padStart(6, '0')}`
+  const documentoUrl = `${PREFIJO_BFF}/polizas/${numero}/documento`
+  const [inicio, fin] = [diaLocal(), diaRelativo(364)]
+  const { cotizacion } = estado.cotizaciones.get(suscripcion.cotizacion_id)!
+  suscripcion.estado = 'emitida'
+  suscripcion.firmada_en = new Date().toISOString()
+  suscripcion.poliza = { numero, inicio, fin, documento_url: documentoUrl }
+  estado.polizas.unshift({
+    numero,
+    producto: cotizacion.producto,
+    inicio,
+    fin,
+    estado: 'vigente',
+    nombre_producto: suscripcion.nombre_producto,
+    prima_mensual: suscripcion.prima_mensual,
+    documento_url: documentoUrl,
+  })
+  estado.condicionesPolizas.set(numero, {
+    coberturas: cotizacion.coberturas,
+    deducible: cotizacion.deducible,
+    valor_asegurado: cotizacion.valor_asegurado,
+    emitida_en: suscripcion.firmada_en,
+  })
+}
+
+/** Registra el resultado de la pasarela; con el pago aprobado la suscripción queda pagada. */
+function guardarPago(suscripcionId: string, pago: PagoGuardado): void {
+  estado.pagos.set(pago.id, pago)
+  const suscripcion = estado.suscripciones.get(suscripcionId)!
+  suscripcion.pagoId = pago.id
+  if (pago.estado === 'aprobado') suscripcion.estado = 'pagada'
+}
+
+/** Mismo resultado para un correo que no existe y para una contraseña equivocada (WEB-F13, criterio 3). */
+function credencialesValidas({ correo, contrasena }: Partial<Credenciales>): boolean {
+  return (
+    correo?.trim().toLowerCase() === CREDENCIALES_PRUEBA.correo && contrasena === CREDENCIALES_PRUEBA.contrasena
+  )
+}
+
 export const manejadores = [
-  http.get(ruta('/sesion'), () => HttpResponse.json(SESION)),
+  http.post(ruta('/sesion'), async ({ request }) => {
+    const credenciales = (await request.json().catch(() => null)) as Partial<Credenciales> | null
+    if (typeof credenciales?.correo !== 'string' || typeof credenciales.contrasena !== 'string') {
+      return error(422, 'solicitud_invalida', 'Faltan el correo o la contraseña')
+    }
+    if (!credencialesValidas(credenciales)) {
+      return error(401, 'credenciales_invalidas', 'Correo o contraseña incorrectos')
+    }
+    estado.sesion = SESION
+    return HttpResponse.json(SESION)
+  }),
+
+  http.delete(ruta('/sesion'), () => {
+    estado.sesion = null
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  // Las rutas de arriba no exigen sesión; las de abajo sí. Con sesión, este manejador no responde
+  // y la solicitud sigue al manejador de su ruta.
+  http.all(ruta('/*'), () => {
+    if (!estado.sesion) return error(401, SESION_NO_VIGENTE, 'No hay una sesión vigente')
+  }),
+
+  http.get(ruta('/sesion'), () => HttpResponse.json(estado.sesion)),
 
   http.get(ruta('/consentimientos/finalidades'), () => HttpResponse.json(FINALIDADES)),
 
@@ -242,5 +396,251 @@ export const manejadores = [
     if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
     const producto = PRODUCTOS.find((p) => p.codigo === guardada.cotizacion.producto)!
     return HttpResponse.json(cotizar(producto, guardada.solicitud), { status: 201 })
+  }),
+
+  http.post(ruta('/suscripciones'), async ({ request }) => {
+    const { cotizacion_id: cotizacionId } = (await request.json()) as SolicitudSuscripcion
+    const guardada = estado.cotizaciones.get(cotizacionId)
+    if (!guardada) return error(404, 'cotizacion_no_encontrada', 'No existe')
+    const existente = [...estado.suscripciones.values()].find((s) => s.cotizacion_id === cotizacionId)
+    if (existente) return HttpResponse.json(suscripcionConPago(existente.id))
+    const cotizacion = conEstadoActual(guardada.cotizacion)
+    if (cotizacion.estado === 'vencida') {
+      return error(409, 'cotizacion_vencida', 'La oferta venció; hay que recotizar')
+    }
+    const id = siguienteId('sus')
+    estado.suscripciones.set(id, {
+      id,
+      cotizacion_id: cotizacion.id,
+      nombre_producto: cotizacion.nombre_producto,
+      prima_mensual: cotizacion.prima_mensual,
+      estado: 'aceptada',
+      aceptada_en: new Date().toISOString(),
+      firmada_en: null,
+      poliza: null,
+      pagoId: null,
+    })
+    return HttpResponse.json(suscripcionConPago(id), { status: 201 })
+  }),
+
+  http.get(ruta('/suscripciones/:id'), ({ params }) => {
+    const suscripcion = suscripcionConPago(String(params.id))
+    if (!suscripcion) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    return HttpResponse.json(suscripcion)
+  }),
+
+  http.post(ruta('/suscripciones/:id/pagos'), async ({ params, request }) => {
+    const suscripcionId = String(params.id)
+    const suscripcion = suscripcionConPago(suscripcionId)
+    if (!suscripcion) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    const clave = request.headers.get('Idempotency-Key') ?? ''
+    if (!UUID.test(clave)) return error(422, 'clave_idempotencia_invalida', 'Falta la clave del intento')
+    const { medio } = (await request.json()) as SolicitudPago
+    if (!MEDIOS.includes(medio)) return error(422, 'medio_invalido', 'Medio de pago no admitido')
+
+    // Misma clave: es el mismo intento. Nunca se cobra dos veces.
+    const intento = estado.intentos.get(clave)
+    if (intento) {
+      if (intento.suscripcionId !== suscripcionId) {
+        return error(422, 'clave_idempotencia_invalida', 'La clave pertenece a otra suscripción')
+      }
+      if (intento.pago === 'procesando') return error(409, 'pago_en_curso', 'El pago sigue en curso')
+      const repetido: Pago = { ...estado.pagos.get(intento.pago.id)!, reintento: true }
+      return HttpResponse.json(repetido)
+    }
+    // Otra clave: solo si no hay ya un pago aprobado o pendiente.
+    if (suscripcion.pago && suscripcion.pago.estado !== 'rechazado') {
+      return error(409, 'pago_ya_registrado', 'La suscripción ya tiene un pago')
+    }
+
+    estado.intentos.set(clave, { suscripcionId, pago: 'procesando' })
+    await delay(LATENCIA_PASARELA_MS)
+    const pago: PagoGuardado = {
+      id: siguienteId('pag'),
+      estado: estado.pasarela[medio],
+      medio,
+      monto: suscripcion.prima_mensual,
+      referencia: `TX-${String(estado.secuencia).padStart(8, '0')}`,
+      creado_en: new Date().toISOString(),
+    }
+    guardarPago(suscripcionId, pago)
+    estado.intentos.set(clave, { suscripcionId, pago })
+    const nuevo: Pago = { ...pago, reintento: false }
+    return HttpResponse.json(nuevo, { status: 201 })
+  }),
+
+  http.get(ruta('/suscripciones/:id/pagos/:idPago'), ({ params }) => {
+    const suscripcionId = String(params.id)
+    const pago = estado.pagos.get(String(params.idPago))
+    if (!estado.suscripciones.has(suscripcionId) || !pago) {
+      return error(404, 'pago_no_encontrado', 'No existe')
+    }
+    // Simulación: el banco confirma un pago pendiente en cuanto se consulta.
+    if (pago.estado === 'pendiente') guardarPago(suscripcionId, { ...pago, estado: 'aprobado' })
+    const actual: Pago = { ...estado.pagos.get(pago.id)!, reintento: false }
+    return HttpResponse.json(actual)
+  }),
+
+  http.post(ruta('/suscripciones/:id/firma'), async ({ params, request }) => {
+    const id = String(params.id)
+    const guardada = estado.suscripciones.get(id)
+    if (!guardada) return error(404, 'suscripcion_no_encontrada', 'No existe')
+    const { acepta_condiciones: acepta } = (await request.json()) as SolicitudFirma
+    if (acepta !== true) return error(422, 'aceptacion_requerida', 'Hay que aceptar las condiciones')
+    if (guardada.estado === 'emitida') return HttpResponse.json(suscripcionConPago(id))
+
+    const pago = guardada.pagoId ? estado.pagos.get(guardada.pagoId) : undefined
+    if (pago?.estado === 'pendiente') guardarPago(id, { ...pago, estado: 'aprobado' })
+    if (estado.pagos.get(guardada.pagoId ?? '')?.estado !== 'aprobado') {
+      return error(409, 'pago_no_aprobado', 'La suscripción no tiene un pago aprobado')
+    }
+    emitirPoliza(id)
+    return HttpResponse.json(suscripcionConPago(id), { status: 201 })
+  }),
+
+  http.get(ruta('/polizas/:numero/documento'), ({ params }) => {
+    const poliza = estado.polizas.find((p) => p.numero === String(params.numero))
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'No existe')
+    if (!poliza.documento_url) return error(404, 'documento_no_disponible', 'La póliza no tiene documento')
+    return new HttpResponse('%PDF-1.7', {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${poliza.numero}.pdf"`,
+      },
+    })
+  }),
+
+  http.get(ruta('/polizas'), () => HttpResponse.json(estado.polizas)),
+
+  http.get(ruta('/polizas/:numero'), ({ params }) => {
+    const numero = String(params.numero)
+    const poliza = estado.polizas.find((p) => p.numero === numero)
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'No existe')
+    const condiciones = estado.condicionesPolizas.get(numero)
+    return HttpResponse.json({
+      ...poliza,
+      coberturas: condiciones?.coberturas ?? [],
+      deducible: condiciones?.deducible ?? null,
+      valor_asegurado: condiciones?.valor_asegurado ?? null,
+      emitida_en: condiciones?.emitida_en ?? null,
+    })
+  }),
+
+  http.get(ruta('/siniestros'), () => HttpResponse.json([...estado.siniestros].reverse())),
+
+  http.post(ruta('/siniestros'), async ({ request }) => {
+    const clave = request.headers.get('Idempotency-Key') ?? ''
+    if (!UUID.test(clave)) return error(422, 'clave_idempotencia_invalida', 'Falta la clave del reporte')
+    const cuerpo = await request.text()
+    const solicitud = JSON.parse(cuerpo || '{}') as Partial<SolicitudSiniestro>
+
+    // Misma clave: es el mismo envío. Nunca se crea un segundo siniestro (WEB-F05, criterio 4).
+    const previo = estado.reportes.get(clave)
+    if (previo) {
+      if (previo.solicitud !== cuerpo) {
+        return error(409, 'clave_idempotencia_en_uso', 'La clave ya se usó para otro reporte')
+      }
+      return HttpResponse.json(estado.siniestros.find((s) => s.id === previo.siniestroId), { status: 200 })
+    }
+
+    if (!solicitudSiniestroValida(solicitud)) return error(422, 'solicitud_invalida', 'Datos del reporte inválidos')
+    const { numero_poliza: numero, ocurrido_el: dia } = solicitud as SolicitudSiniestro
+    const poliza = estado.polizas.find((p) => p.numero === numero)
+    if (!poliza) return error(404, 'poliza_no_encontrada', 'La póliza no existe')
+    if (dia > diaLocal()) return error(422, 'fecha_futura', 'El evento no puede ser futuro')
+    if (dia < poliza.inicio || dia > poliza.fin) {
+      return HttpResponse.json<ErrorVigencia>(
+        {
+          codigo: 'evento_fuera_de_vigencia',
+          mensaje: 'El evento ocurrió fuera de la vigencia de la póliza',
+          vigente_desde: poliza.inicio,
+          vigente_hasta: poliza.fin,
+        },
+        { status: 409 },
+      )
+    }
+
+    const id = siguienteId('sin')
+    const siniestro: Siniestro = {
+      id,
+      referencia: `SIN-2026-${String(estado.secuencia).padStart(6, '0')}`,
+      numero_poliza: numero,
+      tipo_evento: solicitud.tipo_evento!,
+      ocurrido_el: dia,
+      descripcion: solicitud.descripcion!,
+      monto_estimado: solicitud.monto_estimado ?? null,
+      estado: 'reportado',
+      siguiente_paso: 'adjuntar_evidencia',
+      canal: 'web',
+      reportado_en: new Date().toISOString(),
+    }
+    estado.siniestros.push(siniestro)
+    estado.reportes.set(clave, { siniestroId: id, solicitud: cuerpo })
+    // Se registra antes de esperar: un reintento simultáneo con la misma clave recibe este mismo.
+    await delay(LATENCIA_REPORTE_MS)
+    return HttpResponse.json(siniestro, { status: 201 })
+  }),
+
+  http.get(ruta('/siniestros/:id'), ({ params }) => {
+    const siniestro = estado.siniestros.find((s) => s.id === String(params.id))
+    if (!siniestro) return error(404, 'siniestro_no_encontrado', 'No existe')
+    return HttpResponse.json({ ...siniestro, ...seguimientoDe(siniestro) })
+  }),
+
+  http.get(ruta('/siniestros/:id/evidencias'), ({ params }) => {
+    const id = String(params.id)
+    if (!estado.siniestros.some((s) => s.id === id)) return error(404, 'siniestro_no_encontrado', 'No existe')
+    return HttpResponse.json((estado.evidencias.get(id) ?? []).map((e) => e.evidencia))
+  }),
+
+  http.post(ruta('/siniestros/:id/evidencias'), async ({ params, request }) => {
+    const id = String(params.id)
+    if (!estado.siniestros.some((s) => s.id === id)) return error(404, 'siniestro_no_encontrado', 'No existe')
+    const formulario = await request.formData()
+    const archivo = formulario.get('archivo')
+    if (!(archivo instanceof File)) return error(422, 'solicitud_invalida', 'Falta el archivo')
+    const idRequerimiento = formulario.get('id_requerimiento')
+    const requerimiento = estado.seguimientos.get(id)?.requerimientos.find((r) => r.id === idRequerimiento)
+    if (idRequerimiento && !requerimiento) return error(404, 'requerimiento_no_encontrado', 'No existe')
+    if (requerimiento && !requerimiento.pendiente) return error(409, 'requerimiento_ya_atendido', 'Ya no está pendiente')
+    if (archivo.size > TAMANO_MAXIMO_EVIDENCIA) {
+      return error(413, 'archivo_demasiado_grande', 'El archivo supera los 10 MB')
+    }
+    if (archivo.size === 0) return error(422, 'archivo_vacio', 'El archivo está vacío')
+    const tipo = archivo.type as Evidencia['tipo_contenido']
+    if (!TIPOS_EVIDENCIA.includes(tipo)) return error(422, 'formato_no_admitido', 'Formato no admitido')
+
+    const evidencia: Evidencia = {
+      id: siguienteId('evi'),
+      tipo_contenido: tipo,
+      tamano: archivo.size,
+      nombre_original: archivo.name || null,
+      canal: 'web',
+      cargada_en: new Date().toISOString(),
+      tomada_en: null,
+      latitud: null,
+      longitud: null,
+      lugar: null,
+    }
+    estado.evidencias.set(id, [...(estado.evidencias.get(id) ?? []), { evidencia, contenido: archivo }])
+    if (requerimiento) {
+      requerimiento.pendiente = false
+      requerimiento.atendido_en = evidencia.cargada_en
+      requerimiento.id_evidencia = evidencia.id
+    }
+    return HttpResponse.json(evidencia, { status: 201 })
+  }),
+
+  http.get(ruta('/siniestros/:id/evidencias/:idEvidencia'), ({ params }) => {
+    const guardada = estado.evidencias.get(String(params.id))?.find((e) => e.evidencia.id === String(params.idEvidencia))
+    if (!guardada) return error(404, 'evidencia_no_encontrada', 'No existe')
+    const nombre = guardada.evidencia.nombre_original ?? guardada.evidencia.id
+    return new HttpResponse(guardada.contenido, {
+      headers: {
+        'Content-Type': guardada.evidencia.tipo_contenido,
+        // Igual que el BFF: en línea, con el nombre codificado; el enlace de la web pide descargarlo.
+        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(nombre)}`,
+      },
+    })
   }),
 ]

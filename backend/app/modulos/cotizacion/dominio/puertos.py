@@ -16,6 +16,7 @@ eso es lo que sostiene RC-05.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -69,11 +70,28 @@ class RegistroDeDecisiones(Protocol):
         id_cotizacion: str,
         id_consentimiento: str | None,
         id_cliente: str | None,
+        canal: str,
         version_regla: str,
         variables_entrada: dict[str, object],
         resultado: dict[str, object],
         ocurrido_en: datetime,
     ) -> str:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionRegistrada:
+    """Lo que el log de auditoría guardó de una decisión de cotización."""
+
+    id_decision: str
+    version_regla: str | None
+    variables_entrada: Mapping[str, object]
+
+
+class ConsultaDeDecisiones(Protocol):
+    """Lectura de las decisiones registradas, para reconstruir una prima (RC-08)."""
+
+    def decision(self, id_decision: str) -> DecisionRegistrada | None:
         raise NotImplementedError
 
 
@@ -83,6 +101,12 @@ class RepositorioCotizaciones(Protocol):
 
     def obtener(self, id_cotizacion: str) -> Cotizacion | None:
         pass
+
+    def vigente_por_huella(
+        self, id_cliente: str, huella: str, ahora: datetime
+    ) -> Cotizacion | None:
+        """La cotización del cliente con esa huella que siga vigente en `ahora`, si la hay."""
+        raise NotImplementedError
 
     def siguiente_id(self, anio: int) -> str:
         """Identificador legible por humanos, con el formato QT-AAAA-NNNNN."""

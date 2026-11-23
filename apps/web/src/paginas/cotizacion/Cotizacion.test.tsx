@@ -8,6 +8,7 @@ import { App } from '../../App'
 import { bff } from '../../api/cliente'
 import type { Cotizacion } from '../../api/tipos'
 import { FINALIDADES } from '../../mocks/datos'
+import { estado } from '../../mocks/estado'
 import { servidor } from '../../mocks/servidor'
 
 const ruta = (camino: string) => `*/api/v1/web${camino}`
@@ -161,6 +162,21 @@ describe('Asistente de cotización (WEB-F01)', () => {
 
       expect(screen.getByText(/elegiste cotizar sin ellos/)).toBeInTheDocument()
     })
+
+    it('con Open Finance caído y sin perfil guardado, cotiza estándar y lo explica sin culpar al consentimiento', async () => {
+      estado.openFinance = 'caido'
+      await otorgarConsentimiento()
+      await renderizar()
+      await elegirAutoYLlenarDatos()
+      await verOferta()
+
+      expect(screen.getByText(/\$\s?148\.000/)).toBeInTheDocument()
+      expect(screen.getByText(/Precio estándar\./)).toBeInTheDocument()
+      expect(screen.getByText(/Tu entidad financiera no respondió y no teníamos tu perfil guardado/)).toBeInTheDocument()
+      expect(screen.queryByText(/no tienes un consentimiento vigente/)).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Otorgar consentimiento' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 
   describe('oferta personalizada y criterio 2: detalle del precio', () => {
@@ -199,11 +215,17 @@ describe('Asistente de cotización (WEB-F01)', () => {
     })
 
     it('indica cuando el perfil vino de la caché porque el proveedor estaba degradado', async () => {
-      servidor.use(http.post(ruta('/cotizaciones'), () => HttpResponse.json(cotizacionDePrueba(), { status: 201 })))
+      estado.openFinance = 'degradado'
+      await otorgarConsentimiento()
       await renderizar()
       await elegirAutoYLlenarDatos()
       await verOferta()
+
       expect(screen.getByText(/usamos tu perfil financiero guardado/)).toBeInTheDocument()
+      expect(screen.getByText(/Ahorras/)).toBeInTheDocument()
+      // La hora en español ya termina en "a. m." o "p. m.": el texto no agrega otro punto.
+      expect(screen.getByText(/La oferta es válida hasta las/).textContent).toMatch(/[ap]\.\s?m\.$/)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 

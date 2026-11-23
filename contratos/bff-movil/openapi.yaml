@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Móvil
-  version: 0.1.0
+  version: 0.8.0
   description: |
     Contrato entre la app Android y su Backend for Frontend (BFF).
 
@@ -12,6 +12,41 @@ info:
     - **MOB-F01** · Onboarding y autenticación biométrica: registro, verificación del correo con
       OTP, resultado de la verificación de identidad (KYC/AML simulado) e ingreso con contraseña o
       con biometría.
+    - **MOB-F02** · Consentimiento de Open Finance desde la app, con las mismas rutas, formas y
+      códigos de error que el contrato web: el consentimiento es del cliente, no del canal. Revocar
+      en la app corta el uso del dato en todos los canales.
+    - **WEB-F05** · Reporte de siniestros desde la app, con las mismas rutas y códigos que la
+      web: el mismo siniestro se ve en los dos canales.
+    - **MOB-F05** · Evidencia del siniestro con la fecha de la cámara y la ubicación, o el
+      lugar escrito si no hay permiso.
+    - **MOB-F06** · Notificaciones push del siniestro: registro del dispositivo y bandeja de
+      notificaciones. Ver "Push" más abajo.
+    - **WEB-F06** · Seguir el siniestro: estado actual, historial de eventos con su fecha y
+      requerimientos pendientes que se responden adjuntando evidencia, igual en los dos canales.
+    - **WEB-F04** · Mis pólizas: lista, detalle con coberturas y documento, iguales a los de la
+      web. Una póliza comprada en la web aparece en la app sin hacer nada más.
+
+    **Push (MOB-F06).** El proveedor de push es **simulado**: el núcleo no habla con Firebase.
+    Cuando cambia el estado de un siniestro, el núcleo crea una notificación para el cliente y
+    la "envía" a cada dispositivo registrado, que en este prototipo es guardarla. La app la
+    recibe así:
+
+    1. Tras iniciar sesión (y en cada arranque con sesión), `POST /dispositivos` con su
+       `token_push`. Es idempotente; si el token estaba con otra cuenta, pasa a esta
+       (criterio 4). Si no hay Firebase en la app, sirve cualquier identificador estable de
+       la instalación.
+    2. Mientras la app está abierta o en segundo plano (WorkManager, cada pocos minutos),
+       `GET /notificaciones`. Cada notificación con `leida: false` que la app no haya mostrado
+       se muestra como notificación local del sistema con `titulo` y `cuerpo`.
+    3. Al tocarla, la app abre el detalle del siniestro de `datos.id_siniestro` cuando
+       `datos.tipo` es `siniestro_estado` (criterio 2) y marca la notificación con
+       `POST /notificaciones/{id}/lectura`.
+    4. Al cerrar sesión, `DELETE /dispositivos/{id}`.
+
+    Si el cliente negó el permiso de notificaciones, la app no muestra la notificación local
+    pero el estado se sigue viendo en el seguimiento (P20, criterio 3). Cambiar a Firebase real
+    solo cambia el núcleo: estas rutas y estos campos se mantienen, y `datos` viaja igual en el
+    mensaje de FCM.
 
     **Biometría.** Solventa nunca recibe el dato biométrico. Tras el primer ingreso con contraseña,
     la app guarda el `token_refresco` cifrado con una llave del Android Keystore que solo se
@@ -39,6 +74,14 @@ tags:
     description: Ingreso con contraseña y renovación con biometría (MOB-F01)
   - name: identidad
     description: Verificación de identidad KYC/AML (MOB-F01)
+  - name: consentimientos
+    description: Consentimiento de Open Finance, igual que en la web (MOB-F02)
+  - name: notificaciones
+    description: Registro del dispositivo y notificaciones push del siniestro (MOB-F06)
+  - name: polizas
+    description: Pólizas del cliente, iguales a las de la web (WEB-F04)
+  - name: siniestros
+    description: Reporte de siniestros (WEB-F05)
 
 paths:
   /registros:
@@ -208,6 +251,7 @@ paths:
               schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
+        "503": { $ref: "#/components/responses/VerificacionNoDisponible" }
     post:
       tags: [identidad]
       operationId: solicitarVerificacionIdentidad
@@ -217,6 +261,8 @@ paths:
         valida los datos del registro; la captura de documento y selfie llega después. La respuesta
         puede ser inmediata (`aprobada`, `rechazada`, `en_revision`) o `en_proceso`, y entonces la
         app consulta `GET /identidad/verificacion` en lugar de esperar en una pantalla de carga.
+
+        No lleva cuerpo: los datos son los de la cuenta, así que el documento no viaja por el BFF.
       responses:
         "202":
           description: Verificación recibida
@@ -225,10 +271,450 @@ paths:
               schema: { $ref: "#/components/schemas/VerificacionIdentidad" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "409":
-          description: La identidad ya está verificada o hay una verificación en curso
+          description: |
+            La verificación no aplica: `correo_no_verificado` (falta confirmar el OTP),
+            `identidad_ya_verificada`, `verificacion_en_curso` (también si un intento anterior
+            sigue esperando al proveedor), `reintento_no_permitido` (el último rechazo no admite
+            reintento) o `reintento_sin_cambios` (un `datos_no_coinciden` con los mismos datos; no
+            vuelve al proveedor). La app consulta `GET /identidad/verificacion` para mostrar el
+            resultado vigente.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/VerificacionNoDisponible" }
+
+  /consentimientos/finalidades:
+    get:
+      tags: [consentimientos]
+      operationId: listarFinalidades
+      summary: Finalidades que el cliente puede autorizar, cada una por separado
+      description: |
+        Cada finalidad trae su alcance, su vigencia y las entidades origen de los datos, y la
+        versión del texto legal que el cliente acepta al otorgarla (WEB-F02, criterios 1 y 6).
+      responses:
+        "200":
+          description: Catálogo de finalidades
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Finalidad" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /consentimientos:
+    get:
+      tags: [consentimientos]
+      operationId: listarConsentimientos
+      summary: Consentimientos del cliente, en cualquier estado
+      responses:
+        "200":
+          description: Consentimientos del cliente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [consentimientos]
+      operationId: otorgarConsentimiento
+      summary: Otorga el consentimiento para una finalidad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudConsentimiento" }
+      responses:
+        "201":
+          description: Consentimiento otorgado y vigente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /consentimientos/{id}/revocacion:
+    post:
+      tags: [consentimientos]
+      operationId: revocarConsentimiento
+      summary: Revoca un consentimiento vigente
+      description: |
+        El estado cambia a `revocado` de inmediato. La propagación al resto de la plataforma
+        ocurre en ≤ 5 minutos (RC-04); desde ese momento las cotizaciones usan tarifa estándar.
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Consentimiento revocado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+
+  /consentimientos/{id}/renovacion:
+    post:
+      tags: [consentimientos]
+      operationId: renovarConsentimiento
+      summary: Renueva un consentimiento vigente o vencido sin repetir el flujo completo
+      description: |
+        La nueva vigencia se cuenta desde la renovación. 409 si está revocado, o si está vencido y ya
+        hay otro vigente para la misma finalidad.
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Consentimiento renovado con nueva fecha de expiración
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Consentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/Conflicto" }
+
+  /consentimientos/{id}/eventos:
+    get:
+      tags: [consentimientos]
+      operationId: listarEventosConsentimiento
+      summary: Histórico del consentimiento en orden cronológico
+      parameters:
+        - $ref: "#/components/parameters/IdConsentimiento"
+      responses:
+        "200":
+          description: Eventos del consentimiento, del más antiguo al más reciente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EventoConsentimiento" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas:
+    get:
+      tags: [polizas]
+      operationId: listarPolizas
+      summary: Pólizas del cliente, de la más reciente a la más antigua
+      description: |
+        "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+        (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+        estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+        emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+        viene vacía y la interfaz lleva a cotizar (criterio 3).
+      responses:
+        "200":
+          description: Pólizas del cliente, de la más reciente a la más antigua
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PolizaResumen" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /polizas/{numero}:
+    get:
+      tags: [polizas]
+      operationId: obtenerPoliza
+      summary: Detalle de una póliza con coberturas, deducible y límites
+      description: |
+        WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: La póliza con sus condiciones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolizaDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas/{numero}/documento:
+    get:
+      tags: [polizas]
+      operationId: descargarDocumentoPoliza
+      summary: Documento PDF de una póliza emitida
+      description: |
+        El documento de la póliza (WEB-F03, criterio 4; WEB-F04, criterio 4). Sale con la sesión
+        del cliente; el almacén es privado. Una póliza de otro cliente responde 404
+        `poliza_no_encontrada`, igual que una que no existe; una póliza sin documento (las de
+        prueba), 404 `documento_no_disponible`.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: "El PDF, como adjunto (`Content-Disposition: attachment`)"
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /dispositivos:
+    post:
+      tags: [notificaciones]
+      operationId: registrarDispositivo
+      summary: Registra el dispositivo para recibir push
+      description: |
+        Idempotente por `token_push`: registrarlo en cada arranque no crea otro. Si el token
+        estaba registrado con otra cuenta, queda con esta (criterio 4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudDispositivo" }
+      responses:
+        "200":
+          description: Ya estaba registrado; queda con esta cuenta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispositivo" }
+        "201":
+          description: Registrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dispositivo" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "422":
+          description: "`token_push_invalido`: vacío, con espacios o de más de 4096 caracteres"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dispositivos/{id}:
+    delete:
+      tags: [notificaciones]
+      operationId: darDeBajaDispositivo
+      summary: Da de baja el dispositivo al cerrar sesión
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Dado de baja; ya no recibe push de esta cuenta }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /notificaciones:
+    get:
+      tags: [notificaciones]
+      operationId: listarNotificaciones
+      summary: Notificaciones del cliente, de la más reciente a la más antigua
+      description: |
+        La bandeja del proveedor de push simulado (ver "Push" en la descripción). Una por cada
+        cambio de estado de un siniestro del cliente, aunque el núcleo reciba el evento dos veces.
+      parameters:
+        - name: limite
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Notificaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notificacion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /notificaciones/{id}/lectura:
+    post:
+      tags: [notificaciones]
+      operationId: marcarNotificacionLeida
+      summary: Marca una notificación como leída
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Leída }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /siniestros:
+    get:
+      tags: [siniestros]
+      operationId: listarSiniestros
+      summary: Siniestros del cliente, reportados desde cualquier canal
+      responses:
+        "200":
+          description: Siniestros del cliente, del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [siniestros]
+      operationId: reportarSiniestro
+      summary: Reporta un siniestro sobre una póliza del cliente
+      description: |
+        El siniestro queda `reportado`, con un número de referencia y el siguiente paso del caso,
+        y se ve igual desde la web y desde la app (WEB-F05, criterio 1).
+
+        Cada envío del asistente lleva su `Idempotency-Key`, generada por el cliente. Repetirlo con
+        la **misma** clave (doble clic, reintento por red lenta) responde 200 con el mismo
+        siniestro y la misma referencia: no se crea otro (criterio 4, P10, P18).
+
+        Una póliza vencida admite el reporte si el evento ocurrió dentro de su vigencia; si no,
+        responde 409 `evento_fuera_de_vigencia` con las fechas de la póliza y no queda registro
+        (criterio 3).
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Identificador único del envío del reporte (UUID v4)
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudSiniestro" }
+      responses:
+        "200":
+          description: Reintento de un reporte ya hecho con la misma clave; no se creó otro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "201":
+          description: Siniestro reportado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404":
+          description: La póliza no existe o no es del cliente (`poliza_no_encontrada`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: |
+            `evento_fuera_de_vigencia` (trae `vigente_desde` y `vigente_hasta`) o
+            `clave_idempotencia_en_uso` (la clave ya se usó para un reporte con otros datos).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorVigencia" }
+        "422":
+          description: |
+            Datos inválidos, `fecha_futura` sobre `ocurrido_el` o `clave_idempotencia_invalida`
+            (falta la clave o no es un UUID). Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}:
+    get:
+      tags: [siniestros]
+      operationId: obtenerSiniestro
+      summary: Detalle de un siniestro con su historial y sus requerimientos
+      description: |
+        WEB-F06. El estado actual es el mismo en la web y en la app (criterio 1) y un cambio en
+        el núcleo se ve al refrescar (criterio 2). `historial` trae los eventos con su fecha,
+        empezando por el reporte (criterio 4). `requerimientos` dice qué falta; el cliente
+        responde uno adjuntando evidencia con `id_requerimiento` (criterio 5).
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Siniestro con su estado, siguiente paso, historial y requerimientos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiniestroDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /siniestros/{id}/evidencias:
+    get:
+      tags: [siniestros]
+      operationId: listarEvidencias
+      summary: Evidencias del siniestro, cargadas desde cualquier canal
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Evidencias en el orden en que se cargaron
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+    post:
+      tags: [siniestros]
+      operationId: adjuntarEvidencia
+      summary: Adjunta una foto, un video o un documento al siniestro
+      description: |
+        Se puede agregar en el reporte o después; queda asociada al mismo siniestro y se ve en los
+        dos canales (MOB-F05, criterio 5). Hasta 10 MB, y solo JPEG, PNG, HEIC, MP4 o PDF: el
+        formato se comprueba con el contenido del archivo, no solo con su extensión.
+
+        La fecha y hora de la cámara y la ubicación son opcionales. Si el cliente negó el permiso
+        de ubicación puede escribir el `lugar`; el reporte nunca queda bloqueado por un permiso
+        (criterios 1 y 2, P20).
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/SolicitudEvidencia" }
+      responses:
+        "201":
+          description: Evidencia guardada y asociada al siniestro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: El siniestro está cerrado y ya no recibe evidencia (`siniestro_cerrado`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: El archivo supera los 10 MB (`archivo_demasiado_grande`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            `formato_no_admitido` o `archivo_vacio` sobre `archivo`; `ubicacion_invalida` o
+            `fecha_de_captura_invalida`. Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: El almacén de evidencias no respondió (`almacenamiento_no_disponible`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}/evidencias/{id_evidencia}:
+    get:
+      tags: [siniestros]
+      operationId: descargarEvidencia
+      summary: Contenido de una evidencia, con su tipo
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+        - name: id_evidencia
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: El archivo; `Content-Disposition` trae el nombre original si lo hay
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
 
 components:
   securitySchemes:
@@ -238,7 +724,22 @@ components:
       description: Token de acceso del canal móvil, emitido al abrir o renovar la sesión.
 
   parameters:
+    NumeroPoliza:
+      name: numero
+      in: path
+      required: true
+      schema: { type: string, examples: [POL-2026-000001] }
+    IdSiniestro:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
     IdRegistro:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    IdConsentimiento:
       name: id
       in: path
       required: true
@@ -246,7 +747,14 @@ components:
 
   responses:
     NoAutenticado:
-      description: No hay una sesión vigente
+      description: |
+        No hay una sesión vigente (`sesion_no_vigente`): falta el token, venció o su firma no es
+        válida. Lleva `WWW-Authenticate: Bearer`. La app renueva la sesión con el token de refresco
+        o, si no puede, vuelve al inicio de sesión (WEB-F13, criterio 4).
+      headers:
+        WWW-Authenticate:
+          description: Siempre `Bearer`
+          schema: { type: string }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -257,6 +765,15 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     Conflicto:
       description: La operación no aplica al estado actual del recurso
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    VerificacionNoDisponible:
+      description: |
+        El proveedor de KYC/AML (`proveedor_kyc_no_disponible`) o el núcleo
+        (`nucleo_no_disponible`) no respondieron. La app ofrece reintentar. Tras
+        `nucleo_no_disponible` la solicitud pudo llegar: el reintento puede recibir un 409
+        `verificacion_en_curso`.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -414,5 +931,406 @@ components:
           enum: [datos_no_coinciden, documento_no_valido, no_superada]
         reintento_permitido:
           type: boolean
-          description: Solo si `estado` es `rechazada`
+          description: |
+            Solo si `estado` es `rechazada`. Sin `true`, un nuevo `POST` responde 409
+            `reintento_no_permitido`. Con `datos_no_coinciden`, el reintento solo llega al
+            proveedor si los datos de la cuenta cambiaron.
         actualizada_en: { type: string, format: date-time }
+
+    CodigoFinalidad:
+      type: string
+      enum: [cotizacion, suscripcion, prevencion_fraude]
+
+    Finalidad:
+      type: object
+      required: [codigo, nombre, descripcion, alcance, vigencia_meses, entidades_origen, version_texto]
+      properties:
+        codigo: { $ref: "#/components/schemas/CodigoFinalidad" }
+        nombre: { type: string }
+        descripcion: { type: string }
+        alcance:
+          type: array
+          description: Datos que se consultan bajo esta finalidad
+          items: { type: string }
+        vigencia_meses: { type: integer, minimum: 1 }
+        entidades_origen:
+          type: array
+          description: Entidades financieras de las que el cliente puede autorizar datos
+          items: { $ref: "#/components/schemas/Entidad" }
+        version_texto:
+          type: string
+          description: Versión del texto legal vigente para esta finalidad
+          examples: [cotizacion-2026.1]
+
+    Entidad:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { type: string }
+        nombre: { type: string }
+
+    EstadoConsentimiento:
+      type: string
+      enum: [vigente, revocado, vencido]
+
+    SolicitudConsentimiento:
+      type: object
+      required: [finalidad, entidades_origen, version_texto]
+      properties:
+        finalidad: { $ref: "#/components/schemas/CodigoFinalidad" }
+        entidades_origen:
+          type: array
+          minItems: 1
+          items: { type: string, description: Id de la entidad }
+        version_texto:
+          type: string
+          description: Versión del texto legal que el cliente leyó y aceptó
+
+    Consentimiento:
+      type: object
+      required: [id, finalidad, entidades_origen, estado, canal, otorgado_en, vence_en, version_texto, por_vencer, dias_para_vencer]
+      properties:
+        id: { type: string }
+        finalidad: { $ref: "#/components/schemas/CodigoFinalidad" }
+        entidades_origen:
+          type: array
+          items: { $ref: "#/components/schemas/Entidad" }
+        estado: { $ref: "#/components/schemas/EstadoConsentimiento" }
+        canal: { type: string, enum: [web, movil] }
+        otorgado_en: { type: string, format: date-time }
+        vence_en: { type: string, format: date-time }
+        revocado_en:
+          type: [string, "null"]
+          format: date-time
+        version_texto: { type: string }
+        por_vencer:
+          type: boolean
+          description: Vigente y vence en 30 días o menos; la interfaz ofrece renovarlo (WEB-F02, criterio 7)
+        dias_para_vencer:
+          type: [integer, "null"]
+          minimum: 0
+          description: Días completos que faltan para vencer; `null` si no está vigente
+
+    EventoConsentimiento:
+      type: object
+      required: [tipo, ocurrido_en, canal, version_texto]
+      properties:
+        tipo: { type: string, enum: [otorgado, renovado, revocado, vencido] }
+        ocurrido_en: { type: string, format: date-time }
+        canal: { type: string, enum: [web, movil, sistema] }
+        version_texto: { type: string }
+
+    Dinero:
+      type: object
+      required: [valor, moneda]
+      properties:
+        valor:
+          type: integer
+          description: Monto entero en la unidad mayor de la moneda, sin decimales (pesos para COP)
+          examples: [1500000]
+        moneda:
+          type: string
+          description: Código ISO 4217 de la moneda
+          examples: [COP]
+
+    EstadoPoliza:
+      type: string
+      enum: [vigente, vencida, por_iniciar]
+
+    Cobertura:
+      type: object
+      required: [nombre, limite]
+      properties:
+        nombre: { type: string }
+        limite: { type: string }
+
+    SolicitudDispositivo:
+      type: object
+      required: [token_push]
+      properties:
+        token_push:
+          type: string
+          minLength: 1
+          maxLength: 4096
+          description: Token del proveedor de push, o un identificador estable de la instalación
+        plataforma:
+          type: string
+          enum: [android]
+          default: android
+
+    Dispositivo:
+      type: object
+      required: [id, plataforma, registrado_en]
+      properties:
+        id:
+          type: string
+          description: Identificador del dispositivo; el token nunca vuelve en una respuesta
+        plataforma: { type: string, enum: [android] }
+        registrado_en: { type: string, format: date-time }
+
+    Notificacion:
+      type: object
+      required: [id, titulo, cuerpo, datos, creada_en, leida]
+      properties:
+        id: { type: string }
+        titulo: { type: string, examples: [Tu siniestro SIN-2026-000123 cambió] }
+        cuerpo: { type: string, examples: [Ya estamos evaluando tu caso.] }
+        datos:
+          type: object
+          description: |
+            Lo que la app necesita para actuar al tocarla. Con `tipo` = `siniestro_estado`, abre
+            el detalle de `id_siniestro`.
+          required: [tipo]
+          properties:
+            tipo: { type: string, examples: [siniestro_estado] }
+            id_siniestro: { type: string }
+            referencia: { type: string }
+            estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+          additionalProperties: { type: string }
+        creada_en:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        leida: { type: boolean }
+
+    PolizaResumen:
+      type: object
+      required: [numero, producto, inicio, fin, estado]
+      properties:
+        numero: { type: string, examples: [POL-2026-000101] }
+        producto: { type: string, examples: [auto] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        estado: { $ref: "#/components/schemas/EstadoPoliza" }
+        nombre_producto:
+          description: Nombre comercial del producto; `null` si el catálogo no lo tiene
+          oneOf:
+            - { type: string, examples: ["Seguro de Auto — Plan Full"] }
+            - type: "null"
+        prima_mensual:
+          description: Prima mensual; `null` si no se conoce
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        documento_url:
+          description: Ruta del PDF en este BFF; `null` si la póliza no tiene documento
+          oneOf:
+            - { type: string, examples: [/api/v1/movil/polizas/POL-2026-000001/documento] }
+            - type: "null"
+
+    PolizaDetalle:
+      allOf:
+        - $ref: "#/components/schemas/PolizaResumen"
+        - type: object
+          required: [coberturas, deducible, valor_asegurado, emitida_en]
+          properties:
+            coberturas:
+              type: array
+              description: Coberturas con su límite
+              items: { $ref: "#/components/schemas/Cobertura" }
+            deducible:
+              oneOf:
+                - { type: string, examples: ["5% del valor asegurado"] }
+                - type: "null"
+            valor_asegurado:
+              oneOf:
+                - { type: string, examples: ["$60.000.000"] }
+                - type: "null"
+            emitida_en:
+              description: Cuándo se emitió; `null` en una póliza de prueba
+              oneOf:
+                - { type: string, format: date-time }
+                - type: "null"
+
+    TipoEventoSiniestro:
+      type: string
+      enum:
+        - accidente_vehiculo
+        - hurto
+        - dano_hogar
+        - retraso_vuelo
+        - equipo_danado_o_perdido
+        - cancelacion_viaje
+        - otro
+
+    EstadoSiniestro:
+      type: string
+      description: |
+        Estado del caso (WEB-F06). `rechazado` y `pagado` son finales. Cada canal lo muestra con
+        su texto, nunca solo con color.
+      enum: [reportado, en_evaluacion, requiere_informacion, aprobado, rechazado, pagado]
+
+    SiguientePaso:
+      type: string
+      description: |
+        Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+        `adjuntar_evidencia` en `reportado` y en `requiere_informacion` (ahí, para responder
+        los requerimientos pendientes); `esperar_evaluacion` en los demás. Un caso cerrado lo
+        explica su `estado`.
+      enum: [adjuntar_evidencia, esperar_evaluacion]
+
+    SolicitudSiniestro:
+      type: object
+      required: [numero_poliza, tipo_evento, ocurrido_el, descripcion]
+      properties:
+        numero_poliza: { type: string, minLength: 1 }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el:
+          type: string
+          format: date
+          description: Día del evento; no puede ser futuro
+        descripcion: { type: string, minLength: 10, maxLength: 2000 }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+          description: Opcional; lo que el cliente estima que costó
+
+    Siniestro:
+      type: object
+      required:
+        - id
+        - referencia
+        - numero_poliza
+        - tipo_evento
+        - ocurrido_el
+        - descripcion
+        - monto_estimado
+        - estado
+        - siguiente_paso
+        - canal
+        - reportado_en
+      properties:
+        id: { type: string }
+        referencia:
+          type: string
+          description: Número que ve el cliente, el mismo en los dos canales
+          examples: [SIN-2026-000123]
+        numero_poliza: { type: string }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el: { type: string, format: date }
+        descripcion: { type: string }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        siguiente_paso: { $ref: "#/components/schemas/SiguientePaso" }
+        canal: { type: string, enum: [web, movil] }
+        reportado_en: { type: string, format: date-time }
+        estado_actualizado_en:
+          description: Último cambio de estado (WEB-F06); `null` mientras siga como se reportó
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+
+    SiniestroDetalle:
+      allOf:
+        - $ref: "#/components/schemas/Siniestro"
+        - type: object
+          required: [historial, requerimientos]
+          properties:
+            historial:
+              type: array
+              description: Eventos del caso, del más antiguo al más reciente; el primero es el reporte
+              items: { $ref: "#/components/schemas/EventoSiniestro" }
+            requerimientos:
+              type: array
+              description: Lo que se le pidió al cliente, pendiente o ya atendido
+              items: { $ref: "#/components/schemas/Requerimiento" }
+
+    EventoSiniestro:
+      type: object
+      required: [id, estado_anterior, estado, ocurrido_en, motivo]
+      properties:
+        id: { type: string }
+        estado_anterior:
+          description: "`null` en el evento del reporte"
+          oneOf:
+            - $ref: "#/components/schemas/EstadoSiniestro"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        ocurrido_en: { type: string, format: date-time }
+        motivo:
+          description: Explicación del cambio, si la hay
+          oneOf:
+            - type: string
+            - type: "null"
+
+    Requerimiento:
+      type: object
+      required: [id, descripcion, creado_en, pendiente, atendido_en, id_evidencia]
+      properties:
+        id: { type: string }
+        descripcion:
+          type: string
+          description: Qué falta, en palabras del ajustador
+          examples: [Factura de la reparación]
+        creado_en: { type: string, format: date-time }
+        pendiente: { type: boolean }
+        atendido_en:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        id_evidencia:
+          description: La evidencia con la que se respondió; `null` si sigue pendiente
+          oneOf:
+            - type: string
+            - type: "null"
+
+    ErrorVigencia:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            vigente_desde:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
+            vigente_hasta:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
+
+    SolicitudEvidencia:
+      type: object
+      required: [archivo]
+      properties:
+        archivo:
+          type: string
+          format: binary
+          description: Foto, video o documento, hasta 10 MB
+        tomada_en:
+          type: string
+          format: date-time
+          description: Fecha y hora de la cámara; no puede ser futura
+        latitud: { type: number, minimum: -90, maximum: 90 }
+        longitud: { type: number, minimum: -180, maximum: 180 }
+        lugar:
+          type: string
+          maxLength: 200
+          description: El lugar escrito por el cliente cuando no hay ubicación
+        id_requerimiento:
+          type: string
+          maxLength: 64
+          description: |
+            Requerimiento pendiente que esta evidencia responde (WEB-F06, criterio 5). Lo deja
+            atendido. 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+            `requerimiento_ya_atendido` si ya se respondió.
+
+    Evidencia:
+      type: object
+      required: [id, tipo_contenido, tamano, nombre_original, canal, cargada_en]
+      properties:
+        id: { type: string, examples: [EVI-6f1c2a] }
+        tipo_contenido:
+          type: string
+          enum: [image/jpeg, image/png, image/heic, video/mp4, application/pdf]
+        tamano: { type: integer, description: Bytes }
+        nombre_original: { type: [string, "null"] }
+        canal: { type: string, enum: [web, movil] }
+        cargada_en: { type: string, format: date-time }
+        tomada_en: { type: [string, "null"], format: date-time }
+        latitud: { type: [number, "null"] }
+        longitud: { type: [number, "null"] }
+        lugar: { type: [string, "null"] }

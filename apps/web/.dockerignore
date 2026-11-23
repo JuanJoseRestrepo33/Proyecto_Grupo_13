@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+reporte-pruebas.xml
+cobertura-nueva.md
+Dockerfile

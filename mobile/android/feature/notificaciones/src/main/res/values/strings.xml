@@ -1,0 +1,15 @@
+<resources>
+    <!-- Canal de la notificación local (MOB-F06) -->
+    <string name="canal_siniestros">Estado de tus siniestros</string>
+    <string name="canal_siniestros_descripcion">Te avisa cuando cambia el estado de un siniestro que reportaste.</string>
+
+    <!-- Aviso del permiso en Inicio (P20) -->
+    <string name="aviso_pedir_titulo">Entérate cuando avance tu siniestro</string>
+    <string name="aviso_pedir_texto">Te enviaremos una notificación cuando cambie el estado de tu siniestro. Puedes desactivarlas cuando quieras.</string>
+    <string name="aviso_activar">Activar notificaciones</string>
+    <string name="aviso_ahora_no">Ahora no</string>
+    <string name="aviso_negado_titulo">Las notificaciones están desactivadas</string>
+    <string name="aviso_negado_texto">No te avisaremos cuando cambie el estado de tu siniestro, pero puedes consultarlo cuando quieras en «Mis siniestros».</string>
+    <string name="aviso_ver_siniestros">Ver mis siniestros</string>
+    <string name="aviso_activar_ajustes">Activar en Ajustes</string>
+</resources>

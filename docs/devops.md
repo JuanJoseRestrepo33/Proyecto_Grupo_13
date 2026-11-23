@@ -17,6 +17,7 @@
 - [Revisión automática de código](#revisión-automática-de-código)
 - [Sprint Backlog y asignación por integrante](#sprint-backlog-y-asignación-por-integrante)
 - [Configuración manual en GitHub](#configuración-manual-en-github)
+- [Configuración manual en GCP](#configuración-manual-en-gcp)
 
 ---
 
@@ -28,7 +29,7 @@
 | Sprint Backlog y asignación | [Sección de este documento](#sprint-backlog-y-asignación-por-integrante) · **GitHub Project** (vista *Sprint Backlog*) |
 | Commits / pull requests | Hook [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) + [`scripts/validar_commit.py`](../scripts/validar_commit.py) · plantilla [`pull_request_template.md`](../.github/pull_request_template.md) · historial de PR |
 | Flujo de trabajo y versionamiento | GitFlow: [flujo de trabajo](#flujo-de-trabajo) y [versionamiento](#estrategia-de-versionamiento) · validador [`scripts/validar_rama.py`](../scripts/validar_rama.py) · rulesets de `main`, `develop` y `release/*` · tags `vX.Y.Z` y **Releases** automáticos |
-| Ejecución de pruebas | Jobs `herramientas` y `backend` del CI · artefactos de reporte y resumen de cobertura en cada ejecución |
+| Ejecución de pruebas | Jobs `herramientas`, `backend`, `bff` y `web` del CI · artefactos de reporte y resumen de cobertura en cada ejecución |
 | Peer review (opcional) | Aprobación obligatoria de otro integrante en cada PR |
 | Revisión automática (opcional) | [`codeql.yml`](../.github/workflows/codeql.yml) · [`dependabot.yml`](../.github/dependabot.yml) · pestaña **Security** |
 
@@ -93,7 +94,7 @@ feature         ●─●   ●●
    **merge commit**, no con squash, para que `main` y `develop` compartan la historia.
 4. Al fusionarlo, [`release.yml`](../.github/workflows/release.yml) hace solo lo siguiente:
    - crea el tag `v0.1.0` y el release de GitHub con notas generadas desde los PR;
-   - publica la imagen etiquetada con la versión;
+   - publica las imágenes (núcleo, BFF y web) etiquetadas con la versión;
    - abre el PR de **back-merge** `main` → `develop`.
 5. Se aprueba y se fusiona el back-merge, también con **merge commit**. Así `develop` recibe las
    correcciones hechas en la release.
@@ -145,10 +146,10 @@ o de hotfix, y el tag se crea automáticamente en `main` al fusionarla. Nadie cr
 | Sprint 3 | `v0.3.0` |
 | Sprint 4 (entrega final) | `v1.0.0` |
 
-| Ambiente | Rama | Imagen |
+| Ambiente | Rama | Imágenes (`solventa-nucleo`, `solventa-bff`, `solventa-web`) |
 |---|---|---|
-| *staging* | `develop` | `solventa-nucleo:develop` y `:<sha>` |
-| producción | `main` | `solventa-nucleo:main`, `:<sha>` y `:X.Y.Z` |
+| *staging* | `develop` | `:develop` y `:<sha>` |
+| producción | `main` | `:main`, `:<sha>` y `:X.Y.Z` |
 
 La API pública se versiona aparte, en la ruta (`/v1`, `/v2`). Esto lo define ARQ-01.
 
@@ -236,10 +237,11 @@ y en cada push a `develop` o `main`.
 | Job | Cuándo | Qué valida |
 |---|---|---|
 | `convenciones` | Solo en PR | Flujo GitFlow (nombre de la rama y destino permitido), título del PR y todos sus commits contra la convención |
-| `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`) |
 | `backend` | Cuando existe `backend/pyproject.toml` | Lint y formato (ruff), frontera entre módulos (import-linter), pruebas unitarias con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
+| `bff` | Cuando existe `bff/pyproject.toml` | Lint y formato (ruff), frontera entre los routers web y móvil (import-linter), pruebas con cobertura y **cobertura del código nuevo ≥ 70%** (diff-cover) |
 | `web` | Cuando existe `apps/web/package.json` | Contrato del BFF válido (Redocly), tipos del contrato al día, lint con reglas de accesibilidad (ESLint + jsx-a11y), tipos (TypeScript), pruebas con cobertura ≥ 70%, **cobertura del código nuevo ≥ 70%** (diff-cover) y build de producción sin los mocks del BFF |
-| `imagen` | Cuando existe `backend/pyproject.toml` | Que la imagen Docker del núcleo construya |
+| `herramientas` | Siempre | Lint (ruff) y pruebas de las herramientas del repositorio (`scripts/`), entre ellas la prueba de humo `humo.py` |
+| `imagen` | Por cada componente con `Dockerfile` (`backend/`, `bff/`, `apps/web/`) | Que su imagen Docker construya. La de la web, además, arranca y debe servir el SPA y reenviar `/api/` |
 | `ci-ok` | Siempre | Agrega los anteriores. **Es el único check requerido** en la protección de ramas |
 
 Los jobs de backend se activan solos cuando ARQ-01 cree `backend/`. Para que funcionen sin tocar el
@@ -271,41 +273,320 @@ Workflow [`cd.yml`](../.github/workflows/cd.yml). Corre en cada push a `develop`
 cada merge. También se puede lanzar a mano desde **Actions → CD → Run workflow**.
 
 ```
-merge a develop ──▶ CI ──▶ imagen :develop ──▶ webhook del environment staging    ──▶ prueba de humo
-merge a main    ──▶ CI ──▶ imagen :main    ──▶ webhook del environment produccion ──▶ prueba de humo
-                     └──▶ release.yml: tag vX.Y.Z, release, imagen :X.Y.Z, PR de back-merge
+merge a develop ──▶ CI ──▶ imágenes :develop ──▶ Artifact Registry ──▶ Cloud Run (staging)    ──▶ prueba de humo
+merge a main    ──▶ CI ──▶ imágenes :main    ──▶ Artifact Registry ──▶ Cloud Run (produccion) ──▶ prueba de humo
+                     └──▶ release.yml: tag vX.Y.Z, release, imágenes :X.Y.Z, PR de back-merge
 ```
 
-| Etapa | Requisito para activarse |
-|---|---|
-| **Publicar imagen** `solventa-nucleo:<sha>` y `:<rama>` en el registro de paquetes de GitHub | Que exista `backend/Dockerfile`. No requiere secretos |
-| **Solicitar despliegue** | Que exista la imagen y que el environment (`staging` o `produccion`) tenga configurado el webhook |
-| **Prueba de humo** | Que el environment tenga configurada su URL |
+Se despliegan tres servicios de Cloud Run, uno por componente. Cada uno se llama igual que su imagen:
 
-### Principio de seguridad: el repositorio no conoce la infraestructura
+| Servicio | Componente | Qué es | Conoce a |
+|---|---|---|---|
+| `solventa-nucleo` | `backend/` | Monolito modular, API `/v1` | Cloud SQL y Secret Manager |
+| `solventa-bff` | `bff/` | BFF único con los routers `/api/v1/web/` y `/api/v1/movil/` (WEB-F01) | El núcleo, por `NUCLEO_URL` |
+| `solventa-web` | `apps/web/` | nginx que sirve la web estática y reenvía `/api/` al BFF | El BFF, por `BFF_URL` |
 
-El repositorio y el pipeline **no nombran la plataforma de despliegue, la nube, las bases de datos
-gestionadas ni ningún proveedor**, y no guardan ninguna credencial de infraestructura:
+```
+navegador ──▶ solventa-web ──/api/──▶ solventa-bff ──▶ solventa-nucleo ──▶ Cloud SQL
+app móvil ───────────────/api/v1/movil/──▶ ┘
+```
 
-- El pipeline solo publica una imagen y avisa a la plataforma por un webhook autenticado. La
-  plataforma es la que descarga la imagen y la despliega.
-- Las cadenas de conexión, contraseñas y llaves de las bases de datos y servicios se configuran
-  **directamente en el gestor de secretos de la plataforma**. Nunca pasan por GitHub, ni como secreto
-  ni como variable.
-- En GitHub solo existen tres secretos por environment, con los mismos nombres en `staging` y en
-  `produccion`. Ninguno revela el proveedor y todos se enmascaran en los logs.
+La web y el BFF comparten origen gracias al proxy de nginx: el contrato `bff-web` declara rutas
+relativas (`/api/v1/web`) y el cliente envía `credentials: 'include'`, así que la cookie de sesión
+funciona sin CORS ni cookies de terceros. La app móvil llama directo al BFF.
+
+| Etapa | Qué hace | Requisito para activarse |
+|---|---|---|
+| **Verificar ambiente** (job `ambiente`) | En paralelo a todo lo demás, [`scripts/ambiente.py verificar`](../scripts/ambiente.py) revisa en segundos que existan Cloud SQL (y que esté encendida), los secretos, los dos buckets y los tres servicios. Solo lee y nunca falla: lo que falte queda como aviso | En `develop` revisa staging y en `main`, producción (`--ambiente`). Las variables de la tabla de abajo |
+| **Publicar imágenes** | Por cada componente, construye `<servicio>:<sha>`, `:<rama>` y `:arbol-<árbol>` y las publica en el registro de paquetes de GitHub. El árbol es `git rev-parse HEAD:<carpeta>`: si ya existe una imagen de ese árbol, el componente no cambió y solo se le agregan las etiquetas nuevas, sin construir | Que exista el `Dockerfile` del componente. No requiere secretos |
+| **Copiar a Artifact Registry** | Copia el manifiesto y las capas de la imagen `:<sha>` al registro del proyecto de Google Cloud, sin reconstruirla: lo que se despliega es exactamente lo que el CI probó | Que el environment (`staging` o `produccion`) tenga las variables de la tabla de abajo **y que el servicio ya exista** en Cloud Run (lo crea [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente)) |
+| **Desplegar en Cloud Run** | Publica una revisión nueva del servicio con esa imagen y la etiqueta `arbol`. Si el servicio ya corre ese árbol **y su última revisión creada es también la última lista**, no copia ni despliega nada (no hay qué cambiar), pero sí corre la prueba de humo. Si una revisión de ese árbol no arrancó, se vuelve a desplegar. Las variables de entorno y los secretos ya montados en el servicio se conservan | Igual que la anterior |
+| **Prueba de humo** | [`scripts/humo.py`](../scripts/humo.py) pide las rutas del servicio a la URL que devuelve Cloud Run y comprueba el estado HTTP, sin imprimir respuestas | Igual que la anterior |
+| **E2E web** (job `e2e`) | Después de desplegar los tres servicios, corre las pruebas de Playwright de [`apps/web/e2e`](../apps/web/e2e) contra `solventa-web`: inician sesión con la cuenta de prueba y recorren los flujos de la web de punta a punta. Si fallan, deja las capturas como artefacto `capturas-e2e`: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba | En `develop` contra staging y en `main` contra producción (`solventa-web-prd`). Las variables de la tabla de abajo y los secretos `HUMO_CORREO` y `HUMO_CLAVE` de cada environment; sin ellos, se omite con un aviso |
+
+Los servicios se despliegan **uno a la vez, en orden núcleo → BFF → web**: si uno falla, los
+siguientes no se despliegan. La web solo se despliega cuando existe `bff/`, porque sin BFF no tiene a
+quién reenviar `/api/`.
+
+Así, un merge que solo toca la web no reconstruye ni redespliega el núcleo ni el BFF: sus jobs
+terminan en segundos tras repetir la prueba de humo.
+
+Si un servicio no existe todavía en Cloud Run, el CD no lo crea: deja un aviso y sigue. Creado por el
+pipeline, quedaría con la cuenta de servicio por defecto y sin sus variables ni secretos.
+
+### Producción (`main`)
+
+Producción vive **en el mismo proyecto de GCP que staging**, con los mismos nombres más el sufijo
+`-prd`. Así ninguno de los dos toca lo del otro, y staging conserva todos sus nombres. El sufijo lo
+pone [`scripts/ambiente.py --ambiente produccion`](../scripts/ambiente.py):
+
+| Recurso | Staging (`develop`) | Producción (`main`) |
+|---|---|---|
+| Servicios de Cloud Run | `solventa-nucleo`, `solventa-bff`, `solventa-web` | `solventa-nucleo-prd`, `solventa-bff-prd`, `solventa-web-prd` |
+| Cloud SQL | `solventa-…` (hoy `solventa-auditoria`) | `solventa-prd-AAAAMMDD-HHMM` |
+| Secretos | `auditoria-database-url`, `tokens-llave-privada`… | los mismos con `-prd` |
+| Buckets | `<proyecto>-solventa-evidencias`, `…-documentos` | los mismos con `-prd` |
+| Environment del CD | `staging` | `produccion` |
+| Environment de Aprovisionar, Destruir y Cloud SQL | `staging-infraestructura`, desde `develop` | `staging-infraestructura`, desde `main` |
+| Compartido | Las cuentas de servicio (`run-nucleo`, `run-bff`, `run-web`, `infraestructura`, `despliegue` y `apagado`), Workload Identity y el repositorio de imágenes `solventa` (producción despliega las mismas imágenes que probó staging). Producción no necesita ningún permiso nuevo de IAM | |
+
+> **Un CD en verde en `main` no siempre significa que hubo despliegue.** Si el environment
+> `produccion` todavía no tiene sus variables o los servicios `-prd` no existen, el CD termina en
+> verde con avisos: se omiten la verificación, el despliegue, el humo y las E2E. Hay que revisar los
+> avisos del run, o que el job *E2E web en produccion* haya corrido.
+
+**Lo que se acepta al compartir las cuentas.** Como los dos ambientes usan las mismas cuentas de
+ejecución, `run-nucleo` puede leer los secretos de staging **y** los de producción (cadenas de
+conexión, llaves de firma, token interno), y escribir y leer en los buckets de los dos. Un núcleo de
+staging comprometido podría llegar a los datos de producción. Para este proyecto, que solo tiene
+datos de prueba, se acepta a cambio de no tocar IAM. Para separarlos en un producto real: cuentas
+`run-*-prd` propias, que se le pasan a `scripts/ambiente.py` en `run()`, y un environment de
+infraestructura de producción con su propio binding de Workload Identity, o directamente un
+proyecto de GCP aparte.
+
+**Qué corre en cada ambiente**
+
+- **CD:** un merge a `main` (release o hotfix) publica las imágenes y despliega `solventa-*-prd`
+  en orden. Luego corre la prueba de humo y las E2E web contra `solventa-web-prd`, con la cuenta de
+  prueba de producción.
+- **Aprovisionar, Destruir y Encender o apagar Cloud SQL:** se lanzan a mano y piden el ambiente.
+  `produccion` se corre desde `main` y `staging` desde `develop`. Destruir producción nunca borra
+  las imágenes, porque son compartidas.
+- **Apagado nocturno:** a las 23:00 de Bogotá apaga **las dos** instancias, con la cuenta `apagado`.
+
+**Aprobaciones.** Cada corrida que toca infraestructura o despliega en producción la aprueba **un
+integrante del equipo** (Juan, Sergio, Harold o Edwin). Aplica a `staging-infraestructura` (los dos
+ambientes) y `produccion`: aprovisionar, destruir, encender, apagar, k6, auditoría
+alterada y cada despliegue a producción. GitHub no puede exigir que aprueben los cuatro: basta uno
+de la lista. El CD de `develop` a staging no pide aprobación, y el apagado nocturno tampoco.
+
+**Configuración inicial (una sola vez).** En GCP no hay nada que hacer. En GitHub:
+
+1. **Environment `staging-infraestructura`:** admitir también la rama `main` y poner a los cuatro
+   integrantes como *required reviewers*.
+2. **Environment `produccion`:** solo `main`, los cuatro como *required reviewers*, las variables
+   `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_ARTIFACT_REPOSITORY` y
+   `GCP_SERVICE_ACCOUNT` (la cuenta `despliegue`), y los secretos `HUMO_CORREO` y `HUMO_CLAVE`.
+3. **Que `main` tenga este código** (un release) y correr **Aprovisionar ambiente** con
+   `ambiente=produccion` desde `main`. Crea la Cloud SQL `-prd`, sus usuarios y secretos, los
+   buckets y los tres servicios, y dispara el CD de `main` para desplegar las imágenes reales.
+4. **Para las E2E de seguimiento en producción:** cargar en `produccion` la variable `NUCLEO_URL`
+   (la URL de `solventa-nucleo-prd`) y el secreto `SINIESTROS_TOKEN_INTERNO`, con el valor del
+   secreto `siniestros-token-interno-prd` de Secret Manager.
+
+Costo de referencia: producción suma otra `db-g1-small` (unos USD 25 al mes encendida todo el
+mes). El apagado nocturno la apaga junto con la de staging.
+
+### Aprovisionar y destruir el ambiente
+
+Tres workflows manuales (**Actions → … → Run workflow**, desde `develop`) que usan
+[`scripts/ambiente.py`](../scripts/ambiente.py), con la misma lista de recursos que verifica el CD:
+
+| Workflow | Qué hace | Cuánto tarda |
+|---|---|---|
+| [Aprovisionar ambiente](../.github/workflows/aprovisionar.yml) | Crea lo que falta y **omite lo que ya existe**, en orden de dependencia: Cloud SQL (y la enciende si está apagada), la base `solventa`, un usuario y un secreto por módulo, las llaves de firma de tokens, la cuenta de prueba y el OTP fijo, el token interno de siniestros, los buckets de evidencias y de documentos de póliza y los tres servicios con su configuración. Correrlo dos veces deja lo mismo. Si creó algún servicio (con la imagen de relleno), dispara el CD para desplegar las imágenes reales | Con todo creado, menos de un minuto. Desde cero, unos 15 minutos, casi todos de Cloud SQL |
+| [Destruir ambiente](../.github/workflows/destruir.yml) | Borra los servicios, Cloud SQL **con todos sus datos**, los secretos, los buckets con las evidencias y los documentos de póliza, y las imágenes de Artifact Registry. Pide escribir el ID del proyecto | Unos 5 minutos |
+| [Encender o apagar Cloud SQL](../.github/workflows/cloud-sql.yml) | Solo cambia la política de activación de la instancia: `encender` (`ALWAYS`) o `apagar` (`NEVER`). Apagada **conserva los datos** y no cobra CPU ni memoria, solo el disco; mientras tanto el núcleo responde 500 en auditoría, cotización y siniestros y su `/salud` dice `caido`. Al encender, espera a que el `/salud` del núcleo vuelva a `ok` y lo muestra en el resumen. Si no hay instancia, falla y pide Aprovisionar. **Además se apaga sola cada noche a las 23:00 de Bogotá** (04:00 UTC), sin aprobación, en el environment `staging-apagado`; para trabajar de noche, enciéndela a mano después de esa hora | 1-3 minutos, más hasta 10 de espera al encender |
+| [Carga de cotización (k6)](../.github/workflows/carga.yml) | ARQ-05: pone el proveedor simulado de Open Finance del núcleo en `sano`, `degradado` o `caido` (`PERFILAMIENTO_OPEN_FINANCE_MODO`, una revisión nueva), corre [`scripts/carga/cotizacion.js`](../scripts/carga/cotizacion.js) contra el BFF con la cuenta de prueba, a la que antes le otorga el consentimiento de `cotizacion` si no lo tiene (sin él, toda oferta sale a tarifa estándar y la carga no pasa por el perfil ni por la caché) (por defecto 1.000 cotizaciones por minuto durante 5 minutos, con Bogotá y Cali como ciudad del asegurado y un valor asegurado distinto en cada solicitud, para que ninguna reutilice una cotización vigente y todas pasen por el perfilamiento) y deja el resumen en la corrida y como artefacto. Falla si no se cumplen RC-01 (p95 ≤ 250 ms, p99 ≤ 500 ms) o RC-03 (menos de 0,1 % sin oferta o con 5xx). Al final, pase lo que pase, devuelve el proveedor a `sano`. Environment `staging-infraestructura`; comparte el grupo de concurrencia con Aprovisionar y Cloud SQL, y su job el de las E2E (`e2e-cuenta-staging`), para que ninguna cambie el consentimiento de la cuenta de prueba a mitad de la carga | La duración elegida más 2 a 3 minutos |
+
+Con `gcloud` autenticado también se puede desde la terminal:
+`python3 scripts/ambiente.py encender --proyecto <GCP_PROJECT_ID> --region <GCP_REGION>` (o `apagar`).
+
+**Lo que destruir conserva** es el acceso, que se configura a mano una sola vez (pasos 3 y 4 de
+[Configuración manual en GCP](#configuración-manual-en-gcp)): Workload Identity, las cuentas
+`despliegue`, `infraestructura` y `run-*`, y el repositorio de Artifact Registry. Con eso, Aprovisionar
+rehace todo desde GitHub. Tampoco toca las variables ni los secretos de los environments de GitHub.
+
+Los dos corren en el environment `staging-infraestructura`, que **pide aprobación** antes de empezar y
+solo acepta la rama `develop`, con la cuenta `infraestructura`. Esa cuenta solo la puede suplantar un
+job de ese environment: el CD de cada merge sigue con `despliegue`, que puede publicar revisiones pero
+no crear ni borrar bases, secretos ni buckets.
+
+Detalles que conviene saber:
+
+- **Cloud SQL no deja reutilizar el nombre** de una instancia borrada durante una semana. Por eso cada
+  instancia nueva se llama `solventa-<fecha>-<hora>`, y el script reconoce la del ambiente por el
+  prefijo `solventa-`. Cada secreto `*-database-url` lleva la etiqueta `instancia`: si apunta a otra
+  (la base se recreó), el usuario y el secreto se rehacen, y el núcleo pasa a la instancia nueva.
+- **Las contraseñas y llaves nuevas** se generan en el runner y llegan a Secret Manager por la entrada
+  estándar de `gcloud`; nunca se imprimen. Un ambiente recreado tiene llaves de tokens nuevas, así que
+  las sesiones anteriores dejan de valer.
+- **"No existe" solo cuando gcloud lo dice.** Un recurso se crea únicamente si gcloud responde que no
+  existe (`NOT_FOUND`, `Cannot find service`, `not found: 404`, `HTTPError 404`). Cualquier otro
+  fallo, como un permiso faltante, un 5xx o la instancia de Cloud SQL apagada, detiene Aprovisionar
+  sin crear ni rotar nada. En el job "Verificar ambiente" del CD, ese mismo fallo queda como aviso.
+- **Lo que ya existe se completa, no se reemplaza.** Al núcleo existente se le agregan los secretos y
+  las variables que le falten (`--update-*`, sin borrar los demás), y al bucket, el ciclo de vida y
+  los permisos de `run-nucleo` que le falten. Si no falta nada, no se toca: cada actualización de un
+  servicio crea una revisión.
+- **Una clave rotada reinicia a quien la usa.** Cloud Run lee `latest` al arrancar, así que si
+  Aprovisionar rota una contraseña o genera llaves nuevas, publica una revisión del núcleo (y del BFF,
+  si son las llaves) con la variable `CREDENCIALES_ROTADAS`. Un secreto `*-database-url` creado a mano
+  sin etiqueta que ya apunta a la instancia se etiqueta sin rotar su contraseña.
+- **La cuenta de prueba** sale de los secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment
+  `staging-infraestructura`; si faltan, se avisa y no se crea.
+- Mientras el ambiente esté destruido, el CD de cada merge avisa en el job "Verificar ambiente" y no
+  despliega; el siguiente Aprovisionar lo deja listo y dispara el CD.
+
+**Prueba de humo.** Cada parte Cloud de una historia agrega sus filas a la tabla `RUTAS` de
+`scripts/humo.py` (servicio, método, ruta y estados aceptados); el pipeline no cambia. En las rutas
+protegidas, un 401 cuenta como éxito: prueba que la ruta existe y exige sesión. Un 5xx, un 404 o la
+falta de respuesta hacen fallar el despliegue. Se reintenta durante un minuto mientras la revisión
+arranca.
+
+Una fila se puede escribir antes que el código que la cumple, marcada `pendiente="#NNN"` con el
+issue que la entrega: se prueba en cada despliegue, pero su falla deja un *warning* en vez de
+detener el despliegue (y no provoca reintentos). Cuando ese issue se fusiona, se quita la marca en
+el mismo PR o en uno inmediato. Así, por ejemplo, el humo de `/sesion` (WEB-F13) no bloqueó el
+despliegue del BFF mientras sus rutas no existían. Hoy no queda ninguna fila pendiente.
+
+Una fila `autenticada=True` se pide con la sesión de la cuenta de prueba: el humo inicia sesión por
+`POST /api/v1/movil/sesiones` con `HUMO_CORREO` y `HUMO_CLAVE` y usa el token en `Authorization`.
+Puede validar además el cuerpo (que el catálogo de consentimiento traiga sus tres finalidades, que
+la cuenta vea al menos una póliza vigente), pero nunca lo imprime, como tampoco imprime las
+credenciales ni el token. Si la cuenta no puede iniciar sesión, el despliegue falla.
+
+El humo **no crea datos**: pide los siniestros, las evidencias, las pólizas y la compra
+(aceptar, pagar, firmar) sin sesión (401), y nunca reporta, acepta, paga ni emite. Con la sesión de
+la cuenta de prueba solo lee: la lista de pólizas y el detalle de una vigente con sus coberturas
+(WEB-F04), la lista de siniestros (WEB-F06), la de notificaciones (MOB-F06) y una póliza, un
+siniestro, una notificación y un dispositivo que no existen, que deben dar 404 y no 5xx. Las rutas
+de push existen solo en el router móvil: en el web deben dar 404. Los recorridos completos (comprar, emitir, cambiar el estado) los prueban los E2E.
+
+**Cuenta de prueba del humo.** Una por ambiente, sin datos personales y sin otro uso. Mientras
+las cuentas vivan en memoria (WEB-F13), **el núcleo la siembra al arrancar** con `HUMO_CORREO` y
+`HUMO_CLAVE`, con el correo ya verificado: existe en cada revisión sin registrarla a mano. Sus
+credenciales viven en tres lugares, con los mismos valores:
+
+- Secret Manager, secreto `humo-cuenta-staging` (JSON con `correo` y `clave`), sin acceso para
+  ninguna cuenta de servicio: es el original, lo leen solo los administradores del proyecto.
+- Secretos `humo-correo` y `humo-clave`, que el núcleo monta como `HUMO_CORREO` y `HUMO_CLAVE`
+  (Cloud Run monta un secreto entero, no un campo de un JSON).
+- Secretos `HUMO_CORREO` y `HUMO_CLAVE` del environment, para el pipeline.
+
+Si se sospecha que se filtró, se cambia la clave en los tres lugares y se publica una revisión del
+núcleo, que la siembra con la nueva:
+
+```bash
+CLAVE=$(openssl rand -base64 24)
+gcloud secrets versions access latest --secret=humo-cuenta-staging \
+  | jq --arg c "$CLAVE" '.clave = $c' | gcloud secrets versions add humo-cuenta-staging --data-file=-
+printf '%s' "$CLAVE" | gcloud secrets versions add humo-clave --data-file=-
+printf '%s' "$CLAVE" | gh secret set HUMO_CLAVE --env staging
+unset CLAVE
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=HUMO_CLAVE=humo-clave:latest
+```
+
+### Principio de seguridad: el repositorio no guarda credenciales
+
+El pipeline nombra la plataforma (Google Cloud: Artifact Registry y Cloud Run), pero **no guarda
+ninguna credencial de infraestructura**:
+
+- La autenticación ante Google Cloud es por **Workload Identity Federation**: GitHub emite un token
+  OIDC de corta vida para cada ejecución y Google Cloud lo cambia por un token de la cuenta de servicio
+  de despliegue. No existe ninguna llave JSON de cuenta de servicio, ni en GitHub ni en el código.
+- Las cadenas de conexión, contraseñas y llaves de las bases de datos y servicios viven en **Secret
+  Manager** y se montan como variables de entorno sobre el servicio de Cloud Run. El pipeline no las
+  ve: despliega la imagen y la plataforma conserva la configuración del servicio entre revisiones.
+- En GitHub solo existen **variables** (no secretos) por environment, con los mismos nombres en
+  `staging` y en `produccion`. Son identificadores, no credenciales: saber el nombre del proyecto o de
+  la cuenta de servicio no da acceso a nada sin el token OIDC de este repositorio.
 - La prueba de humo solo comprueba que el servicio responde. No imprime respuestas, porque podrían
   revelar detalles internos.
 
-| Secreto (en cada environment) | Descripción |
-|---|---|
-| `DEPLOY_HOOK_URL` | URL del webhook de despliegue de la plataforma para ese ambiente |
-| `DEPLOY_TOKEN` | Token con el que el pipeline se autentica ante el webhook. Se rota cada sprint |
-| `AMBIENTE_URL` | URL pública del ambiente para la prueba de humo |
+| Variable (en cada environment) | Ejemplo | Descripción |
+|---|---|---|
+| `GCP_PROJECT_ID` | `solventa-staging` | Proyecto de Google Cloud del ambiente |
+| `GCP_REGION` | `us-east1` | Región de Artifact Registry y de Cloud Run |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/1234/locations/global/workloadIdentityPools/github/providers/solventa` | Proveedor de identidad que confía en este repositorio |
+| `GCP_SERVICE_ACCOUNT` | `despliegue@solventa-staging.iam.gserviceaccount.com` | Cuenta de servicio que el pipeline suplanta para desplegar |
+| `GCP_ARTIFACT_REPOSITORY` | `solventa` | Repositorio Docker de Artifact Registry |
 
-Si no están configurados, el job de despliegue termina sin error y deja un aviso en la ejecución. La
-configuración de la plataforma (infraestructura como código, credenciales, red) se mantiene fuera de
-este repositorio, con acceso restringido a quien administra el ambiente.
+Además, sin que el despliegue dependa de ellas:
+
+| En cada environment | Tipo | Para qué |
+|---|---|---|
+| `BFF_BASE_URL` | Variable | URL del router móvil del BFF del ambiente (`<URL de solventa-bff>/api/v1/movil/`). La app la recibe en el build con `-PBFF_MOCK=false -PBFF_BASE_URL=...`. En cada push a `develop`, el job *APK contra staging* de [`mobile-android.yml`](../.github/workflows/mobile-android.yml) publica el artefacto `solventa-staging`: un APK que se instala en cualquier Android y habla con el BFF de staging. La usan también las E2E móviles contra el ambiente (MOB-F02, #162) |
+| `HUMO_CORREO`, `HUMO_CLAVE` | **Secretos** | Cuenta de prueba con la que el humo inicia sesión en el router móvil (MOB-F02). Es la única credencial que ve el pipeline y solo da acceso a esa cuenta, sin datos reales. Sin ellos, las filas con sesión se omiten con un aviso |
+
+Si falta alguna, el job de despliegue termina sin error, deja un aviso con las que faltan y no toca
+la plataforma. Los tres servicios se exponen sin autenticación de Cloud Run: la web y el BFF porque
+los usan el navegador y la app, y el núcleo porque no autentica clientes (eso es responsabilidad del
+BFF). Cuando exista un API Gateway (Sprint 4), el núcleo pasa a aceptar solo tráfico interno y su
+prueba de humo se hace con un token de identidad.
+
+### Nombres acordados entre componentes
+
+Los fija la infraestructura y los leen los componentes. Cambiar uno exige cambiarlo en los dos
+lados.
+
+| Qué | Nombre | Lo lee | Historia |
+|---|---|---|---|
+| URL del núcleo | `NUCLEO_URL` | `solventa-bff` | WEB-F01 |
+| URL del BFF | `BFF_URL` (origen, sin barra final) | `solventa-web` (nginx) | WEB-F01 |
+| Conexión del log de auditoría | `AUDITORIA_DATABASE_URL` ← secreto `auditoria-database-url` | `solventa-nucleo` | ARQ-03 |
+| Conexión de cotización | `COTIZACION_DATABASE_URL` ← secreto `cotizacion-database-url` | `solventa-nucleo` | WEB-F01 |
+| Llave privada de firma de tokens (PEM, ES256) | `TOKENS_LLAVE_PRIVADA` ← secreto `tokens-llave-privada` | `solventa-nucleo` (emite) | WEB-F13 |
+| Llave pública de firma de tokens (PEM) | `TOKENS_LLAVE_PUBLICA` ← secreto `tokens-llave-publica` | `solventa-nucleo` y `solventa-bff` (validan) | WEB-F13 |
+| Llave pública anterior, solo durante una rotación | `TOKENS_LLAVE_PUBLICA_ANTERIOR` ← versión anterior de `tokens-llave-publica` | `solventa-bff` | WEB-F13 |
+| Credenciales de la cuenta de prueba, sembrada al arrancar | `HUMO_CORREO` y `HUMO_CLAVE` | `solventa-nucleo` (y el humo de `cd.yml`) | WEB-F13 |
+| Código fijo de verificación del correo, solo en *staging* | `IDENTIDAD_OTP_FIJO` (6 dígitos) | `solventa-nucleo` | WEB-F13 |
+| Almacén de evidencias | `ALMACENAMIENTO_EVIDENCIAS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | MOB-F05 |
+| Bucket de evidencias | `EVIDENCIAS_BUCKET` = `<GCP_PROJECT_ID>-solventa-evidencias` | `solventa-nucleo` | MOB-F05 |
+| Conexión de siniestros | `SINIESTROS_DATABASE_URL` ← secreto `siniestros-database-url` | `solventa-nucleo` | WEB-F05 |
+| Pólizas de prueba de *staging* | `POLIZAS_SEMILLA`: ruta a un JSON; `id_cliente` `"*"` es una plantilla para cualquier cliente | `solventa-nucleo` | WEB-F05 |
+| Conexión de suscripciones | `SUSCRIPCION_DATABASE_URL` ← secreto `suscripcion-database-url` (esquema `suscripcion`) | `solventa-nucleo` | WEB-F03 |
+| Conexión de pagos | `PAGOS_DATABASE_URL` ← secreto `pagos-database-url` (esquema `pagos`) | `solventa-nucleo` | WEB-F03 |
+| Conexión de pólizas | `POLIZAS_DATABASE_URL` ← secreto `polizas-database-url` (esquema `polizas`) | `solventa-nucleo` | WEB-F03 |
+| Almacén de documentos de póliza | `ALMACENAMIENTO_DOCUMENTOS` = `local` (memoria, por defecto) o `gcs` | `solventa-nucleo` | WEB-F03 |
+| Bucket de documentos de póliza | `DOCUMENTOS_BUCKET`; privado, igual que el de evidencias (crear y leer, sin borrar) | `solventa-nucleo` | WEB-F03 |
+| Pasarela simulada | `PASARELA_TARJETA_CREDITO` (`aprobado` por defecto), `PASARELA_PSE` (`pendiente`), `PASARELA_PENDIENTE_SE_RESUELVE_EN` (`aprobado`) y `PASARELA_MODO` (`sana` o `caida`) | `solventa-nucleo` | WEB-F03 |
+| Firma electrónica simulada | `FIRMA_MODO` = `sana` (por defecto) o `caida` | `solventa-nucleo` | WEB-F03 |
+| Operación interna de cambio de estado del siniestro, solo en *staging* | `SINIESTROS_TOKEN_INTERNO` ← secreto `siniestros-token-interno`; sin ella, `POST /v1/siniestros/{id}/estado` responde 404. Se envía en `X-Token-Interno` | `solventa-nucleo` (y los E2E de seguimiento) | WEB-F06 |
+| Conexión de notificaciones | `NOTIFICACIONES_DATABASE_URL` ← secreto `notificaciones-database-url` (esquema `notificaciones`) | `solventa-nucleo` | MOB-F06 |
+| Proveedor de push simulado | `PUSH_MODO` = `sano` (por defecto; *Aprovisionar* lo deja explícito en *staging*) o `caido` | `solventa-nucleo` | MOB-F06 |
+| Conexión de consentimientos | `CONSENTIMIENTO_DATABASE_URL` ← secreto `consentimiento-database-url` (esquema `consentimiento`); con ella el núcleo puede correr con varias réplicas | `solventa-nucleo` | ARQ-05 |
+| Conexión de identidad (cuentas y verificaciones) | `IDENTIDAD_DATABASE_URL` ← secreto `identidad-database-url` (esquema `identidad`): cuentas, registros, refrescos y verificaciones (#136). Con ella todas las réplicas ven las mismas cuentas y sesiones; sin ella, en memoria | `solventa-nucleo` | ARQ-05 |
+| Pool de conexiones a PostgreSQL | `POSTGRES_POOL_MAXIMO` (opcional, 3 por defecto): conexiones máximas por módulo y por réplica (`backend/app/compartido/conexiones.py`). Las ociosas se cierran a los 60 s. Con la `db-g1-small` (50 conexiones) no conviene subirlo mucho: se multiplica por los módulos en uso y por las réplicas | `solventa-nucleo` | ARQ-05 |
+| Umbrales del circuito de Open Finance | `PERFILAMIENTO_CIRCUITO_UMBRAL` (0.10), `PERFILAMIENTO_CIRCUITO_VENTANA_S` (30) y `PERFILAMIENTO_CIRCUITO_MINIMO_LLAMADAS` (5); un valor inválido no arranca el módulo. *Aprovisionar* los deja explícitos en *staging*; el modo del proveedor (`PERFILAMIENTO_OPEN_FINANCE_MODO`) no, porque lo cambia *Carga de cotización* | `solventa-nucleo` | ARQ-05 |
+
+**Tokens de sesión.** Firma asimétrica ES256 (P-256): el núcleo firma con la privada y el BFF solo
+valida con la pública, así un BFF comprometido no puede emitir sesiones. El `kid` del encabezado es
+la **huella JWK de la llave pública** (RFC 7638, SHA-256 en base64url): el núcleo y el BFF la
+calculan de la llave misma, sin depender de Secret Manager, y durante una rotación el BFF elige por
+`kid` entre la llave actual y la anterior. Sin la llave, en *staging* el servicio no debe arrancar
+(o `/salud` responde 503), para que Cloud Run no promueva la revisión.
+
+Cada módulo con persistencia tiene **su esquema y su usuario de base de datos** en la misma instancia
+y la misma base (`solventa-auditoria` / `solventa`), con permisos solo sobre su esquema: un módulo no
+puede leer los datos de otro, igual que en el código (ARQ-01).
+
+### Qué espera el núcleo de la plataforma
+
+- **Puerto.** Cloud Run inyecta `PORT`; el contenedor escucha ahí (sin ella, en 8000).
+- **Sondas.** `GET /salud` responde 503 cuando una dependencia está caída; sirve como sonda de
+  arranque y de vida.
+- **Apagado.** Cloud Run envía `SIGTERM` y da diez segundos. El núcleo aprovecha ese lapso para
+  escribir lo que quedó en la cola de auditoría.
+- **Secretos.** `AUDITORIA_DATABASE_URL`, `COTIZACION_DATABASE_URL` y `SINIESTROS_DATABASE_URL`
+  montadas desde Secret Manager, apuntando a Cloud SQL. Sin ellas el log de auditoría, las
+  cotizaciones y los siniestros viven en memoria y se pierden con cada revisión: válido para una
+  demo, no para *staging*.
+- **Instancias.** El núcleo corre con **dos réplicas fijas** (`--min-instances=2
+  --max-instances=2`, `REPLICAS_NUCLEO` en `scripts/ambiente.py`; ARQ-05, #136). Ningún módulo
+  guarda estado propio en memoria: todos persisten en Cloud SQL (identidad desde #136) o en Cloud
+  Storage. Lo que sí queda por réplica es a propósito: la caché de perfiles y el circuito de Open
+  Finance ([ADR 0002](adr/0002-consentimiento-vigente-antes-de-la-cache.md)). El BFF y la web no
+  guardan estado y pueden escalar.
+
+### Qué esperan el BFF y la web de la plataforma
+
+- **BFF.** Escucha en `PORT` (sin ella, 8000), responde `GET /salud` y lee `NUCLEO_URL`.
+- **Web.** nginx sin privilegios; escucha en `PORT` (sin ella, 8080). Requiere `BFF_URL` al arrancar:
+  sin ella nginx no inicia y Cloud Run no promueve la revisión. Las rutas del SPA que no son archivos
+  devuelven `index.html`; `/assets/` se cachea como inmutable. Acepta cuerpos de hasta 12 MB en `/api/`
+  (evidencias de 10 MB, MOB-F05).
 
 ---
 
@@ -393,7 +674,8 @@ asignados y una sub-issue por persona, para que el burndown refleje el avance de
 
 **Vistas sugeridas:** *Sprint Backlog* (tablero filtrado por la iteración actual), *Por integrante*
 (tabla agrupada por Assignees) y *Insights* (gráficos de burnup y de puntos por sprint, desde
-Project → Insights).
+Project → Insights). El velocity chart vigente está en
+[Project 4 → Insights](https://github.com/users/JuanJoseRestrepo33/projects/4/insights/2).
 
 **Automatizaciones del Project** (Project → Workflows): *Item added → Product Backlog*,
 *Pull request linked → In progress*, *Item closed → Done*, *Pull request merged → Done*.
@@ -458,15 +740,417 @@ cerrarlo y reabrirlo a mano para que corra.
 
 ### 5. Packages y environments
 
-- Tras la primera publicación, el paquete `solventa-nucleo` (perfil → Packages) se deja **privado** y
-  se enlaza al repositorio para heredar sus permisos.
+- Tras la primera publicación, los paquetes `solventa-nucleo`, `solventa-bff` y `solventa-web`
+  (perfil → Packages) se dejan **privados** y se enlazan al repositorio para heredar sus permisos.
 - Settings → Environments → **New environment**, uno por ambiente:
 
   | Environment | Deployment branches | Recomendado |
   |---|---|---|
   | `staging` | Selected branches → solo `develop` | - |
   | `produccion` | Selected branches → solo `main` | *Required reviewers*: el gerente del proyecto aprueba cada despliegue |
+  | `staging-infraestructura` | Selected branches → solo `develop` | *Required reviewers*: quien administra Cloud aprueba cada Aprovisionar o Destruir |
+  | `staging-apagado` | Selected branches → solo `develop` | **Sin** *required reviewers*: lo usa el apagado nocturno de Cloud SQL, que no puede esperar una aprobación |
 
-  En cada uno se cargan los tres secretos de la tabla de [despliegue continuo](#despliegue-continuo).
+  En cada uno se cargan, como **variables** del environment, las cinco de la tabla de
+  [despliegue continuo](#despliegue-continuo). En `staging-infraestructura`, `GCP_SERVICE_ACCOUNT`
+  es la cuenta `infraestructura` (paso 3) y además van los secretos `HUMO_CORREO` y `HUMO_CLAVE`. En
+  `staging-apagado` van `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_WORKLOAD_IDENTITY_PROVIDER` y, como
+  `GCP_SERVICE_ACCOUNT`, la cuenta `apagado` (paso 3).
 - No se define ningún secreto ni variable de despliegue a nivel de repositorio. Así, cada ambiente
   solo es accesible desde su rama.
+
+---
+
+## Configuración manual en GCP
+
+Una vez por ambiente, con `gcloud` autenticado como administrador del proyecto. Los valores entre
+`<>` son los que después se cargan como variables del environment en GitHub.
+
+### 1. APIs, registro y base de datos
+
+```bash
+gcloud config set project <GCP_PROJECT_ID>
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
+  iamcredentials.googleapis.com sqladmin.googleapis.com secretmanager.googleapis.com
+
+gcloud artifacts repositories create <GCP_ARTIFACT_REPOSITORY> \
+  --repository-format=docker --location=<GCP_REGION>
+
+gcloud sql instances create solventa-auditoria --database-version=POSTGRES_15 \
+  --tier=db-g1-small --region=<GCP_REGION>
+gcloud sql databases create solventa --instance=solventa-auditoria
+gcloud sql users create auditoria --instance=solventa-auditoria --password='<contraseña>'
+```
+
+El esquema, el rol `solventa_app` y los triggers los crea el núcleo al arrancar, así que el usuario de
+la cadena de conexión necesita permiso para crear esquemas y roles la primera vez.
+
+### 2. Esquemas y secretos de las cadenas de conexión
+
+Cloud Run se conecta a Cloud SQL por un socket Unix bajo `/cloudsql/`. Un secreto por módulo:
+
+```bash
+SOCKET="/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria"
+printf "postgresql://auditoria:<contraseña>@/solventa?host=$SOCKET" \
+  | gcloud secrets create auditoria-database-url --data-file=-
+printf "postgresql://cotizacion:<contraseña de cotizacion>@/solventa?host=$SOCKET" \
+  | gcloud secrets create cotizacion-database-url --data-file=-
+```
+
+**Usuario de cotización (WEB-F01).** Se crea con SQL y no con `gcloud sql users create`, porque este
+último lo agrega a `cloudsqlsuperuser`. Desde **Cloud SQL Studio** (consola de GCP → Cloud SQL →
+`solventa-auditoria` → Cloud SQL Studio), conectado a la base `solventa` como `auditoria`:
+
+```sql
+CREATE ROLE cotizacion LOGIN PASSWORD '<contraseña de cotizacion>';
+GRANT CONNECT ON DATABASE solventa TO cotizacion;
+-- Solo para que el núcleo cree su esquema al arrancar (CREATE SCHEMA IF NOT EXISTS cotizacion).
+GRANT CREATE ON DATABASE solventa TO cotizacion;
+```
+
+Comprobación: conectado como `cotizacion`, `SELECT 1 FROM auditoria.registros LIMIT 1;` debe
+responder *permission denied*.
+
+### 3. Cuenta de servicio y Workload Identity Federation
+
+```bash
+gcloud iam service-accounts create despliegue --display-name="Despliegue desde GitHub Actions"
+CUENTA="despliegue@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/run.admin roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$CUENTA" --role="$rol"
+done
+
+gcloud iam workload-identity-pools create github --location=global
+gcloud iam workload-identity-pools providers create-oidc solventa \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.environment=assertion.environment" \
+  --attribute-condition="assertion.repository == '<propietario>/<repositorio>'"
+
+NUMERO=$(gcloud projects describe <GCP_PROJECT_ID> --format='value(projectNumber)')
+gcloud iam service-accounts add-iam-policy-binding "$CUENTA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.repository/<propietario>/<repositorio>"
+```
+
+`GCP_WORKLOAD_IDENTITY_PROVIDER` es
+`projects/$NUMERO/locations/global/workloadIdentityPools/github/providers/solventa` y
+`GCP_SERVICE_ACCOUNT` es `$CUENTA`. La condición sobre `assertion.repository` hace que solo este
+repositorio pueda suplantar la cuenta.
+
+Para que el CD verifique el ambiente sin poder cambiarlo, `despliegue` puede **leer** (no modificar)
+Cloud SQL, los metadatos de los secretos (no su valor) y los buckets:
+
+```bash
+for rol in roles/cloudsql.viewer roles/secretmanager.viewer roles/storage.bucketViewer; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$CUENTA" --role="$rol"
+done
+```
+
+**Cuenta `infraestructura`** (Aprovisionar y Destruir). Administra Cloud SQL, Secret Manager, Storage
+y Cloud Run, y solo la puede suplantar un job del environment `staging-infraestructura`, que pide
+aprobación:
+
+```bash
+gcloud iam service-accounts create infraestructura --display-name="Aprovisionar y destruir staging"
+INFRA="infraestructura@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/cloudsql.admin roles/secretmanager.admin roles/storage.admin roles/run.admin; do
+  gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$INFRA" --role="$rol"
+done
+# Borrar las imágenes del repositorio, y nada más de Artifact Registry.
+gcloud artifacts repositories add-iam-policy-binding solventa --location=<GCP_REGION> \
+  --member="serviceAccount:$INFRA" --role=roles/artifactregistry.repoAdmin
+gcloud iam service-accounts add-iam-policy-binding "$INFRA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/staging-infraestructura"
+```
+
+No recibe permisos de IAM sobre el proyecto: no puede crear cuentas ni darse más roles. Por eso las
+cuentas `run-*` y sus roles (paso 4) son parte del acceso y se crean a mano.
+
+**Cuenta `apagado`** (apagado nocturno de Cloud SQL). Como corre sin aprobación, solo puede leer la
+instancia y cambiar su política de activación: no puede crearla, borrarla ni tocar sus usuarios, y no
+tiene acceso a secretos, Storage ni Cloud Run. Solo la puede suplantar un job del environment
+`staging-apagado`:
+
+```bash
+gcloud iam roles create apagarCloudSql --project=<GCP_PROJECT_ID> \
+  --title="Encender y apagar Cloud SQL" \
+  --permissions=cloudsql.instances.get,cloudsql.instances.list,cloudsql.instances.update,cloudsql.operations.get
+gcloud iam service-accounts create apagado --display-name="Apagado nocturno de Cloud SQL"
+APAGADO="apagado@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> --member="serviceAccount:$APAGADO" \
+  --role="projects/<GCP_PROJECT_ID>/roles/apagarCloudSql"
+gcloud iam service-accounts add-iam-policy-binding "$APAGADO" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.environment/staging-apagado"
+```
+
+### 4. Cuentas de servicio de ejecución
+
+Cada servicio corre con su propia cuenta y solo los permisos que usa, nunca con la cuenta por defecto
+de Compute:
+
+```bash
+for cuenta in nucleo bff web; do
+  gcloud iam service-accounts create "run-$cuenta" --display-name="Cloud Run · solventa-$cuenta"
+  # La cuenta de despliegue puede publicar revisiones que corren con esta cuenta, y solo con esta.
+  gcloud iam service-accounts add-iam-policy-binding "run-$cuenta@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --member="serviceAccount:$CUENTA" --role=roles/iam.serviceAccountUser
+done
+NUCLEO="run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+
+# infraestructura crea los servicios con estas cuentas (Aprovisionar ambiente).
+for cuenta in nucleo bff web; do
+  gcloud iam service-accounts add-iam-policy-binding "run-$cuenta@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --member="serviceAccount:$INFRA" --role=roles/iam.serviceAccountUser
+done
+
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> \
+  --member="serviceAccount:$NUCLEO" --role=roles/cloudsql.client
+for secreto in auditoria-database-url cotizacion-database-url; do
+  gcloud secrets add-iam-policy-binding "$secreto" \
+    --member="serviceAccount:$NUCLEO" --role=roles/secretmanager.secretAccessor
+done
+```
+
+El acceso a los secretos se da sobre cada secreto, no sobre el proyecto. `run-bff` y `run-web` no
+reciben permisos en este sprint: solo hacen llamadas HTTP públicas.
+
+`roles/iam.serviceAccountUser` se da sobre cada cuenta `run-*` y no sobre el proyecto: a nivel de
+proyecto, el pipeline podría desplegar revisiones con cualquier cuenta, incluida la de Compute por
+defecto, que tiene rol de editor.
+
+### 5. Primer despliegue de cada servicio
+
+> Con el acceso listo (pasos 3 y 4), el workflow
+> [Aprovisionar ambiente](#aprovisionar-y-destruir-el-ambiente) hace este paso y los pasos 1 (base),
+> 2, 6, 7 y 8, omitiendo lo que ya exista. Lo que sigue es lo mismo a mano, como referencia.
+
+El pipeline solo cambia la imagen y **no crea servicios**: la configuración de cada uno se fija una vez
+aquí y se conserva entre revisiones. El primer despliegue usa la imagen pública de ejemplo de Cloud
+Run; el siguiente merge a `develop` la reemplaza por la real, ya con la configuración en su lugar.
+
+```bash
+EJEMPLO=us-docker.pkg.dev/cloudrun/container/hello
+```
+
+En orden, porque cada uno necesita la URL del anterior:
+
+```bash
+gcloud run deploy solventa-nucleo --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="$NUCLEO" \
+  --add-cloudsql-instances=<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria \
+  --set-secrets=AUDITORIA_DATABASE_URL=auditoria-database-url:latest,COTIZACION_DATABASE_URL=cotizacion-database-url:latest \
+  --min-instances=2 --max-instances=2 --allow-unauthenticated
+URL_NUCLEO=$(gcloud run services describe solventa-nucleo --region=<GCP_REGION> --format='value(status.url)')
+
+gcloud run deploy solventa-bff --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="run-bff@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --set-env-vars=NUCLEO_URL="$URL_NUCLEO" --allow-unauthenticated
+URL_BFF=$(gcloud run services describe solventa-bff --region=<GCP_REGION> --format='value(status.url)')
+
+gcloud run deploy solventa-web --region=<GCP_REGION> --image="$EJEMPLO" \
+  --service-account="run-web@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --set-env-vars=BFF_URL="$URL_BFF" --allow-unauthenticated
+```
+
+Si el núcleo ya existía con la configuración del Sprint 1, basta con agregarle lo nuevo:
+`gcloud run services update solventa-nucleo --region=<GCP_REGION> --update-secrets=COTIZACION_DATABASE_URL=cotizacion-database-url:latest`.
+
+Desde entonces cada merge a `develop` publica una revisión nueva de los tres sin intervención manual.
+
+### 6. Llaves de firma de los tokens de sesión (WEB-F13)
+
+Un par por ambiente; `staging` y `produccion` nunca comparten llave. La privada se genera en
+memoria y va directo a Secret Manager por tubería: no se escribe en disco, no se imprime y no
+pasa por el repositorio ni por el pipeline. Desde Cloud Shell o una terminal con `gcloud`:
+
+```bash
+for s in tokens-llave-privada tokens-llave-publica; do
+  gcloud secrets create "$s" --replication-policy=automatic --labels=historia=web-f13
+done
+PRIV=$(openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256)
+printf '%s\n' "$PRIV" | gcloud secrets versions add tokens-llave-privada --data-file=-
+printf '%s\n' "$PRIV" | openssl pkey -pubout | gcloud secrets versions add tokens-llave-publica --data-file=-
+unset PRIV
+```
+
+Acceso por secreto, no por proyecto: el núcleo lee las dos y el BFF solo la pública.
+
+```bash
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+BFF="serviceAccount:run-bff@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding tokens-llave-privada --member="$NUCLEO" --role=roles/secretmanager.secretAccessor
+for m in "$NUCLEO" "$BFF"; do
+  gcloud secrets add-iam-policy-binding tokens-llave-publica --member="$m" --role=roles/secretmanager.secretAccessor
+done
+
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=TOKENS_LLAVE_PRIVADA=tokens-llave-privada:latest,TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest
+gcloud run services update solventa-bff --region=<GCP_REGION> \
+  --update-secrets=TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest
+```
+
+**Comprobar que las dos forman un par**, sin mostrar la privada: las dos líneas deben coincidir.
+
+```bash
+gcloud secrets versions access latest --secret=tokens-llave-privada | openssl pkey -pubout -outform DER | sha256sum
+gcloud secrets versions access latest --secret=tokens-llave-publica | openssl pkey -pubin -outform DER | sha256sum
+```
+
+**Rotación** (manual; cuando se sospeche una filtración o una vez por semestre). El orden evita que
+un token válido sea rechazado:
+
+1. Agregar una versión nueva a los dos secretos con el bloque de generación de arriba (sin
+   `secrets create`). Anotar el número de la versión **anterior** de la pública, `N`.
+2. Desplegar el BFF con la pública nueva y la anterior:
+   `gcloud run services update solventa-bff --region=<GCP_REGION> --update-secrets=TOKENS_LLAVE_PUBLICA=tokens-llave-publica:latest,TOKENS_LLAVE_PUBLICA_ANTERIOR=tokens-llave-publica:N`.
+   Desde aquí acepta tokens firmados con cualquiera de las dos (elige por `kid`).
+3. Publicar una revisión nueva del núcleo (`gcloud run services update solventa-nucleo
+   --region=<GCP_REGION> --update-secrets=TOKENS_LLAVE_PRIVADA=tokens-llave-privada:latest`): firma
+   con la llave nueva.
+4. Cuando venza el último token emitido con la llave anterior, retirar la variable del BFF
+   (`--remove-secrets=TOKENS_LLAVE_PUBLICA_ANTERIOR`) y deshabilitar la versión anterior de cada
+   secreto (`gcloud secrets versions disable <versión> --secret=...`).
+
+### 7. Bucket de evidencias de siniestros (MOB-F05)
+
+Fotos, videos y documentos de los siniestros. Privado: acceso uniforme a nivel de bucket, acceso
+público bloqueado y ningún objeto con URL pública; la lectura pasa por el núcleo y el BFF con la
+sesión del cliente.
+
+```bash
+BUCKET="gs://<GCP_PROJECT_ID>-solventa-evidencias"
+gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD \
+  --uniform-bucket-level-access --public-access-prevention
+
+# Solo en staging: los archivos de prueba se borran a los 30 días. En produccion no se configura
+# hasta definir la política de retención.
+printf '%s' '{"rule":[{"action":{"type":"Delete"},"condition":{"age":30}}]}' > ciclo.json
+gcloud storage buckets update "$BUCKET" --lifecycle-file=ciclo.json --update-labels=historia=mob-f05
+
+# El núcleo crea y lee objetos, sobre este bucket y nada más. Sin permiso de borrar: la evidencia
+# de un siniestro no se elimina desde la aplicación (y sin borrar tampoco se puede sobrescribir).
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/storage.objectCreator roles/storage.objectViewer; do
+  gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="$NUCLEO" --role="$rol"
+done
+
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-env-vars=ALMACENAMIENTO_EVIDENCIAS=gcs,EVIDENCIAS_BUCKET=<GCP_PROJECT_ID>-solventa-evidencias
+```
+
+El BFF no tiene acceso al bucket. El adaptador (`siniestros/infraestructura/almacen_evidencias_gcs.py`)
+sube cada objeto con la precondición de que no exista, así que una evidencia nunca se reemplaza ni
+siquiera con permisos de más; el objeto se llama `siniestros/{siniestro_id}/{evidencia_id}`, sin
+datos del cliente, y el nombre original del archivo va en sus metadatos. La imagen del núcleo
+instala el extra `gcs` (`google-cloud-storage`).
+
+Los roles `legacyBucketOwner` y `legacyObjectOwner` que Cloud Storage asigna por defecto a los
+editores y dueños del proyecto se conservan: son los administradores. Ojo: la cuenta de Compute por
+defecto es editora del proyecto y por eso también los hereda; ningún servicio de Cloud Run corre con
+ella (cada uno usa su `run-*`), y conviene quitarle el rol de editor cuando nada la use.
+
+### 7.1. Bucket de documentos de póliza (WEB-F03)
+
+El PDF de cada póliza emitida, en `polizas/{id_suscripcion}/{numero}.pdf`. Es un bucket aparte del
+de evidencias porque aquel borra todo a los 30 días, y el cliente descarga su póliza mientras
+exista. Igual de privado: el núcleo lee el objeto y el BFF lo entrega en
+`GET /api/v1/{web,movil}/polizas/{numero}/documento` con la sesión del cliente. **No hay URL
+firmada**: el enlace no se puede reenviar ni sirve sin sesión, y `run-nucleo` no necesita permiso
+para firmar (`iam.serviceAccountTokenCreator`).
+
+```bash
+BUCKET="gs://<GCP_PROJECT_ID>-solventa-documentos"
+gcloud storage buckets create "$BUCKET" --location=<GCP_REGION> --default-storage-class=STANDARD   --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update "$BUCKET" --update-labels=historia=web-f03
+# Sin ciclo de vida: el documento de una póliza no se borra solo.
+NUCLEO="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com"
+for rol in roles/storage.objectCreator roles/storage.objectViewer; do
+  gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="$NUCLEO" --role="$rol"
+done
+gcloud run services update solventa-nucleo --region=<GCP_REGION>   --update-env-vars=ALMACENAMIENTO_DOCUMENTOS=gcs,DOCUMENTOS_BUCKET=<GCP_PROJECT_ID>-solventa-documentos
+```
+
+*Aprovisionar ambiente* hace todo esto. Sin permiso de borrar: si dos réplicas emiten a la vez la
+misma suscripción, el núcleo intenta borrar el PDF de la que perdió (`almacen.borrar`). Ese borrado
+falla con 403, pero es solo limpieza: queda un aviso en el log y la solicitud responde normal con la
+póliza ganadora. El PDF huérfano queda en el bucket sin ligarse a nada.
+
+### 8. Siniestros y pólizas de prueba (WEB-F05)
+
+**Esquema y usuario `siniestros`.** Igual que cotización: el usuario se crea con SQL (no con
+`gcloud sql users create`, que lo haría `cloudsqlsuperuser`) y solo puede crear su propio esquema.
+Desde Cloud SQL Studio, conectado a `solventa` como `auditoria`:
+
+```sql
+CREATE ROLE siniestros LOGIN PASSWORD '<contraseña de siniestros>';
+GRANT CONNECT ON DATABASE solventa TO siniestros;
+-- Solo para que el núcleo cree su esquema al arrancar (CREATE SCHEMA IF NOT EXISTS siniestros).
+GRANT CREATE ON DATABASE solventa TO siniestros;
+```
+
+```bash
+SOCKET="/cloudsql/<GCP_PROJECT_ID>:<GCP_REGION>:solventa-auditoria"
+printf "postgresql://siniestros:<contraseña de siniestros>@/solventa?host=$SOCKET" \
+  | gcloud secrets create siniestros-database-url --data-file=-
+gcloud secrets add-iam-policy-binding siniestros-database-url \
+  --member="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role=roles/secretmanager.secretAccessor
+```
+
+Comprobación: conectado como `siniestros`, `SELECT 1 FROM auditoria.registros LIMIT 1;` y
+`SELECT 1 FROM cotizacion.cotizaciones LIMIT 1;` deben responder *permission denied*. La unicidad de
+la clave de idempotencia es una restricción de la tabla, así que el doble envío de un reporte se
+sostiene aunque el núcleo se reinicie.
+
+**Pólizas de prueba.** La imagen del núcleo trae
+[`backend/semillas/polizas-staging.json`](../backend/semillas/polizas-staging.json): una póliza de
+auto y una de viaje vigentes y una de hogar vencida hace 30 días, como plantillas (`"*"`) que tiene
+cualquier cuenta, con número propio. Las fechas son relativas al arranque, así que no caducan, y
+cargarla en cada revisión deja lo mismo. Sin datos personales. En producción `POLIZAS_SEMILLA` no
+se define.
+
+Una cuenta **sin pólizas** no se puede tener en *staging* mientras las pólizas sean plantillas: ese
+caso lo cubren los mocks de la web y de la app.
+
+**Cuenta de prueba y OTP fijo (WEB-F13).** `identidad-otp-fijo` guarda 6 dígitos al azar: con
+`IDENTIDAD_OTP_FIJO` todos los códigos de verificación del correo son ese, para que los E2E del
+registro puedan verificar una cuenta nueva. Nunca en producción.
+
+```bash
+printf '%06d' "$(( $(od -An -N4 -tu4 /dev/urandom) % 1000000 ))" \
+  | gcloud secrets create identidad-otp-fijo --data-file=-
+CUENTA=$(gcloud secrets versions access latest --secret=humo-cuenta-staging)
+printf '%s' "$(jq -r .correo <<<"$CUENTA")" | gcloud secrets create humo-correo --data-file=-
+printf '%s' "$(jq -r .clave <<<"$CUENTA")" | gcloud secrets create humo-clave --data-file=-
+unset CUENTA
+for s in identidad-otp-fijo humo-correo humo-clave; do
+  gcloud secrets add-iam-policy-binding "$s" \
+    --member="serviceAccount:run-nucleo@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+    --role=roles/secretmanager.secretAccessor
+done
+```
+
+**Montarlo todo en el núcleo:**
+
+```bash
+gcloud run services update solventa-nucleo --region=<GCP_REGION> \
+  --update-secrets=SINIESTROS_DATABASE_URL=siniestros-database-url:latest,HUMO_CORREO=humo-correo:latest,HUMO_CLAVE=humo-clave:latest,IDENTIDAD_OTP_FIJO=identidad-otp-fijo:latest \
+  --update-env-vars=POLIZAS_SEMILLA=/opt/solventa/semillas/polizas-staging.json
+```
+
+`/salud` del núcleo reporta `semilla_polizas` con cuántas plantillas cargó; si el archivo no está o
+no se puede leer, queda `degradado` sin tumbar el servicio.
+
+**Auditoría de un reporte** (criterio 5 de WEB-F05). Después de reportar un siniestro de prueba, en
+Cloud SQL Studio como `auditoria`:
+
+```sql
+SELECT secuencia, ocurrido_en, canal, referencias
+FROM auditoria.registros
+WHERE tipo = 'siniestro_reportado'
+ORDER BY secuencia DESC
+LIMIT 5;
+```

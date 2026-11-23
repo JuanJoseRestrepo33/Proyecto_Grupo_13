@@ -14,6 +14,24 @@ export function formatearFecha(iso: string, idioma: Idioma): string {
   return new Intl.DateTimeFormat(IDIOMAS[idioma], { dateStyle: 'long' }).format(new Date(iso))
 }
 
+/** Un día sin hora (`2026-10-29`), tal cual: no pasa por UTC, que lo correría un día en Colombia. */
+export function formatearDia(dia: string, idioma: Idioma): string {
+  const [anio, mes, fecha] = dia.split('-').map(Number)
+  return new Intl.DateTimeFormat(IDIOMAS[idioma], { dateStyle: 'long' }).format(new Date(anio!, mes! - 1, fecha))
+}
+
+/** El día de `fecha` en la zona del navegador, como `2026-10-29`. */
+export function diaLocal(fecha = new Date()): string {
+  const dosDigitos = (n: number) => String(n).padStart(2, '0')
+  return `${fecha.getFullYear()}-${dosDigitos(fecha.getMonth() + 1)}-${dosDigitos(fecha.getDate())}`
+}
+
+/** El día que está `dias` antes (negativo) o después de hoy, como `2026-10-29`. */
+export function diaRelativo(dias: number, hoy = new Date()): string {
+  const fecha = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias)
+  return diaLocal(fecha)
+}
+
 export function formatearHora(iso: string, idioma: Idioma): string {
   return new Intl.DateTimeFormat(IDIOMAS[idioma], { timeStyle: 'short' }).format(new Date(iso))
 }
@@ -33,10 +51,17 @@ export function formatearCuentaRegresiva(segundos: number): string {
   return `${Math.floor(restantes / 60)}:${String(restantes % 60).padStart(2, '0')}`
 }
 
-/** Lee un monto escrito por el usuario ("$ 60.000.000", "60000000"). `null` si no es un entero. */
+/** Pesos enteros: solo dígitos, o grupos de miles con un único separador ("60.000.000", "60,000,000"). */
+const MONTO_ENTERO = /^(?:\d+|\d{1,3}(?:([.,])\d{3})(?:\1\d{3})*)$/
+
+/**
+ * Lee un monto escrito por el usuario ("$ 60.000.000", "60000000", "1500000 COP"). `null` si no es
+ * un entero de pesos: con decimales ("1500000,50", "250000.75") no se adivina, porque quitar el
+ * separador lo multiplicaría por cien.
+ */
 export function leerMonto(texto: string): number | null {
-  const digitos = texto.replace(/[\s$.,]/g, '').replace(/COP$/i, '')
-  return /^\d+$/.test(digitos) ? Number(digitos) : null
+  const limpio = texto.replace(/[\s$]/g, '').replace(/COP$/i, '')
+  return MONTO_ENTERO.test(limpio) ? Number(limpio.replace(/[.,]/g, '')) : null
 }
 
 export function formatearFechaHora(iso: string, idioma: Idioma): string {

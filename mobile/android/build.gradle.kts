@@ -29,6 +29,10 @@ dependencies {
     kover(project(":core:network"))
     kover(project(":core:designsystem"))
     kover(project(":feature:onboarding"))
+    kover(project(":feature:consentimiento"))
+    kover(project(":feature:siniestros"))
+    kover(project(":feature:notificaciones"))
+    kover(project(":feature:polizas"))
 }
 
 kover {

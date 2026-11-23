@@ -143,7 +143,7 @@ export function Cotizacion() {
     setCotizacion(null)
   }
 
-  if (carga.tipo === 'cargando') return <p role="status">{t('inicio.cargando')}</p>
+  if (carga.tipo === 'cargando') return <p role="status">{t('sesion.cargando')}</p>
   if (carga.tipo === 'error') {
     return (
       <Aviso tipo="error" rol="alert">

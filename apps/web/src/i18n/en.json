@@ -3,18 +3,47 @@
     "nombre": "Solventa",
     "saltarContenido": "Skip to main content",
     "navegacionPrincipal": "Main navigation",
-    "idioma": "Language"
+    "idioma": "Language",
+    "migasDePan": "Breadcrumb"
   },
   "nav": {
     "inicio": "Home",
     "cotizar": "Get a quote",
-    "consentimientos": "Consents"
+    "polizas": "My policies",
+    "siniestros": "My claims",
+    "consentimientos": "Consents",
+    "suscripcion": "Purchase",
+    "reportarSiniestro": "Report a claim",
+    "evidencias": "Evidence"
   },
   "inicio": {
     "saludo": "Hi, {{nombre}}",
-    "descripcion": "Get insurance quotes and manage your Open Finance consents.",
+    "descripcion": "Get insurance quotes and manage your Open Finance consents."
+  },
+  "sesion": {
     "cargando": "Loading your information…",
-    "error": "We couldn't load your information. Please try again later."
+    "error": "We couldn't load your information. Please try again later.",
+    "reintentar": "Try again",
+    "titulo": "Sign in",
+    "descripcion": "Use the email and password of your Solventa account. It's the same account as in the app.",
+    "correo": "Email",
+    "contrasena": "Password",
+    "boton": "Sign in",
+    "enviando": "Signing in…",
+    "cerrar": "Sign out",
+    "cerrando": "Signing out…",
+    "avisos": {
+      "vencida": "Your session expired. Sign in again to continue.",
+      "cerrada": "You signed out. See you soon!"
+    },
+    "errores": {
+      "correoRequerido": "Enter your email.",
+      "correoInvalido": "Enter a valid email, for example name@email.com.",
+      "contrasenaRequerida": "Enter your password.",
+      "credenciales": "The email or password is incorrect. Check them and try again.",
+      "servicio": "We couldn't sign you in right now. Please try again in a few minutes.",
+      "cerrar": "We couldn't sign you out. Please try again."
+    }
   },
   "consentimientos": {
     "titulo": "Open Finance consents",
@@ -153,12 +182,14 @@
       "estandar": {
         "titulo": "Standard price",
         "sin_consentimiento": "We didn't use financial data because you don't have an active consent for quotes.",
-        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it."
+        "open_finance_desactivado": "We didn't use financial data because you chose to quote without it.",
+        "proveedor_no_disponible": "Your financial institution didn't respond and we had no saved profile, so we're showing the standard price. You can get a new quote in a few minutes to try again with your profile."
       },
       "vencida": "The quote has expired.",
       "vencidaDetalle": "Prices are guaranteed for 5 minutes.",
       "recotizar": "Quote again",
-      "recotizando": "Quoting again…"
+      "recotizando": "Quoting again…",
+      "aceptar": "Accept offer"
     },
     "precio": {
       "porQue": "Why this price?",
@@ -187,5 +218,354 @@
   "noEncontrada": {
     "titulo": "Page not found",
     "volver": "Back to home"
+  },
+  "suscripcion": {
+    "titulo": "Your policy purchase",
+    "descripcion": "Review the offer, confirm the payment and sign to receive your policy.",
+    "pasos": {
+      "etiqueta": "Purchase steps",
+      "actual": "step {{actual}} of {{total}}",
+      "revisar": "Review offer",
+      "pago": "Payment",
+      "firma": "Signature",
+      "emision": "Issuance"
+    },
+    "revisar": {
+      "titulo": "1. Review the terms of your offer",
+      "numero": "Quote {{id}}",
+      "aceptar": "Accept and continue to payment",
+      "aceptando": "Accepting…"
+    },
+    "pago": {
+      "titulo": "2. Payment method",
+      "medios": "Choose how you want to pay",
+      "tarjeta_credito": "Credit card",
+      "tarjeta_creditoAyuda": "You will enter your card details on the payment gateway.",
+      "pse": "PSE (bank debit)",
+      "pseAyuda": "Your bank may take a while to confirm the payment.",
+      "pagar": "Pay {{monto}}",
+      "procesando": "Processing payment…",
+      "procesandoDetalle": "We are processing your payment. Do not close this window or press again.",
+      "seguridad": "Solventa does not store your card or account details: the payment gateway receives them.",
+      "consultar": "Check payment status"
+    },
+    "resultado": {
+      "titulo": "2. Payment result",
+      "referencia": "Transaction reference",
+      "aprobado": "Payment approved.",
+      "aprobadoDetalle": "Next step: sign your policy to issue it.",
+      "rechazado": "Payment declined by the issuing bank.",
+      "rechazadoDetalle": "You were not charged. Check your details or use another method and try again.",
+      "pendiente": "Your bank has not confirmed the payment yet.",
+      "pendienteDetalle": "Do not make another payment. Check the status in a few minutes.",
+      "intentarDeNuevo": "Try again",
+      "volverInicio": "Back to home",
+      "continuarFirma": "Continue to signature"
+    },
+    "firma": {
+      "titulo": "3. Sign your policy",
+      "descripcion": "Review what you are about to sign. The signature is electronic and issues your policy.",
+      "producto": "Product",
+      "prima": "Monthly premium",
+      "acepta": "I accept the contract terms and authorize my electronic signature.",
+      "aceptaRequerida": "You must accept the terms to sign.",
+      "firmar": "Sign electronically",
+      "firmando": "Signing…",
+      "procesandoDetalle": "We are signing and issuing your policy. Do not close this window or press again."
+    },
+    "emision": {
+      "titulo": "4. Policy issued!",
+      "exito": "Your policy was issued successfully.",
+      "exitoDetalle": "Download it and keep it; you can check it at any time.",
+      "numero": "Policy number",
+      "vigencia": "Coverage period",
+      "vigenciaDetalle": "From {{inicio}} to {{fin}}",
+      "descargar": "Download PDF",
+      "verPoliza": "View my policy"
+    },
+    "avisos": {
+      "reintento": "This payment had already been processed. You were not charged twice.",
+      "pagoEnCurso": "Your payment is already in progress. You will not be charged twice; check the status in a moment.",
+      "pagoYaRegistrado": "This purchase already has a registered payment. You were not charged twice.",
+      "sinConfirmacion": "We could not confirm your payment. You can safely retry: if you were already charged, you will not be charged again.",
+      "cotizacionVencida": "The quote has expired.",
+      "cotizacionVencidaDetalle": "Prices are guaranteed for 5 minutes. Get a new quote to continue.",
+      "medioRequerido": "Choose a payment method to continue.",
+      "error": "We could not complete the operation. Please try again.",
+      "noEncontrada": "We could not find this quote.",
+      "cargar": "We could not load your quote. Please try again.",
+      "polizaYaEmitida": "This policy was already issued. No new signature or charge was made.",
+      "firmaNoDisponible": "The signature service did not respond and nothing was issued. You can safely sign again.",
+      "firmaSinConfirmacion": "We couldn't confirm the signature. You can safely try again: if it was already issued, you'll see the same policy.",
+      "pagoNoAprobado": "Your payment is not approved yet. Confirm it before signing."
+    },
+    "recotizar": "Get a new quote",
+    "reintentar": "Retry",
+    "atras": "Back"
+  },
+  "polizas": {
+    "titulo": "My policies",
+    "descripcion": "See what protects you and download your documents.",
+    "seguroDe": "{{producto}} insurance",
+    "primaPorMes": "{{monto}}/mo",
+    "verDetalle": "View details",
+    "deLaPoliza": "of policy {{numero}}",
+    "reintentar": "Retry",
+    "estados": {
+      "vigente": "Active",
+      "vencida": "Expired",
+      "por_iniciar": "Not started"
+    },
+    "vacio": {
+      "titulo": "You have no policies yet",
+      "detalle": "Get a quote and have your policy issued in minutes.",
+      "cotizar": "Get a quote"
+    },
+    "errores": {
+      "cargar": "We couldn't load your policies. Please try again.",
+      "cargarDetalle": "We couldn't load this policy. Please try again.",
+      "noEncontrada": "We couldn't find this policy."
+    },
+    "detalle": {
+      "miga": "Policy details",
+      "vigencia": "Coverage period",
+      "prima": "Monthly premium",
+      "emitidaEl": "Issued on",
+      "descargar": "Download PDF",
+      "sinDocumento": "The document for this policy is not available.",
+      "volver": "Back to my policies",
+      "informacionGeneral": "General information",
+      "informacionFinanciera": "Financial information",
+      "cobertura": "Coverage",
+      "limite": "Insured limit"
+    },
+    "rangoVigencia": "{{inicio}} – {{fin}}",
+    "noDisponible": "Not available",
+    "columnas": {
+      "numero": "Number",
+      "producto": "Product",
+      "estado": "Status",
+      "prima": "Premium",
+      "vigencia": "Coverage period",
+      "acciones": "Actions"
+    },
+    "pestanas": {
+      "etiqueta": "Filter policies by status",
+      "activas": "Active",
+      "vencidas": "Expired",
+      "todas": "View all",
+      "sinResultados": "You have no policies in this tab."
+    }
+  },
+  "siniestro": {
+    "titulo": "Report a claim",
+    "descripcion": "Tell us what happened to start evaluating your case.",
+    "pasos": {
+      "etiqueta": "Report steps",
+      "actual": "step {{actual}} of {{total}}",
+      "informacion": "Details",
+      "evidencia": "Evidence",
+      "revision": "Review"
+    },
+    "informacion": {
+      "titulo": "1. Event details",
+      "poliza": "Affected policy",
+      "elegirPoliza": "Choose a policy",
+      "opcionPoliza": "{{numero}} · {{producto}} ({{estado}})",
+      "vigencia": "Coverage from {{inicio}} to {{fin}}.",
+      "tipoEvento": "Event type",
+      "elegirTipo": "Choose the event type",
+      "fecha": "Event date",
+      "descripcion": "What happened",
+      "descripcionAyuda": "Between 10 and 2,000 characters. Tell us what happened, where and how.",
+      "monto": "Estimated amount (optional)",
+      "montoAyuda": "What you think it cost, in pesos."
+    },
+    "evidencia": {
+      "titulo": "2. Evidence",
+      "opcional": "This step is optional: you can send the report without evidence.",
+      "app": "In the app you can take photos with the date and location of the event.",
+      "elegir": "Attach photos, videos or documents",
+      "limites": "JPEG, PNG, HEIC, MP4 or PDF, up to {{limite}} each.",
+      "elegidos": "Selected files",
+      "quitar": "Remove",
+      "quitarArchivo": "Remove {{nombre}}",
+      "rechazo": {
+        "formato": "{{nombre}}: this format isn't supported. Use JPEG, PNG, HEIC, MP4 or PDF.",
+        "tamano": "{{nombre}}: it's {{tamano}} and the maximum is {{limite}}.",
+        "vacio": "{{nombre}}: the file is empty."
+      },
+      "fallo": {
+        "formato": "{{nombre}}: not attached because its content isn't JPEG, PNG, HEIC, MP4 or PDF.",
+        "tamano": "{{nombre}}: not attached because it's larger than 10 MB.",
+        "vacio": "{{nombre}}: not attached because it's empty.",
+        "cerrado": "{{nombre}}: not attached because the claim is already closed.",
+        "almacenamiento": "{{nombre}}: not attached because evidence storage didn't respond. Try again in a few minutes.",
+        "error": "{{nombre}}: we couldn't attach it. Try again.",
+        "requerimientoAtendido": "{{nombre}}: not sent because this request is no longer pending. We refreshed your claim.",
+        "requerimientoNoEncontrado": "{{nombre}}: not sent because this request no longer exists. We refreshed your claim."
+      }
+    },
+    "revision": {
+      "titulo": "3. Review your report",
+      "poliza": "Policy",
+      "tipoEvento": "Event type",
+      "fecha": "Event date",
+      "descripcion": "Description",
+      "monto": "Estimated amount",
+      "sinMonto": "Not provided",
+      "evidencias": "Evidence",
+      "sinEvidencias": "None",
+      "aviso": "Once you send it, your report will be registered and its evaluation will begin."
+    },
+    "navegacion": {
+      "atras": "Back",
+      "continuar": "Continue",
+      "enviar": "Send report",
+      "enviando": "Sending report…",
+      "adjuntando": "Attaching evidence…"
+    },
+    "confirmacion": {
+      "titulo": "Report sent",
+      "detalle": "We received your report. Keep the reference number: it's the same on the web and in the app.",
+      "referencia": "Reference number",
+      "estado": "Status",
+      "siguientePaso": "Next step",
+      "inicio": "Go to home",
+      "otro": "Report another claim",
+      "evidencias": "Evidence",
+      "adjuntada": "{{nombre}}: attached.",
+      "agregarEvidencia": "Add evidence"
+    },
+    "estados": {
+      "reportado": "Reported",
+      "en_evaluacion": "Under evaluation",
+      "requiere_informacion": "Information required",
+      "aprobado": "Approved",
+      "rechazado": "Rejected",
+      "pagado": "Paid"
+    },
+    "siguientePaso": {
+      "adjuntar_evidencia": "Attach any photos, invoices or documents you have to speed up the evaluation.",
+      "esperar_evaluacion": "We're evaluating your case; we'll let you know when its status changes."
+    },
+    "tiposEvento": {
+      "accidente_vehiculo": "Vehicle accident",
+      "hurto": "Theft",
+      "dano_hogar": "Home damage",
+      "retraso_vuelo": "Flight delay",
+      "equipo_danado_o_perdido": "Damaged or lost device",
+      "cancelacion_viaje": "Trip cancellation",
+      "otro": "Other"
+    },
+    "productos": {
+      "auto": "Auto",
+      "hogar": "Home",
+      "viaje": "Travel",
+      "dispositivos": "Devices"
+    },
+    "estadoPoliza": {
+      "vigente": "active",
+      "vencida": "expired",
+      "por_iniciar": "not started"
+    },
+    "sinPolizas": "You don't have any policies to report a claim on.",
+    "cotizar": "Get an insurance quote",
+    "errores": {
+      "cargar": "We couldn't load your policies.",
+      "reintentar": "Try again",
+      "polizaRequerida": "Choose the affected policy.",
+      "tipoRequerido": "Choose the event type.",
+      "fechaRequerida": "Enter the event date.",
+      "fechaFutura": "The event date can't be later than today.",
+      "fueraDeVigencia": "The event must have happened between {{inicio}} and {{fin}}, while the policy was active.",
+      "descripcionCorta": "Describe what happened in at least 10 characters.",
+      "descripcionLarga": "The description allows up to 2,000 characters.",
+      "montoInvalido": "Enter the amount in pesos, using numbers only.",
+      "enviar": "We couldn't confirm your report was sent. Try again: if it had already arrived, you'll see the same reference number.",
+      "polizaNoEncontrada": "The selected policy is no longer available. Review the event details.",
+      "fueraDeVigenciaServidor": "This event isn't covered: it happened outside the policy's coverage (from {{inicio}} to {{fin}}). No report was registered.",
+      "corregir": "Review the details"
+    },
+    "evidencias": {
+      "titulo": "Evidence for your claims",
+      "descripcion": "Attach photos, videos or documents to a claim you already reported, on the web or in the app.",
+      "siniestro": "Claim",
+      "elegir": "Choose a claim",
+      "opcion": "{{referencia}} · {{tipo}} · {{fecha}} ({{canal}})",
+      "subtitulo": "Evidence for {{referencia}}",
+      "cargando": "Loading evidence…",
+      "ninguna": "This claim has no evidence yet.",
+      "lista": "Attached evidence",
+      "detalle": "({{tamano}} · from {{canal}} · {{fecha}})",
+      "descargar": "Download",
+      "descargarArchivo": "Download {{nombre}}",
+      "subiendo": "{{nombre}}: attaching…",
+      "sinSiniestros": "You haven't reported any claims yet.",
+      "reportar": "Report a claim",
+      "errorSiniestros": "We couldn't load your claims.",
+      "errorEvidencias": "We couldn't load the evidence for this claim."
+    },
+    "canales": {
+      "web": "the web",
+      "movil": "the app"
+    },
+    "seguimiento": {
+      "titulo": "My claims",
+      "descripcion": "Check the status and progress of your claims, reported on the web or in the app.",
+      "miga": "Claim details",
+      "reportar": "Report a claim",
+      "actualizar": "Refresh",
+      "actualizando": "Refreshing…",
+      "actualizado": "Information refreshed.",
+      "reintentar": "Retry",
+      "volver": "Back to my claims",
+      "noDisponible": "Not available",
+      "ver": "View",
+      "delSiniestro": "claim {{referencia}}",
+      "referenciaPoliza": "{{referencia}} · Policy {{poliza}}",
+      "lineaDeTiempo": "Timeline",
+      "columnas": {
+        "referencia": "Reference",
+        "poliza": "Policy",
+        "tipo": "Type",
+        "canal": "Channel",
+        "estado": "Status",
+        "monto": "Amount",
+        "acciones": "Actions"
+      },
+      "canales": {
+        "web": "Web",
+        "movil": "App"
+      },
+      "vacio": {
+        "titulo": "You have no reported claims",
+        "detalle": "If something happened, report it here."
+      },
+      "errores": {
+        "cargar": "We couldn't load your claims. Please try again.",
+        "cargarDetalle": "We couldn't load this claim. Please try again.",
+        "noEncontrado": "We couldn't find this claim.",
+        "actualizar": "We couldn't refresh the information. What you see may be out of date."
+      },
+      "resumen": {
+        "titulo": "Summary",
+        "fecha": "Event date",
+        "descripcion": "Description",
+        "monto": "Estimated amount",
+        "canal": "Channel",
+        "actualizadoEl": "Last change"
+      },
+      "requerimientos": {
+        "titulo": "Requests",
+        "pendiente": "Pending · Requested on {{fecha}}",
+        "atendido": "Answered on {{fecha}}",
+        "cerrado": "Closed without a response",
+        "adjuntar": "File to respond: {{descripcion}}",
+        "enviar": "Send response",
+        "enviando": "Sending…",
+        "respondido": "{{nombre}}: we sent your response."
+      }
+    }
   }
 }

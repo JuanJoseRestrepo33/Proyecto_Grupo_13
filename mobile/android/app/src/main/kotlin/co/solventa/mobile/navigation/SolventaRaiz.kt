@@ -1,6 +1,7 @@
 package co.solventa.mobile.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -9,6 +10,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import co.solventa.core.network.Cliente
 import co.solventa.core.network.EstadoIdentidad
+import co.solventa.feature.consentimiento.DependenciasConsentimiento
+import co.solventa.feature.notificaciones.DependenciasNotificaciones
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.onboarding.biometria.RutaOfertaBiometria
 import co.solventa.feature.onboarding.biometria.debeOfrecerBiometria
@@ -16,12 +19,23 @@ import co.solventa.feature.onboarding.identidad.RutaIdentidad
 import co.solventa.feature.onboarding.ingreso.RutaIngreso
 import co.solventa.feature.onboarding.otp.RutaOtp
 import co.solventa.feature.onboarding.registro.RutaRegistro
+import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.siniestros.DependenciasSiniestros
 import java.time.Instant
 import java.time.OffsetDateTime
 
 @Composable
-fun SolventaRaiz(dependencias: DependenciasOnboarding) {
+fun SolventaRaiz(
+    dependencias: DependenciasOnboarding,
+    dependenciasConsentimiento: DependenciasConsentimiento? = null,
+    dependenciasSiniestros: DependenciasSiniestros? = null,
+    dependenciasNotificaciones: DependenciasNotificaciones? = null,
+    dependenciasPolizas: DependenciasPolizas? = null,
+) {
     val nav = rememberNavController()
+    val sesion = dependencias.sesion
+    VolverAlIngresoAlVencer(sesion, nav)
     val alIngresar = { cliente: Cliente -> nav.reiniciarEn(destinoTrasIngreso(cliente, dependencias)) }
     val alAprobar = { nav.reiniciarEn(destinoTrasAprobacion(dependencias)) }
     val alInicio = { nav.reiniciarEn(RutasEntrada.INICIO) }
@@ -62,8 +76,41 @@ fun SolventaRaiz(dependencias: DependenciasOnboarding) {
             RutaIdentidad(dependencias.api, dependencias.sesion, onAprobada = alAprobar, onIrAlInicio = alInicio)
         }
         composable(RutasEntrada.BIOMETRIA) { RutaOfertaBiometria(dependencias, onTerminar = alInicio) }
-        composable(RutasEntrada.INICIO) { SolventaApp(identidadVerificada = dependencias.sesion.identidadVerificada) }
+        composable(RutasEntrada.INICIO) {
+            SolventaApp(
+                identidadVerificada = sesion.identidadVerificada,
+                dependenciasConsentimiento = dependenciasConsentimiento,
+                dependenciasSiniestros = dependenciasSiniestros,
+                dependenciasNotificaciones = dependenciasNotificaciones,
+                dependenciasPolizas = dependenciasPolizas,
+                // Un 401 que llega a la pantalla ya no se pudo renovar; en el mock no hay renovación.
+                onSesionVencida = { sesion.alVencer(tokenRechazado = false) },
+                avisoBiometriaDesactivada = sesion.biometriaDesactivada,
+                onAvisoAtendido = sesion::avisoBiometriaAtendido,
+                onCerrarSesion = { cerrarSesion(sesion, dependenciasNotificaciones) },
+            )
+        }
     }
+}
+
+/**
+ * Vencida la sesión (el cliente del BFF no pudo renovarla), se vacía la pila protegida y se vuelve a
+ * Ingreso, que ofrece la huella si sigue activa (WEB-F13).
+ */
+@Composable
+private fun VolverAlIngresoAlVencer(sesion: GestorSesion, nav: NavHostController) {
+    LaunchedEffect(sesion.vencida) {
+        if (sesion.vencida) {
+            sesion.vencimientoAtendido()
+            nav.reiniciarEn(RutasEntrada.INGRESO)
+        }
+    }
+}
+
+/** La baja del dispositivo usa el token de la sesión: va antes de olvidarla (MOB-F06). */
+private fun cerrarSesion(sesion: GestorSesion, notificaciones: DependenciasNotificaciones?) {
+    notificaciones?.receptor?.darDeBaja()
+    sesion.cerrar()
 }
 
 /** Un cliente sin identidad verificada ve primero el estado de su verificación. */

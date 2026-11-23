@@ -34,3 +34,28 @@ class DependenciaNoDisponible(ErrorDeNegocio):
     """
 
     codigo = "dependencia_no_disponible"
+
+
+class NoAutenticado(ErrorDeNegocio):
+    """Las credenciales o el token no permiten identificar al cliente. La fachada responde 401.
+
+    El mensaje nunca dice qué falló: si el correo no existe o si la contraseña no coincide
+    se responde igual, para no revelar qué cuentas existen.
+    """
+
+    codigo = "no_autenticado"
+
+
+class DatoInvalido(ErrorDeNegocio):
+    """Un dato que pasó el contrato pero que el dominio rechaza. La fachada responde 422."""
+
+    codigo = "dato_invalido"
+
+
+class DemasiadasSolicitudes(ErrorDeNegocio):
+    """Se repitió una operación antes de tiempo. La fachada responde 429.
+
+    Si trae el detalle `reintentar_en_segundos`, la fachada lo pone en `Retry-After`.
+    """
+
+    codigo = "demasiadas_solicitudes"

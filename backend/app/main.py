@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -23,6 +24,15 @@ def crear_app(modulos: Sequence[DescriptorDeModulo] | None = None) -> FastAPI:
     """
     if modulos is None:
         modulos = descubrir_modulos()
+
+    @asynccontextmanager
+    async def ciclo_de_vida(_: FastAPI) -> AsyncIterator[None]:
+        # El servidor llama aquí al recibir SIGTERM. Los módulos se detienen en orden
+        # inverso al de arranque, para que quien escribe en otro módulo termine primero.
+        yield
+        for modulo in reversed(modulos):
+            modulo.detener()
+
     app = FastAPI(
         title="Solventa · núcleo transaccional",
         version=VERSION_APP,
@@ -30,6 +40,7 @@ def crear_app(modulos: Sequence[DescriptorDeModulo] | None = None) -> FastAPI:
             "Monolito modular con fachada versionada. Un módulo por capacidad de negocio; "
             "`/v1/` lista cuáles ya publican rutas y `/salud` reporta el estado de cada uno."
         ),
+        lifespan=ciclo_de_vida,
     )
     app.add_exception_handler(ErrorDeNegocio, manejar_error_de_negocio)
     app.include_router(v1.construir_router(modulos))

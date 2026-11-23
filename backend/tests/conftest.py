@@ -49,6 +49,7 @@ def servicio(reloj, consentimiento, perfilamiento, auditoria) -> ServicioDeCotiz
         perfilamiento=perfilamiento,
         auditoria=auditoria,
         reloj=reloj,
+        decisiones=auditoria,
     )
 
 

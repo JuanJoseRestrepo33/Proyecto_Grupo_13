@@ -5,12 +5,14 @@ on:
     paths:
       - 'mobile/android/**'
       - 'contratos/bff-movil/**'
+      - 'bff/app/movil/**'
       - '.github/workflows/mobile-android.yml'
   pull_request:
     branches: [main, develop, 'release/**']
     paths:
       - 'mobile/android/**'
       - 'contratos/bff-movil/**'
+      - 'bff/app/movil/**'
       - '.github/workflows/mobile-android.yml'
   workflow_dispatch:
 
@@ -55,10 +57,26 @@ jobs:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
       - name: Lint
         run: ./gradlew --no-daemon detekt lintDebug
+      - name: BFF simulado con Mockoon · prueba de humo
+        run: mockoon/mockoon.sh prueba
+      - name: Levantar el BFF simulado para las pruebas del cliente
+        run: |
+          MOCKOON_TTL_ACCESO=2 nohup mockoon/mockoon.sh > "$RUNNER_TEMP/mockoon.log" 2>&1 &
+          for _ in $(seq 60); do
+            curl -s -o /dev/null http://localhost:3001/api/v1/movil/sesion && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/mockoon.log"; exit 1
       - name: Test
+        env:
+          # ContraMockoonTest: el cliente renueva solo un token vencido contra el BFF simulado.
+          MOCKOON_URL: http://localhost:3001/api/v1/movil/
         run: >-
           ./gradlew --no-daemon :core:network:test :core:designsystem:testDebugUnitTest
-          :feature:onboarding:testDebugUnitTest :app:testDebugUnitTest :koverXmlReport :koverVerify
+          :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest
+          :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest
+          :feature:polizas:testDebugUnitTest
+          :app:testDebugUnitTest :koverXmlReport :koverVerify
       - name: Publicar cobertura en el resumen del pipeline
         if: always()
         run: |
@@ -82,7 +100,14 @@ jobs:
               print(f"**Total:** {percentage:.1f}% de líneas ({covered}/{total}). Mínimo: 70%.")
           PYTHON
       - name: Assemble debug
-        run: ./gradlew --no-daemon :app:assembleDebug
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Verificar que el modo real exige la URL del ambiente
+        run: |
+          if ./gradlew --no-daemon --quiet :app:help -PBFF_MOCK=false > modo-real.log 2>&1; then
+            echo "BFF_MOCK=false con el host .invalid debía fallar" >&2
+            exit 1
+          fi
+          grep -q "BFF_MOCK=false necesita la URL del ambiente" modo-real.log
       - name: Resumen
         if: always()
         env:
@@ -105,3 +130,157 @@ jobs:
           name: solventa-debug
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  apk-staging:
+    # La app que se instala en un celular para probarla contra la nube (MOB-F02, #161): habla con el
+    # router móvil del BFF de staging, no con el mock. Solo en develop, porque la URL es una variable
+    # del environment staging.
+    name: Android · APK contra staging
+    needs: android
+    if: github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    defaults:
+      run:
+        working-directory: mobile/android
+    env:
+      BFF_BASE_URL: ${{ vars.BFF_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verificar la URL del ambiente
+        run: |
+          if [ -z "$BFF_BASE_URL" ]; then
+            echo "::error::El environment staging no tiene la variable BFF_BASE_URL."
+            exit 1
+          fi
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar plataforma y herramientas Android
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;34.0.0"'
+      - name: Configurar cache Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c  # v5.0.2
+        with:
+          cache-read-only: true
+      - name: Assemble debug contra staging
+        # WEB_URL (opcional): la web del ambiente, a la que «Cotizar un seguro» lleva desde Mis pólizas (WEB-F04).
+        env:
+          WEB_URL: ${{ vars.WEB_URL }}
+        run: >-
+          ./gradlew --no-daemon :app:assembleDebug -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL"
+          ${WEB_URL:+-PWEB_URL="$WEB_URL"}
+      - name: Resumen
+        run: |
+          {
+            echo "## APK contra staging"
+            echo "Habla con \`$BFF_BASE_URL\`. Descárgalo en **Artifacts → solventa-staging**, descomprímelo"
+            echo "e instálalo en un Android 8 o superior (permitir apps de origen desconocido)."
+            echo "Staging debe estar encendido para que la app funcione."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar APK contra staging
+        uses: actions/upload-artifact@v6
+        with:
+          name: solventa-staging
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  e2e-emulador:
+    # Pruebas instrumentadas contra staging (WEB-F05, #172; WEB-F06, #202; MOB-F06, #209). A mano, porque necesitan
+    # Cloud SQL encendida, y solo en develop, la rama que admite el environment staging. Un fork no puede lanzarlo.
+    name: Android · E2E en emulador contra staging
+    needs: android
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+    # Mismo grupo que el E2E web de cd.yml: los dos cambian el estado de la cuenta de prueba.
+    concurrency:
+      group: e2e-cuenta-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: mobile/android
+    env:
+      BFF_BASE_URL: ${{ vars.BFF_BASE_URL }}
+      E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+      E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+      # SeguimientoE2eTest (WEB-F06, #202) y PushSiniestroE2eTest (MOB-F06, #209) cambian el estado del caso
+      # con la operación interna del núcleo.
+      # Mismos nombres que el E2E web de seguimiento (#201).
+      NUCLEO_URL: ${{ vars.NUCLEO_URL }}
+      E2E_TOKEN_INTERNO: ${{ secrets.SINIESTROS_TOKEN_INTERNO }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verificar la configuración del ambiente
+        # Nombra cada variable o secreto ausente: ninguna prueba se omite en silencio por falta de uno.
+        run: |
+          faltan=0
+          for par in "la variable BFF_BASE_URL:$BFF_BASE_URL" "el secreto HUMO_CORREO:$E2E_CORREO" \
+                     "el secreto HUMO_CLAVE:$E2E_CLAVE" "la variable NUCLEO_URL:$NUCLEO_URL" \
+                     "el secreto SINIESTROS_TOKEN_INTERNO:$E2E_TOKEN_INTERNO"; do
+            if [ -z "${par#*:}" ]; then
+              echo "::error::Falta ${par%%:*} en el environment staging."
+              faltan=1
+            fi
+          done
+          exit "$faltan"
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Instalar plataforma y herramientas Android
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;34.0.0"'
+      - name: Configurar cache Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c  # v5.0.2
+        with:
+          cache-read-only: true
+      - name: Habilitar KVM para el emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # Sin artefactos del runner: el enmascarado de GitHub cubre los logs, no los archivos, y sus resultados
+      # podrían incluir los argumentos de instrumentación, entre ellos la clave. Solo se publican las capturas
+      # PNG de la guía (paso siguiente). Si alguna prueba
+      # falla, scripts/fallos-e2e.sh imprime en el log el stack completo y el logcat del runner, con el
+      # emulador aún encendido: Gradle solo muestra la primera línea de cada fallo.
+      - name: Pruebas instrumentadas
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d  # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          working-directory: mobile/android
+          # Cámara trasera emulada: la prueba de evidencia toma una foto con CameraX (#179).
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+            -camera-back emulated
+          disable-animations: true
+          # ReporteSinConexionE2eTest (#213) usa el modo avión y lo desactiva en @Before y @After. Si la
+          # instrumentación muere a mitad, la red se restaura aquí, antes de que el runner apague el
+          # emulador. La acción corre cada línea del script por separado.
+          script: |
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -PBFF_MOCK=false -PBFF_BASE_URL="$BFF_BASE_URL" -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" || { bash scripts/fallos-e2e.sh; adb pull /data/local/tmp/capturas capturas || true; adb shell cmd connectivity airplane-mode disable; exit 1; }
+            adb pull /data/local/tmp/capturas capturas || true
+            adb shell cmd connectivity airplane-mode disable
+      # Las capturas de la guía de usuario (#194, #203, #210, #214) son solo imágenes de pantallas sin la
+      # clave escrita: a diferencia de los resultados del runner, no llevan argumentos de instrumentación.
+      - name: Publicar capturas para la guía de usuario
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: capturas-app-staging
+          path: mobile/android/capturas/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Restaurar la red del emulador
+        # Por si el paso anterior se canceló o venció con el emulador aún encendido. Si ya se apagó, no
+        # queda red que restaurar y el paso no falla.
+        if: always()
+        run: adb shell cmd connectivity airplane-mode disable || echo "Sin emulador encendido; nada que restaurar."

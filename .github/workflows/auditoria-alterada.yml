@@ -1,0 +1,53 @@
+# Auditoría alterada en staging (ARQ-05, criterio 6; RC-08; #216). Manual.
+#
+# Altera el resultado de una decisión propia del log de auditoría, comprueba que
+# GET /v1/auditoria/integridad la señala y la restaura (scripts/carga/auditoria_alterada.py).
+# Usa la cuenta `infraestructura`, la misma de Aprovisionar, que puede leer la cadena del dueño de
+# la base: por eso el environment `staging-infraestructura`, que pide aprobación y solo acepta develop.
+name: Auditoría alterada (RC-08)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ambiente-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  auditoria:
+    name: Alterar, detectar y restaurar
+    runs-on: ubuntu-latest
+    environment: staging-infraestructura
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "cloud-sql-python-connector[pg8000]==1.22.0"
+      - name: Autenticar en Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Alterar un registro y verificar la cadena
+        run: |
+          set -o pipefail
+          estado=0
+          nucleo=$(gcloud run services describe solventa-nucleo --region="$REGION" \
+            --project="$PROYECTO" --format='value(status.url)')
+          python3 scripts/carga/auditoria_alterada.py --nucleo "$nucleo" --proyecto "$PROYECTO" \
+            | tee salida.txt || estado=$?
+          { echo "### Auditoría alterada en staging (RC-08)"; echo; sed 's/^/    /' salida.txt; } \
+            >> "$GITHUB_STEP_SUMMARY"
+          exit "$estado"

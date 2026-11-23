@@ -1,0 +1,182 @@
+// ARQ-05 (#136, #216) | Carga de cotización contra staging, perfil de EXP-01.
+//
+//   k6 run -e BASE_URL=https://solventa-bff-…run.app -e RPM=1000 -e DURACION=5m \
+//          -e ESCENARIO=sano scripts/carga/cotizacion.js
+//
+// Credenciales de la cuenta de prueba en HUMO_CORREO y HUMO_CLAVE (nunca se imprimen). Inicia
+// sesión una vez en `setup` por el router web, se asegura de que la cuenta tenga consentimiento
+// vigente para `cotizacion` (si no, lo otorga) y cada iteración cotiza con esa cookie: el
+// recorrido es el del cliente real (BFF → núcleo → perfilamiento → Cloud SQL), no el del
+// prototipo de EXP-01.
+//
+// El estado del proveedor de Open Finance (sano, degradado o caído) no se cambia aquí: lo pone el
+// workflow `carga.yml` en el núcleo (PERFILAMIENTO_OPEN_FINANCE_MODO) antes de correr. ESCENARIO
+// solo etiqueta el resumen.
+//
+// Umbrales: RC-01 (p95 ≤ 250 ms, p99 ≤ 500 ms de extremo a extremo) y RC-03 (menos de 0,1 % de
+// respuestas que no sean una oferta). La latencia incluye la red entre el runner y us-east1.
+
+import http from 'k6/http';
+import { check, fail } from 'k6';
+import exec from 'k6/execution';
+import { Rate, Trend } from 'k6/metrics';
+
+const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
+const RPM = parseInt(__ENV.RPM || '1000', 10);
+const DURACION = __ENV.DURACION || '5m';
+const ESCENARIO = __ENV.ESCENARIO || 'sano';
+const WEB = `${BASE_URL}/api/v1/web`;
+// Puntos de prueba de ARQ-05: la ciudad del asegurado alterna entre Bogotá y Cali.
+const CIUDADES = ['Bogotá', 'Cali'];
+// El núcleo devuelve la cotización vigente si llega una solicitud idéntica (WEB-F01, criterio 4).
+// Con los mismos datos, casi toda la carga reutilizaba dos cotizaciones y no pasaba por Open
+// Finance: degradado y caído no habrían medido nada. Cada iteración asegura un valor distinto,
+// así que cada solicitud es una cotización nueva con su perfilamiento.
+const VALOR_BASE = 60000000;
+
+const latencia = new Trend('cotizacion_ms', true);
+const sinOferta = new Rate('cotizacion_sin_oferta');
+const errorServidor = new Rate('cotizacion_5xx');
+const enCache = new Rate('cotizacion_perfil_en_cache');
+const estandar = new Rate('cotizacion_tarifa_estandar');
+
+export const options = {
+  scenarios: {
+    cotizaciones: {
+      executor: 'constant-arrival-rate',
+      rate: RPM,
+      timeUnit: '1m',
+      duration: DURACION,
+      preAllocatedVUs: 50,
+      maxVUs: 300,
+    },
+  },
+  thresholds: {
+    cotizacion_ms: ['p(95)<250', 'p(99)<500'],
+    cotizacion_sin_oferta: ['rate<0.001'],
+    cotizacion_5xx: ['rate<0.001'],
+  },
+  summaryTrendStats: ['avg', 'med', 'p(95)', 'p(99)', 'max'],
+};
+
+export function setup() {
+  if (!BASE_URL) fail('Falta BASE_URL');
+  if (!__ENV.HUMO_CORREO || !__ENV.HUMO_CLAVE) fail('Faltan HUMO_CORREO y HUMO_CLAVE');
+  const res = http.post(
+    `${WEB}/sesion`,
+    JSON.stringify({ correo: __ENV.HUMO_CORREO, contrasena: __ENV.HUMO_CLAVE }),
+    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'sesion' } },
+  );
+  const cookie = res.cookies.sesion && res.cookies.sesion[0];
+  if (res.status !== 200 || !cookie) fail(`No se pudo iniciar sesión: ${res.status}`);
+  asegurarConsentimiento(cookie.value);
+  return { sesion: cookie.value };
+}
+
+// Sin consentimiento vigente para `cotizacion`, toda oferta sale a tarifa estándar y la carga nunca
+// pasa por el perfil de Open Finance ni por su caché: los escenarios degradado y caído no medirían
+// nada (ARQ-05, criterios 1, 2 y 7). Si la cuenta de prueba no lo tiene, se le otorga con las
+// entidades y la versión del texto del catálogo, como lo haría el cliente desde la web.
+function asegurarConsentimiento(sesion) {
+  const opciones = (nombre) => ({
+    headers: { 'Content-Type': 'application/json', Cookie: `sesion=${sesion}` },
+    tags: { name: nombre },
+  });
+  const actuales = http.get(`${WEB}/consentimientos`, opciones('consentimientos'));
+  if (actuales.status !== 200) fail(`No se pudieron leer los consentimientos: ${actuales.status}`);
+  const vigente = actuales
+    .json()
+    .some((c) => c.finalidad === 'cotizacion' && c.estado === 'vigente');
+  if (vigente) {
+    console.log('La cuenta de prueba ya tiene consentimiento vigente para cotizacion');
+    return;
+  }
+  const catalogo = http.get(`${WEB}/consentimientos/finalidades`, opciones('finalidades'));
+  if (catalogo.status !== 200) fail(`No se pudo leer el catálogo: ${catalogo.status}`);
+  const finalidad = catalogo.json().find((f) => f.codigo === 'cotizacion');
+  if (!finalidad) fail('El catálogo no trae la finalidad cotizacion');
+  const otorgado = http.post(
+    `${WEB}/consentimientos`,
+    JSON.stringify({
+      finalidad: 'cotizacion',
+      entidades_origen: finalidad.entidades_origen.map((e) => e.id),
+      version_texto: finalidad.version_texto,
+    }),
+    opciones('otorgar'),
+  );
+  // 409: otra corrida lo otorgó entre la consulta y este envío; ya está vigente.
+  if (otorgado.status !== 201 && otorgado.status !== 409) {
+    fail(`No se pudo otorgar el consentimiento: ${otorgado.status}`);
+  }
+  console.log('Consentimiento de cotizacion otorgado a la cuenta de prueba');
+}
+
+export default function (datos) {
+  const iteracion = exec.scenario.iterationInTest;
+  const ciudad = CIUDADES[iteracion % CIUDADES.length];
+  const res = http.post(
+    `${WEB}/cotizaciones`,
+    JSON.stringify({
+      producto: 'auto',
+      asegurado: { edad: 35, ciudad, valor_asegurado: VALOR_BASE + iteracion * 1000 },
+      usar_open_finance: true,
+    }),
+    {
+      headers: { 'Content-Type': 'application/json', Cookie: `sesion=${datos.sesion}` },
+      tags: { name: 'cotizar', ciudad },
+    },
+  );
+  latencia.add(res.timings.duration, { ciudad });
+  errorServidor.add(res.status >= 500);
+  const ok = check(res, { 'oferta emitida (201)': (r) => r.status === 201 });
+  sinOferta.add(!ok);
+  if (ok) {
+    const oferta = res.json();
+    enCache.add(oferta.base_perfilamiento === 'open_finance_en_cache');
+    estandar.add(oferta.tipo_tarifa === 'estandar');
+  }
+}
+
+function porcentaje(data, metrica) {
+  const v = valor(data, metrica, 'rate');
+  return v === null ? null : v * 100;
+}
+
+function valor(data, metrica, campo) {
+  const m = data.metrics[metrica];
+  return m && m.values[campo] !== undefined ? m.values[campo] : null;
+}
+
+export function handleSummary(data) {
+  const resumen = {
+    escenario: ESCENARIO,
+    rpm: RPM,
+    duracion: DURACION,
+    solicitudes: valor(data, 'iterations', 'count'),
+    p50_ms: valor(data, 'cotizacion_ms', 'med'),
+    p95_ms: valor(data, 'cotizacion_ms', 'p(95)'),
+    p99_ms: valor(data, 'cotizacion_ms', 'p(99)'),
+    max_ms: valor(data, 'cotizacion_ms', 'max'),
+    pct_sin_oferta: porcentaje(data, 'cotizacion_sin_oferta'),
+    pct_5xx: porcentaje(data, 'cotizacion_5xx'),
+    pct_perfil_en_cache: porcentaje(data, 'cotizacion_perfil_en_cache'),
+    pct_tarifa_estandar: porcentaje(data, 'cotizacion_tarifa_estandar'),
+    umbrales_cumplidos: Object.values(data.metrics).every(
+      (m) => !m.thresholds || Object.values(m.thresholds).every((t) => t.ok),
+    ),
+  };
+  const fila = (k, v) => `| ${k} | ${v === null ? '-' : typeof v === 'number' ? v.toFixed(2) : v} |`;
+  const markdown = [
+    `### Carga de cotización · escenario \`${ESCENARIO}\``,
+    '',
+    '| Métrica | Valor |',
+    '|---|---|',
+    ...Object.entries(resumen).map(([k, v]) => fila(k, v)),
+    '',
+  ].join('\n');
+  return {
+    stdout: markdown + '\n',
+    [`carga-${ESCENARIO}.json`]: JSON.stringify(resumen, null, 2),
+    [`carga-${ESCENARIO}.md`]: markdown,
+  };
+}

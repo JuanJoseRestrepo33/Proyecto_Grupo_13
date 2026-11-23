@@ -1,11 +1,29 @@
-# Despliegue continuo (ARQ-04), según GitFlow:
-#   push a develop → imagen :develop → environment "staging"
-#   push a main    → imagen :main    → environment "produccion" (main solo recibe releases y hotfixes)
+# Despliegue continuo (ARQ-04, WEB-F01), según GitFlow:
+#   push a develop → imágenes :develop → environment "staging"    → servicios solventa-*
+#   push a main    → imágenes :main    → environment "produccion" → servicios solventa-*-prd
+#   (main solo recibe releases y hotfixes). Los dos ambientes viven en el mismo proyecto de GCP:
+#   producción usa los mismos nombres con el sufijo -prd (scripts/ambiente.py --ambiente).
 #
-# El repositorio no conoce la plataforma de despliegue. El pipeline publica la imagen en el registro
-# de GitHub y avisa a la plataforma por un webhook. Credenciales de bases de datos y demás
-# configuración de infraestructura viven solo en la plataforma, nunca en GitHub ni en el código.
-# Secretos de cada environment: ver docs/devops.md, sección "Despliegue continuo".
+# Despliega tres servicios de Cloud Run, uno por componente: el núcleo (backend/), el BFF (bff/) y la
+# web estática (apps/web/, nginx que reenvía /api/ al BFF). Cada servicio de Cloud Run se llama igual
+# que su imagen. El pipeline publica las imágenes en el registro de GitHub, las copia a Artifact
+# Registry y las despliega en orden: núcleo → BFF → web, porque cada uno depende del anterior.
+# En staging, al final corren las E2E de la web (Playwright) contra lo recién desplegado.
+#
+# Omite lo que no cambió: cada imagen se identifica también por el árbol de git de su componente
+# (`git rev-parse HEAD:<carpeta>`). Si ya existe una imagen de ese árbol, no se vuelve a construir; si
+# el servicio ya corre ese árbol (etiqueta `arbol`), no se vuelve a desplegar, pero sí se repite su
+# prueba de humo. Un merge que solo toca la web no reconstruye ni redespliega el núcleo ni el BFF.
+#
+# El pipeline no crea infraestructura: el job "Verificar ambiente" revisa en segundos que exista
+# (Cloud SQL encendida, secretos, bucket y servicios) y avisa lo que falta. Crearla o destruirla son
+# los workflows manuales "Aprovisionar ambiente" y "Destruir ambiente" (scripts/ambiente.py).
+#
+# Se autentica ante Google Cloud con Workload Identity Federation: no existe ninguna llave de cuenta
+# de servicio, ni en GitHub ni en el código. Las credenciales de bases de datos, las URL entre
+# servicios y demás configuración viven en el servicio de Cloud Run (y los secretos en Secret
+# Manager), fijadas en su primer despliegue; el pipeline nunca las ve. Variables de cada environment:
+# ver docs/devops.md, sección "Despliegue continuo".
 name: CD
 
 on:
@@ -21,80 +39,347 @@ permissions:
   contents: read
   packages: write
 
-env:
-  SERVICIO: solventa-nucleo
-
 jobs:
-  publicar:
-    name: Publicar imagen
+  ambiente:
+    name: Verificar ambiente
+    # Ningún otro job depende de este.
     runs-on: ubuntu-latest
-    outputs:
-      imagen: ${{ steps.nombre.outputs.imagen }}
-      publicada: ${{ steps.nombre.outputs.publicada }}
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+    steps:
+      - id: config
+        run: |
+          if [ -n "$PROYECTO" ] && [ -n "$REGION" ] && [ -n "$PROVEEDOR_IDENTIDAD" ] && [ -n "$CUENTA_SERVICIO" ]; then
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::El environment no tiene configurado el despliegue; no se verifica el ambiente."
+          fi
+      - if: steps.config.outputs.lista == 'true'
+        uses: actions/checkout@v4
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Verificar
+        if: steps.config.outputs.lista == 'true'
+        # Solo lee y nunca falla: lo que falte queda como aviso en el resumen del run.
+        run: >-
+          python3 scripts/ambiente.py verificar --proyecto "$PROYECTO" --region "$REGION"
+          --ambiente ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+
+  publicar:
+    name: Publicar ${{ matrix.servicio }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { servicio: solventa-nucleo, contexto: backend }
+          - { servicio: solventa-bff, contexto: bff }
+          - { servicio: solventa-web, contexto: apps/web }
     steps:
       - uses: actions/checkout@v4
       - id: nombre
+        env:
+          SERVICIO: ${{ matrix.servicio }}
+          CONTEXTO: ${{ matrix.contexto }}
         run: |
           echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${SERVICIO}" >> "$GITHUB_OUTPUT"
-          if [ -f backend/Dockerfile ]; then
+          echo "arbol=$(git rev-parse "HEAD:$CONTEXTO" 2>/dev/null)" >> "$GITHUB_OUTPUT"
+          if [ -f "$CONTEXTO/Dockerfile" ]; then
             echo "publicada=true" >> "$GITHUB_OUTPUT"
           else
             echo "publicada=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Aún no existe backend/Dockerfile; no hay imagen que publicar."
+            echo "::notice::Aún no existe $CONTEXTO/Dockerfile; no hay imagen de $SERVICIO que publicar."
           fi
       - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
       - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - if: steps.nombre.outputs.publicada == 'true'
-        uses: docker/build-push-action@v6
+      - name: ¿Ya existe la imagen de este árbol?
+        if: steps.nombre.outputs.publicada == 'true'
+        id: previa
+        env:
+          SERVICIO: ${{ matrix.servicio }}
+          IMAGEN: ${{ steps.nombre.outputs.imagen }}
+          ARBOL: ${{ steps.nombre.outputs.arbol }}
+        # Mismo árbol, misma imagen: se le agregan las etiquetas de este commit sin construir.
+        run: |
+          if docker buildx imagetools inspect "$IMAGEN:arbol-$ARBOL" >/dev/null 2>&1; then
+            docker buildx imagetools create --tag "$IMAGEN:$GITHUB_SHA" --tag "$IMAGEN:$GITHUB_REF_NAME" \
+              "$IMAGEN:arbol-$ARBOL"
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$SERVICIO no cambió (árbol ${ARBOL:0:12}); no se reconstruye."
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.previa.outputs.existe == 'false'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
-          context: backend
+          context: ${{ matrix.contexto }}
           push: true
           tags: |
             ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
             ${{ steps.nombre.outputs.imagen }}:${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ steps.nombre.outputs.imagen }}:arbol-${{ steps.nombre.outputs.arbol }}
+          cache-from: type=gha,scope=${{ matrix.servicio }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
 
   desplegar:
-    name: Desplegar en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    name: Desplegar ${{ matrix.servicio }} en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
     needs: publicar
-    if: needs.publicar.outputs.publicada == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    permissions:
+      contents: read
+      packages: read
+      id-token: write # para obtener el token de Workload Identity Federation
+    strategy:
+      # Uno a la vez y en este orden: la web no se despliega si el BFF falló.
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        include:
+          - { servicio: solventa-nucleo, humo: nucleo, contexto: backend, requiere: backend/Dockerfile }
+          - { servicio: solventa-bff, humo: bff, contexto: bff, requiere: bff/Dockerfile }
+          # La web sin BFF no tiene a quién reenviar /api/.
+          - servicio: solventa-web
+            humo: web
+            contexto: apps/web
+            requiere: apps/web/Dockerfile bff/Dockerfile
     env:
-      HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
-      HOOK_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
-      URL_AMBIENTE: ${{ secrets.AMBIENTE_URL }}
-      IMAGEN: ${{ needs.publicar.outputs.imagen }}:${{ github.sha }}
+      # La imagen se llama como el componente; el servicio, con el sufijo del ambiente.
+      IMAGEN: ${{ matrix.servicio }}
+      SERVICIO: ${{ matrix.servicio }}${{ github.ref_name == 'main' && '-prd' || '' }}
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      REPOSITORIO: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
     steps:
+      - uses: actions/checkout@v4
       - name: Verificar configuración
         id: config
+        env:
+          REQUIERE: ${{ matrix.requiere }}
+          CONTEXTO: ${{ matrix.contexto }}
         run: |
-          if [ -z "$HOOK_URL" ] || [ -z "$HOOK_TOKEN" ]; then
-            echo "::notice::El environment no tiene configurado el webhook de despliegue; se omite."
+          for archivo in $REQUIERE; do
+            if [ ! -f "$archivo" ]; then
+              echo "::notice::Aún no existe $archivo; no se despliega $SERVICIO."
+              echo "lista=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          faltan=""
+          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO REPOSITORIO; do
+            [ -z "${!variable}" ] && faltan="$faltan $variable"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::notice::El environment no tiene configurado el despliegue (faltan:$faltan); se omite."
+            echo "lista=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "lista=true" >> "$GITHUB_OUTPUT"
+            echo "imagen=${REGION}-docker.pkg.dev/${PROYECTO}/${REPOSITORIO}/${IMAGEN}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "arbol=$(git rev-parse "HEAD:$CONTEXTO")" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Autenticar en Google Cloud
+        if: steps.config.outputs.lista == 'true'
+        id: gcp
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+          token_format: access_token
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: Verificar que el servicio existe
+        if: steps.config.outputs.lista == 'true'
+        id: servicio
+        # El primer despliegue de cada servicio lo hace "Aprovisionar ambiente": ahí se fijan su
+        # cuenta de servicio, sus variables y sus secretos. Creado aquí, quedaría con la cuenta por
+        # defecto y sin configuración.
+        env:
+          ARBOL: ${{ steps.config.outputs.arbol }}
+        run: |
+          if actual=$(gcloud run services describe "$SERVICIO" --region="$REGION" --project="$PROYECTO" \
+               --format='value[separator="|"](metadata.labels.arbol,status.url,status.latestCreatedRevisionName,status.latestReadyRevisionName)' \
+               2>/dev/null); then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+            IFS='|' read -r arbol_actual url creada lista <<< "$actual"
+            # Si ya corre este árbol, desplegarlo otra vez solo crearía una revisión igual. La
+            # etiqueta sola no basta: una revisión de ese árbol que no arrancó también la lleva, y
+            # Cloud Run sigue sirviendo la anterior. Solo se omite si la última creada está lista.
+            if [ "$arbol_actual" = "$ARBOL" ] && [ -n "$creada" ] && [ "$creada" = "$lista" ]; then
+              echo "cambio=false" >> "$GITHUB_OUTPUT"
+              echo "url=$url" >> "$GITHUB_OUTPUT"
+              echo "::notice::$SERVICIO ya corre el árbol ${ARBOL:0:12}; no se redespliega."
+            else
+              echo "cambio=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::El servicio $SERVICIO no existe en Cloud Run; corre el workflow Aprovisionar ambiente."
+          fi
+      - if: steps.servicio.outputs.cambio == 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+      - if: steps.servicio.outputs.cambio == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.servicio.outputs.cambio == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ${{ env.REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.gcp.outputs.access_token }}
+      - name: Copiar la imagen a Artifact Registry
+        if: steps.servicio.outputs.cambio == 'true'
+        env:
+          IMAGEN_GITHUB: ghcr.io/${{ github.repository_owner }}/${{ matrix.servicio }}:${{ github.sha }}
+          IMAGEN_GCP: ${{ steps.config.outputs.imagen }}
+        # Copia el manifiesto y las capas ya construidas; no vuelve a construir, así lo que se
+        # despliega es exactamente lo que el CI probó.
+        run: docker buildx imagetools create --tag "$IMAGEN_GCP" "${IMAGEN_GITHUB,,}"
+      - name: Desplegar en Cloud Run
+        if: steps.servicio.outputs.cambio == 'true'
+        id: despliegue
+        uses: google-github-actions/deploy-cloudrun@251330ba9a8a34bfbc1622895f42e1d53fd14522  # v2.7.6
+        with:
+          service: ${{ env.SERVICIO }}
+          region: ${{ env.REGION }}
+          project_id: ${{ env.PROYECTO }}
+          image: ${{ steps.config.outputs.imagen }}
+          # Las variables de entorno y los secretos del servicio se conservan entre despliegues;
+          # los fija su primer despliegue ("Aprovisionar ambiente").
+          flags: --allow-unauthenticated
+          # El árbol desplegado, para omitir el próximo despliegue si no cambia.
+          labels: arbol=${{ steps.config.outputs.arbol }}
+      - name: Prueba de humo
+        if: steps.servicio.outputs.existe == 'true'
+        env:
+          URL_AMBIENTE: ${{ steps.despliegue.outputs.url || steps.servicio.outputs.url }}
+          HUMO: ${{ matrix.humo }}
+          # Cuenta de prueba del environment (MOB-F02); sin ella, las filas con sesión solo avisan.
+          HUMO_CORREO: ${{ secrets.HUMO_CORREO }}
+          HUMO_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: python3 scripts/humo.py --servicio "$HUMO" --url "$URL_AMBIENTE"
+
+  e2e:
+    # Los flujos de la web de punta a punta, después de desplegar (WEB-F01, #166), en staging y en
+    # producción, cada uno con su propia cuenta de prueba (secretos HUMO_* de su environment).
+    name: E2E web en ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    needs: desplegar
+    if: github.ref_name == 'develop' || github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+    # Mismo grupo que el E2E en emulador de mobile-android.yml y que k6: cambian el estado de la cuenta
+    # de prueba (por ejemplo, su consentimiento de cotización) y no deben correr a la vez.
+    concurrency:
+      group: e2e-cuenta-${{ github.ref_name == 'main' && 'produccion' || 'staging' }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write # para leer la URL de la web en Cloud Run con Workload Identity Federation
+    env:
+      PROYECTO: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      PROVEEDOR_IDENTIDAD: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      CUENTA_SERVICIO: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      SUFIJO: ${{ github.ref_name == 'main' && '-prd' || '' }}
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar configuración
+        id: config
+        # La cuenta de prueba solo llega a los pasos que la usan, no a npm ni a la instalación de Chromium.
+        env:
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+        run: |
+          faltan=""
+          for variable in PROYECTO REGION PROVEEDOR_IDENTIDAD CUENTA_SERVICIO E2E_CORREO E2E_CLAVE; do
+            [ -z "${!variable}" ] && faltan="$faltan $variable"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::notice::El environment no tiene configuradas las E2E (faltan:$faltan); se omiten."
             echo "lista=false" >> "$GITHUB_OUTPUT"
           else
             echo "lista=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Solicitar despliegue
+      - name: Autenticar en Google Cloud
         if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed  # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.PROVEEDOR_IDENTIDAD }}
+          service_account: ${{ env.CUENTA_SERVICIO }}
+      - if: steps.config.outputs.lista == 'true'
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f  # v2.2.1
+      - name: URL de la web en staging
+        if: steps.config.outputs.lista == 'true'
+        id: web
         run: |
-          curl -sf -o /dev/null -X POST "$HOOK_URL" \
-            -H "Authorization: Bearer $HOOK_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"imagen\": \"$IMAGEN\", \"commit\": \"$GITHUB_SHA\"}"
-      - name: Prueba de humo
-        if: steps.config.outputs.lista == 'true' && env.URL_AMBIENTE != ''
+          url=$(gcloud run services describe "solventa-web$SUFIJO" --region="$REGION" \
+                  --project="$PROYECTO" --format='value(status.url)' 2>/dev/null || true)
+          if [ -z "$url" ]; then
+            echo "::warning::No se encontró solventa-web$SUFIJO en Cloud Run; no hay contra qué correr las E2E."
+            echo "url=" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.web.outputs.url != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Instalar dependencias y Chromium
+        if: steps.web.outputs.url != ''
         run: |
-          for _ in $(seq 1 20); do
-            if curl -sf -o /dev/null "$URL_AMBIENTE/v1/"; then echo "El ambiente responde"; exit 0; fi
-            sleep 15
-          done
-          echo "::error::El ambiente no respondió tras el despliegue"
-          exit 1
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: E2E (Playwright)
+        if: steps.web.outputs.url != ''
+        env:
+          E2E_URL_WEB: ${{ steps.web.outputs.url }}
+          E2E_CORREO: ${{ secrets.HUMO_CORREO }}
+          E2E_CLAVE: ${{ secrets.HUMO_CLAVE }}
+          # El núcleo de staging tiene Open Finance sano: el flujo con el proveedor caído se omite.
+          E2E_OPEN_FINANCE: sano
+          # Seguimiento (WEB-F06, #201): la operación interna de cambio de estado del núcleo. Mismos
+          # valores que usa el E2E del emulador; el token solo lo lee Node, nunca el navegador.
+          E2E_NUCLEO_URL: ${{ vars.NUCLEO_URL }}
+          E2E_TOKEN_INTERNO: ${{ secrets.SINIESTROS_TOKEN_INTERNO }}
+        run: npm run e2e
+      - name: Avisar los flujos de la parte B
+        if: steps.web.outputs.url != ''
+        run: >-
+          echo "::notice::E2E: cotizar con Open Finance caído es de la parte B de WEB-F01 (#123) y aún no
+          corre en staging: el núcleo no permite provocar la caída del proveedor sin redesplegarlo."
+      - name: Capturas de las pruebas fallidas
+        if: failure() && steps.web.outputs.url != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-e2e
+          # Solo las capturas: sin trazas ni reporte HTML, que guardarían la clave de la cuenta de prueba.
+          path: apps/web/test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7

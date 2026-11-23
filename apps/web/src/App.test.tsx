@@ -31,7 +31,7 @@ describe('App', () => {
   it('ofrece saltar al contenido y una navegación principal con la página actual marcada', async () => {
     renderizar('/consentimientos')
     expect(screen.getByRole('link', { name: 'Saltar al contenido principal' })).toHaveAttribute('href', '#contenido')
-    const navegacion = screen.getByRole('navigation', { name: 'Navegación principal' })
+    const navegacion = await screen.findByRole('navigation', { name: 'Navegación principal' })
     expect(navegacion).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Consentimientos' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Consentimientos de Open Finance')
@@ -39,7 +39,7 @@ describe('App', () => {
 
   it('navega entre secciones', async () => {
     renderizar()
-    await userEvent.click(screen.getByRole('link', { name: 'Cotizar' }))
+    await userEvent.click(await screen.findByRole('link', { name: 'Cotizar' }))
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Cotizar un seguro')
   })
 

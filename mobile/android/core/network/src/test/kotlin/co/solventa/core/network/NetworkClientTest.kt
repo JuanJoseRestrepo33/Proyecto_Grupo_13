@@ -102,6 +102,147 @@ class NetworkClientTest {
     }
 
     @Test
+    fun `listar polizas lee resumen, vigencia y estado`() = runBlocking {
+        server.enqueue(
+            json(
+                200,
+                """[{"numero":"POL-2026-000101","producto":"auto","inicio":"2026-09-26",
+                "fin":"2027-09-26","estado":"vigente","coberturas":[]}]""",
+            ),
+        )
+        val polizas = api(token = "abc").listarPolizas()
+        val esperada = PolizaResumen("POL-2026-000101", "auto", "2026-09-26", "2027-09-26", EstadoPoliza.VIGENTE)
+        assertEquals(listOf(esperada), polizas)
+        assertEquals("/api/v1/movil/polizas", server.takeRequest().path)
+    }
+
+    @Test
+    fun `el resumen ampliado acepta los campos nuevos con valor, en null o ausentes`() = runBlocking {
+        server.enqueue(
+            json(
+                200,
+                """[{"numero":"POL-2026-000101","producto":"auto","inicio":"2026-09-26","fin":"2027-09-26",
+                "estado":"vigente","nombre_producto":"Seguro de Auto — Plan Full",
+                "prima_mensual":{"valor":185000,"moneda":"COP"},
+                "documento_url":"/api/v1/movil/polizas/POL-2026-000101/documento"},
+                {"numero":"POL-2026-000102","producto":"hogar","inicio":"2025-09-26","fin":"2026-09-26",
+                "estado":"vencida","nombre_producto":null,"prima_mensual":null,"documento_url":null}]""",
+            ),
+        )
+        val (completa, prueba) = api(token = "abc").listarPolizas()
+        assertEquals("Seguro de Auto — Plan Full", completa.nombreProducto)
+        assertEquals(Dinero.pesos(185_000), completa.primaMensual)
+        assertEquals("/api/v1/movil/polizas/POL-2026-000101/documento", completa.documentoUrl)
+        assertEquals(
+            PolizaResumen("POL-2026-000102", "hogar", "2025-09-26", "2026-09-26", EstadoPoliza.VENCIDA),
+            prueba,
+        )
+    }
+
+    @Test
+    fun `obtener una poliza codifica el numero y lee coberturas, deducible, valor asegurado y emision`() =
+        runBlocking {
+            server.enqueue(
+                json(
+                    200,
+                    """{"numero":"POL 2026/1","producto":"auto","inicio":"2026-09-26","fin":"2027-09-26",
+                    "estado":"vigente","coberturas":[{"nombre":"Pérdida total","limite":"100 %"}],
+                    "deducible":"5% del valor asegurado","valor_asegurado":"$60.000.000",
+                    "emitida_en":"2026-09-25T17:00:00Z"}""",
+                ),
+            )
+            server.enqueue(
+                json(
+                    200,
+                    """{"numero":"POL-2026-000102","producto":"hogar","inicio":"2025-09-26","fin":"2026-09-26",
+                    "estado":"vencida","coberturas":[],"deducible":null,"valor_asegurado":null,"emitida_en":null}""",
+                ),
+            )
+            val poliza = api(token = "abc").obtenerPoliza("POL 2026/1")
+            assertEquals("/api/v1/movil/polizas/POL%202026%2F1", server.takeRequest().path)
+            assertEquals(listOf(Cobertura("Pérdida total", "100 %")), poliza.coberturas)
+            assertEquals("5% del valor asegurado", poliza.deducible)
+            assertEquals("$60.000.000", poliza.valorAsegurado)
+            assertEquals("2026-09-25T17:00:00Z", poliza.emitidaEn)
+            assertNull(poliza.nombreProducto)
+
+            val prueba = api(token = "abc").obtenerPoliza("POL-2026-000102")
+            assertTrue(prueba.coberturas.isEmpty())
+            assertNull(prueba.deducible)
+            assertNull(prueba.valorAsegurado)
+            assertNull(prueba.emitidaEn)
+            assertEquals(prueba, PolizaDetalle.de(prueba.resumen, emptyList(), null, null, null))
+        }
+
+    @Test
+    fun `descargar el documento devuelve el PDF y un 404 conserva su codigo`() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setHeader("Content-Type", "application/pdf").setBody("%PDF-1.4 x"),
+        )
+        server.enqueue(json(404, """{"codigo":"documento_no_disponible","mensaje":"x"}"""))
+        val cuerpo = api(token = "abc").descargarDocumentoPoliza("POL-2026-000101")
+        assertEquals("%PDF-1.4 x", cuerpo.use { it.string() })
+        assertEquals("/api/v1/movil/polizas/POL-2026-000101/documento", server.takeRequest().path)
+        val falla = assertThrows(HttpException::class.java) {
+            runBlocking { api(token = "abc").descargarDocumentoPoliza("POL-2026-000102") }
+        }
+        assertEquals("documento_no_disponible", ErrorBff.desde(falla)?.codigo)
+    }
+
+    @Test
+    fun `reportar un siniestro envia la clave de idempotencia y el monto como Dinero`() = runBlocking {
+        server.enqueue(
+            json(
+                201,
+                """{"id":"SIN-1","referencia":"SIN-2026-000123","numero_poliza":"POL-2026-000101",
+                "tipo_evento":"hurto","ocurrido_el":"2026-10-20","descripcion":"Me robaron el celular",
+                "monto_estimado":{"valor":1500000,"moneda":"COP"},"estado":"reportado",
+                "siguiente_paso":"adjuntar_evidencia","canal":"movil","reportado_en":"2026-10-26T15:00:00Z"}""",
+            ),
+        )
+        val solicitud = SolicitudSiniestro(
+            numeroPoliza = "POL-2026-000101",
+            tipoEvento = TipoEventoSiniestro.HURTO,
+            ocurridoEl = "2026-10-20",
+            descripcion = "Me robaron el celular",
+            montoEstimado = Dinero.pesos(1_500_000),
+        )
+        val siniestro = api(token = "abc").reportarSiniestro("6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b", solicitud)
+        assertEquals("SIN-2026-000123", siniestro.referencia)
+        assertEquals(SiguientePaso.ADJUNTAR_EVIDENCIA, siniestro.siguientePaso)
+        assertEquals(Dinero(1_500_000, "COP"), siniestro.montoEstimado)
+        val request = server.takeRequest()
+        assertEquals("/api/v1/movil/siniestros", request.path)
+        assertEquals("6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b", request.getHeader("Idempotency-Key"))
+        val cuerpo = request.body.readUtf8()
+        assertTrue(cuerpo.contains(""""tipo_evento":"hurto""""))
+        assertTrue(cuerpo.contains(""""ocurrido_el":"2026-10-20""""))
+        assertTrue(cuerpo.contains(""""monto_estimado":{"valor":1500000,"moneda":"COP"}"""))
+    }
+
+    @Test
+    fun `un evento fuera de vigencia trae las fechas de la poliza`() {
+        server.enqueue(
+            json(
+                409,
+                """{"codigo":"evento_fuera_de_vigencia","mensaje":"x","vigente_desde":"2025-09-26",
+                "vigente_hasta":"2026-09-26"}""",
+            ),
+        )
+        val falla = assertThrows(HttpException::class.java) {
+            runBlocking {
+                api().reportarSiniestro(
+                    "6f1c2b0e-8a4d-4f7e-9b1a-2c3d4e5f6a7b",
+                    SolicitudSiniestro("POL-1", TipoEventoSiniestro.OTRO, "2026-10-20", "Descripción larga"),
+                )
+            }
+        }
+        val error = ErrorBff.desde(falla)
+        assertEquals("2025-09-26", error?.vigenteDesde)
+        assertEquals("2026-09-26", error?.vigenteHasta)
+    }
+
+    @Test
     fun `los secretos no aparecen al imprimir solicitudes ni sesiones`() {
         val sesion = Sesion("acceso-secreto", "refresco-secreto", "2026-10-17T10:15:00Z",
             Cliente("CLI-1", "Ana", "a@b.co", EstadoIdentidad.VERIFICADA))
@@ -114,5 +255,12 @@ class NetworkClientTest {
         impresos.forEach { texto ->
             assertFalse(texto, texto.contains("Secreta123") || texto.contains("secreto"))
         }
+    }
+
+    @Test
+    fun `una respuesta exitosa con formato inesperado llega como falla y no como excepcion`() = runBlocking {
+        server.enqueue(json(200, """{"token_acceso":"ACC","estado":"desconocido"}"""))
+        val resultado = llamarBff { api().iniciarSesion(Credenciales("ana@ejemplo.co", "Solventa2026")) }
+        assertEquals(Resultado.Falla(http = HTTP_RESPUESTA_ILEGIBLE, codigo = null), resultado)
     }
 }

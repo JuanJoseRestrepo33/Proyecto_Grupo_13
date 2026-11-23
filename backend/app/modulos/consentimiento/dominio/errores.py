@@ -27,3 +27,9 @@ class VersionDeTextoDesactualizadaError(ErrorDeNegocio):
 
 class EntidadesInvalidasError(ErrorDeNegocio):
     codigo = "entidades_invalidas"
+
+
+class CanalInvalidoError(ErrorDeNegocio):
+    """El cambio no llegó por un canal del cliente (`web` o `movil`)."""
+
+    codigo = "canal_invalido"

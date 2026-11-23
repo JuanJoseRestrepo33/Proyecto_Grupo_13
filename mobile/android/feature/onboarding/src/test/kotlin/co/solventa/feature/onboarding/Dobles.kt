@@ -2,17 +2,25 @@ package co.solventa.feature.onboarding
 
 import co.solventa.core.network.BffApi
 import co.solventa.core.network.Cliente
+import co.solventa.core.network.Consentimiento
 import co.solventa.core.network.Credenciales
 import co.solventa.core.network.ErrorBff
+import co.solventa.core.network.DuenioSolicitud
+import co.solventa.core.network.Evidencia
 import co.solventa.core.network.ErrorCampo
 import co.solventa.core.network.EstadoIdentidad
+import co.solventa.core.network.FinalidadConsentimiento
 import co.solventa.core.network.NetworkClient
 import co.solventa.core.network.Otp
+import co.solventa.core.network.PolizaResumen
 import co.solventa.core.network.Registro
 import co.solventa.core.network.Sesion
+import co.solventa.core.network.Siniestro
+import co.solventa.core.network.SolicitudConsentimiento
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.core.network.SolicitudRegistro
 import co.solventa.core.network.SolicitudRenovacion
+import co.solventa.core.network.SolicitudSiniestro
 import co.solventa.core.network.VerificacionIdentidad
 import co.solventa.feature.onboarding.biometria.AlmacenToken
 import co.solventa.feature.onboarding.biometria.Biometria
@@ -26,8 +34,10 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
@@ -117,6 +127,64 @@ class BffFalso : BffApi {
         llamadas += "solicitud"
         return solicitud()
     }
+
+    override suspend fun listarFinalidades(): List<FinalidadConsentimiento> = error("no se usa en MOB-F01")
+
+    override suspend fun listarConsentimientos(): List<Consentimiento> = error("no se usa en MOB-F01")
+
+    override suspend fun otorgarConsentimiento(solicitud: SolicitudConsentimiento): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun revocarConsentimiento(idConsentimiento: String): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun renovarConsentimiento(idConsentimiento: String): Consentimiento =
+        error("no se usa en MOB-F01")
+
+    override suspend fun adjuntarEvidencia(
+        idSiniestro: String,
+        archivo: MultipartBody.Part,
+        tomadaEn: RequestBody?,
+        latitud: RequestBody?,
+        longitud: RequestBody?,
+        lugar: RequestBody?,
+        idRequerimiento: RequestBody?,
+        duenio: DuenioSolicitud?,
+    ): Evidencia = error("no se usa en MOB-F01")
+
+    override suspend fun listarEvidencias(idSiniestro: String, duenio: DuenioSolicitud?): List<Evidencia> =
+        error("no se usa en MOB-F01")
+
+    override suspend fun listarPolizas(): List<PolizaResumen> = error("no se usa en MOB-F01")
+
+    override suspend fun obtenerPoliza(numero: String): co.solventa.core.network.PolizaDetalle =
+        error("no se usa en MOB-F01")
+
+    override suspend fun descargarDocumentoPoliza(numero: String): okhttp3.ResponseBody =
+        error("no se usa en MOB-F01")
+
+    override suspend fun reportarSiniestro(
+        claveIdempotencia: String,
+        solicitud: SolicitudSiniestro,
+        duenio: DuenioSolicitud?,
+    ): Siniestro = error("no se usa en MOB-F01")
+
+    override suspend fun listarSiniestros(duenio: DuenioSolicitud?): List<Siniestro> =
+        error("no se usa en MOB-F01")
+
+    override suspend fun obtenerSiniestro(idSiniestro: String): co.solventa.core.network.SiniestroDetalle =
+        error("no se usa en MOB-F01")
+
+    // Push (MOB-F06): lo prueba feature/notificaciones.
+    override suspend fun registrarDispositivo(
+        solicitud: co.solventa.core.network.SolicitudDispositivo,
+    ): co.solventa.core.network.Dispositivo = error("no se usa aquí")
+
+    override suspend fun darDeBajaDispositivo(idDispositivo: String, autorizacion: String?) = error("no se usa aquí")
+
+    override suspend fun listarNotificaciones(): List<co.solventa.core.network.Notificacion> = error("no se usa aquí")
+
+    override suspend fun marcarNotificacionLeida(idNotificacion: String) = error("no se usa aquí")
 }
 
 /** Almacén en memoria; [cipher] es un objeto opaco que solo viaja entre el almacén y la biometría. */

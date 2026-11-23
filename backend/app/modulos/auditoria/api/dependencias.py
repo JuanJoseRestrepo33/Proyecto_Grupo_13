@@ -52,7 +52,14 @@ def obtener_servicio() -> ServicioDeAuditoria:
 
 
 def vaciar_escrituras_pendientes() -> None:
-    _componentes()[1].vaciar()
+    """Espera a que todo lo encolado quede escrito.
+
+    La fachada lo invoca al apagar el servidor: la plataforma da unos segundos entre la
+    señal de parada y la muerte del proceso, y en ese lapso se escribe lo pendiente. Si el
+    módulo nunca se usó no hay nada que vaciar, y no se arma solo para eso.
+    """
+    if _componentes.creada:
+        _componentes()[1].vaciar()
 
 
 def reiniciar() -> None:

@@ -5,21 +5,30 @@ from __future__ import annotations
 import pytest
 
 from app.compartido.errores import RecursoNoEncontrado
-from app.modulos.cotizacion.aplicacion.servicio import SolicitudDeCotizacion
+from app.modulos.cotizacion.aplicacion.servicio import (
+    ServicioDeCotizacion,
+    SolicitudDeCotizacion,
+)
 from app.modulos.cotizacion.dominio.modelo import (
+    CANAL_API,
     VIGENCIA_OFERTA,
     BasePerfilamiento,
     EstadoCotizacion,
+    MotivoTarifa,
     OfertaVencidaError,
     ProductoId,
 )
+from app.modulos.cotizacion.infraestructura.adaptadores_simulados import (
+    RegistroDeDecisionesEnMemoria,
+)
+from app.modulos.cotizacion.infraestructura.repositorio_memoria import RepositorioEnMemoria
 
 from .conftest import CLIENTE, CONSENTIMIENTO
 
 
-def _solicitud(asegurado, id_cliente=None):
+def _solicitud(asegurado, id_cliente=None, **opciones):
     return SolicitudDeCotizacion(
-        producto=ProductoId.AUTO, asegurado=asegurado, id_cliente=id_cliente
+        producto=ProductoId.AUTO, asegurado=asegurado, id_cliente=id_cliente, **opciones
     )
 
 
@@ -187,3 +196,112 @@ def test_recotizar_deja_su_propia_decision(servicio, asegurado, auditoria):
 
     assert len(auditoria.entradas) == 2
     assert auditoria.entradas[0]["id_decision"] != auditoria.entradas[1]["id_decision"]
+
+
+# -- motivo de la tarifa y canal (WEB-F01, criterios 2 y 3) ------------------
+
+
+def test_la_tarifa_personalizada_no_trae_motivo(servicio, asegurado, consentimiento):
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+
+    cotizacion = servicio.cotizar(_solicitud(asegurado, CLIENTE))
+
+    assert cotizacion.motivo_tarifa is None
+
+
+def test_sin_consentimiento_el_motivo_lo_dice(servicio, asegurado):
+    assert servicio.cotizar(_solicitud(asegurado)).motivo_tarifa is MotivoTarifa.SIN_CONSENTIMIENTO
+    assert (
+        servicio.cotizar(_solicitud(asegurado, CLIENTE)).motivo_tarifa
+        is MotivoTarifa.SIN_CONSENTIMIENTO
+    )
+
+
+def test_con_open_finance_desactivado_no_se_consulta_ni_el_consentimiento(
+    servicio, asegurado, consentimiento
+):
+    """El cliente pidió cotizar sin sus datos: tampoco se pregunta si autorizó usarlos."""
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+    consultas: list[str] = []
+    consentimiento.consentimiento_vigente = lambda c, f: consultas.append(c)  # type: ignore[assignment]
+
+    cotizacion = servicio.cotizar(_solicitud(asegurado, CLIENTE, usar_open_finance=False))
+
+    assert consultas == []
+    assert cotizacion.oferta.base_perfilamiento is BasePerfilamiento.ESTANDAR
+    assert cotizacion.motivo_tarifa is MotivoTarifa.OPEN_FINANCE_DESACTIVADO
+    assert cotizacion.id_consentimiento is None
+
+
+def test_proveedor_caido_sin_cache_se_explica_como_tal(
+    servicio, asegurado, consentimiento, perfilamiento
+):
+    """Criterio 3: la interfaz distingue la tarifa estándar por falla del proveedor."""
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+    perfilamiento.sin_perfil = True
+
+    cotizacion = servicio.cotizar(_solicitud(asegurado, CLIENTE))
+
+    assert cotizacion.motivo_tarifa is MotivoTarifa.PROVEEDOR_NO_DISPONIBLE
+
+
+def test_recotizar_conserva_la_preferencia_y_el_canal(servicio, asegurado, consentimiento, reloj):
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+    original = servicio.cotizar(
+        _solicitud(asegurado, CLIENTE, usar_open_finance=False, canal="web")
+    )
+    reloj.avanzar(VIGENCIA_OFERTA.total_seconds())
+
+    nueva = servicio.recotizar(original.id_cotizacion)
+
+    assert nueva.motivo_tarifa is MotivoTarifa.OPEN_FINANCE_DESACTIVADO
+    assert nueva.canal == "web"
+
+
+def test_el_canal_queda_en_la_decision_auditada(servicio, asegurado, auditoria):
+    servicio.cotizar(_solicitud(asegurado))
+    servicio.cotizar(_solicitud(asegurado, canal="movil"))
+
+    assert [e["canal"] for e in auditoria.entradas] == [CANAL_API, "movil"]
+    assert auditoria.entradas[0]["resultado"]["motivo_tarifa"] == "sin_consentimiento"
+
+
+# -- recálculo desde la decisión auditada (WEB-F01, criterio 5) --------------
+
+
+def test_la_prima_se_recalcula_igual_desde_la_decision_auditada(
+    servicio, asegurado, consentimiento
+):
+    consentimiento.otorgar(CLIENTE, CONSENTIMIENTO)
+    cotizacion = servicio.cotizar(_solicitud(asegurado, CLIENTE))
+
+    recalculo = servicio.recalcular(cotizacion.id_cotizacion)
+
+    assert recalculo.coincide
+    assert recalculo.id_decision == cotizacion.id_decision
+    assert recalculo.prima_recalculada == cotizacion.oferta.prima_mensual.monto
+    assert recalculo.version_regla == cotizacion.oferta.version_regla
+
+
+def test_el_recalculo_usa_lo_registrado_y_no_lo_guardado(servicio, asegurado, auditoria):
+    """Si el log dijera otra cosa, el recálculo lo delataría: no copia la oferta."""
+    cotizacion = servicio.cotizar(_solicitud(asegurado))
+    auditoria.entradas[0]["variables_entrada"]["prima_estandar"] += 1000
+
+    assert not servicio.recalcular(cotizacion.id_cotizacion).coincide
+
+
+def test_sin_la_decision_en_el_log_no_hay_recalculo(
+    asegurado, reloj, consentimiento, perfilamiento
+):
+    sin_lectura = ServicioDeCotizacion(
+        repositorio=RepositorioEnMemoria(),
+        consentimiento=consentimiento,
+        perfilamiento=perfilamiento,
+        auditoria=RegistroDeDecisionesEnMemoria(),
+        reloj=reloj,
+    )
+    cotizacion = sin_lectura.cotizar(_solicitud(asegurado))
+
+    with pytest.raises(RecursoNoEncontrado):
+        sin_lectura.recalcular(cotizacion.id_cotizacion)

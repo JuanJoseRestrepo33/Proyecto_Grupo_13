@@ -72,7 +72,7 @@ export function Consentimientos() {
         </p>
       </Aviso>
 
-      {carga.tipo === 'cargando' && <p role="status">{t('inicio.cargando')}</p>}
+      {carga.tipo === 'cargando' && <p role="status">{t('sesion.cargando')}</p>}
       {carga.tipo === 'error' && (
         <Aviso tipo="error" rol="alert">
           <p>{t('consentimientos.errores.cargar')}</p>

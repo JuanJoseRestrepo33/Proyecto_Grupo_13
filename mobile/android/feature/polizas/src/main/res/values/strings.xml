@@ -1,0 +1,68 @@
+<resources>
+    <!-- Comunes -->
+    <string name="volver">Volver</string>
+    <string name="actualizar">Actualizar</string>
+    <string name="reintentar">Reintentar</string>
+    <string name="sin_red">No tienes conexión. Revisa tu red e intenta de nuevo.</string>
+    <string name="no_disponible">No disponible</string>
+
+    <!-- Estado de la póliza: siempre con texto, nunca solo color (P12) -->
+    <string name="estado_vigente">Vigente</string>
+    <string name="estado_vencida">Vencida</string>
+    <string name="estado_por_iniciar">Por iniciar</string>
+    <string name="estado_descripcion">Estado: %1$s</string>
+
+    <!-- Nombre genérico cuando el catálogo no tiene el nombre comercial -->
+    <string name="producto_auto">Seguro de auto</string>
+    <string name="producto_hogar">Seguro de hogar</string>
+    <string name="producto_viaje">Seguro de viaje</string>
+    <string name="producto_dispositivos">Seguro de dispositivos</string>
+    <string name="producto_otro">Seguro de %1$s</string>
+
+    <string name="vigencia_rango">%1$s – %2$s</string>
+    <string name="prima_por_mes">%1$s / mes</string>
+    <string name="prima_no_disponible">Prima: No disponible</string>
+
+    <!-- Mis pólizas -->
+    <string name="lista_titulo">Mis pólizas</string>
+    <string name="lista_cargando">Consultando tus pólizas…</string>
+    <string name="lista_error">No pudimos cargar tus pólizas. Intenta de nuevo.</string>
+    <string name="pestanas_descripcion">Filtrar pólizas por estado</string>
+    <string name="pestana_activas">Activas</string>
+    <string name="pestana_vencidas">Vencidas</string>
+    <string name="pestana_todas">Todas</string>
+    <string name="pestana_vacia">No tienes pólizas en esta pestaña.</string>
+    <string name="vacio_titulo">Aún no tienes pólizas</string>
+    <string name="vacio_texto">Cotiza un seguro y, cuando lo compres, tu póliza aparecerá aquí.</string>
+    <string name="vacio_cotizar">Cotizar un seguro</string>
+    <string name="tarjeta_descripcion">%1$s. Estado: %2$s. Póliza %3$s. Vigencia del %4$s al %5$s. %6$s.</string>
+    <string name="tarjeta_prima">Prima de %1$s al mes</string>
+    <string name="tarjeta_abrir">Ver el detalle</string>
+
+    <!-- Detalle -->
+    <string name="detalle_titulo">Mi póliza</string>
+    <string name="detalle_cargando">Consultando la póliza…</string>
+    <string name="detalle_error">No pudimos cargar esta póliza. Intenta de nuevo.</string>
+    <string name="detalle_informacion_general">Información general</string>
+    <string name="detalle_vigencia">Vigencia</string>
+    <string name="detalle_prima">Prima</string>
+    <string name="detalle_emitida">Emitida</string>
+    <string name="detalle_informacion_financiera">Información financiera</string>
+    <string name="detalle_valor_asegurado">Valor asegurado</string>
+    <string name="detalle_deducible">Deducible</string>
+    <string name="detalle_coberturas">Coberturas</string>
+    <string name="detalle_sin_coberturas">Esta póliza no tiene coberturas registradas.</string>
+    <string name="fila_descripcion">%1$s: %2$s</string>
+    <string name="detalle_descargar">Descargar PDF</string>
+    <string name="detalle_descargando">Descargando…</string>
+    <string name="detalle_sin_documento">El documento de esta póliza no está disponible.</string>
+    <string name="no_encontrada_titulo">No encontramos esta póliza.</string>
+    <string name="no_encontrada_texto">Puede que el número no sea correcto o que la póliza no esté a tu nombre.</string>
+    <string name="volver_lista">Volver a mis pólizas</string>
+
+    <!-- Avisos de la descarga -->
+    <string name="aviso_documento_no_disponible">El documento de esta póliza no está disponible.</string>
+    <string name="aviso_descarga_sin_red">No pudimos descargar el PDF: no tienes conexión.</string>
+    <string name="aviso_descarga_fallida">No pudimos descargar el PDF. Intenta de nuevo.</string>
+    <string name="aviso_sin_visor">No hay una app para abrir el PDF.</string>
+</resources>

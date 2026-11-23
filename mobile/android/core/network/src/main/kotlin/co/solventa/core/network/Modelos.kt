@@ -2,6 +2,8 @@ package co.solventa.core.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // Esquemas de contratos/bff-movil/openapi.yaml. Los nombres JSON van en snake_case.
 
@@ -106,18 +108,392 @@ data class VerificacionIdentidad(
 @Serializable
 data class ErrorCampo(val campo: String, val codigo: String)
 
-// Cubre Error, ErrorValidacion y ErrorOtp: los campos extra son opcionales.
+// Cubre Error, ErrorValidacion, ErrorOtp y ErrorVigencia: los campos extra son opcionales.
 @Serializable
 data class ErrorBff(
     val codigo: String,
     val mensaje: String,
     val campos: List<ErrorCampo> = emptyList(),
     @SerialName("intentos_restantes") val intentosRestantes: Int? = null,
+    /** Solo con `evento_fuera_de_vigencia` (ErrorVigencia). */
+    @SerialName("vigente_desde") val vigenteDesde: String? = null,
+    @SerialName("vigente_hasta") val vigenteHasta: String? = null,
+    /**
+     * Con `clave_idempotencia_en_uso`, si el BFF la informa: el reporte que ya tiene la clave. El
+     * contrato 0.4.0 aún no la publica, así que puede faltar.
+     */
+    val referencia: String? = null,
 ) {
     companion object {
         // null si la respuesta no trae un cuerpo de error del contrato (p. ej. un proxy caído).
         fun desde(error: retrofit2.HttpException): ErrorBff? = runCatching {
             NetworkClient.json.decodeFromString(serializer(), error.response()?.errorBody()?.string().orEmpty())
         }.getOrNull()
+    }
+}
+
+// ── Modelos de consentimiento (MOB-F02) ───────────────────────────────────────────────────────
+// Las rutas provisionales espejean el contrato del BFF web y el backend Python.
+// Se ajustarán cuando #160 publique el contrato de bff-movil v0.2.
+
+@Serializable
+enum class CodigoFinalidad {
+    @SerialName("cotizacion") COTIZACION,
+    @SerialName("suscripcion") SUSCRIPCION,
+    @SerialName("prevencion_fraude") PREVENCION_FRAUDE,
+}
+
+@Serializable
+enum class EstadoConsentimiento {
+    @SerialName("vigente") VIGENTE,
+    @SerialName("revocado") REVOCADO,
+    @SerialName("vencido") VENCIDO,
+}
+
+@Serializable
+enum class TipoEventoConsentimiento {
+    @SerialName("otorgado") OTORGADO,
+    @SerialName("renovado") RENOVADO,
+    @SerialName("revocado") REVOCADO,
+    @SerialName("vencido") VENCIDO,
+}
+
+@Serializable
+data class EntidadConsentimiento(
+    val id: String,
+    val nombre: String,
+)
+
+@Serializable
+data class FinalidadConsentimiento(
+    val codigo: CodigoFinalidad,
+    val nombre: String,
+    val descripcion: String,
+    val alcance: List<String>,
+    @SerialName("vigencia_meses") val vigenciaMeses: Int,
+    @SerialName("entidades_origen") val entidadesOrigen: List<EntidadConsentimiento>,
+    @SerialName("version_texto") val versionTexto: String,
+)
+
+@Serializable
+data class Consentimiento(
+    val id: String,
+    val finalidad: CodigoFinalidad,
+    @SerialName("entidades_origen") val entidadesOrigen: List<EntidadConsentimiento>,
+    val estado: EstadoConsentimiento,
+    val canal: String,
+    @SerialName("otorgado_en") val otorgadoEn: String,
+    @SerialName("vence_en") val venceEn: String,
+    @SerialName("revocado_en") val revocadoEn: String? = null,
+    @SerialName("version_texto") val versionTexto: String,
+    @SerialName("por_vencer") val porVencer: Boolean,
+    @SerialName("dias_para_vencer") val diasParaVencer: Int? = null,
+)
+
+@Serializable
+data class SolicitudConsentimiento(
+    val finalidad: CodigoFinalidad,
+    @SerialName("entidades_origen") val entidadesOrigen: List<String>,
+    @SerialName("version_texto") val versionTexto: String,
+)
+
+@Serializable
+data class EventoConsentimiento(
+    val tipo: TipoEventoConsentimiento,
+    @SerialName("ocurrido_en") val ocurridoEn: String,
+    val canal: String,
+    @SerialName("version_texto") val versionTexto: String,
+)
+
+// ── Modelos de siniestros (WEB-F05) ───────────────────────────────────────────────────────────
+// Las fechas sin hora (`format: date`) llegan como texto ISO (2026-10-26).
+
+@Serializable
+enum class EstadoPoliza {
+    @SerialName("vigente") VIGENTE,
+    @SerialName("vencida") VENCIDA,
+    @SerialName("por_iniciar") POR_INICIAR,
+}
+
+/**
+ * Póliza de la lista (WEB-F04) y del asistente de reporte (WEB-F05). [nombreProducto], [primaMensual] y
+ * [documentoUrl] entraron con WEB-F04 (contrato 0.6.0): `null` o ausentes en las pólizas de prueba, así
+ * que el asistente y el mock no necesitan enviarlos.
+ */
+@Serializable
+data class PolizaResumen(
+    val numero: String,
+    val producto: String,
+    val inicio: String,
+    /** Último día de cobertura, incluido. */
+    val fin: String,
+    val estado: EstadoPoliza,
+    /** Nombre comercial; `null` si el catálogo no lo tiene. */
+    @SerialName("nombre_producto") val nombreProducto: String? = null,
+    @SerialName("prima_mensual") val primaMensual: Dinero? = null,
+    /**
+     * Ruta del PDF en el BFF; `null` si la póliza no tiene documento. La app no la abre: descarga con
+     * [BffApi.descargarDocumentoPoliza], con la sesión del cliente.
+     */
+    @SerialName("documento_url") val documentoUrl: String? = null,
+)
+
+@Serializable
+data class Cobertura(val nombre: String, val limite: String)
+
+/**
+ * `PolizaDetalle` del contrato: el [PolizaResumen] (allOf) más sus condiciones. Como en
+ * [SiniestroDetalle], los campos se repiten y [resumen] devuelve la parte común. [deducible] y
+ * [valorAsegurado] son texto ya formateado por el núcleo («5% del valor asegurado», «$60.000.000»).
+ */
+@Serializable
+data class PolizaDetalle(
+    val numero: String,
+    val producto: String,
+    val inicio: String,
+    val fin: String,
+    val estado: EstadoPoliza,
+    @SerialName("nombre_producto") val nombreProducto: String? = null,
+    @SerialName("prima_mensual") val primaMensual: Dinero? = null,
+    @SerialName("documento_url") val documentoUrl: String? = null,
+    /** Las pólizas de prueba de la semilla no traen coberturas: lista vacía. */
+    val coberturas: List<Cobertura> = emptyList(),
+    val deducible: String? = null,
+    @SerialName("valor_asegurado") val valorAsegurado: String? = null,
+    /** Fecha y hora de emisión; `null` en una póliza de prueba. */
+    @SerialName("emitida_en") val emitidaEn: String? = null,
+) {
+    val resumen: PolizaResumen
+        get() = PolizaResumen(numero, producto, inicio, fin, estado, nombreProducto, primaMensual, documentoUrl)
+
+    companion object {
+        @Suppress("LongParameterList")
+        fun de(
+            poliza: PolizaResumen,
+            coberturas: List<Cobertura>,
+            deducible: String?,
+            valorAsegurado: String?,
+            emitidaEn: String?,
+        ) = PolizaDetalle(
+            numero = poliza.numero,
+            producto = poliza.producto,
+            inicio = poliza.inicio,
+            fin = poliza.fin,
+            estado = poliza.estado,
+            nombreProducto = poliza.nombreProducto,
+            primaMensual = poliza.primaMensual,
+            documentoUrl = poliza.documentoUrl,
+            coberturas = coberturas,
+            deducible = deducible,
+            valorAsegurado = valorAsegurado,
+            emitidaEn = emitidaEn,
+        )
+    }
+}
+
+@Serializable
+enum class TipoEventoSiniestro {
+    @SerialName("accidente_vehiculo") ACCIDENTE_VEHICULO,
+    @SerialName("hurto") HURTO,
+    @SerialName("dano_hogar") DANO_HOGAR,
+    @SerialName("retraso_vuelo") RETRASO_VUELO,
+    @SerialName("equipo_danado_o_perdido") EQUIPO_DANADO_O_PERDIDO,
+    @SerialName("cancelacion_viaje") CANCELACION_VIAJE,
+    @SerialName("otro") OTRO,
+}
+
+@Serializable
+enum class EstadoSiniestro {
+    @SerialName("reportado") REPORTADO,
+    @SerialName("en_evaluacion") EN_EVALUACION,
+    @SerialName("requiere_informacion") REQUIERE_INFORMACION,
+    @SerialName("aprobado") APROBADO,
+    @SerialName("rechazado") RECHAZADO,
+    @SerialName("pagado") PAGADO,
+}
+
+@Serializable
+enum class SiguientePaso {
+    @SerialName("adjuntar_evidencia") ADJUNTAR_EVIDENCIA,
+    @SerialName("esperar_evaluacion") ESPERAR_EVALUACION,
+}
+
+/** Monto entero en la unidad mayor de la moneda (pesos para COP). La moneda no tiene valor por defecto:
+ * kotlinx.serialization omitiría el campo y el contrato lo exige. */
+@Serializable
+data class Dinero(val valor: Long, val moneda: String) {
+    companion object {
+        fun pesos(valor: Long) = Dinero(valor, "COP")
+    }
+}
+
+@Serializable
+data class SolicitudSiniestro(
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+)
+
+@Serializable
+data class Siniestro(
+    val id: String,
+    /** SIN-AAAA-NNNNNN: la misma en la web y en la app. */
+    val referencia: String,
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("siguiente_paso") val siguientePaso: SiguientePaso,
+    val canal: String,
+    @SerialName("reportado_en") val reportadoEn: String,
+    /** Último cambio de estado (WEB-F06): ausente o `null` mientras siga como se reportó. */
+    @SerialName("estado_actualizado_en") val estadoActualizadoEn: String? = null,
+)
+
+// ── Modelos de seguimiento (WEB-F06) ──────────────────────────────────────────────────────────
+
+/** Un cambio del caso. El primero es el reporte, con [estadoAnterior] `null`. */
+@Serializable
+data class EventoSiniestro(
+    val id: String,
+    @SerialName("estado_anterior") val estadoAnterior: EstadoSiniestro? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("ocurrido_en") val ocurridoEn: String,
+    val motivo: String? = null,
+)
+
+/**
+ * Lo que el ajustador le pidió al cliente. Con [pendiente] en false, [atendidoEn] dice cuándo se
+ * respondió; si sigue en `null`, se cerró sin respuesta (el caso salió de `requiere_informacion`).
+ */
+@Serializable
+data class Requerimiento(
+    val id: String,
+    val descripcion: String,
+    @SerialName("creado_en") val creadoEn: String,
+    val pendiente: Boolean,
+    @SerialName("atendido_en") val atendidoEn: String? = null,
+    @SerialName("id_evidencia") val idEvidencia: String? = null,
+)
+
+/**
+ * `SiniestroDetalle` del contrato: el [Siniestro] (allOf) más su historial, del más antiguo al más
+ * reciente, y sus requerimientos. kotlinx.serialization no hereda esquemas, así que los campos se
+ * repiten; [resumen] devuelve el [Siniestro] que comparten la lista y el detalle.
+ */
+@Serializable
+data class SiniestroDetalle(
+    val id: String,
+    val referencia: String,
+    @SerialName("numero_poliza") val numeroPoliza: String,
+    @SerialName("tipo_evento") val tipoEvento: TipoEventoSiniestro,
+    @SerialName("ocurrido_el") val ocurridoEl: String,
+    val descripcion: String,
+    @SerialName("monto_estimado") val montoEstimado: Dinero? = null,
+    val estado: EstadoSiniestro,
+    @SerialName("siguiente_paso") val siguientePaso: SiguientePaso,
+    val canal: String,
+    @SerialName("reportado_en") val reportadoEn: String,
+    @SerialName("estado_actualizado_en") val estadoActualizadoEn: String? = null,
+    val historial: List<EventoSiniestro>,
+    val requerimientos: List<Requerimiento>,
+) {
+    val resumen: Siniestro
+        get() = Siniestro(
+            id = id,
+            referencia = referencia,
+            numeroPoliza = numeroPoliza,
+            tipoEvento = tipoEvento,
+            ocurridoEl = ocurridoEl,
+            descripcion = descripcion,
+            montoEstimado = montoEstimado,
+            estado = estado,
+            siguientePaso = siguientePaso,
+            canal = canal,
+            reportadoEn = reportadoEn,
+            estadoActualizadoEn = estadoActualizadoEn,
+        )
+
+    companion object {
+        fun de(siniestro: Siniestro, historial: List<EventoSiniestro>, requerimientos: List<Requerimiento>) =
+            SiniestroDetalle(
+                id = siniestro.id,
+                referencia = siniestro.referencia,
+                numeroPoliza = siniestro.numeroPoliza,
+                tipoEvento = siniestro.tipoEvento,
+                ocurridoEl = siniestro.ocurridoEl,
+                descripcion = siniestro.descripcion,
+                montoEstimado = siniestro.montoEstimado,
+                estado = siniestro.estado,
+                siguientePaso = siniestro.siguientePaso,
+                canal = siniestro.canal,
+                reportadoEn = siniestro.reportadoEn,
+                estadoActualizadoEn = siniestro.estadoActualizadoEn,
+                historial = historial,
+                requerimientos = requerimientos,
+            )
+    }
+}
+
+// ── Modelos de evidencia (MOB-F05) ────────────────────────────────────────────────────────────
+
+@Serializable
+data class Evidencia(
+    val id: String,
+    @SerialName("tipo_contenido") val tipoContenido: String,
+    val tamano: Long,
+    /** Nombre único que puso la app: permite saber si una carga sin respuesta sí llegó. */
+    @SerialName("nombre_original") val nombreOriginal: String? = null,
+    val canal: String,
+    @SerialName("cargada_en") val cargadaEn: String,
+    @SerialName("tomada_en") val tomadaEn: String? = null,
+    val latitud: Double? = null,
+    val longitud: Double? = null,
+    val lugar: String? = null,
+)
+
+// ── Push del siniestro (MOB-F06) ──────────────────────────────────────────────────────────────
+
+/** [tokenPush] es el token del proveedor o, sin Firebase, un identificador estable de la instalación. */
+@Serializable
+data class SolicitudDispositivo(
+    @SerialName("token_push") val tokenPush: String,
+    val plataforma: String = "android",
+)
+
+/** El token nunca vuelve en una respuesta: el [id] es lo que se usa para darlo de baja. */
+@Serializable
+data class Dispositivo(
+    val id: String,
+    val plataforma: String,
+    @SerialName("registrado_en") val registradoEn: String,
+)
+
+/**
+ * Una notificación de la bandeja del proveedor simulado. [datos] dice qué abrir al tocarla: con `tipo`
+ * = [TIPO_SINIESTRO_ESTADO], el detalle de `id_siniestro`. Se lee como objeto JSON porque el contrato
+ * admite campos nuevos.
+ */
+@Serializable
+data class Notificacion(
+    val id: String,
+    val titulo: String,
+    val cuerpo: String,
+    val datos: JsonObject = JsonObject(emptyMap()),
+    @SerialName("creada_en") val creadaEn: String? = null,
+    val leida: Boolean = false,
+) {
+    /** El siniestro que abre al tocarla, o null si no es de un cambio de estado. */
+    val idSiniestro: String?
+        get() = texto("id_siniestro")?.takeIf { texto("tipo") == TIPO_SINIESTRO_ESTADO && it.isNotBlank() }
+
+    private fun texto(campo: String): String? = (datos[campo] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    companion object {
+        const val TIPO_SINIESTRO_ESTADO = "siniestro_estado"
     }
 }

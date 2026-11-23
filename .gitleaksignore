@@ -1,0 +1,5 @@
+# Falsos positivos aceptados de gitleaks, por huella (commit:archivo:regla:línea).
+# Al lanzar un workflow a mano, gitleaks revisa todo el historial y no solo el último push.
+
+# Clave de idempotencia de ejemplo en la documentación del sistema de diseño, no una credencial.
+a4181154e0cc7cbf78865fbcdff1a5078c62c510:DesignSystem/Solventa_System_Design.md:generic-api-key:1849

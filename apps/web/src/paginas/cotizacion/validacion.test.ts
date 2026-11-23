@@ -33,6 +33,7 @@ describe('validarDatos', () => {
     [{ ciudad: '  ' }, 'ciudad', 'cotizacion.errores.ciudadRequerida'],
     [{ ciudad: 'x'.repeat(81) }, 'ciudad', 'cotizacion.errores.ciudadLarga'],
     [{ valorAsegurado: '60 millones' }, 'valorAsegurado', 'cotizacion.errores.valorInvalido'],
+    [{ valorAsegurado: '60000000,50' }, 'valorAsegurado', 'cotizacion.errores.valorInvalido'],
   ])('%o → %s: %s', (cambios, campo, clave) => {
     expect(validarDatos({ ...validos, ...cambios }, leerMonto, hoy)).toEqual({ [campo]: clave })
   })

@@ -1,0 +1,109 @@
+.encabezadoAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.insignia[data-tono='proceso'] {
+  background: var(--warning-100);
+  color: #92400e;
+}
+
+.insignia[data-tono='exito'] {
+  background: var(--success-100);
+  color: #065f46;
+}
+
+.insignia[data-tono='rechazo'] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.lineaDeTiempo {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evento {
+  position: relative;
+  padding: 0 0 var(--space-lg) var(--space-xl);
+  border-left: 2px solid var(--neutral-200);
+  margin-left: 7px;
+}
+
+.evento:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.evento::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--success-600);
+}
+
+.evento[aria-current='true']::before {
+  background: var(--primary-700);
+}
+
+.fechaEvento {
+  margin: 0;
+  color: var(--neutral-700);
+  font-size: 14px;
+}
+
+.tituloEvento {
+  margin: 0;
+  font-weight: 700;
+}
+
+.motivoEvento {
+  margin: 0;
+}
+
+.requerimientos {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requerimiento h3 {
+  margin: 0;
+}
+
+.estadoRequerimiento {
+  margin: 0;
+  color: var(--neutral-700);
+}
+
+.archivoElegido {
+  margin: 0;
+  font-weight: 600;
+}
+
+.accionRespuesta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

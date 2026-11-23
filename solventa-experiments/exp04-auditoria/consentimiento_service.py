@@ -139,7 +139,9 @@ async def revocar(r: Revocacion):
         publicado = True
 
     ms = (time.perf_counter() - t0) * 1000
-    log.info("revocacion de %s propagada en %.2f ms", r.cliente, ms)
+    # El cliente llega en la solicitud: sin saltos de linea, para no falsear entradas del log.
+    cliente_log = str(r.cliente).replace("\r", "").replace("\n", "")
+    log.info("revocacion de %s propagada en %.2f ms", cliente_log, ms)
     return {
         "cliente": r.cliente,
         "entradas_cache_borradas": borradas,

@@ -1,17 +1,25 @@
 openapi: 3.1.0
 info:
   title: Solventa · BFF Web
-  version: 0.3.0
+  version: 0.11.0
   description: |
     Contrato entre el cliente web y su Backend for Frontend (BFF).
 
     El cliente web solo habla con este BFF; el BFF orquesta el núcleo. Mientras el BFF no exista,
     el cliente web trabaja contra mocks que implementan este mismo contrato
-    (`apps/web/src/mocks`). Cubre el Sprint 1:
+    (`apps/web/src/mocks`). Cubre:
 
     - **WEB-F02** · Gestión del consentimiento Open Finance.
-    - **WEB-F01** (rebanada) · Asistente de cotización con tarifa personalizada o estándar,
+    - **WEB-F01** · Asistente de cotización con tarifa personalizada o estándar,
       explicación del precio y vigencia de la oferta.
+    - **WEB-F03** · Checkout: aceptar la oferta, pagarla contra la pasarela simulada sin
+      cobro doble, firmarla y recibir la póliza emitida con su documento.
+    - **WEB-F13** · Inicio y cierre de sesión con la misma cuenta del registro en la app.
+    - **WEB-F05** · Reporte de siniestros en tres pasos, idempotente, igual que en la app.
+    - **MOB-F05** · Evidencia del siniestro: adjuntar, listar y descargar, igual que en la app.
+    - **WEB-F06** · Seguir el siniestro: estado actual, historial de eventos con su fecha y
+      requerimientos pendientes que se responden adjuntando evidencia, igual en los dos canales.
+    - **WEB-F04** · Mis pólizas: lista, detalle con coberturas y documento, igual que en la app.
 
     Convenciones: nombres en español y `snake_case`; montos enteros en la unidad mayor de la moneda,
     sin decimales (pesos para COP: `132900` = $132.900); fechas en ISO 8601 con zona horaria.
@@ -30,6 +38,12 @@ tags:
     description: Consentimiento de Open Finance (WEB-F02)
   - name: cotizaciones
     description: Asistente de cotización (WEB-F01)
+  - name: suscripciones
+    description: Checkout de la oferta aceptada (WEB-F03)
+  - name: polizas
+    description: Pólizas del cliente y su documento (WEB-F03, WEB-F04)
+  - name: siniestros
+    description: Reporte de siniestros (WEB-F05)
 
 paths:
   /sesion:
@@ -44,6 +58,55 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Sesion" }
         "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [sesion]
+      operationId: iniciarSesion
+      summary: Inicia sesión con correo y contraseña
+      description: |
+        Es la misma cuenta del registro en la app (WEB-F13, criterio 1). La respuesta pone la
+        cookie `sesion` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`); la web nunca
+        ve el token. La cookie dura lo mismo que la sesión: al vencer, las rutas protegidas
+        responden 401 `sesion_no_vigente` y la web vuelve al inicio de sesión. En la web no hay
+        renovación.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credenciales" }
+      responses:
+        "200":
+          description: Sesión abierta
+          headers:
+            Set-Cookie:
+              description: Cookie `sesion` con el token de la sesión
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sesion" }
+        "401":
+          description: |
+            Correo o contraseña incorrectos (`credenciales_invalidas`). La respuesta es la misma
+            exista o no el correo, para no revelar qué cuentas existen (WEB-F13, criterio 3).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+    delete:
+      tags: [sesion]
+      operationId: cerrarSesion
+      summary: Cierra la sesión
+      description: |
+        Borra la cookie `sesion`. No exige sesión: responde 204 aunque la cookie esté vencida, no
+        sea válida o no exista, para que la web siempre pueda cerrarla.
+      security: []
+      responses:
+        "204":
+          description: Sesión cerrada
+          headers:
+            Set-Cookie:
+              description: Cookie `sesion` vencida, para que el navegador la borre
+              schema: { type: string }
 
   /consentimientos/finalidades:
     get:
@@ -231,6 +294,412 @@ paths:
         "401": { $ref: "#/components/responses/NoAutenticado" }
         "404": { $ref: "#/components/responses/NoEncontrado" }
 
+  /suscripciones:
+    post:
+      tags: [suscripciones]
+      operationId: crearSuscripcion
+      summary: Acepta una cotización vigente
+      description: |
+        Crea la suscripción en estado `aceptada` con las condiciones de la cotización. Es
+        idempotente por cotización: aceptar de nuevo la misma devuelve la suscripción existente
+        con 200, no crea otra. Una cotización vencida se rechaza con `cotizacion_vencida`; la
+        interfaz ofrece recotizar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudSuscripcion" }
+      responses:
+        "200":
+          description: La cotización ya estaba aceptada; es la misma suscripción
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "201":
+          description: Suscripción creada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`cotizacion_vencida`: pasó la vigencia de la oferta"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /suscripciones/{id}:
+    get:
+      tags: [suscripciones]
+      operationId: obtenerSuscripcion
+      summary: Consulta una suscripción y su último pago
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+      responses:
+        "200":
+          description: Suscripción
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /suscripciones/{id}/pagos:
+    post:
+      tags: [suscripciones]
+      operationId: pagarSuscripcion
+      summary: Paga la suscripción contra la pasarela simulada
+      description: |
+        Cada intento de pago lleva su `Idempotency-Key`, generada por el cliente. Repetir la
+        solicitud con la **misma** clave nunca cobra dos veces (P18):
+
+        - Si el primer intento ya terminó, responde 200 con el mismo pago y `reintento: true`.
+        - Si el primer intento sigue en curso, responde 409 `pago_en_curso`.
+
+        Un intento nuevo (otra clave) solo procede si no hay un pago aprobado ni pendiente; si lo
+        hay, responde 409 `pago_ya_registrado`. Tras un pago rechazado, el cliente usa una clave
+        nueva para intentar otra vez.
+
+        El cliente no envía datos de la tarjeta ni de la cuenta: los toma la pasarela.
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Identificador único del intento de pago (UUID v4)
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudPago" }
+      responses:
+        "200":
+          description: Reintento de un pago ya procesado con la misma clave; no hubo otro cobro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "201":
+          description: Pago procesado por la pasarela (aprobado, rechazado o pendiente)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`pago_en_curso` o `pago_ya_registrado`"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+
+  /suscripciones/{id}/pagos/{id_pago}:
+    get:
+      tags: [suscripciones]
+      operationId: obtenerPago
+      summary: Consulta el estado de un pago, por ejemplo uno pendiente
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+        - name: id_pago
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pago con su estado actual
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pago" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /suscripciones/{id}/firma:
+    post:
+      tags: [suscripciones]
+      operationId: firmarSuscripcion
+      summary: Firma electrónicamente y emite la póliza
+      description: |
+        Con el pago aprobado, el cliente firma con el proveedor simulado y la póliza queda
+        emitida con su número y un documento descargable (criterio 4). Si el último pago estaba
+        `pendiente`, el BFF lo consulta antes de decidir.
+
+        Es idempotente: firmar una suscripción ya `emitida` responde 200 con la misma póliza.
+        Sin un pago aprobado responde 409 `pago_no_aprobado`; sin `acepta_condiciones: true`,
+        422 `aceptacion_requerida`. Si el proveedor de firma no responde, 503 y no se emite
+        nada: firmar otra vez es seguro.
+      parameters:
+        - $ref: "#/components/parameters/IdSuscripcion"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudFirma" }
+      responses:
+        "200":
+          description: Ya estaba emitida; es la misma póliza
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "201":
+          description: Firmada y emitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Suscripcion" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: "`pago_no_aprobado`: la suscripción no tiene un pago aprobado"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/SolicitudInvalida" }
+        "503":
+          description: "`dependencia_no_disponible`: el proveedor de firma no respondió"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /polizas/{numero}:
+    get:
+      tags: [polizas]
+      operationId: obtenerPoliza
+      summary: Detalle de una póliza con coberturas, deducible y límites
+      description: |
+        WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: La póliza con sus condiciones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PolizaDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas/{numero}/documento:
+    get:
+      tags: [polizas]
+      operationId: descargarDocumentoPoliza
+      summary: Documento PDF de una póliza emitida
+      description: |
+        El documento de la póliza (WEB-F03, criterio 4). Sale con la sesión del cliente; el
+        almacén es privado. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+        igual que una que no existe; una póliza sin documento (las de prueba), 404
+        `documento_no_disponible`.
+      parameters:
+        - $ref: "#/components/parameters/NumeroPoliza"
+      responses:
+        "200":
+          description: "El PDF, como adjunto (`Content-Disposition: attachment`)"
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /polizas:
+    get:
+      tags: [polizas]
+      operationId: listarPolizas
+      summary: Pólizas del cliente, de la más reciente a la más antigua
+      description: |
+        "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+        (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+        estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+        emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+        viene vacía y la interfaz lleva a cotizar (criterio 3).
+      responses:
+        "200":
+          description: Pólizas del cliente, de la más reciente a la más antigua
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PolizaResumen" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+
+  /siniestros:
+    get:
+      tags: [siniestros]
+      operationId: listarSiniestros
+      summary: Siniestros del cliente, reportados desde cualquier canal
+      responses:
+        "200":
+          description: Siniestros del cliente, del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+    post:
+      tags: [siniestros]
+      operationId: reportarSiniestro
+      summary: Reporta un siniestro sobre una póliza del cliente
+      description: |
+        El siniestro queda `reportado`, con un número de referencia y el siguiente paso del caso,
+        y se ve igual desde la web y desde la app (WEB-F05, criterio 1).
+
+        Cada envío del asistente lleva su `Idempotency-Key`, generada por el cliente. Repetirlo con
+        la **misma** clave (doble clic, reintento por red lenta) responde 200 con el mismo
+        siniestro y la misma referencia: no se crea otro (criterio 4, P10, P18).
+
+        Una póliza vencida admite el reporte si el evento ocurrió dentro de su vigencia; si no,
+        responde 409 `evento_fuera_de_vigencia` con las fechas de la póliza y no queda registro
+        (criterio 3).
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Identificador único del envío del reporte (UUID v4)
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SolicitudSiniestro" }
+      responses:
+        "200":
+          description: Reintento de un reporte ya hecho con la misma clave; no se creó otro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "201":
+          description: Siniestro reportado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Siniestro" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404":
+          description: La póliza no existe o no es del cliente (`poliza_no_encontrada`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: |
+            `evento_fuera_de_vigencia` (trae `vigente_desde` y `vigente_hasta`) o
+            `clave_idempotencia_en_uso` (la clave ya se usó para un reporte con otros datos).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorVigencia" }
+        "422":
+          description: |
+            Datos inválidos, `fecha_futura` sobre `ocurrido_el` o `clave_idempotencia_invalida`
+            (falta la clave o no es un UUID). Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}:
+    get:
+      tags: [siniestros]
+      operationId: obtenerSiniestro
+      summary: Detalle de un siniestro con su historial y sus requerimientos
+      description: |
+        WEB-F06. El estado actual es el mismo en la web y en la app (criterio 1) y un cambio en
+        el núcleo se ve al refrescar (criterio 2). `historial` trae los eventos con su fecha,
+        empezando por el reporte (criterio 4). `requerimientos` dice qué falta; el cliente
+        responde uno adjuntando evidencia con `id_requerimiento` (criterio 5).
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Siniestro con su estado, siguiente paso, historial y requerimientos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiniestroDetalle" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
+  /siniestros/{id}/evidencias:
+    get:
+      tags: [siniestros]
+      operationId: listarEvidencias
+      summary: Evidencias del siniestro, cargadas desde cualquier canal
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      responses:
+        "200":
+          description: Evidencias en el orden en que se cargaron
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+    post:
+      tags: [siniestros]
+      operationId: adjuntarEvidencia
+      summary: Adjunta una foto, un video o un documento al siniestro
+      description: |
+        Se puede agregar en el reporte o después; queda asociada al mismo siniestro y se ve en los
+        dos canales (MOB-F05, criterio 5). Hasta 10 MB, y solo JPEG, PNG, HEIC, MP4 o PDF: el
+        formato se comprueba con el contenido del archivo, no solo con su extensión.
+
+        La fecha y hora de la cámara y la ubicación son opcionales. Si el cliente negó el permiso
+        de ubicación puede escribir el `lugar`; el reporte nunca queda bloqueado por un permiso
+        (criterios 1 y 2, P20).
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/SolicitudEvidencia" }
+      responses:
+        "201":
+          description: Evidencia guardada y asociada al siniestro
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Evidencia" }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409":
+          description: El siniestro está cerrado y ya no recibe evidencia (`siniestro_cerrado`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: El archivo supera los 10 MB (`archivo_demasiado_grande`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            `formato_no_admitido` o `archivo_vacio` sobre `archivo`; `ubicacion_invalida` o
+            `fecha_de_captura_invalida`. Un error por campo en `campos`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: El almacén de evidencias no respondió (`almacenamiento_no_disponible`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /siniestros/{id}/evidencias/{id_evidencia}:
+    get:
+      tags: [siniestros]
+      operationId: descargarEvidencia
+      summary: Contenido de una evidencia, con su tipo
+      parameters:
+        - $ref: "#/components/parameters/IdSiniestro"
+        - name: id_evidencia
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: El archivo; `Content-Disposition` trae el nombre original si lo hay
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/NoAutenticado" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+
 components:
   securitySchemes:
     sesion:
@@ -240,15 +709,32 @@ components:
       description: Cookie de sesión del canal web, emitida por el BFF al autenticar al cliente.
 
   parameters:
+    IdSiniestro:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
     IdConsentimiento:
       name: id
       in: path
       required: true
       schema: { type: string }
+    IdSuscripcion:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    NumeroPoliza:
+      name: numero
+      in: path
+      required: true
+      schema: { type: string, examples: [POL-2026-000001] }
 
   responses:
     NoAutenticado:
-      description: No hay una sesión vigente
+      description: |
+        No hay una sesión vigente (`sesion_no_vigente`): falta la cookie, venció o su firma no es
+        válida. La web lleva al cliente a iniciar sesión de nuevo (WEB-F13, criterio 4).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -280,6 +766,13 @@ components:
         mensaje:
           type: string
           description: Descripción para diagnóstico; la interfaz no la muestra tal cual
+
+    Credenciales:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email }
+        contrasena: { type: string, format: password, writeOnly: true }
 
     Sesion:
       type: object
@@ -508,10 +1001,12 @@ components:
             degradado y se usó el perfil en caché; el precio es igual de válido.
         motivo_tarifa:
           type: [string, "null"]
-          enum: [sin_consentimiento, open_finance_desactivado, null]
+          enum: [sin_consentimiento, open_finance_desactivado, proveedor_no_disponible, null]
           description: |
             Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
-            el cliente pidió cotizar sin sus datos financieros.
+            el cliente pidió cotizar sin sus datos financieros. `proveedor_no_disponible`: había
+            consentimiento, pero el proveedor de Open Finance no respondió y no había perfil en
+            caché (WEB-F01, criterio 3).
         factores:
           type: array
           description: Factores que componen la prima y su efecto ("¿Por qué este precio?")
@@ -527,3 +1022,338 @@ components:
           items: { $ref: "#/components/schemas/Cobertura" }
         creada_en: { type: string, format: date-time }
         vigente_hasta: { type: string, format: date-time }
+
+    SolicitudSuscripcion:
+      type: object
+      required: [cotizacion_id]
+      properties:
+        cotizacion_id: { type: string }
+
+    Suscripcion:
+      type: object
+      required: [id, cotizacion_id, nombre_producto, prima_mensual, estado, aceptada_en, pago]
+      properties:
+        id: { type: string }
+        cotizacion_id: { type: string }
+        nombre_producto: { type: string }
+        prima_mensual: { $ref: "#/components/schemas/Dinero" }
+        estado:
+          type: string
+          enum: [aceptada, pagada, emitida]
+          description: |
+            `pagada` cuando la pasarela aprobó el pago; `emitida` cuando el cliente firmó y la
+            póliza quedó emitida.
+        aceptada_en: { type: string, format: date-time }
+        pago:
+          description: Último intento de pago; `null` si aún no se ha pagado
+          oneOf:
+            - $ref: "#/components/schemas/Pago"
+            - type: "null"
+        firmada_en:
+          description: Cuándo firmó el cliente; `null` hasta firmar
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        poliza:
+          description: La póliza emitida; `null` hasta firmar
+          oneOf:
+            - $ref: "#/components/schemas/PolizaEmitida"
+            - type: "null"
+
+    SolicitudFirma:
+      type: object
+      required: [acepta_condiciones]
+      properties:
+        acepta_condiciones:
+          type: boolean
+          description: El cliente acepta expresamente las condiciones que firma; debe ser `true`
+
+    PolizaEmitida:
+      type: object
+      required: [numero, inicio, fin, documento_url]
+      properties:
+        numero: { type: string, examples: [POL-2026-000001] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        documento_url:
+          type: string
+          description: Ruta del documento PDF en este BFF
+          examples: [/api/v1/web/polizas/POL-2026-000001/documento]
+
+    MedioPago:
+      type: string
+      enum: [tarjeta_credito, pse]
+
+    SolicitudPago:
+      type: object
+      required: [medio]
+      properties:
+        medio: { $ref: "#/components/schemas/MedioPago" }
+
+    Pago:
+      type: object
+      required: [id, estado, medio, monto, referencia, creado_en, reintento]
+      properties:
+        id: { type: string }
+        estado:
+          type: string
+          enum: [aprobado, rechazado, pendiente]
+          description: |
+            Respuesta de la pasarela. `rechazado`: no se cobró nada. `pendiente`: el banco aún no
+            confirma (típico de PSE); se consulta en `/suscripciones/{id}/pagos/{id_pago}`.
+        medio: { $ref: "#/components/schemas/MedioPago" }
+        monto: { $ref: "#/components/schemas/Dinero" }
+        referencia:
+          type: string
+          description: Referencia de la transacción en la pasarela
+          examples: [TX-2026-77120418]
+        creado_en: { type: string, format: date-time }
+        reintento:
+          type: boolean
+          description: "`true` si esta respuesta repite un pago ya procesado con la misma clave"
+
+    EstadoPoliza:
+      type: string
+      enum: [vigente, vencida, por_iniciar]
+
+    PolizaResumen:
+      type: object
+      required: [numero, producto, inicio, fin, estado]
+      properties:
+        numero: { type: string, examples: [POL-2026-000101] }
+        producto: { type: string, examples: [auto] }
+        inicio: { type: string, format: date, description: Primer día de cobertura }
+        fin: { type: string, format: date, description: "Último día de cobertura, incluido" }
+        estado: { $ref: "#/components/schemas/EstadoPoliza" }
+        nombre_producto:
+          description: Nombre comercial del producto; `null` si el catálogo no lo tiene
+          oneOf:
+            - { type: string, examples: ["Seguro de Auto — Plan Full"] }
+            - type: "null"
+        prima_mensual:
+          description: Prima mensual; `null` si no se conoce
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        documento_url:
+          description: Ruta del PDF en este BFF; `null` si la póliza no tiene documento
+          oneOf:
+            - { type: string, examples: [/api/v1/web/polizas/POL-2026-000001/documento] }
+            - type: "null"
+
+    PolizaDetalle:
+      allOf:
+        - $ref: "#/components/schemas/PolizaResumen"
+        - type: object
+          required: [coberturas, deducible, valor_asegurado, emitida_en]
+          properties:
+            coberturas:
+              type: array
+              description: Coberturas con su límite
+              items: { $ref: "#/components/schemas/Cobertura" }
+            deducible:
+              oneOf:
+                - { type: string, examples: ["5% del valor asegurado"] }
+                - type: "null"
+            valor_asegurado:
+              oneOf:
+                - { type: string, examples: ["$60.000.000"] }
+                - type: "null"
+            emitida_en:
+              description: Cuándo se emitió; `null` en una póliza de prueba
+              oneOf:
+                - { type: string, format: date-time }
+                - type: "null"
+
+    TipoEventoSiniestro:
+      type: string
+      enum:
+        - accidente_vehiculo
+        - hurto
+        - dano_hogar
+        - retraso_vuelo
+        - equipo_danado_o_perdido
+        - cancelacion_viaje
+        - otro
+
+    EstadoSiniestro:
+      type: string
+      description: |
+        Estado del caso (WEB-F06). `rechazado` y `pagado` son finales. Cada canal lo muestra con
+        su texto, nunca solo con color.
+      enum: [reportado, en_evaluacion, requiere_informacion, aprobado, rechazado, pagado]
+
+    SiguientePaso:
+      type: string
+      description: |
+        Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+        `adjuntar_evidencia` en `reportado` y en `requiere_informacion` (ahí, para responder
+        los requerimientos pendientes); `esperar_evaluacion` en los demás. Un caso cerrado lo
+        explica su `estado`.
+      enum: [adjuntar_evidencia, esperar_evaluacion]
+
+    SolicitudSiniestro:
+      type: object
+      required: [numero_poliza, tipo_evento, ocurrido_el, descripcion]
+      properties:
+        numero_poliza: { type: string, minLength: 1 }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el:
+          type: string
+          format: date
+          description: Día del evento; no puede ser futuro
+        descripcion: { type: string, minLength: 10, maxLength: 2000 }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+          description: Opcional; lo que el cliente estima que costó
+
+    Siniestro:
+      type: object
+      required:
+        - id
+        - referencia
+        - numero_poliza
+        - tipo_evento
+        - ocurrido_el
+        - descripcion
+        - monto_estimado
+        - estado
+        - siguiente_paso
+        - canal
+        - reportado_en
+      properties:
+        id: { type: string }
+        referencia:
+          type: string
+          description: Número que ve el cliente, el mismo en los dos canales
+          examples: [SIN-2026-000123]
+        numero_poliza: { type: string }
+        tipo_evento: { $ref: "#/components/schemas/TipoEventoSiniestro" }
+        ocurrido_el: { type: string, format: date }
+        descripcion: { type: string }
+        monto_estimado:
+          oneOf:
+            - $ref: "#/components/schemas/Dinero"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        siguiente_paso: { $ref: "#/components/schemas/SiguientePaso" }
+        canal: { type: string, enum: [web, movil] }
+        reportado_en: { type: string, format: date-time }
+        estado_actualizado_en:
+          description: Último cambio de estado (WEB-F06); `null` mientras siga como se reportó
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+
+    SiniestroDetalle:
+      allOf:
+        - $ref: "#/components/schemas/Siniestro"
+        - type: object
+          required: [historial, requerimientos]
+          properties:
+            historial:
+              type: array
+              description: Eventos del caso, del más antiguo al más reciente; el primero es el reporte
+              items: { $ref: "#/components/schemas/EventoSiniestro" }
+            requerimientos:
+              type: array
+              description: Lo que se le pidió al cliente, pendiente o ya atendido
+              items: { $ref: "#/components/schemas/Requerimiento" }
+
+    EventoSiniestro:
+      type: object
+      required: [id, estado_anterior, estado, ocurrido_en, motivo]
+      properties:
+        id: { type: string }
+        estado_anterior:
+          description: "`null` en el evento del reporte"
+          oneOf:
+            - $ref: "#/components/schemas/EstadoSiniestro"
+            - type: "null"
+        estado: { $ref: "#/components/schemas/EstadoSiniestro" }
+        ocurrido_en: { type: string, format: date-time }
+        motivo:
+          description: Explicación del cambio, si la hay
+          oneOf:
+            - type: string
+            - type: "null"
+
+    Requerimiento:
+      type: object
+      required: [id, descripcion, creado_en, pendiente, atendido_en, id_evidencia]
+      properties:
+        id: { type: string }
+        descripcion:
+          type: string
+          description: Qué falta, en palabras del ajustador
+          examples: [Factura de la reparación]
+        creado_en: { type: string, format: date-time }
+        pendiente: { type: boolean }
+        atendido_en:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: "null"
+        id_evidencia:
+          description: La evidencia con la que se respondió; `null` si sigue pendiente
+          oneOf:
+            - type: string
+            - type: "null"
+
+    ErrorVigencia:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            vigente_desde:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
+            vigente_hasta:
+              type: string
+              format: date
+              description: Solo con `evento_fuera_de_vigencia`
+
+    SolicitudEvidencia:
+      type: object
+      required: [archivo]
+      properties:
+        archivo:
+          type: string
+          format: binary
+          description: Foto, video o documento, hasta 10 MB
+        tomada_en:
+          type: string
+          format: date-time
+          description: Fecha y hora de la cámara; no puede ser futura
+        latitud: { type: number, minimum: -90, maximum: 90 }
+        longitud: { type: number, minimum: -180, maximum: 180 }
+        lugar:
+          type: string
+          maxLength: 200
+          description: El lugar escrito por el cliente cuando no hay ubicación
+        id_requerimiento:
+          type: string
+          maxLength: 64
+          description: |
+            Requerimiento pendiente que esta evidencia responde (WEB-F06, criterio 5). Lo deja
+            atendido. 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+            `requerimiento_ya_atendido` si ya se respondió.
+
+    Evidencia:
+      type: object
+      required: [id, tipo_contenido, tamano, nombre_original, canal, cargada_en]
+      properties:
+        id: { type: string, examples: [EVI-6f1c2a] }
+        tipo_contenido:
+          type: string
+          enum: [image/jpeg, image/png, image/heic, video/mp4, application/pdf]
+        tamano: { type: integer, description: Bytes }
+        nombre_original: { type: [string, "null"] }
+        canal: { type: string, enum: [web, movil] }
+        cargada_en: { type: string, format: date-time }
+        tomada_en: { type: [string, "null"], format: date-time }
+        latitud: { type: [number, "null"] }
+        longitud: { type: [number, "null"] }
+        lugar: { type: [string, "null"] }

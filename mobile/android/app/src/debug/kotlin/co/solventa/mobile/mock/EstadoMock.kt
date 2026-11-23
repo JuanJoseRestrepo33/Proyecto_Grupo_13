@@ -25,7 +25,15 @@ internal val VIGENCIA_OTP: Duration = Duration.ofMinutes(10)
 internal val ESPERA_REENVIO: Duration = Duration.ofSeconds(30)
 private val VIGENCIA_ACCESO: Duration = Duration.ofMinutes(15)
 
-data class RespuestaMock(val codigo: Int, val cuerpo: String, val encabezados: Map<String, String> = emptyMap())
+/** @param perdida el mock procesó la solicitud pero la app no recibe respuesta (tiempo agotado). */
+data class RespuestaMock(
+    val codigo: Int,
+    val cuerpo: String,
+    val encabezados: Map<String, String> = emptyMap(),
+    val perdida: Boolean = false,
+    /** Tipo de contenido del [cuerpo]: el documento de la póliza es `application/pdf` (solo ASCII). */
+    val tipo: String = "application/json",
+)
 
 internal inline fun <reified T> respuesta(codigo: Int, valor: T) =
     RespuestaMock(codigo, NetworkClient.json.encodeToString(valor))
@@ -37,7 +45,7 @@ internal fun fallo(
     intentosRestantes: Int? = null,
 ) = respuesta(codigo, ErrorBff(clave, "Mock BFF móvil: $clave", campos, intentosRestantes))
 
-internal fun noAutenticado() = fallo(401, "no_autenticado")
+internal fun noAutenticado() = fallo(401, "sesion_no_vigente")
 
 internal class CuentaMock(
     val id: String,
@@ -106,7 +114,12 @@ internal class EstadoMock(val reloj: () -> Instant) {
         autorizacion?.removePrefix("Bearer ")?.let(accesos::get)?.let(cuentas::get)
 
     fun sembrarClienteDemo() {
-        val cuenta = CuentaMock(siguiente("CLI"), "Ana María Rojas", CORREO_DEMO, "1020304050", CONTRASENA_DEMO)
+        sembrarVerificado("Ana María Rojas", CORREO_DEMO, "1020304050")
+        sembrarVerificado("Luis Gómez", CORREO_SIN_POLIZAS, "1020304051")
+    }
+
+    private fun sembrarVerificado(nombre: String, correo: String, documento: String) {
+        val cuenta = CuentaMock(siguiente("CLI"), nombre, correo, documento, CONTRASENA_DEMO)
         cuenta.correoVerificado = true
         cuenta.aplicar(
             VerificacionIdentidad(siguiente("KYC"), EstadoVerificacion.APROBADA, actualizadaEn = reloj().toString()),

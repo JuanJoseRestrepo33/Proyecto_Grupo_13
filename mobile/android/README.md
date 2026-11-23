@@ -16,7 +16,7 @@ Desde esta carpeta:
 
 ```bash
 ./gradlew detekt lintDebug
-./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :app:testDebugUnitTest
+./gradlew :core:network:test :core:designsystem:testDebugUnitTest :feature:onboarding:testDebugUnitTest :feature:consentimiento:testDebugUnitTest :feature:siniestros:testDebugUnitTest :feature:notificaciones:testDebugUnitTest :app:testDebugUnitTest
 ./gradlew :koverXmlReport :koverVerify
 ./gradlew :koverHtmlReport
 ./gradlew :app:koverXmlReportDebug :core:designsystem:koverXmlReportDebug
@@ -24,7 +24,7 @@ Desde esta carpeta:
 ./gradlew :app:installDebug
 ```
 
-Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y `feature/onboarding` en la raíz.
+Kover 0.9.1 agrega `app`, `core/network`, `core/designsystem` y los módulos `feature/*` en la raíz.
 `:koverVerify` falla si la cobertura total de líneas es menor al **70%**; XML:
 `build/reports/kover/report.xml`, HTML: `build/reports/kover/html/index.html`.
 El total incluye las variantes debug y release de Android y el módulo JVM; las tareas
@@ -52,6 +52,15 @@ conectado; también se puede ejecutar `app` desde Android Studio. APK:
 - `feature/onboarding`: **MOB-F01**. Registro, OTP, resultado KYC e ingreso con contraseña o
   biometría; ver [su README](feature/onboarding/README.md). Las próximas features se agregan como
   módulos `feature/<nombre>` en `settings.gradle.kts`.
+- `feature/siniestros`: **WEB-F05**, **MOB-F05** y **WEB-F06** en la app. Asistente de reporte (póliza,
+  información, evidencia, revisión) con envío idempotente, y «Mis siniestros» con el detalle del caso y la
+  respuesta a requerimientos; los dos se abren desde Inicio. Ver [su README](feature/siniestros/README.md).
+- `feature/notificaciones`: **MOB-F06**. Push del siniestro con el proveedor simulado: registro del
+  dispositivo, lectura de la bandeja, notificación local que abre el detalle del siniestro y aviso del
+  permiso con alternativa (P20). Ver [su README](feature/notificaciones/README.md).
+- `feature/polizas`: **WEB-F04** en la app. «Mis pólizas» en la pestaña Pólizas (Activas, Vencidas y
+  Todas) y el detalle con coberturas, deducible, límites y el PDF de la póliza. Ver
+  [su README](feature/polizas/README.md).
 
 Dependencias: app → core y features; features → core. Core no depende de features ni de app.
 Versiones centralizadas en `gradle/libs.versions.toml`; minSdk 26, compile/targetSdk 35,
@@ -74,17 +83,120 @@ Se usa sans del sistema como equivalente permitido por v2, sin descargar fuentes
 Escalas v2 (tamaño/alto en sp) y espaciados 4/8/16/24/32/48 dp. El texto sobre error
 usa negro para mejorar contraste; no se usa color como único indicador de selección.
 
-## BFF móvil y contratos pendientes
+## BFF móvil: modo mock y modo real
 
-`BuildConfig.BASE_URL` se genera en `app` desde la propiedad Gradle `BFF_BASE_URL`:
+La app habla con el router móvil de `solventa-bff` (`bff/app/movil/`), con el prefijo
+**`/api/v1/movil/`**. Dos propiedades Gradle de `app` deciden a dónde van las llamadas:
+
+| Propiedad | Por defecto | Efecto |
+|---|---|---|
+| `BFF_MOCK` | `true` | En debug, `true` instala `DebugMockInterceptor` y nada sale a Internet; `false` habla con el BFF de `BFF_BASE_URL`. Release nunca usa el mock |
+| `BFF_BASE_URL` | `https://mobile-bff.invalid/api/v1/movil/` | Raíz del router móvil del ambiente; genera `BuildConfig.BASE_URL` |
 
 ```bash
-./gradlew :app:assembleDebug -PBFF_BASE_URL=https://bff.example.com/v1/
+./gradlew :app:assembleDebug                                    # mock (lo que corre el CI)
+./gradlew :app:installDebug -PBFF_MOCK=false \
+  -PBFF_BASE_URL="$(gcloud run services describe solventa-bff --region=<GCP_REGION> --format='value(status.url)')/api/v1/movil/"
 ```
 
-Debe ser HTTPS, terminar en `/` y no contener credenciales, query ni fragmento.
-El valor por defecto `https://mobile-bff.invalid/api/v1/movil/` es deliberadamente no resoluble;
-**no es un backend desplegado**. No guardar tokens/secretos en propiedades ni BuildConfig.
+`BFF_BASE_URL` debe ser HTTPS (HTTP solo hacia el BFF simulado en la máquina local, ver abajo), terminar
+en `/` y no contener credenciales, query ni fragmento. El
+valor por defecto es deliberadamente no resoluble (**no es un backend desplegado**): con
+`BFF_MOCK=false` el build falla si el host sigue siendo `.invalid` o si la ruta no termina en
+`/api/v1/movil/`. La variable de GitHub `BFF_BASE_URL` (ver `docs/devops.md`) guarda la del ambiente.
+No guardar tokens/secretos en propiedades ni BuildConfig.
+
+**Requisitos del modo real contra *staging*** (fuera del alcance de la app, #155):
+
+- La llave de firma de tokens montada en `solventa-bff` y en `solventa-nucleo`; sin ella el BFF no valida tokens.
+- `IDENTIDAD_OTP_FIJO` definido en el núcleo: `CanalDeCodigosSimulado` no envía el código al correo.
+- Una sola instancia del núcleo: `identidad` guarda las cuentas en memoria, así que cada despliegue las
+  borra y, con varias instancias, el ingreso falla de forma intermitente.
+
+### E2E móvil de sesión contra *staging* (#157)
+
+`scripts/prueba-sesion-staging.sh` recorre en el emulador los criterios de #157: registro y OTP, ingreso
+con contraseña, ingreso con huella, token vencido (espera real de 15 minutos), la misma cuenta en la web
+y que la evidencia no filtre secretos. Deja en `EVIDENCIA` el resumen con commit, fecha y URL, las
+grabaciones y las capturas; la grabación se detiene mientras el OTP está en pantalla.
+
+Usa `uiautomator` y no `androidTest` porque la huella se simula desde el host (`adb emu finger touch`).
+
+```bash
+gh run download <run> -n solventa-staging -D /tmp/apk-staging     # el run de develop con ese artefacto
+scripts/registrar-huella.sh                                       # solo en un AVD nuevo; deja PIN 1234
+AVD=<avd> PIN_EMULADOR=<pin> E2E_OTP=<otp> EVIDENCIA=<carpeta> E2E_COMMIT_APK=<sha> \
+  E2E_URL_BFF=<url del BFF> E2E_URL_WEB=<url de la web> \
+  scripts/prueba-sesion-staging.sh --apk /tmp/apk-staging/app-debug.apk
+```
+
+Con varios emuladores en ejecución, `ANDROID_SERIAL` elige uno. Para ensayar sin *staging*: compilar con
+`-PBFF_BASE_URL=http://10.0.2.2:3001/api/v1/movil/`, arrancar Mockoon con `MOCKOON_TTL_ACCESO=2` y usar
+`E2E_OTP=123456 ESPERA_TOKEN=5`.
+
+### BFF simulado con Mockoon (registro, OTP y sesión)
+
+`mockoon/bff-movil.json` es un ambiente de [Mockoon](https://mockoon.com) 9.9 que implementa, con
+estado, las rutas de WEB-F13 del contrato: registro, verificación y reenvío del OTP, ingreso, renovación
+con rotación del token de refresco, `GET /sesion` y la verificación de identidad. Sirve para probar el
+**modo real** de la app (cliente HTTP, `Authenticator`, errores) sin depender de *staging*. Se edita
+con Mockoon Desktop (*Open environment*); `mockoon/mockoon.sh` lo arranca con `mockoon-cli` vía `npx`
+(requiere Node 18+):
+
+```bash
+mobile/android/mockoon/mockoon.sh                     # http://localhost:3001/api/v1/movil/
+mobile/android/mockoon/mockoon.sh prueba              # tiempos cortos + prueba de humo (32 verificaciones)
+./gradlew :app:installDebug -PBFF_MOCK=false -PBFF_BASE_URL=http://10.0.2.2:3001/api/v1/movil/
+```
+
+El emulador ve la máquina como `10.0.2.2`; en un dispositivo físico, `adb reverse tcp:3001 tcp:3001` y
+`http://localhost:3001/...`. HTTP solo se admite hacia esos hosts y solo en debug
+(`app/src/debug/res/xml/red_debug.xml`); cualquier otro host exige HTTPS.
+
+| Escenario | Cómo provocarlo |
+|---|---|
+| Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
+| Código OTP | `123456`, o `MOCKOON_OTP_FIJO=aleatorio` y leerlo en el buzón: `GET /api/v1/movil/__pruebas/buzon?correo=...` (solo existe en el mock) |
+| OTP incorrecto, bloqueo y vencimiento | 3 intentos (`otp_invalido` → `otp_bloqueado`); vence a los `MOCKOON_VIGENCIA_OTP` s (600) |
+| Reenviar OTP | 429 con `Retry-After` antes de `MOCKOON_ESPERA_REENVIO` s (30); el reenvío devuelve los intentos |
+| Resultado KYC | Último dígito del documento: 0–6 aprobada, 7 rechazada (`datos_no_coinciden`), 8 en revisión, 9 en proceso → aprobada en la siguiente consulta |
+| Token de acceso vencido (renovación automática) | `MOCKOON_TTL_ACCESO=30` y esperar; por defecto vence a los 900 s |
+| Token de refresco reutilizado | Cada renovación invalida el anterior: reutilizarlo da 401 `token_refresco_invalido` |
+| Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
+
+El estado vive en el *data bucket* `estado` y se reinicia al arrancar. `ContraMockoonTest`
+(`core/network`) prueba el cliente real contra este ambiente: solo corre con `MOCKOON_URL` definida, como
+hace el CI tras levantar Mockoon con un token de 2 s. Si cambia el contrato de estas rutas, actualizar el
+ambiente y `mockoon/probar_mockoon.py` en el mismo PR.
+
+### Sesión: renovación ante un 401
+
+`MainActivity` crea el cliente con `BffProvider.create(sesion)`, donde `GestorSesion` es la `SesionBff`
+del proceso. `NetworkClient` instala un `Authenticator` de OkHttp (`RenovadorSesion`) que, ante un 401
+de una **ruta protegida** (las que llevan `Authorization`; registro e ingreso no cuentan):
+
+1. Renueva **una sola vez** con el `token_refresco` (`POST sesiones/renovacion`) y repite la llamada con
+   el token nuevo. Solo hay una renovación en curso: las llamadas que fallaron con el mismo token
+   esperan y reutilizan el resultado. La llamada de renovación no pasa por el autenticador.
+2. Con la renovación exitosa, `GestorSesion` guarda la sesión y rota el token cifrado de la huella. Si
+   `AlmacenToken.guardar` devuelve `false`, la huella se desactiva e Inicio lo avisa.
+3. Si el BFF rechaza el token de refresco (401 `token_refresco_invalido`, p. ej. porque ya se usó), se
+   limpia la sesión, se borra el token de la huella y la navegación vuelve a Ingreso con la pila vacía,
+   que pide la contraseña. Si la renovación falla por otra causa (5xx, cuerpo ilegible o sin red), la
+   sesión también vence, pero se conserva el token y el Ingreso ofrece la huella. Las llamadas que
+   esperaban esa renovación no la repiten.
+4. Si la llamada repetida vuelve a dar 401, no se renueva otra vez: la sesión vence sin borrar el token
+   de la huella y la app vuelve a Ingreso, en cualquier pantalla protegida.
+
+Las escrituras de `GestorSesion.sesion` pasan por un candado: la renovación corre en hilos de OkHttp y una
+copia vieja escrita desde una pantalla no puede restaurar un token de refresco ya consumido. El aviso de
+huella desactivada queda en Inicio hasta que el cliente toca «Entendido».
+
+`llamarBff` traduce una respuesta que no cumple el contrato (`SerializationException`) a una `Falla` con
+`http = HTTP_RESPUESTA_ILEGIBLE` y sin código: la pantalla muestra `error_generico` y la app no se cierra.
+En modo mock el `DebugMockInterceptor` responde antes que el autenticador, así que la renovación
+automática solo actúa contra un BFF real o el de Mockoon; sus pruebas usan MockWebServer
+(`RenovacionSesionTest`) y Mockoon (`ContraMockoonTest`).
 
 ### Contrato y mocks
 
@@ -108,14 +220,247 @@ sin interceptor y requiere configurar la URL del ambiente.
 | KYC en proceso → aprobada en la siguiente consulta | Documento que termine en 9 |
 | Cliente ya verificado | `ana@ejemplo.co` / `Solventa2026` |
 | Correo o documento duplicado | Registrar `ana@ejemplo.co` o el documento `1020304050` |
+| Póliza vigente y póliza vencida | Cualquier cliente: auto `POL-2026-NNN101` (desde hace 30 días, por 365) y hogar `POL-2026-NNN102` (venció hace 30 días) |
+| Mis pólizas (WEB-F04) | Cualquier cliente, en este orden: `NNN101` vigente y completa, con documento (un PDF de una página); `NNN103` de viaje por iniciar (empieza en 10 días); `NNN104` de hogar vigente sin nombre comercial, prima, deducible, valor asegurado, emisión, coberturas ni documento (como las de la semilla de staging), y `NNN102` vencida, con condiciones y sin documento (`documento_no_disponible`). La 101 sigue primero porque el reporte y la evidencia toman la primera de la lista |
+| Póliza no encontrada | `POL-2026-999999` (`POLIZA_INEXISTENTE`) o el número de otro cliente: 404 `poliza_no_encontrada` en el detalle y en el documento |
+| Evento dentro o fuera de la vigencia | Reportar sobre la póliza de hogar con una fecha anterior o posterior a su fin: se acepta o responde 409 `evento_fuera_de_vigencia` |
+| Cuenta sin pólizas | `sinpolizas@ejemplo.co` / `Solventa2026` |
+| Reintento con la misma clave | Descripción con `#sin-respuesta`: el primer envío queda registrado pero la app ve un tiempo agotado; el reintento confirma la misma referencia |
+| Evidencia aceptada | Cualquier foto, video o PDF del paso de evidencia |
+| Rechazos de evidencia | Lugar con `#413`, `#422`, `#409` o `#503` (el lugar se pide en archivos sin coordenadas) |
+| Evidencia con respuesta perdida | Lugar con `#perdida`: el archivo queda guardado, la app ve un tiempo agotado y el reintento no lo duplica |
+| Rechazo tras un intento incierto (MOB-F05-02) | Descripción con `#sin-respuesta-luego-404`: el primer envío registra y agota el tiempo, el siguiente responde 404 `poliza_no_encontrada`, y la app concilia con `GET /siniestros` (M10) |
+| Seguimiento (WEB-F06) | `ana@ejemplo.co` tiene un caso en cada estado (`SIN-2026-000901` a `000906`, fechas fijas): `requiere_informacion` con un requerimiento pendiente, `aprobado` con uno atendido, `rechazado` con uno cerrado sin respuesta y `reportado` sin monto ni cambios. Los reportados en la sesión también tienen detalle. `sinpolizas@ejemplo.co` no tiene siniestros |
+| Responder un requerimiento | «Responder» en el caso que requiere información: queda atendido; otra respuesta recibe 409 `requerimiento_ya_atendido`. Un caso rechazado o pagado responde 409 `siniestro_cerrado`. Con lugar `#perdida` la respuesta se pierde y la app concilia antes de reenviar |
+| Push del siniestro (MOB-F06) | `ana@ejemplo.co`: 20 s después de registrar el dispositivo (al iniciar sesión), la bandeja trae «Tu siniestro SIN-2026-000902 cambió»; la app lo muestra en la lectura siguiente (cada 30 s o al volver a la app) y tocarlo abre ese caso. Con el permiso negado, Inicio explica y ofrece «Ver mis siniestros». Las demás cuentas tienen la bandeja vacía |
+| Reporte sin conexión (MOB-F05-02) | Modo avión en el emulador: el mock no simula la falta de red; en las pruebas JVM se usa un `MonitorConectividad` falso |
 
 El estado vive mientras dure el proceso de la app. Si cambia el contrato, actualizar `core/network`
 y el mock en el mismo PR.
 
+### Demo en emulador
+
+`scripts/demo-emulador.sh` (Linux o WSL) y `scripts/demo-emulador.ps1` (Windows) dejan la app lista
+para probar: arrancan el emulador si no hay uno encendido, compilan e instalan la app debug con datos
+limpios, crean una cuenta por el flujo de registro (OTP `123456`) y activan la huella. Ubican cada
+control por su texto visible con `uiautomator`, no por coordenadas.
+
+```bash
+mobile/android/scripts/demo-emulador.sh                 # opciones: --sin-compilar --sin-huella
+```
+
+```powershell
+mobile\android\scripts\demo-emulador.ps1                # opciones: -SinCompilar -SinHuella -Correo ...
+```
+
+- Requiere un AVD (API 26+) y JDK 17+. En Windows, si `JAVA_HOME` es anterior a 17, el script busca
+  un JDK instalado; en WSL usa el SDK y el emulador de Windows y firma con su llave debug para que
+  `install -r` no falle frente a una app instalada desde Android Studio.
+- La cuenta por defecto es `hernan@ejemplo.co` / `Solventa2026`; se cambia con variables
+  (`CORREO=…`) o parámetros (`-Correo …`). El documento debe terminar en 0–6 (KYC aprobada).
+- Para activar la huella, el emulador debe tener una registrada (Settings → Security →
+  Fingerprint); si no la tiene, el script elige «Ahora no». Para entrar luego con la huella:
+  `adb -e emu finger touch 1`.
+- Registrar una huella obliga a tener PIN. Con la pantalla bloqueada, el script la desbloquea con la
+  huella; justo después de arrancar el emulador Android exige el PIN, que se pasa con
+  `PIN_EMULADOR=…` o `-PinEmulador …`.
+
+`scripts/prueba-consentimiento.sh` y `.ps1` prueban MOB-F02 de punta a punta sobre esa demo (la
+ejecutan primero, salvo `--sin-preparar`/`-SinPreparar`). Con las tres finalidades: otorgar (no se
+envía sin entidad ni aceptación de la versión), revocar con y sin advertencia de tarifa, cancelar,
+otorgar de nuevo un revocado y volver a Perfil. Para renovar uno por vencer y uno vencido adelantan
+el reloj del emulador con `adb root` (imágenes Google APIs) y lo restauran al terminar;
+`--sin-reloj`/`-SinReloj` omite esa parte. Las funciones comunes están en `scripts/emulador-comun.sh`
+y `scripts/EmuladorComun.ps1`.
+
+### E2E en emulador contra staging
+
+`app/src/androidTest` recorre la app real, sin mock. `ReporteSiniestroE2eTest` (WEB-F05, #172) inicia
+sesión con la cuenta de prueba, reporta un siniestro sobre `POL-STG-AUTO` con una marca única en la
+descripción y comprueba por el BFF web que hay uno solo con esa marca, con la referencia que mostró la
+app, estado `reportado` y `canal: movil`. Lo hace dos veces para probar que los reportes acumulados de la
+cuenta no estorban. Necesita Cloud SQL encendida.
+
+En local, con un emulador conectado y las credenciales en `E2E_CORREO` y `E2E_CLAVE`:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PBFF_MOCK=false \
+  -PBFF_BASE_URL=https://<solventa-bff>/api/v1/movil/ \
+  -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" \
+  -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE"
+```
+
+En CI: *Actions → Mobile Android → Run workflow* sobre `develop` lanza el job `e2e-emulador`, con la URL
+y las credenciales del environment `staging`, que solo admite esa rama. No corre en push ni en PR, y no
+publica los resultados del runner porque podrían incluir los argumentos de instrumentación. Solo publica
+`capturas-app-staging` (14 días): las PNG que `Capturas.tomar` deja en `/data/local/tmp/capturas` para la
+guía de usuario, sin la pantalla de inicio de sesión.
+Tampoco conviene compartir `app/build/outputs/androidTest-results` de una corrida local. Si el emulador no queda
+estable, el plan B es hacer el mismo recorrido a mano, grabarlo y adjuntarlo a #125 con el commit y la URL.
+
+#### El cambio de estado se ve en la app (WEB-F06, #202)
+
+`SeguimientoE2eTest` reporta un caso por el BFF web (`BffWeb.reportar`, sin la UI de la web) con una marca
+única y la póliza `POL-STG-AUTO-…` vigente de la cuenta. Luego inicia sesión en la app y comprueba en «Mis
+siniestros» que la tarjeta `siniestro-<id>` tiene la misma referencia, «Reportado» y el canal Web. Pasa el
+caso a `en_evaluacion` con la operación interna del núcleo (`NucleoInterno`, `POST /v1/siniestros/{id}/estado`
+con `X-Token-Interno`), toca «Actualizar» y ve «En evaluación» en la tarjeta. En el detalle comprueba la insignia
+y el historial (dos eventos con su fecha, solo el último resaltado). Con la app en el detalle pasa el caso a
+`requiere_informacion` con un requerimiento, actualiza y comprueba el tercer evento, el requerimiento
+«Pendiente» con «Responder» y el siguiente paso. Si un paso falla, el error dice cuál («Paso «6 · actualizar la
+lista»: …») y solo lista etiquetas de la pantalla, nunca textos ni credenciales.
+
+Necesita dos argumentos más, además de `correo` y `clave`: `nucleo`, la URL de `solventa-nucleo` sin `/v1`,
+y `tokenInterno`, el valor del secreto `siniestros-token-interno`. Sin ellos la prueba falla en el `@Before`,
+no se omite. Para correr solo esta clase en local:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest -PBFF_MOCK=false \
+  -PBFF_BASE_URL=https://<solventa-bff>/api/v1/movil/ \
+  -Pandroid.testInstrumentationRunnerArguments.correo="$E2E_CORREO" \
+  -Pandroid.testInstrumentationRunnerArguments.clave="$E2E_CLAVE" \
+  -Pandroid.testInstrumentationRunnerArguments.nucleo="$NUCLEO_URL" \
+  -Pandroid.testInstrumentationRunnerArguments.tokenInterno="$E2E_TOKEN_INTERNO" \
+  -Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.SeguimientoE2eTest
+```
+
+En CI, el job `e2e-emulador` toma la variable `NUCLEO_URL` y el secreto `SINIESTROS_TOKEN_INTERNO` del
+environment `staging` (los mismos nombres que el E2E web de #201). Su primer paso nombra cada variable o
+secreto que falte y deja el job en rojo. El plan B, si el emulador no queda estable, es el del issue: dos
+recorridos a mano grabados y adjuntos a #195, nunca con el token.
+
+#### Reporte sin conexión (MOB-F05-02, #213)
+
+`ReporteSinConexionE2eTest` corta la red de verdad, con el modo avión, y comprueba que el reporte guardado
+sin señal llega **una sola vez** a la web cuando vuelve la red. No simula la red ni cambia el código de la
+app. Corre en el mismo `connectedDebugAndroidTest`, con los mismos argumentos y el mismo job.
+
+- **Comprobación previa** (`@BeforeClass`): activa el modo avión, espera que la red deje de estar validada,
+  lo desactiva y espera que vuelva a `VALIDATED`, la condición que usa `MonitorConectividad`. Si falla, la
+  clase entera falla con «No concluyente…» y se pasa al plan B.
+- **Recorrido 1** (dos `@Test`): con red inicia sesión, elige la póliza sembrada y toma una foto. Luego
+  activa el modo avión, envía y ve «Reporte guardado en tu teléfono» y una tarjeta `borrador-<id>` nueva
+  con «Esperando conexión». Desactiva el modo avión y no toca nada más: la tarjeta se reemplaza por una
+  `enviado-<id>` nueva con la referencia. Por el BFF web hay exactamente un siniestro con la marca de la
+  ejecución, esa referencia, la póliza, `reportado`, `canal: movil` y una sola evidencia `image/jpeg`.
+- **Recorrido 2**: guarda las pólizas con red, abre el reporte en modo avión (`polizas-guardadas`), lo
+  envía sin evidencia, manda la app a segundo plano con `UiDevice.pressHome()` y desactiva el modo avión.
+  Sin abrir la app, sondea el BFF web hasta ver el siniestro. Si no aparece, falla con «No se envió en
+  segundo plano». Solo después vuelve a la app y comprueba que la tarjeta enviada tiene la misma
+  referencia. Si el sistema mata el proceso en segundo plano, el resultado es no concluyente, no aprobado.
+- **Aislamiento**: cada prueba toca «Entendido» en su propia tarjeta y el `@After` cierra sesión. Las
+  tarjetas que había antes de enviar no cuentan: la prueba solo busca tarjetas nuevas.
+
+Tiempos límite (constantes del `companion object`):
+
+| Constante | Valor | Para qué |
+|---|---|---|
+| `RED_MS` | 2 min | Recuperar `VALIDATED` tras salir del modo avión, o perderla al entrar |
+| `ENVIO_MS` | 4 min | De la reconexión a la tarjeta enviada (primer intento y reintentos de 30 s, 1 y 2 min) |
+| `SONDEO_MS` | 5 s | Cada cuánto se consulta el BFF web, con lo que quede de `ENVIO_MS` |
+| `LIMITE_CLASE_MS` | 15 min | La clase completa. Una prueba que empieza después de ese tiempo falla |
+
+Para correr solo esta clase en local, agregar al comando anterior
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.ReporteSinConexionE2eTest`.
+Necesita Cloud SQL encendida y un emulador con salida a internet: al salir del modo avión, Android valida
+la red contra internet antes de marcarla `VALIDATED`.
+
+**Modo avión.** La prueba lo maneja con `cmd connectivity airplane-mode enable|disable`, desde la shell de
+la instrumentación. El `@Before` y el `@After` lo desactivan siempre y esperan la red validada, aunque la
+prueba falle. En CI, el script del job lo desactiva otra vez tras `connectedDebugAndroidTest`, y un paso
+con `if: always()` vuelve a hacerlo.
+
+**Si el emulador queda sin red** (por ejemplo, porque se detuvo la corrida a mano):
+
+```bash
+adb shell cmd connectivity airplane-mode disable
+adb shell dumpsys connectivity | grep -m1 VALIDATED   # debe mostrar la red validada
+```
+
+Si sigue sin `VALIDATED`, reiniciar el emulador (`adb emu kill` y volver a abrir el AVD).
+
+**Plan B.** Si la comprobación previa o el emulador fallan en CI, se hacen **los dos recorridos** a mano
+contra *staging*, en un teléfono o emulador, y se graban. En el recorrido 2, la grabación muestra la
+consulta exitosa al BFF web **antes** de volver a abrir la app. Se adjunta a #211 con el commit, la URL y la
+lista de criterios que quedan sin cubrir (al menos el 6, el 7 y el 8 de #213).
+
+#### Póliza emitida en la web, consultada en la app (WEB-F04, #193)
+
+`ConsultaPolizaE2eTest` comprueba que una póliza comprada en la web aparece en la app sin hacer nada más.
+Corre en el mismo `connectedDebugAndroidTest`, con los mismos argumentos y el mismo job; no necesita
+variables nuevas. Cada recorrido (dos `@Test`, uno tras otro) hace:
+
+1. Inicia sesión en la app y abre la pestaña Pólizas (`nav-policies`) una vez; guarda los números visibles.
+2. Vuelve a Inicio (`nav-home`) y **compra por el BFF web**, sin su interfaz: cotiza el seguro de auto con
+   una ciudad única, acepta la oferta, paga con tarjeta (la pasarela simulada la aprueba; un reintento
+   reenvía la misma `Idempotency-Key`) y firma.
+3. Vuelve a entrar a Pólizas, sin deslizar ni tocar «Actualizar»: la póliza emitida debe ser la primera de
+   Activas, con el producto, «Vigente», el número y la vigencia que devuelve `GET /polizas` en la web.
+4. Abre el detalle: valor asegurado, deducible y coberturas iguales a `GET /polizas/{numero}` de la web y a
+   la oferta aceptada.
+5. Toca «Descargar PDF» con Espresso-Intents interceptando el `ACTION_VIEW` (el emulador puede no tener
+   visor): el archivo empieza por `%PDF-` y tiene el mismo SHA-256 que el documento que descarga la web.
+6. Abre la póliza sembrada (`POL-STG-AUTO-…`) en Todas: sin coberturas, sin documento y «No disponible».
+
+Cada fallo empieza por el paso del recorrido («Paso 5 (segunda entrada a Pólizas): La póliza emitida no es
+la primera de Activas…»). **Deja una póliza nueva por compra** (dos por corrida) en la cuenta de prueba;
+nadie las limpia. Necesita Cloud SQL encendida y la póliza sembrada `POL-STG-AUTO`.
+
+Para correr solo esta clase, agregar al comando de arriba
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.ConsultaPolizaE2eTest`.
+
+**Plan B.** Si el emulador no queda estable en CI, se hacen dos recorridos a mano contra *staging*, cada
+uno con su póliza: la app abierta en Pólizas antes de comprar, la compra por la interfaz de la web y la
+consulta en la app con el APK de `solventa-staging`. Las grabaciones van a #186 con el commit, la URL del
+BFF y los números usados, sin correo ni datos del cliente en pantalla.
+
+#### Push del cambio de estado (MOB-F06, #209)
+
+`PushSiniestroE2eTest` comprueba que un cambio de estado llega como push y que tocarlo abre el detalle del
+caso. Con el proveedor simulado de *staging*, «push recibido» significa que el núcleo crea la notificación,
+el receptor de la app la lee de `GET /notificaciones` y la muestra como notificación local. El estado de
+entrega del proveedor no sale por el BFF y lo cubren las pruebas del núcleo (#205).
+
+- **Antes de abrir la app** (reglas en `RuleChain`): concede `POST_NOTIFICATIONS` con `GrantPermissionRule`,
+  así Inicio no muestra el aviso del permiso. Abre una sesión propia en el router móvil (`BffMovil`), borra
+  de las preferencias `push` lo que la app ya leyó de la bandeja de la cuenta (`vistas_<cliente>`) y cancela
+  los avisos de la app. Conserva el token de la instalación. Si las notificaciones de la app no están
+  permitidas, falla con un mensaje claro.
+- **Recorrido**: reporta un caso por el BFF web con una marca única e inicia sesión en la app. Espera la
+  primera lectura de la bandeja, que no muestra avisos viejos, y comprueba que `POST /dispositivos` con el
+  token de la instalación responde **200** («ya estaba registrado»). Manda la app a segundo plano
+  (`pressHome`) y pasa el caso a `en_evaluacion` con la operación interna.
+- **Push**: antes de 90 s desde la respuesta del cambio, la app debe tener activa la notificación «Tu
+  siniestro {referencia} cambió» / «Ya estamos evaluando tu caso.» en el canal `siniestros`, y debe verse en
+  la bandeja del sistema (UI Automator, expandiendo el grupo si hace falta). Si se vence el tope, el mensaje
+  dice si el BFF tenía la notificación, es decir, si falló el núcleo o la app.
+- **Apertura**: tocar la notificación abre `pantalla-detalle-siniestro` con la referencia, «En evaluación» en
+  la insignia y como evento actual. El atrás del sistema lleva a «Mis siniestros».
+- **Leída**: la notificación deja de estar activa, el BFF la devuelve con `leida: true` y no reaparece
+  después de una vuelta del receptor (30 s más un margen).
+- **`@After`**: `cmd statusbar collapse` y `cancelAll()`, para no dejar la bandeja abierta ni avisos a las
+  pruebas siguientes.
+
+Usa los mismos argumentos que `SeguimientoE2eTest` (`correo`, `clave`, `nucleo` y `tokenInterno`). No
+necesita variables ni secretos nuevos. En local, el emulador debe ser **API 33 o superior**, que es donde existe
+`POST_NOTIFICATIONS` (el de CI es API 34), y tener encendidas las notificaciones de la app en Ajustes. Para
+correr solo esta clase, agregar al comando de `SeguimientoE2eTest`
+`-Pandroid.testInstrumentationRunnerArguments.class=co.solventa.mobile.e2e.PushSiniestroE2eTest`.
+
+En CI corre en el job `e2e-emulador`, junto con las demás. Necesita Cloud SQL encendida y el humo de
+`/dispositivos` y `/notificaciones` en verde en el último CD. No cubre el push con el proceso de la app
+muerto, porque la instrumentación lo mantiene vivo, ni el permiso negado (`AvisoNotificacionesTest`,
+`NotificadorAndroidTest`).
+
+**Plan B.** Si el emulador no queda estable, se hacen dos recorridos a mano contra *staging* con el APK de
+`solventa-staging`, cada uno con su caso. Por cada recorrido se adjuntan a #204 la grabación de la pantalla y
+la salida de `GET /notificaciones` antes y después de tocar la notificación, con el token tapado. También se
+indican el commit, la URL del BFF y las referencias usadas, nunca el token interno.
+
 ## Pipeline
 
 `.github/workflows/mobile-android.yml` corre en push y PR que cambien `mobile/android/**`,
-`contratos/bff-movil/**` o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
+`contratos/bff-movil/**`, el router móvil del BFF (`bff/app/movil/**`) o el propio workflow, y permite ejecución manual. Respeta permisos mínimos, cancelación
 por rama y publicación de reportes descritos en `../../docs/devops.md`.
 
 1. Checkout con historial completo y **gitleaks-action v3**: los secretos detectados
@@ -155,7 +500,11 @@ repositorio y se ignora mediante `.gitignore`.
 La cobertura baja en `feature/onboarding/biometria` (55 %) porque `AlmacenTokenKeystore` y
 `BiometriaAndroid` usan el Keystore y el sensor reales, que Robolectric no simula.
 
-Pendientes: contratos OpenAPI de Harold, URL real por ambiente, validación visual
+**WEB-F13 (#154).** Se agregó el modo real (`-PBFF_MOCK=false`), la renovación centralizada ante un
+401 y las pruebas de objetivos táctiles de 48 × 48 dp del recorrido (`ObjetivosTactilesTest`). Falta la
+evidencia contra *staging*, que depende de la URL pública de `solventa-bff` y de #155.
+
+Pendientes: contratos OpenAPI de Harold, validación visual
 con TalkBack/tamaños de fuente y pruebas de navegación en dispositivo. De MOB-F01 queda probar en
 dispositivo (API 26–27 y 30+) el ingreso biométrico real: creación de la llave, activación, fallos
 del sensor, invalidación al enrolar otra huella y rotación del token. El paquete y los

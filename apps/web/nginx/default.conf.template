@@ -1,0 +1,38 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    # BFF_URL es el origen del servicio solventa-bff, sin barra final: la ruta /api/... pasa tal cual.
+    # Cloud Run enruta por Host y SNI, por eso Host es el del BFF (valor por defecto de proxy_pass).
+    location /api/ {
+        proxy_pass ${BFF_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        # Evidencias de hasta 10 MB (MOB-F05), con margen para el multipart.
+        client_max_body_size 12m;
+    }
+
+    # Un add_header dentro de un location anula los del server, por eso cada location repite los de
+    # seguridad.
+
+    # Archivos con hash en el nombre: se pueden cachear para siempre.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header X-Frame-Options DENY always;
+        try_files $uri =404;
+    }
+
+    # Rutas del SPA: lo que no es un archivo devuelve index.html, que nunca se cachea.
+    location / {
+        add_header Cache-Control "no-cache";
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        add_header X-Frame-Options DENY always;
+        try_files $uri /index.html;
+    }
+}

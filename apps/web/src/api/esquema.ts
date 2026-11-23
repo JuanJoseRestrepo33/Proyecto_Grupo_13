@@ -14,8 +14,21 @@ export interface paths {
         /** Cliente autenticado */
         get: operations["obtenerSesion"];
         put?: never;
-        post?: never;
-        delete?: never;
+        /**
+         * Inicia sesión con correo y contraseña
+         * @description Es la misma cuenta del registro en la app (WEB-F13, criterio 1). La respuesta pone la
+         *     cookie `sesion` (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`); la web nunca
+         *     ve el token. La cookie dura lo mismo que la sesión: al vencer, las rutas protegidas
+         *     responden 401 `sesion_no_vigente` y la web vuelve al inicio de sesión. En la web no hay
+         *     renovación.
+         */
+        post: operations["iniciarSesion"];
+        /**
+         * Cierra la sesión
+         * @description Borra la cookie `sesion`. No exige sesión: responde 204 aunque la cookie esté vencida, no
+         *     sea válida o no exista, para que la web siempre pueda cerrarla.
+         */
+        delete: operations["cerrarSesion"];
         options?: never;
         head?: never;
         patch?: never;
@@ -195,6 +208,285 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/suscripciones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acepta una cotización vigente
+         * @description Crea la suscripción en estado `aceptada` con las condiciones de la cotización. Es
+         *     idempotente por cotización: aceptar de nuevo la misma devuelve la suscripción existente
+         *     con 200, no crea otra. Una cotización vencida se rechaza con `cotizacion_vencida`; la
+         *     interfaz ofrece recotizar.
+         */
+        post: operations["crearSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consulta una suscripción y su último pago */
+        get: operations["obtenerSuscripcion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}/pagos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paga la suscripción contra la pasarela simulada
+         * @description Cada intento de pago lleva su `Idempotency-Key`, generada por el cliente. Repetir la
+         *     solicitud con la **misma** clave nunca cobra dos veces (P18):
+         *
+         *     - Si el primer intento ya terminó, responde 200 con el mismo pago y `reintento: true`.
+         *     - Si el primer intento sigue en curso, responde 409 `pago_en_curso`.
+         *
+         *     Un intento nuevo (otra clave) solo procede si no hay un pago aprobado ni pendiente; si lo
+         *     hay, responde 409 `pago_ya_registrado`. Tras un pago rechazado, el cliente usa una clave
+         *     nueva para intentar otra vez.
+         *
+         *     El cliente no envía datos de la tarjeta ni de la cuenta: los toma la pasarela.
+         */
+        post: operations["pagarSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}/pagos/{id_pago}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Consulta el estado de un pago, por ejemplo uno pendiente */
+        get: operations["obtenerPago"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suscripciones/{id}/firma": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Firma electrónicamente y emite la póliza
+         * @description Con el pago aprobado, el cliente firma con el proveedor simulado y la póliza queda
+         *     emitida con su número y un documento descargable (criterio 4). Si el último pago estaba
+         *     `pendiente`, el BFF lo consulta antes de decidir.
+         *
+         *     Es idempotente: firmar una suscripción ya `emitida` responde 200 con la misma póliza.
+         *     Sin un pago aprobado responde 409 `pago_no_aprobado`; sin `acepta_condiciones: true`,
+         *     422 `aceptacion_requerida`. Si el proveedor de firma no responde, 503 y no se emite
+         *     nada: firmar otra vez es seguro.
+         */
+        post: operations["firmarSuscripcion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/polizas/{numero}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalle de una póliza con coberturas, deducible y límites
+         * @description WEB-F04, criterio 4. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+         *     igual que una que no existe.
+         */
+        get: operations["obtenerPoliza"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/polizas/{numero}/documento": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Documento PDF de una póliza emitida
+         * @description El documento de la póliza (WEB-F03, criterio 4). Sale con la sesión del cliente; el
+         *     almacén es privado. Una póliza de otro cliente responde 404 `poliza_no_encontrada`,
+         *     igual que una que no existe; una póliza sin documento (las de prueba), 404
+         *     `documento_no_disponible`.
+         */
+        get: operations["descargarDocumentoPoliza"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/polizas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pólizas del cliente, de la más reciente a la más antigua
+         * @description "Mis pólizas" (WEB-F04, criterio 1) y la lista del asistente de reporte de siniestros
+         *     (WEB-F05). Cada póliza trae producto, número, vigencia y estado; la interfaz muestra el
+         *     estado con insignia y texto (P12). Es la misma lista en la web y en la app: una póliza
+         *     emitida en la web aparece en la app sin hacer nada más (criterio 2). Sin pólizas, la lista
+         *     viene vacía y la interfaz lleva a cotizar (criterio 3).
+         */
+        get: operations["listarPolizas"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Siniestros del cliente, reportados desde cualquier canal */
+        get: operations["listarSiniestros"];
+        put?: never;
+        /**
+         * Reporta un siniestro sobre una póliza del cliente
+         * @description El siniestro queda `reportado`, con un número de referencia y el siguiente paso del caso,
+         *     y se ve igual desde la web y desde la app (WEB-F05, criterio 1).
+         *
+         *     Cada envío del asistente lleva su `Idempotency-Key`, generada por el cliente. Repetirlo con
+         *     la **misma** clave (doble clic, reintento por red lenta) responde 200 con el mismo
+         *     siniestro y la misma referencia: no se crea otro (criterio 4, P10, P18).
+         *
+         *     Una póliza vencida admite el reporte si el evento ocurrió dentro de su vigencia; si no,
+         *     responde 409 `evento_fuera_de_vigencia` con las fechas de la póliza y no queda registro
+         *     (criterio 3).
+         */
+        post: operations["reportarSiniestro"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalle de un siniestro con su historial y sus requerimientos
+         * @description WEB-F06. El estado actual es el mismo en la web y en la app (criterio 1) y un cambio en
+         *     el núcleo se ve al refrescar (criterio 2). `historial` trae los eventos con su fecha,
+         *     empezando por el reporte (criterio 4). `requerimientos` dice qué falta; el cliente
+         *     responde uno adjuntando evidencia con `id_requerimiento` (criterio 5).
+         */
+        get: operations["obtenerSiniestro"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros/{id}/evidencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evidencias del siniestro, cargadas desde cualquier canal */
+        get: operations["listarEvidencias"];
+        put?: never;
+        /**
+         * Adjunta una foto, un video o un documento al siniestro
+         * @description Se puede agregar en el reporte o después; queda asociada al mismo siniestro y se ve en los
+         *     dos canales (MOB-F05, criterio 5). Hasta 10 MB, y solo JPEG, PNG, HEIC, MP4 o PDF: el
+         *     formato se comprueba con el contenido del archivo, no solo con su extensión.
+         *
+         *     La fecha y hora de la cámara y la ubicación son opcionales. Si el cliente negó el permiso
+         *     de ubicación puede escribir el `lugar`; el reporte nunca queda bloqueado por un permiso
+         *     (criterios 1 y 2, P20).
+         */
+        post: operations["adjuntarEvidencia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/siniestros/{id}/evidencias/{id_evidencia}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contenido de una evidencia, con su tipo */
+        get: operations["descargarEvidencia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -207,6 +499,12 @@ export interface components {
             codigo: string;
             /** @description Descripción para diagnóstico; la interfaz no la muestra tal cual */
             mensaje: string;
+        };
+        Credenciales: {
+            /** Format: email */
+            correo: string;
+            /** Format: password */
+            contrasena: string;
         };
         Sesion: {
             cliente: {
@@ -352,10 +650,12 @@ export interface components {
             base_perfilamiento: "open_finance" | "open_finance_en_cache" | "estandar";
             /**
              * @description Por qué se usó tarifa estándar; `null` si es personalizada. `open_finance_desactivado`:
-             *     el cliente pidió cotizar sin sus datos financieros.
+             *     el cliente pidió cotizar sin sus datos financieros. `proveedor_no_disponible`: había
+             *     consentimiento, pero el proveedor de Open Finance no respondió y no había perfil en
+             *     caché (WEB-F01, criterio 3).
              * @enum {string|null}
              */
-            motivo_tarifa: "sin_consentimiento" | "open_finance_desactivado" | null;
+            motivo_tarifa: "sin_consentimiento" | "open_finance_desactivado" | "proveedor_no_disponible" | null;
             /** @description Factores que componen la prima y su efecto ("¿Por qué este precio?") */
             factores: components["schemas"]["FactorPrecio"][];
             /**
@@ -371,9 +671,248 @@ export interface components {
             /** Format: date-time */
             vigente_hasta: string;
         };
+        SolicitudSuscripcion: {
+            cotizacion_id: string;
+        };
+        Suscripcion: {
+            id: string;
+            cotizacion_id: string;
+            nombre_producto: string;
+            prima_mensual: components["schemas"]["Dinero"];
+            /**
+             * @description `pagada` cuando la pasarela aprobó el pago; `emitida` cuando el cliente firmó y la
+             *     póliza quedó emitida.
+             * @enum {string}
+             */
+            estado: "aceptada" | "pagada" | "emitida";
+            /** Format: date-time */
+            aceptada_en: string;
+            /** @description Último intento de pago; `null` si aún no se ha pagado */
+            pago: components["schemas"]["Pago"] | null;
+            /** @description Cuándo firmó el cliente; `null` hasta firmar */
+            firmada_en?: string | null;
+            /** @description La póliza emitida; `null` hasta firmar */
+            poliza?: components["schemas"]["PolizaEmitida"] | null;
+        };
+        SolicitudFirma: {
+            /** @description El cliente acepta expresamente las condiciones que firma; debe ser `true` */
+            acepta_condiciones: boolean;
+        };
+        PolizaEmitida: {
+            /** @example POL-2026-000001 */
+            numero: string;
+            /**
+             * Format: date
+             * @description Primer día de cobertura
+             */
+            inicio: string;
+            /**
+             * Format: date
+             * @description Último día de cobertura, incluido
+             */
+            fin: string;
+            /**
+             * @description Ruta del documento PDF en este BFF
+             * @example /api/v1/web/polizas/POL-2026-000001/documento
+             */
+            documento_url: string;
+        };
+        /** @enum {string} */
+        MedioPago: "tarjeta_credito" | "pse";
+        SolicitudPago: {
+            medio: components["schemas"]["MedioPago"];
+        };
+        Pago: {
+            id: string;
+            /**
+             * @description Respuesta de la pasarela. `rechazado`: no se cobró nada. `pendiente`: el banco aún no
+             *     confirma (típico de PSE); se consulta en `/suscripciones/{id}/pagos/{id_pago}`.
+             * @enum {string}
+             */
+            estado: "aprobado" | "rechazado" | "pendiente";
+            medio: components["schemas"]["MedioPago"];
+            monto: components["schemas"]["Dinero"];
+            /**
+             * @description Referencia de la transacción en la pasarela
+             * @example TX-2026-77120418
+             */
+            referencia: string;
+            /** Format: date-time */
+            creado_en: string;
+            /** @description `true` si esta respuesta repite un pago ya procesado con la misma clave */
+            reintento: boolean;
+        };
+        /** @enum {string} */
+        EstadoPoliza: "vigente" | "vencida" | "por_iniciar";
+        PolizaResumen: {
+            /** @example POL-2026-000101 */
+            numero: string;
+            /** @example auto */
+            producto: string;
+            /**
+             * Format: date
+             * @description Primer día de cobertura
+             */
+            inicio: string;
+            /**
+             * Format: date
+             * @description Último día de cobertura, incluido
+             */
+            fin: string;
+            estado: components["schemas"]["EstadoPoliza"];
+            /** @description Nombre comercial del producto; `null` si el catálogo no lo tiene */
+            nombre_producto?: string | null;
+            /** @description Prima mensual; `null` si no se conoce */
+            prima_mensual?: components["schemas"]["Dinero"] | null;
+            /** @description Ruta del PDF en este BFF; `null` si la póliza no tiene documento */
+            documento_url?: string | null;
+        };
+        PolizaDetalle: components["schemas"]["PolizaResumen"] & {
+            /** @description Coberturas con su límite */
+            coberturas: components["schemas"]["Cobertura"][];
+            deducible: string | null;
+            valor_asegurado: string | null;
+            /** @description Cuándo se emitió; `null` en una póliza de prueba */
+            emitida_en: string | null;
+        };
+        /** @enum {string} */
+        TipoEventoSiniestro: "accidente_vehiculo" | "hurto" | "dano_hogar" | "retraso_vuelo" | "equipo_danado_o_perdido" | "cancelacion_viaje" | "otro";
+        /**
+         * @description Estado del caso (WEB-F06). `rechazado` y `pagado` son finales. Cada canal lo muestra con
+         *     su texto, nunca solo con color.
+         * @enum {string}
+         */
+        EstadoSiniestro: "reportado" | "en_evaluacion" | "requiere_informacion" | "aprobado" | "rechazado" | "pagado";
+        /**
+         * @description Qué le toca al cliente ahora; cada canal lo explica con su propio texto.
+         *     `adjuntar_evidencia` en `reportado` y en `requiere_informacion` (ahí, para responder
+         *     los requerimientos pendientes); `esperar_evaluacion` en los demás. Un caso cerrado lo
+         *     explica su `estado`.
+         * @enum {string}
+         */
+        SiguientePaso: "adjuntar_evidencia" | "esperar_evaluacion";
+        SolicitudSiniestro: {
+            numero_poliza: string;
+            tipo_evento: components["schemas"]["TipoEventoSiniestro"];
+            /**
+             * Format: date
+             * @description Día del evento; no puede ser futuro
+             */
+            ocurrido_el: string;
+            descripcion: string;
+            /** @description Opcional; lo que el cliente estima que costó */
+            monto_estimado?: components["schemas"]["Dinero"] | null;
+        };
+        Siniestro: {
+            id: string;
+            /**
+             * @description Número que ve el cliente, el mismo en los dos canales
+             * @example SIN-2026-000123
+             */
+            referencia: string;
+            numero_poliza: string;
+            tipo_evento: components["schemas"]["TipoEventoSiniestro"];
+            /** Format: date */
+            ocurrido_el: string;
+            descripcion: string;
+            monto_estimado: components["schemas"]["Dinero"] | null;
+            estado: components["schemas"]["EstadoSiniestro"];
+            siguiente_paso: components["schemas"]["SiguientePaso"];
+            /** @enum {string} */
+            canal: "web" | "movil";
+            /** Format: date-time */
+            reportado_en: string;
+            /** @description Último cambio de estado (WEB-F06); `null` mientras siga como se reportó */
+            estado_actualizado_en?: string | null;
+        };
+        SiniestroDetalle: components["schemas"]["Siniestro"] & {
+            /** @description Eventos del caso, del más antiguo al más reciente; el primero es el reporte */
+            historial: components["schemas"]["EventoSiniestro"][];
+            /** @description Lo que se le pidió al cliente, pendiente o ya atendido */
+            requerimientos: components["schemas"]["Requerimiento"][];
+        };
+        EventoSiniestro: {
+            id: string;
+            /** @description `null` en el evento del reporte */
+            estado_anterior: components["schemas"]["EstadoSiniestro"] | null;
+            estado: components["schemas"]["EstadoSiniestro"];
+            /** Format: date-time */
+            ocurrido_en: string;
+            /** @description Explicación del cambio, si la hay */
+            motivo: string | null;
+        };
+        Requerimiento: {
+            id: string;
+            /**
+             * @description Qué falta, en palabras del ajustador
+             * @example Factura de la reparación
+             */
+            descripcion: string;
+            /** Format: date-time */
+            creado_en: string;
+            pendiente: boolean;
+            atendido_en: string | null;
+            /** @description La evidencia con la que se respondió; `null` si sigue pendiente */
+            id_evidencia: string | null;
+        };
+        ErrorVigencia: components["schemas"]["Error"] & {
+            /**
+             * Format: date
+             * @description Solo con `evento_fuera_de_vigencia`
+             */
+            vigente_desde?: string;
+            /**
+             * Format: date
+             * @description Solo con `evento_fuera_de_vigencia`
+             */
+            vigente_hasta?: string;
+        };
+        SolicitudEvidencia: {
+            /**
+             * Format: binary
+             * @description Foto, video o documento, hasta 10 MB
+             */
+            archivo: string;
+            /**
+             * Format: date-time
+             * @description Fecha y hora de la cámara; no puede ser futura
+             */
+            tomada_en?: string;
+            latitud?: number;
+            longitud?: number;
+            /** @description El lugar escrito por el cliente cuando no hay ubicación */
+            lugar?: string;
+            /**
+             * @description Requerimiento pendiente que esta evidencia responde (WEB-F06, criterio 5). Lo deja
+             *     atendido. 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+             *     `requerimiento_ya_atendido` si ya se respondió.
+             */
+            id_requerimiento?: string;
+        };
+        Evidencia: {
+            /** @example EVI-6f1c2a */
+            id: string;
+            /** @enum {string} */
+            tipo_contenido: "image/jpeg" | "image/png" | "image/heic" | "video/mp4" | "application/pdf";
+            /** @description Bytes */
+            tamano: number;
+            nombre_original: string | null;
+            /** @enum {string} */
+            canal: "web" | "movil";
+            /** Format: date-time */
+            cargada_en: string;
+            /** Format: date-time */
+            tomada_en?: string | null;
+            latitud?: number | null;
+            longitud?: number | null;
+            lugar?: string | null;
+        };
     };
     responses: {
-        /** @description No hay una sesión vigente */
+        /**
+         * @description No hay una sesión vigente (`sesion_no_vigente`): falta la cookie, venció o su firma no es
+         *     válida. La web lleva al cliente a iniciar sesión de nuevo (WEB-F13, criterio 4).
+         */
         NoAutenticado: {
             headers: {
                 [name: string]: unknown;
@@ -411,7 +950,10 @@ export interface components {
         };
     };
     parameters: {
+        IdSiniestro: string;
         IdConsentimiento: string;
+        IdSuscripcion: string;
+        NumeroPoliza: string;
     };
     requestBodies: never;
     headers: never;
@@ -438,6 +980,65 @@ export interface operations {
                 };
             };
             401: components["responses"]["NoAutenticado"];
+        };
+    };
+    iniciarSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credenciales"];
+            };
+        };
+        responses: {
+            /** @description Sesión abierta */
+            200: {
+                headers: {
+                    /** @description Cookie `sesion` con el token de la sesión */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sesion"];
+                };
+            };
+            /**
+             * @description Correo o contraseña incorrectos (`credenciales_invalidas`). La respuesta es la misma
+             *     exista o no el correo, para no revelar qué cuentas existen (WEB-F13, criterio 3).
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+        };
+    };
+    cerrarSesion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sesión cerrada */
+            204: {
+                headers: {
+                    /** @description Cookie `sesion` vencida, para que el navegador la borre */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     listarFinalidades: {
@@ -672,6 +1273,505 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Cotizacion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    crearSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSuscripcion"];
+            };
+        };
+        responses: {
+            /** @description La cotización ya estaba aceptada; es la misma suscripción */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            /** @description Suscripción creada */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `cotizacion_vencida`: pasó la vigencia de la oferta */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Suscripción */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    pagarSuscripcion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Identificador único del intento de pago (UUID v4) */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudPago"];
+            };
+        };
+        responses: {
+            /** @description Reintento de un pago ya procesado con la misma clave; no hubo otro cobro */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
+                };
+            };
+            /** @description Pago procesado por la pasarela (aprobado, rechazado o pendiente) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `pago_en_curso` o `pago_ya_registrado` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+        };
+    };
+    obtenerPago: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+                id_pago: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pago con su estado actual */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pago"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    firmarSuscripcion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSuscripcion"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudFirma"];
+            };
+        };
+        responses: {
+            /** @description Ya estaba emitida; es la misma póliza */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            /** @description Firmada y emitida */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suscripcion"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description `pago_no_aprobado`: la suscripción no tiene un pago aprobado */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["SolicitudInvalida"];
+            /** @description `dependencia_no_disponible`: el proveedor de firma no respondió */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerPoliza: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                numero: components["parameters"]["NumeroPoliza"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La póliza con sus condiciones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolizaDetalle"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    descargarDocumentoPoliza: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                numero: components["parameters"]["NumeroPoliza"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El PDF, como adjunto (`Content-Disposition: attachment`) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    listarPolizas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pólizas del cliente, de la más reciente a la más antigua */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolizaResumen"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+        };
+    };
+    listarSiniestros: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Siniestros del cliente, del más reciente al más antiguo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+        };
+    };
+    reportarSiniestro: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Identificador único del envío del reporte (UUID v4) */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolicitudSiniestro"];
+            };
+        };
+        responses: {
+            /** @description Reintento de un reporte ya hecho con la misma clave; no se creó otro */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"];
+                };
+            };
+            /** @description Siniestro reportado */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Siniestro"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            /** @description La póliza no existe o no es del cliente (`poliza_no_encontrada`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description `evento_fuera_de_vigencia` (trae `vigente_desde` y `vigente_hasta`) o
+             *     `clave_idempotencia_en_uso` (la clave ya se usó para un reporte con otros datos).
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorVigencia"];
+                };
+            };
+            /**
+             * @description Datos inválidos, `fecha_futura` sobre `ocurrido_el` o `clave_idempotencia_invalida`
+             *     (falta la clave o no es un UUID). Un error por campo en `campos`.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    obtenerSiniestro: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Siniestro con su estado, siguiente paso, historial y requerimientos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiniestroDetalle"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    listarEvidencias: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evidencias en el orden en que se cargaron */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evidencia"][];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+        };
+    };
+    adjuntarEvidencia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["SolicitudEvidencia"];
+            };
+        };
+        responses: {
+            /** @description Evidencia guardada y asociada al siniestro */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evidencia"];
+                };
+            };
+            401: components["responses"]["NoAutenticado"];
+            404: components["responses"]["NoEncontrado"];
+            /** @description El siniestro está cerrado y ya no recibe evidencia (`siniestro_cerrado`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El archivo supera los 10 MB (`archivo_demasiado_grande`) */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description `formato_no_admitido` o `archivo_vacio` sobre `archivo`; `ubicacion_invalida` o
+             *     `fecha_de_captura_invalida`. Un error por campo en `campos`.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description El almacén de evidencias no respondió (`almacenamiento_no_disponible`) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    descargarEvidencia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdSiniestro"];
+                id_evidencia: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo; `Content-Disposition` trae el nombre original si lo hay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             401: components["responses"]["NoAutenticado"];

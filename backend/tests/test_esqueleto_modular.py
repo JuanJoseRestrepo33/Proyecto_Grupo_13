@@ -30,6 +30,8 @@ CAPACIDADES_DEL_DISENO = {
     "siniestros",
     "pagos",
     "socios",
+    # MOB-F06: push por cambio de estado del siniestro.
+    "notificaciones",
 }
 
 
@@ -77,7 +79,12 @@ def test_indice_v1_distingue_capacidades_publicadas_de_esqueletos(cliente):
         "consentimiento",
         "cotizacion",
         "identidad",
+        "notificaciones",
+        "pagos",
         "perfilamiento",
+        "polizas",
+        "siniestros",
+        "suscripcion",
     ]
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["consentimiento"]["historia"] == "WEB-F02"
@@ -97,7 +104,7 @@ def test_salud_reporta_cada_modulo_y_cada_dependencia(cliente):
     assert cuerpo["estado"] == "ok"
     assert set(cuerpo["modulos"]) == CAPACIDADES_DEL_DISENO
     assert cuerpo["modulos"]["cotizacion"]["estado"] == "ok"
-    assert cuerpo["modulos"]["pagos"]["estado"] == "esqueleto"
+    assert cuerpo["modulos"]["socios"]["estado"] == "esqueleto"
     dependencias = cuerpo["modulos"]["cotizacion"]["dependencias"]
     assert dependencias["repositorio_cotizaciones"]["estado"] == "simulado"
     assert cuerpo["dependencias"]["perfilamiento"]["usada_por"] == ["cotizacion"]
@@ -119,6 +126,25 @@ def test_la_fachada_invoca_el_arranque_de_cada_modulo():
     crear_app(modulos)
 
     assert arrancados == ["a", "b"]
+
+
+def test_la_fachada_detiene_cada_modulo_en_orden_inverso_al_apagar():
+    detenidos: list[str] = []
+    modulos = [
+        DescriptorDeModulo(
+            nombre=nombre,
+            descripcion="",
+            historia="PRUEBA",
+            router=APIRouter(),
+            detener=lambda nombre=nombre: detenidos.append(nombre),
+        )
+        for nombre in ("a", "b")
+    ]
+
+    with TestClient(crear_app(modulos)):
+        assert detenidos == []
+
+    assert detenidos == ["b", "a"]
 
 
 def test_salud_degrada_el_nucleo_si_una_dependencia_se_degrada():

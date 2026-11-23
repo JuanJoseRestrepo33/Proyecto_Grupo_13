@@ -7,6 +7,7 @@ cotización y con la revocación del consentimiento.
 
 from __future__ import annotations
 
+import itertools
 import time
 
 import pytest
@@ -298,12 +299,16 @@ def test_cotizacion_tarifa_con_el_perfil_real_y_degrada_a_cache_y_a_estandar(nuc
         },
     ).json()["id"]
 
+    # Cada llamada cambia la edad: la misma solicitud, con la oferta vigente, devolvería la
+    # misma cotización (WEB-F01, criterio 4) y no volvería a pasar por el proveedor.
+    edades = itertools.count(30)
+
     def cotizar() -> str:
         respuesta = nucleo.post(
             "/v1/cotizacion/cotizaciones",
             json={
                 "producto": "auto",
-                "asegurado": {"edad": 34, "ciudad": "Bogotá"},
+                "asegurado": {"edad": next(edades), "ciudad": "Bogotá"},
                 "id_cliente": CLIENTE,
             },
         )
@@ -329,6 +334,55 @@ def test_cotizacion_tarifa_con_el_perfil_real_y_degrada_a_cache_y_a_estandar(nuc
     nucleo.post(f"{ruta_consent}/{id_consentimiento}/revocacion")
     assert cotizar() == "estandar"
     assert dependencias.obtener_cache().obtener(CLIENTE) is None
+
+
+def test_el_circuito_se_cierra_solo_cuando_el_proveedor_vuelve_y_salud_pasa_a_ok(nucleo):
+    """ARQ-05, criterio 4: sin reiniciar el núcleo, el sondeo cierra el circuito y `/salud`
+    pasa de `degradado` a `ok`. El reloj del circuito es falso para no esperar los 10 s del
+    sondeo; el sondeo corre en segundo plano, como en staging."""
+    adaptador = dependencias.obtener_adaptador()
+    reloj = RelojFalso()
+    adaptador.breaker._ahora = reloj
+    nucleo.post(
+        f"/v1/consentimiento/clientes/{CLIENTE}/consentimientos",
+        json={
+            "finalidad": "cotizacion",
+            "entidades_origen": ["ent-andes"],
+            "version_texto": "cotizacion-2026.1",
+        },
+    )
+    edades = itertools.count(30)
+
+    def cotizar() -> str:
+        respuesta = nucleo.post(
+            "/v1/cotizacion/cotizaciones",
+            json={
+                "producto": "auto",
+                "asegurado": {"edad": next(edades), "ciudad": "Cali"},
+                "id_cliente": CLIENTE,
+            },
+        )
+        assert respuesta.status_code == 201
+        return respuesta.json()["id_cotizacion"]
+
+    adaptador.proveedor.modo = Modo.CAIDO
+    for _ in range(5):
+        cotizar()
+    assert adaptador.breaker.estado is EstadoCircuito.ABIERTO
+    assert nucleo.get("/salud").json()["estado"] == "degradado"
+
+    adaptador.proveedor.modo = Modo.SANO
+    reloj.avanzar(10)
+    limite = time.monotonic() + 5
+    while adaptador.breaker.estado is EstadoCircuito.ABIERTO and time.monotonic() < limite:
+        cotizar()  # la primera cotización tras los 10 s lanza el sondeo
+        time.sleep(0.05)
+
+    assert adaptador.breaker.estado is EstadoCircuito.CERRADO
+    assert adaptador.breaker.cierres == 1
+    salud = nucleo.get("/salud").json()
+    assert salud["modulos"]["perfilamiento"]["dependencias"]["open_finance"]["estado"] == "simulado"
+    assert salud["estado"] == "ok"
 
 
 def test_salud_reporta_el_adaptador_con_el_proveedor_sano(nucleo):

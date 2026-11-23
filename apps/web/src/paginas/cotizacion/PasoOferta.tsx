@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { Cotizacion } from '../../api/tipos'
 import { Aviso } from '../../componentes/Aviso'
 import { Boton } from '../../componentes/Boton'
+import { clasesBoton } from '../../componentes/clasesBoton'
 import { formatearCuentaRegresiva, formatearHora, formatearMoneda } from '../../formato'
 import type { Idioma } from '../../i18n'
 import estilos from './Cotizacion.module.css'
@@ -70,7 +71,8 @@ export function PasoOferta({ cotizacion, recotizando, onRecotizar }: Propiedades
       )}
 
       {cotizacion.tipo_tarifa === 'estandar' ? (
-        <Aviso tipo="info">
+        // Sin el proveedor de Open Finance es una advertencia, no un error: la oferta es válida.
+        <Aviso tipo={cotizacion.motivo_tarifa === 'proveedor_no_disponible' ? 'advertencia' : 'info'}>
           <p>
             <strong>{t('cotizacion.oferta.estandar.titulo')}.</strong>{' '}
             {t(`cotizacion.oferta.estandar.${cotizacion.motivo_tarifa ?? 'sin_consentimiento'}`)}{' '}
@@ -114,6 +116,11 @@ export function PasoOferta({ cotizacion, recotizando, onRecotizar }: Propiedades
       </button>
       {verDetalle && <DetallePrecio cotizacion={cotizacion} id={idDetalle} />}
 
+      {!vencida && (
+        <Link className={clasesBoton('primario')} to={`/suscripcion/${cotizacion.id}`}>
+          {t('cotizacion.oferta.aceptar')}
+        </Link>
+      )}
     </div>
   )
 }

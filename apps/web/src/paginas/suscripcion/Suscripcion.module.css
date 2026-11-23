@@ -1,0 +1,19 @@
+.casilla {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.casilla input {
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  flex-shrink: 0;
+  accent-color: var(--primary-900);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}

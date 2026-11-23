@@ -39,6 +39,16 @@ interface AlmacenToken {
 }
 
 /**
+ * Reemplaza el token guardado por el rotado, si la huella está activa: la rotación invalida el anterior.
+ * @return false si no se pudo guardar; la huella queda desactivada y el cliente entra con contraseña.
+ */
+fun AlmacenToken.rotar(token: String): Boolean {
+    if (!hayToken() || guardar(token)) return true
+    borrar()
+    return false
+}
+
+/**
  * [AlmacenToken] con cifrado híbrido: una llave RSA del Android Keystore, cuya parte privada exige
  * biometría fuerte en cada uso y se invalida si se enrola otra huella o rostro, envuelve una llave
  * AES-GCM de un solo uso que cifra el token. En las preferencias solo queda el sobre cifrado.

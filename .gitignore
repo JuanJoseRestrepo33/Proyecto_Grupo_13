@@ -17,3 +17,8 @@ node_modules/
 dist/
 coverage/
 cobertura-nueva.md
+
+# Artefactos de Playwright (E2E web)
+test-results/
+playwright-report/
+blob-report/

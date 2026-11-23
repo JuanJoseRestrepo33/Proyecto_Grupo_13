@@ -4,9 +4,11 @@
 Lo consumen:
 
 - **La app Android** ([`mobile/android`](../../mobile/android)): `core/network` lo implementa con
-  Retrofit (`BffApi` y `Modelos.kt`), y el build debug trabaja contra un mock en memoria que cumple
-  este mismo contrato (`app/src/debug/.../mock`) mientras el BFF no exista.
-- **El BFF móvil**, cuando se construya: debe cumplirlo tal cual.
+  Retrofit (`BffApi` y `Modelos.kt`). El build debug trabaja contra un mock en memoria que cumple
+  este mismo contrato (`app/src/debug/.../mock`); la conexión al BFF real llega con WEB-F13 (#154).
+- **El router móvil del BFF** ([`bff/app/movil`](../../bff/app/movil)), desplegado en
+  `solventa-bff` bajo `/api/v1/movil/` ([ADR 0001](../../docs/adr/0001-bff-unico-dos-routers.md)):
+  lo cumple tal cual.
 
 ## Alcance del Sprint 1
 
@@ -25,6 +27,32 @@ con una llave del Android Keystore que solo se desbloquea con huella o rostro, y
 
 **Fuera del Sprint 1:** captura guiada de documento y selfie, cola ante caída del proveedor de
 KYC/AML, recuperación de contraseña.
+
+## Consentimiento (MOB-F02)
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/consentimientos/finalidades` | Catálogo de finalidades con alcance, vigencia, entidades y versión del texto legal | MOB-F02 |
+| `/consentimientos` | Listar y otorgar | MOB-F02 |
+| `/consentimientos/{id}/revocacion` · `/renovacion` · `/eventos` | Revocar, renovar e histórico | MOB-F02 |
+
+Mismas formas y códigos que el contrato web: un consentimiento otorgado o revocado en un canal se
+ve igual en el otro.
+
+## Siniestros (WEB-F05)
+
+| Recurso | Operaciones | Historia |
+|---|---|---|
+| `/polizas` | Pólizas del cliente con vigencia y estado, para elegir la afectada | WEB-F05 |
+| `/siniestros` | Listar y reportar, con `Idempotency-Key`: la misma clave devuelve el mismo siniestro | WEB-F05 |
+| `/siniestros/{id}` | Detalle con estado y siguiente paso | WEB-F05 |
+| `/siniestros/{id}/evidencias` · `/{id_evidencia}` | Adjuntar (multipart, hasta 10 MB), listar y descargar | MOB-F05 |
+
+El reporte es el mismo en los dos canales: mismas rutas, misma referencia y mismos códigos.
+
+## Historial
+
+Cada versión del contrato, con su historia y sus cambios incompatibles: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Reglas de cambio
 

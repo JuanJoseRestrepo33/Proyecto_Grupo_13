@@ -26,6 +26,25 @@ uvicorn app.main:app --reload
 | http://127.0.0.1:8000/v1/ | Índice de la fachada: capacidades publicadas y mapa de módulos. El CD lo usa como prueba de humo |
 | http://127.0.0.1:8000/salud | Estado del núcleo, módulo por módulo y dependencia por dependencia. Responde 503 si alguna dependencia está caída |
 
+Toda la configuración entra por variables de entorno; no hay archivos de configuración por ambiente.
+
+| Variable | Sin ella | Con ella |
+|---|---|---|
+| `SINIESTROS_DATABASE_URL` | Siniestros en memoria: se pierden al reiniciar | Siniestros en PostgreSQL, en el esquema `siniestros`, con la clave de idempotencia única por cliente |
+| `ALMACENAMIENTO_EVIDENCIAS`, `EVIDENCIAS_BUCKET` | Evidencias en memoria | Con `gcs`, las evidencias van al bucket de Cloud Storage; sin operación de borrar |
+| `POLIZAS_SEMILLA` | Sin pólizas | Ruta a un JSON con pólizas de prueba, con fechas relativas al arranque. Solo en *staging* |
+| `PORT` | El contenedor escucha en 8000 | Escucha en ese puerto. Cloud Run la inyecta |
+| `TOKENS_LLAVE_PRIVADA` | Llave efímera al arrancar: los tokens solo los valida este proceso. En Cloud Run, `/salud` responde 503 | Firma los tokens de sesión (ES256). El `kid` es la huella JWK de su pública |
+| `TOKENS_LLAVE_PUBLICA` | Se deriva de la privada | Se comprueba que sea la de la privada; si no, `/salud` responde 503 |
+| `HUMO_CORREO`, `HUMO_CLAVE` | Sin cuenta de prueba | Al arrancar se crea la cuenta de prueba de *staging* con correo verificado |
+| `IDENTIDAD_OTP_FIJO` | Cada código de verificación del correo es aleatorio | Todos los códigos son ese (6 dígitos), para las E2E del registro. Nunca en producción |
+| `AUDITORIA_DATABASE_URL` | Log de auditoría en memoria (desarrollo y pruebas unitarias) | Log en PostgreSQL con las tres capas de protección. El esquema se crea solo al arrancar |
+| `COTIZACION_DATABASE_URL` | Cotizaciones en memoria: se pierden al reiniciar | Cotizaciones en PostgreSQL, en el esquema `cotizacion`, que el módulo crea al arrancar |
+
+Al recibir la orden de apagado, la fachada llama a `detener()` en cada módulo en orden inverso al de
+arranque. Auditoría aprovecha ese momento para escribir lo que quedó en su cola; sin eso, una
+decisión tomada justo antes de que la plataforma reemplace la instancia se perdería.
+
 ## Verificar lo mismo que el CI
 
 ```bash
@@ -262,16 +281,18 @@ Verificación de identidad del cliente contra el proveedor de KYC/AML, detrás d
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `POST` | `/v1/identidad/clientes/{id_cliente}/verificaciones` | Envía los datos al proveedor (202). 409 si ya está verificada o hay una en curso; 503 si el proveedor no responde |
+| `POST` | `/v1/identidad/clientes/{id_cliente}/verificaciones` | Envía al proveedor los datos de la cuenta, sin cuerpo (202). 404 sin cuenta; 409 `correo_no_verificado`, `identidad_ya_verificada`, `verificacion_en_curso`, `reintento_no_permitido` o `reintento_sin_cambios`; 503 si el proveedor no responde |
 | `GET` | `/v1/identidad/clientes/{id_cliente}/verificaciones/ultima` | Última verificación. Si estaba `en_proceso`, pregunta al proveedor antes de responder |
 | `GET` | `/v1/identidad/clientes/{id_cliente}/estado` | `pendiente_verificacion`, `en_revision`, `verificada` o `rechazada`: lo que el BFF pone en `/sesion` |
 
-El BFF móvil expone esto como `/identidad/verificacion`; la forma de la respuesta es la
-misma del contrato (`id`, `estado`, `motivo`, `reintento_permitido`, `actualizada_en`).
+El BFF móvil expone esto como `/identidad/verificacion`, sin cuerpo: el documento se queda en
+el núcleo. De la respuesta le pasa a la app lo del contrato (`id`, `estado`, `motivo`,
+`reintento_permitido`, `actualizada_en`), sin `solicitada_en` ni `proveedor`.
 
 **Proveedor simulado.** Determinista y con la misma regla que el mock del BFF móvil, para
 que la app se comporte igual contra el núcleo que contra sus mocks: el último dígito del
-documento decide. `7` rechazada (`datos_no_coinciden`, con reintento), `8` en revisión
+documento decide. `7` rechazada (`datos_no_coinciden`, con reintento; reenviar los mismos datos responde 409
+`reintento_sin_cambios` sin llamar al proveedor), `8` en revisión
 manual, `9` en proceso y aprobada en la siguiente consulta, cualquier otro aprobada.
 `IDENTIDAD_KYC_CAIDO=1` lo deja fuera de servicio: toda solicitud responde 503 con
 `proveedor_kyc_no_disponible` y `/salud` reporta `proveedor_kyc: caido`. El núcleo nunca ve

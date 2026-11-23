@@ -1,6 +1,7 @@
 import { bff } from '../api/cliente'
 import type { SolicitudCotizacion } from '../api/tipos'
 import { FINALIDADES, PRODUCTOS, VIGENCIA_COTIZACION_MS } from './datos'
+import { estado } from './estado'
 
 const finalidadCotizacion = FINALIDADES[0]!
 
@@ -39,6 +40,27 @@ describe('mocks del BFF web', () => {
 
   it('empieza sin consentimientos: ninguna finalidad viene otorgada por defecto', async () => {
     expect((await bff.GET('/consentimientos')).data).toEqual([])
+  })
+
+  it.each([
+    ['sano', 'personalizada', 'open_finance', null],
+    ['degradado', 'personalizada', 'open_finance_en_cache', null],
+    ['caido', 'estandar', 'estandar', 'proveedor_no_disponible'],
+  ] as const)(
+    'con consentimiento y Open Finance %s, la tarifa es %s (base %s, motivo %s)',
+    async (modo, tipo, base, motivo) => {
+      estado.openFinance = modo
+      await otorgarCotizacion()
+      const cotizacion = await cotizarAuto()
+      expect(cotizacion.tipo_tarifa).toBe(tipo)
+      expect(cotizacion.base_perfilamiento).toBe(base)
+      expect(cotizacion.motivo_tarifa).toBe(motivo)
+    },
+  )
+
+  it('sin consentimiento, el motivo es el consentimiento aunque Open Finance esté caído', async () => {
+    estado.openFinance = 'caido'
+    expect((await cotizarAuto()).motivo_tarifa).toBe('sin_consentimiento')
   })
 
   it('reproduce el guion del sprint: estándar → personalizada → revocado → estándar', async () => {

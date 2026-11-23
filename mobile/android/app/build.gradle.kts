@@ -9,10 +9,30 @@ plugins {
 
 val bffBaseUrl = providers.gradleProperty("BFF_BASE_URL").orElse("https://mobile-bff.invalid/api/v1/movil/")
 val parsedBaseUrl = URI(bffBaseUrl.get())
-require(parsedBaseUrl.scheme == "https" && parsedBaseUrl.host != null &&
-    parsedBaseUrl.rawUserInfo == null && parsedBaseUrl.rawQuery == null &&
+// HTTP solo hacia la máquina local (el BFF simulado con Mockoon); el emulador la ve como 10.0.2.2.
+val hostLocal = parsedBaseUrl.host in setOf("10.0.2.2", "localhost", "127.0.0.1")
+require((parsedBaseUrl.scheme == "https" || parsedBaseUrl.scheme == "http" && hostLocal) &&
+    parsedBaseUrl.host != null && parsedBaseUrl.rawUserInfo == null && parsedBaseUrl.rawQuery == null &&
     parsedBaseUrl.rawFragment == null && bffBaseUrl.get().endsWith("/")) {
-    "BFF_BASE_URL debe ser una URL HTTPS sin credenciales, query ni fragmento y terminar en /."
+    "BFF_BASE_URL debe ser HTTPS (HTTP solo hacia 10.0.2.2 o localhost), sin credenciales, query ni fragmento " +
+        "y terminar en /."
+}
+// Debug responde con el mock salvo -PBFF_MOCK=false, que habla con el BFF del ambiente (WEB-F13).
+val bffMock = providers.gradleProperty("BFF_MOCK").orElse("true").get().let {
+    requireNotNull(it.toBooleanStrictOrNull()) { "BFF_MOCK debe ser true o false, no '$it'." }
+}
+require(bffMock || !parsedBaseUrl.host.endsWith(".invalid")) {
+    "BFF_MOCK=false necesita la URL del ambiente: -PBFF_BASE_URL=<URL de solventa-bff>/api/v1/movil/"
+}
+require(bffMock || parsedBaseUrl.rawPath.endsWith("/api/v1/movil/")) {
+    "BFF_BASE_URL debe terminar en el prefijo del router móvil: /api/v1/movil/"
+}
+// La web del ambiente (WEB-F04): la app aún no tiene cotizador y «Cotizar un seguro» abre el de la web.
+val webUrl = providers.gradleProperty("WEB_URL").orElse("https://solventa-web.invalid/")
+val parsedWebUrl = URI(webUrl.get())
+require(parsedWebUrl.scheme == "https" && parsedWebUrl.host != null && parsedWebUrl.rawUserInfo == null &&
+    parsedWebUrl.rawQuery == null && parsedWebUrl.rawFragment == null && webUrl.get().endsWith("/")) {
+    "WEB_URL debe ser HTTPS, sin credenciales, query ni fragmento y terminar en /."
 }
 
 android {
@@ -35,7 +55,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"${bffBaseUrl.get()}\"")
+        buildConfigField("boolean", "BFF_MOCK", bffMock.toString())
+        buildConfigField("String", "WEB_URL", "\"${webUrl.get()}\"")
     }
     testOptions { unitTests.isIncludeAndroidResources = true }
     buildFeatures {
@@ -62,6 +85,10 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:onboarding"))
+    implementation(project(":feature:consentimiento"))
+    implementation(project(":feature:siniestros"))
+    implementation(project(":feature:notificaciones"))
+    implementation(project(":feature:polizas"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
@@ -76,5 +103,16 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.okhttp)
     testImplementation(libs.junit)
+    implementation(libs.coroutines.core)
     testImplementation(libs.coroutines.core)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.junit)
+    // UiDevice.pressHome(): el recorrido 2 de ReporteSinConexionE2eTest manda la app a segundo plano (#213).
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    // GrantPermissionRule: PushSiniestroE2eTest concede POST_NOTIFICATIONS antes de abrir la app (#209).
+    androidTestImplementation(libs.androidx.test.rules)
+    // Intercepta el ACTION_VIEW del PDF: el emulador puede no tener visor (ConsultaPolizaE2eTest, #193).
+    androidTestImplementation(libs.androidx.test.espresso.intents)
 }

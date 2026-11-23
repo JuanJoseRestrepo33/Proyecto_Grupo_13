@@ -40,7 +40,15 @@ describe('formato', () => {
     expect(leerMonto('$ 60.000.000')).toBe(60000000)
     expect(leerMonto('60,000,000')).toBe(60000000)
     expect(leerMonto('1500000 COP')).toBe(1500000)
+    expect(leerMonto('1.500')).toBe(1500)
     expect(leerMonto('sesenta')).toBeNull()
     expect(leerMonto('')).toBeNull()
   })
+
+  it.each(['1500000,50', '250000.75', '1.500,50', '1,500.50', '1.000,000', '1.5', '60.000,000', '.500', '1..000'])(
+    'no lee %s: con decimales o separadores mal puestos no es un entero de pesos',
+    (texto) => {
+      expect(leerMonto(texto)).toBeNull()
+    },
+  )
 })

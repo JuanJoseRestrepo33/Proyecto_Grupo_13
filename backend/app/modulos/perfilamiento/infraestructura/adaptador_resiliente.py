@@ -11,6 +11,11 @@ Es el camino que EXP-01 validó (p95 de 123 ms con el proveedor degradado):
    Si el sondeo responde, el circuito se cierra.
 4. Sin perfil en caché, la respuesta es "ninguno" y cotización tarifa a precio estándar
    en vez de dejar al cliente sin oferta (RC-03).
+5. Antes de servir un perfil de la caché se verifica que el consentimiento siga vigente en
+   la fuente de verdad (ARQ-05, reemplaza D-04). La caché es local a cada réplica y el
+   evento de revocación solo la vacía en la réplica que lo recibió; esta verificación hace
+   que ninguna réplica use el perfil de un cliente que revocó en otra (RC-04). Si la
+   verificación falla, se trata como no vigente: ante la duda, tarifa estándar.
 """
 
 from __future__ import annotations
@@ -26,7 +31,11 @@ from app.compartido.errores import DependenciaNoDisponible
 
 from ..dominio.errores import ProveedorOpenFinanceNoDisponibleError
 from ..dominio.modelo import Origen, PerfilDeRiesgo, RespuestaPerfil
-from ..dominio.puertos import CacheDePerfiles, ProveedorOpenFinance
+from ..dominio.puertos import (
+    CacheDePerfiles,
+    ProveedorOpenFinance,
+    VerificacionDeConsentimiento,
+)
 from .circuit_breaker import CircuitBreaker
 from .metricas import Metricas
 
@@ -47,6 +56,7 @@ class AdaptadorOpenFinanceResiliente:
         presupuesto_s: float = PRESUPUESTO_USUARIO_S,
         tiempo_limite_sondeo_s: float = TIEMPO_LIMITE_SONDEO_S,
         sondeo_en_segundo_plano: bool = True,
+        verificacion: VerificacionDeConsentimiento | None = None,
     ) -> None:
         self.proveedor = proveedor
         self.cache = cache
@@ -55,6 +65,9 @@ class AdaptadorOpenFinanceResiliente:
         self._presupuesto = presupuesto_s
         self._tiempo_sondeo = tiempo_limite_sondeo_s
         self._segundo_plano = sondeo_en_segundo_plano
+        self.verificacion = verificacion
+        #: Costo de verificar el consentimiento antes de usar la caché (ARQ-05, criterio 7).
+        self.metricas_verificacion = Metricas()
         # Las llamadas al proveedor corren en hilos para poder abandonarlas al vencer el
         # presupuesto. El hilo abandonado termina solo; el usuario no lo espera.
         self._hilos = ThreadPoolExecutor(max_workers=8, thread_name_prefix="open-finance")
@@ -83,9 +96,26 @@ class AdaptadorOpenFinanceResiliente:
             self._tal_vez_sondear()
 
         en_cache = self.cache.obtener(id_cliente)
-        if isinstance(en_cache, PerfilDeRiesgo):
-            return RespuestaPerfil(en_cache, Origen.CACHE)
-        return RespuestaPerfil(None, Origen.NINGUNO)
+        if not isinstance(en_cache, PerfilDeRiesgo):
+            return RespuestaPerfil(None, Origen.NINGUNO)
+        if not self._consentimiento_vigente(id_cliente, id_consentimiento):
+            self.cache.invalidar(id_cliente)
+            log.info("Perfil de %s descartado de la caché: consentimiento no vigente", id_cliente)
+            return RespuestaPerfil(None, Origen.NINGUNO)
+        return RespuestaPerfil(en_cache, Origen.CACHE)
+
+    def _consentimiento_vigente(self, id_cliente: str, id_consentimiento: str) -> bool:
+        if self.verificacion is None:
+            return True
+        inicio = time.perf_counter()
+        try:
+            vigente = self.verificacion.vigente(id_cliente, id_consentimiento)
+        except Exception:  # noqa: BLE001 - ante la duda, no se usa el perfil
+            self.metricas_verificacion.registrar(time.perf_counter() - inicio, ok=False)
+            log.exception("No se pudo verificar el consentimiento de %s", id_cliente)
+            return False
+        self.metricas_verificacion.registrar(time.perf_counter() - inicio, ok=True)
+        return vigente
 
     # --- sondeo de recuperación ----------------------------------------------------------
 
@@ -143,4 +173,8 @@ class AdaptadorOpenFinanceResiliente:
             "latencia_y_errores": self.metricas.resumen(),
             "presupuesto_ms": round(self._presupuesto * 1000),
             "tiempo_limite_sondeo_ms": round(self._tiempo_sondeo * 1000),
+            "verificacion_consentimiento": {
+                "activa": self.verificacion is not None,
+                **self.metricas_verificacion.resumen(),
+            },
         }

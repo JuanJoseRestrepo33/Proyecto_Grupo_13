@@ -1,0 +1,163 @@
+# Changelog · contrato `bff-web`
+
+Cambios de [`openapi.yaml`](openapi.yaml), del más reciente al más antiguo. Formato basado en
+[Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/); la versión es la de `info.version`
+(ver "Reglas de cambio" en el [README](README.md)). Cada entrada nombra su historia, y los cambios
+que rompen a un cliente existente van marcados como **incompatible**.
+
+## [0.11.0] · 2026-11-08 · WEB-F06
+
+Compatible: los campos nuevos son opcionales o solo de respuesta, y los enums de estado y de
+siguiente paso no cambian.
+
+### Agregado
+
+- `GET /siniestros/{id}` responde `SiniestroDetalle`: el siniestro con su `historial` (eventos del
+  más antiguo al más reciente; el primero es el reporte) y sus `requerimientos`, pendientes o ya
+  atendidos, con la evidencia que los respondió.
+- `Siniestro.estado_actualizado_en`: último cambio de estado; `null` mientras siga como se reportó.
+- `POST /siniestros/{id}/evidencias` acepta `id_requerimiento` para responder un requerimiento
+  (criterio 5). Errores: 404 `requerimiento_no_encontrado` si no es del siniestro; 409
+  `requerimiento_ya_atendido` si ya se respondió.
+- Esquemas `SiniestroDetalle`, `EventoSiniestro` y `Requerimiento`.
+
+## [0.10.0] · 2026-11-08 · WEB-F04
+
+Compatible: los campos nuevos de `PolizaResumen` son opcionales.
+
+### Agregado
+
+- `GET /polizas/{numero}`: detalle de la póliza (`PolizaDetalle`) con coberturas y su límite,
+  deducible, valor asegurado y fecha de emisión (`null` en una póliza de prueba). Una póliza de
+  otro cliente responde 404 `poliza_no_encontrada`, igual que una que no existe.
+- `PolizaResumen` suma `nombre_producto`, `prima_mensual` y `documento_url` (`null` si la póliza
+  no tiene documento).
+- Esquema `Cobertura`. Las rutas de pólizas pasan a su propia etiqueta, `polizas`.
+
+## [0.9.0] · 2026-11-08 · WEB-F03
+
+Compatible: la suscripción suma un estado y campos opcionales; los mocks de la web siguen siendo
+válidos.
+
+### Agregado
+
+- `POST /suscripciones/{id}/firma` (`SolicitudFirma` con `acepta_condiciones: true`): firma con el
+  proveedor simulado y emite la póliza. Responde 201 con la suscripción emitida, o 200 con la misma
+  póliza si ya estaba emitida. Si el último pago estaba `pendiente`, el BFF lo consulta antes de
+  decidir. Errores: 409 `pago_no_aprobado`; 422 `aceptacion_requerida`; 503
+  `dependencia_no_disponible` si el proveedor de firma no responde (no se emite nada y firmar otra
+  vez es seguro).
+- `GET /polizas/{numero}/documento`: el PDF de la póliza como adjunto, con la sesión del cliente.
+  404 `poliza_no_encontrada` (también si es de otro cliente) o `documento_no_disponible` (las
+  pólizas de prueba no tienen documento).
+- `Suscripcion.estado` admite `emitida`, y la suscripción suma `poliza` (`PolizaEmitida`, con su
+  `documento_url`) y `firmada_en`.
+
+## [0.8.0] · 2026-10-26 · MOB-F05
+
+### Agregado
+
+- `POST /siniestros/{id}/evidencias` (`multipart/form-data`, campo `archivo`): adjunta una foto,
+  un video o un documento de hasta 10 MB, con la fecha de la cámara y la ubicación, o el lugar
+  escrito, opcionales. Errores: 413 `archivo_demasiado_grande`; 422 `formato_no_admitido`,
+  `archivo_vacio`, `ubicacion_invalida` y `fecha_de_captura_invalida`; 409 `siniestro_cerrado`;
+  503 `almacenamiento_no_disponible`.
+- `GET /siniestros/{id}/evidencias` y `GET /siniestros/{id}/evidencias/{id_evidencia}`: listar
+  y descargar. La evidencia agregada en un canal se ve en el otro.
+- Esquemas `SolicitudEvidencia` y `Evidencia`.
+
+## [0.7.0] · 2026-10-26 · WEB-F05
+
+### Agregado
+
+- `GET /polizas`: pólizas del cliente con su vigencia y estado, para elegir la afectada en el
+  reporte. WEB-F04 amplía esta misma respuesta con coberturas, deducibles y documento.
+- `GET /siniestros`, `POST /siniestros` y `GET /siniestros/{id}`: reportar y consultar
+  siniestros. El reporte exige `Idempotency-Key` (UUID): la misma clave responde 200 con el mismo
+  siniestro. Errores: 404 `poliza_no_encontrada`; 409 `evento_fuera_de_vigencia` (con
+  `vigente_desde` y `vigente_hasta`) y `clave_idempotencia_en_uso`; 422 `fecha_futura` y
+  `clave_idempotencia_invalida`.
+- Esquemas `PolizaResumen`, `EstadoPoliza`, `TipoEventoSiniestro`, `EstadoSiniestro`,
+  `SiguientePaso`, `SolicitudSiniestro`, `Siniestro` y `ErrorVigencia`.
+
+## [0.6.0] · 2026-10-26 · WEB-F01
+
+El BFF real (#164) implementa las rutas de cotización.
+
+### Agregado
+
+- `motivo_tarifa` admite `proveedor_no_disponible`: había consentimiento vigente, pero el proveedor
+  de Open Finance no respondió y no había perfil en caché, así que la prima es la estándar. La web
+  lo explica distinto de `sin_consentimiento` (criterio 3).
+
+## [0.5.0] · 2026-10-26 · WEB-F13
+
+### Agregado
+
+- `POST /sesion`: inicia sesión con correo y contraseña (esquema `Credenciales`, el mismo del
+  contrato móvil). Responde el mismo `Sesion` de `GET /sesion` y pone la cookie `sesion`
+  (`HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/api/v1/web`). Con credenciales inválidas responde
+  401 `credenciales_invalidas`, igual exista o no el correo.
+- `DELETE /sesion`: cierra la sesión y borra la cookie. Responde 204 aunque la sesión ya no sea
+  válida.
+- Código `sesion_no_vigente` en el 401 de toda ruta protegida: falta la cookie, venció o su firma
+  no es válida.
+
+## [0.4.0] · 2026-10-25 · WEB-F03 (rebanada)
+
+### Agregado
+
+- `POST /suscripciones`: acepta una cotización vigente. Es idempotente por cotización (aceptar de
+  nuevo devuelve la misma suscripción con 200); una cotización vencida responde 409
+  `cotizacion_vencida`.
+- `GET /suscripciones/{id}`: suscripción y su último pago.
+- `POST /suscripciones/{id}/pagos` con el encabezado obligatorio `Idempotency-Key`: paga contra la
+  pasarela simulada (`aprobado`, `rechazado` o `pendiente`). La misma clave nunca cobra dos veces:
+  responde el mismo pago con `reintento: true`, o 409 `pago_en_curso` si el primero sigue en proceso.
+  Con otra clave y un pago aprobado o pendiente, 409 `pago_ya_registrado`. El cliente no envía datos
+  de tarjeta ni de cuenta.
+- `GET /suscripciones/{id}/pagos/{id_pago}`: consulta un pago, por ejemplo uno pendiente.
+- Esquemas `SolicitudSuscripcion`, `Suscripcion`, `MedioPago`, `SolicitudPago` y `Pago`.
+
+## [0.3.0] · 2026-10-18 · WEB-F02
+
+### Agregado
+
+- `Consentimiento.por_vencer` y `Consentimiento.dias_para_vencer` (obligatorios): vigente a 30 días
+  o menos de vencer y días que faltan (`null` si no está vigente), para avisar y ofrecer renovar
+  (criterio 7). **Incompatible** para quien construye respuestas: el BFF debe enviarlos.
+
+## [0.2.0] · 2026-10-18 · WEB-F01
+
+### Agregado
+
+- `POST /cotizaciones/{id}/recotizacion`: nueva cotización con los mismos datos cuando la anterior
+  venció.
+- `Producto`: `nombre_corto`, `prima_estandar`, `valor_asegurado`, `deducible` y `coberturas`.
+- `Cotizacion`: `nombre_producto`, `prima_estandar`, `ahorro_mensual`, `tipo_tarifa`,
+  `base_perfilamiento`, `motivo_tarifa`, `factores`, `version_regla`, condiciones y vigencia
+  (`vigente_hasta`, 5 minutos).
+
+### Cambiado
+
+- **Incompatible:** `SolicitudCotizacion` pasa de `{ producto, datos }` a
+  `{ producto, asegurado, usar_open_finance }`, con `DatosAsegurado` (`edad`, `ciudad`,
+  `valor_asegurado`).
+
+## [0.1.1] · 2026-10-11 · WEB-F01
+
+### Corregido
+
+- Los montos (`Dinero.valor`) son enteros en la unidad mayor de la moneda, sin decimales (pesos
+  para COP: `132900` = $132.900), no en la unidad mínima. `moneda` es un código ISO 4217.
+
+## [0.1.0] · 2026-10-11 · WEB-F01, WEB-F02
+
+### Agregado
+
+- Primera versión del contrato, con los mocks del cliente web.
+- `GET /sesion`: cliente autenticado (cookie `sesion`).
+- Consentimiento (WEB-F02): `/consentimientos/finalidades`, `/consentimientos` (listar y otorgar),
+  `/consentimientos/{id}/revocacion`, `/renovacion` y `/eventos`.
+- Cotización (WEB-F01): `/cotizaciones/productos`, `POST /cotizaciones` y
+  `GET /cotizaciones/{id}`.

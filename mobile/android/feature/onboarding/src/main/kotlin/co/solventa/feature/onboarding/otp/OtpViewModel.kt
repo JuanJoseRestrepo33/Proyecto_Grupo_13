@@ -10,8 +10,8 @@ import co.solventa.core.network.BffApi
 import co.solventa.core.network.Cliente
 import co.solventa.core.network.SolicitudOtp
 import co.solventa.feature.onboarding.R
-import co.solventa.feature.onboarding.comun.Resultado
-import co.solventa.feature.onboarding.comun.llamarBff
+import co.solventa.core.network.Resultado
+import co.solventa.core.network.llamarBff
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import java.time.Duration
 import java.time.Instant

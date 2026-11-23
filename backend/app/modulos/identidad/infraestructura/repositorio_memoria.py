@@ -16,6 +16,10 @@ class RepositorioEnMemoria:
         with self._cerrojo:
             self._por_id[verificacion.id_verificacion] = verificacion
 
+    def quitar(self, id_verificacion: str) -> None:
+        with self._cerrojo:
+            self._por_id.pop(id_verificacion, None)
+
     def ultima_del_cliente(self, id_cliente: str) -> VerificacionIdentidad | None:
         with self._cerrojo:
             propias = [v for v in self._por_id.values() if v.id_cliente == id_cliente]

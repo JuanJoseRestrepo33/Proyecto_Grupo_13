@@ -10,6 +10,10 @@
   /* ---------- utilidades ---------- */
   function rd(k, d) { try { var v = sessionStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function wr(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } }
+  // Las claves llegan de la URL (?p=, ?id=) o de sessionStorage: nunca se usan para leer o
+  // escribir una propiedad heredada (__proto__, constructor…), solo las propias del objeto.
+  function propia(obj, k) { return typeof k === "string" && Object.prototype.hasOwnProperty.call(obj, k); }
+  function claveSegura(k) { return typeof k === "string" && k !== "__proto__" && k !== "constructor" && k !== "prototype"; }
   function qa(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function lang() {
     try { if (localStorage.getItem("solventa_locale") === "en") return "en"; } catch (e) { /* noop */ }
@@ -93,15 +97,20 @@
       extra: [["Enfermedades graves", "cobertura adicional", 6000]] }
   };
   // Pólizas emitidas durante la demo (flujo cotizar → suscribir): se suman al catálogo
-  rd("solv_issued", []).forEach(function (p) { POL[p.id] = p; });
+  rd("solv_issued", []).forEach(function (p) { if (p && claveSegura(p.id) && !propia(POL, p.id)) POL[p.id] = p; });
   var STATUS = {
     activa: ["success", "✓ Activa", "Activa"],
     porvencer: ["warning", "Vence pronto", "Vence pronto"],
     cancelada: ["error", "Cancelada", "Cancelada"]
   };
 
-  function pstate(id) { return rd("solv_pol", {})[id] || {}; }
-  function psave(id, patch) { var all = rd("solv_pol", {}); all[id] = Object.assign(all[id] || {}, patch); wr("solv_pol", all); }
+  // El estado de cada póliza va en su propia clave de sessionStorage: así nunca se escribe una
+  // propiedad cuyo nombre venga de la URL.
+  function pstate(id) { return claveSegura(id) && propia(POL, id) ? rd("solv_pol:" + id, {}) : {}; }
+  function psave(id, patch) {
+    if (!claveSegura(id) || !propia(POL, id)) return;
+    wr("solv_pol:" + id, Object.assign(pstate(id), patch));
+  }
   function view(id) {
     var b = POL[id], s = pstate(id);
     var sel = s.sel || { base: b.cov.map(function () { return 1; }), extra: b.extra.map(function () { return 0; }) };
@@ -114,7 +123,11 @@
     return Math.round(p / 100) * 100;
   }
   function renewPrice(v) { return Math.round(v.price * 1.075 / 100) * 100; }
-  function currentId() { var p = params.get("p"); return POL[p] ? p : "1234"; }
+  function currentId() { var p = params.get("p"); return claveSegura(p) && propia(POL, p) ? p : "1234"; }
+
+  var PAGINAS_POLIZA = ["poliza-detalle.html", "poliza-modificar.html", "poliza-renovar.html",
+    "poliza-cancelar.html", "billetera-detalle.html"];
+  var AVISOS_POLIZA = ["modificada", "renovada"];
 
   function fill(root, id) {
     var v = view(id);
@@ -141,8 +154,13 @@
       el.setAttribute("data-i18n", ""); el.textContent = txt;
     });
     qa("[data-pol-href]", root).forEach(function (a) {
-      var ok = a.getAttribute("data-pol-ok");
-      a.setAttribute("href", a.getAttribute("data-pol-href") + "?p=" + id + (ok ? "&ok=" + ok : ""));
+      // El destino, el aviso y la póliza salen de listas fijas, nunca del texto del DOM ni de la
+      // URL: el enlace solo puede ir a una de estas páginas del prototipo.
+      var pagina = PAGINAS_POLIZA[PAGINAS_POLIZA.indexOf(a.getAttribute("data-pol-href"))];
+      var ok = AVISOS_POLIZA[AVISOS_POLIZA.indexOf(a.getAttribute("data-pol-ok"))];
+      var claves = Object.keys(POL), poliza = claves[claves.indexOf(id)];
+      if (!pagina || !poliza) return;
+      a.setAttribute("href", pagina + "?p=" + encodeURIComponent(poliza) + (ok ? "&ok=" + ok : ""));
     });
     qa("[data-pol-pdf]", root).forEach(function (el) { el.setAttribute("data-mock-download", v.b.num + ".pdf"); });
     qa("[data-pol-only]", root).forEach(function (el) { el.hidden = el.getAttribute("data-pol-only") !== id; });
@@ -351,7 +369,7 @@
     });
 
     // Detalle de un reclamo de demostración ya existente (pagado o paramétrico)
-    var wanted = params.get("id"), fixed = CLAIMS[wanted];
+    var wanted = params.get("id"), fixed = claveSegura(wanted) && propia(CLAIMS, wanted) ? CLAIMS[wanted] : null;
     if (fixed && document.getElementById("claimTimeline")) {
       qa("[data-claim-detail='tipo']").forEach(function (el) { el.textContent = fixed.tipo; });
       qa("[data-claim-detail='id']").forEach(function (el) { el.textContent = wanted; });

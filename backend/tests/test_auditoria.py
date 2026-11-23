@@ -252,6 +252,22 @@ def test_una_cotizacion_deja_su_decision_en_el_log_real(cliente):
     assert ultimo["dependencias"]["almacen_auditoria"]["estado"] == "simulado"
 
 
+def test_al_apagar_el_nucleo_se_escribe_lo_que_quedo_en_la_cola(cliente):
+    with cliente:
+        id_decision = dependencias.obtener_servicio().registrar(decision())
+
+    assert dependencias.obtener_servicio().reconstruir(id_decision).id_decision == id_decision
+
+
+def test_apagar_sin_haber_usado_auditoria_no_arma_el_modulo(monkeypatch):
+    monkeypatch.delenv(dependencias.VARIABLE_DSN, raising=False)
+    dependencias.reiniciar()
+
+    dependencias.vaciar_escrituras_pendientes()
+
+    assert not dependencias._componentes.creada
+
+
 def test_reconstruir_por_http_devuelve_el_registro_completo(cliente):
     id_decision = dependencias.obtener_servicio().registrar(decision())
     dependencias.vaciar_escrituras_pendientes()

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import itertools
 import threading
+from datetime import datetime
 
-from app.modulos.cotizacion.dominio.modelo import Cotizacion
+from app.modulos.cotizacion.dominio.modelo import Cotizacion, EstadoCotizacion
 
 #: El prototipo arranca la numeración en QT-2026-08831.
 PRIMER_CONSECUTIVO = 8831
@@ -28,6 +29,19 @@ class RepositorioEnMemoria:
 
     def obtener(self, id_cotizacion: str) -> Cotizacion | None:
         return self._cotizaciones.get(id_cotizacion)
+
+    def vigente_por_huella(
+        self, id_cliente: str, huella: str, ahora: datetime
+    ) -> Cotizacion | None:
+        with self._candado:
+            candidatas = [
+                c
+                for c in self._cotizaciones.values()
+                if c.id_cliente == id_cliente
+                and c.huella == huella
+                and c.estado(ahora) is EstadoCotizacion.VIGENTE
+            ]
+        return max(candidatas, key=lambda c: c.creada_en, default=None)
 
     def siguiente_id(self, anio: int) -> str:
         with self._candado:

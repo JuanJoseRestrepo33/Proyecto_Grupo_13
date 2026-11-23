@@ -19,7 +19,20 @@ from .errores import ConsentimientoNoVigenteError, ConsentimientoRevocadoError
 #: Con cuántos días de anticipación se avisa que un consentimiento va a vencer (criterio 7).
 DIAS_AVISO_VENCIMIENTO = 30
 
-CANAL_SISTEMA = "sistema"
+
+class Canal(StrEnum):
+    """Por dónde llegó un cambio. El consentimiento es del cliente, no del canal: uno otorgado
+    en la app rige en la web y viceversa (MOB-F02). `sistema` lo usa solo el núcleo, para el
+    vencimiento; un cliente nunca actúa como `sistema`."""
+
+    WEB = "web"
+    MOVIL = "movil"
+    SISTEMA = "sistema"
+
+
+CANAL_SISTEMA = Canal.SISTEMA
+#: Canales por los que un cliente puede otorgar, revocar o renovar.
+CANALES_DEL_CLIENTE = frozenset({Canal.WEB, Canal.MOVIL})
 
 
 class Estado(StrEnum):
