@@ -1,5 +1,8 @@
 package co.solventa.feature.siniestros.borrador
 
+import co.solventa.core.almacen.ArchivoIlegible
+import co.solventa.core.almacen.PuertoCifrado
+import co.solventa.core.almacen.clasificar
 import co.solventa.core.network.NetworkClient
 import java.io.File
 import java.io.FileOutputStream
@@ -80,11 +83,11 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
 
     fun existe(duenio: String, id: String): Boolean = File(carpetaDe(duenio, id), MANIFIESTO).isFile
 
-    /** @throws BorradorIlegible */
+    /** @throws ArchivoIlegible */
     fun leer(duenio: String, id: String): Borrador = leerCifrado(
         File(carpetaDe(duenio, id), MANIFIESTO),
         Borrador.serializer(),
-    ).also { if (it.duenio != duenio || it.id != id) throw BorradorIlegible(permanente = true) }
+    ).also { if (it.duenio != duenio || it.id != id) throw ArchivoIlegible(permanente = true) }
 
     /** Los borradores de [duenio], en orden de creación; los ilegibles van al final. */
     fun listar(duenio: String): List<EntradaBorrador> {
@@ -97,7 +100,7 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
             }
             try {
                 EntradaBorrador.Legible(leer(duenio, carpeta.name))
-            } catch (ilegible: BorradorIlegible) {
+            } catch (ilegible: ArchivoIlegible) {
                 EntradaBorrador.Ilegible(carpeta.name, ilegible.permanente)
             }
         }
@@ -105,13 +108,13 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
         return legibles.sortedBy { (it as EntradaBorrador.Legible).borrador.creadoEn } + ilegibles.sortedBy { it.id }
     }
 
-    /** El contenido en claro de un archivo, descifrado en flujo. @throws BorradorIlegible */
+    /** El contenido en claro de un archivo, descifrado en flujo. @throws ArchivoIlegible */
     fun abrirArchivo(duenio: String, id: String, idAdjunto: String): InputStream {
         val archivo = File(carpetaDe(duenio, id), archivoDe(idAdjunto))
         val entrada = try {
             archivo.inputStream()
         } catch (perdido: IOException) {
-            throw BorradorIlegible(permanente = !archivo.exists(), perdido)
+            throw ArchivoIlegible(permanente = !archivo.exists(), perdido)
         }
         return try {
             cifrado.descifrar(entrada)
@@ -121,7 +124,7 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
         }
     }
 
-    /** Lee el archivo completo sin guardar nada: falla igual que lo haría la carga. @throws BorradorIlegible */
+    /** Lee el archivo completo sin guardar nada: falla igual que lo haría la carga. @throws ArchivoIlegible */
     fun verificarArchivo(duenio: String, id: String, idAdjunto: String) {
         abrirArchivo(duenio, id, idAdjunto).use { entrada ->
             val bloque = ByteArray(BLOQUE)
@@ -151,7 +154,7 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
             .mapNotNull { archivo ->
                 try {
                     leerCifrado(archivo, RegistroEnviado.serializer())
-                } catch (ignored: BorradorIlegible) {
+                } catch (ignored: ArchivoIlegible) {
                     null
                 }
             }
@@ -174,7 +177,7 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
         if (!archivo.isFile) return null
         return try {
             leerCifrado(archivo, PolizasGuardadas.serializer())
-        } catch (ignored: BorradorIlegible) {
+        } catch (ignored: ArchivoIlegible) {
             null
         }
     }
@@ -202,9 +205,9 @@ class AlmacenBorradoresCifrado(private val raiz: File, private val cifrado: Puer
         return try {
             NetworkClient.json.decodeFromString(serializador, bytes.toString(Charsets.UTF_8))
         } catch (corrupto: SerializationException) {
-            throw BorradorIlegible(permanente = true, corrupto)
+            throw ArchivoIlegible(permanente = true, corrupto)
         } catch (corrupto: IllegalArgumentException) {
-            throw BorradorIlegible(permanente = true, corrupto)
+            throw ArchivoIlegible(permanente = true, corrupto)
         }
     }
 

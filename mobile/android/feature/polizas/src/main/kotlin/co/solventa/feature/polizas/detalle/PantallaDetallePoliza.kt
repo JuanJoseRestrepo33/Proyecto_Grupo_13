@@ -42,6 +42,10 @@ import co.solventa.feature.polizas.comun.BotonPrincipal
 import co.solventa.feature.polizas.comun.BotonSecundario
 import co.solventa.feature.polizas.comun.Cargando
 import co.solventa.feature.polizas.comun.ErrorConsulta
+import co.solventa.feature.polizas.comun.FranjaBilletera
+import co.solventa.feature.polizas.comun.Mensaje
+import co.solventa.feature.polizas.comun.RequiereConexion
+import co.solventa.feature.polizas.comun.franjaDe
 import co.solventa.feature.polizas.comun.InsigniaEstado
 import co.solventa.feature.polizas.comun.PlantillaPolizas
 import co.solventa.feature.polizas.comun.formatoDiaDe
@@ -49,6 +53,7 @@ import co.solventa.feature.polizas.comun.nombrePoliza
 import co.solventa.feature.polizas.comun.textoFallo
 import co.solventa.feature.polizas.comun.textoPrima
 import co.solventa.feature.polizas.comun.textoVigencia
+import java.time.ZoneId
 
 /**
  * Detalle de la póliza con su ViewModel. El número llega por la ruta `policies/detalle/{numero}` y la
@@ -56,16 +61,26 @@ import co.solventa.feature.polizas.comun.textoVigencia
  * sin él, con el visor del sistema.
  *
  * @param onVolver regresa a «Mis pólizas».
+ * @param onCredencial abre la credencial de esta póliza (MOB-F03).
  */
 @Composable
 fun RutaDetallePoliza(
     dependencias: DependenciasPolizas,
     onVolver: () -> Unit,
+    onCredencial: (String) -> Unit = {},
     onSesionVencida: () -> Unit = {},
 ) {
     val viewModel = viewModel {
-        DetallePolizaViewModel(dependencias.api, createSavedStateHandle(), dependencias.documentos, dependencias.io)
+        DetallePolizaViewModel(
+            dependencias.api,
+            createSavedStateHandle(),
+            dependencias.documentos,
+            dependencias.billetera,
+            dependencias.io,
+            dependencias.reloj,
+        )
     }
+    LaunchedEffect(viewModel) { viewModel.vigilarConexion() }
     val contexto = LocalContext.current
     val visor = remember(contexto) { dependencias.visor ?: VisorPdfAndroid(contexto) }
     val estado = viewModel.estado
@@ -82,9 +97,11 @@ fun RutaDetallePoliza(
     PantallaDetallePoliza(
         estado = estado,
         onVolver = onVolver,
-        onReintentar = viewModel::consultar,
+        onReintentar = viewModel::reintentar,
         onDescargar = viewModel::descargar,
         onAvisoMostrado = viewModel::avisoMostrado,
+        onCredencial = { onCredencial(viewModel.numero) },
+        zona = dependencias.reloj.zone,
     )
 }
 
@@ -96,6 +113,9 @@ fun PantallaDetallePoliza(
     onReintentar: () -> Unit,
     onDescargar: () -> Unit,
     onAvisoMostrado: () -> Unit,
+    onCredencial: () -> Unit = {},
+    zona: ZoneId = ZoneId.systemDefault(),
+    soloLectura: Boolean = false,
 ) {
     val avisos = remember { SnackbarHostState() }
     val aviso = estado.aviso
@@ -113,15 +133,19 @@ fun PantallaDetallePoliza(
         }
     }
     Box(Modifier.fillMaxSize()) {
+        // Sin sesión (MOB-F03, entrega 2) la franja la pone el marco.
+        val franja = franjaDe(estado.sinConexion, estado.sinActualizar, estado.sincronizando).takeUnless { soloLectura }
         PlantillaPolizas(
             titulo = stringResource(R.string.detalle_titulo),
             onVolver = onVolver,
             modifier = Modifier.testTag("pantalla-detalle-poliza"),
+            franja = franja?.let { { FranjaBilletera(it, estado.sincronizadaEn, zona, onReintentar = onReintentar) } },
         ) {
             val detalle = estado.detalle
             val error = estado.error
             when {
                 estado.noEncontrada -> NoEncontrada(onVolver)
+                estado.detalleNoGuardado -> DetalleNoGuardado(onReintentar.takeUnless { soloLectura }, onVolver)
                 detalle == null && error != null ->
                     ErrorConsulta(textoFallo(error, R.string.detalle_error), onReintentar)
                 detalle == null -> Cargando(stringResource(R.string.detalle_cargando))
@@ -131,6 +155,13 @@ fun PantallaDetallePoliza(
                     InformacionGeneral(detalle)
                     InformacionFinanciera(detalle)
                     Coberturas(detalle)
+                    if (estado.ofreceCredencial) {
+                        BotonPrincipal(
+                            stringResource(R.string.ver_credencial),
+                            onClick = onCredencial,
+                            modifier = Modifier.testTag("ver-credencial"),
+                        )
+                    }
                     Documento(estado, onDescargar)
                 }
             }
@@ -203,10 +234,21 @@ private fun Coberturas(detalle: PolizaDetalle) {
     }
 }
 
-/** «Descargar PDF» si la póliza tiene documento; si no, se explica que no está disponible. */
+/**
+ * «Descargar PDF» si la póliza tiene documento; si no, se explica que no está disponible. Sin conexión
+ * el botón queda inactivo y se explica por qué.
+ */
 @Composable
 private fun Documento(estado: EstadoDetallePoliza, onDescargar: () -> Unit) {
-    if (estado.ofreceDescarga) {
+    if (estado.descargaRequiereConexion) {
+        BotonSecundario(
+            stringResource(R.string.detalle_descargar),
+            onClick = onDescargar,
+            habilitado = false,
+            modifier = Modifier.testTag("descargar-pdf"),
+        )
+        RequiereConexion(stringResource(R.string.descarga_requiere_conexion), "descarga-requiere-conexion")
+    } else if (estado.ofreceDescarga) {
         BotonPrincipal(
             stringResource(R.string.detalle_descargar),
             onClick = onDescargar,
@@ -228,6 +270,28 @@ private fun Documento(estado: EstadoDetallePoliza, onDescargar: () -> Unit) {
             Text(texto, style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+/** Sin conexión, una póliza sin detalle guardado (ya llegó vencida del BFF). */
+@Composable
+private fun DetalleNoGuardado(onReintentar: (() -> Unit)?, onVolver: () -> Unit) {
+    Mensaje(
+        stringResource(R.string.detalle_no_guardado),
+        modifier = Modifier.testTag("detalle-no-guardado"),
+        esError = false,
+    )
+    if (onReintentar != null) {
+        BotonSecundario(
+            stringResource(R.string.reintentar),
+            onClick = onReintentar,
+            modifier = Modifier.testTag("reintentar"),
+        )
+    }
+    BotonSecundario(
+        stringResource(R.string.volver_lista),
+        onClick = onVolver,
+        modifier = Modifier.testTag("volver-lista"),
+    )
 }
 
 /** 404: no existe o es de otro cliente; no se dice cuál. */

@@ -1,4 +1,4 @@
-package co.solventa.feature.siniestros.borrador
+package co.solventa.core.almacen
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -8,11 +8,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Si hay una red con salida a internet comprobada. Detrás de un puerto para probar el envío en la JVM. */
+/**
+ * Si hay una red con salida a internet comprobada. Detrás de un puerto para probar en la JVM el envío de
+ * borradores (MOB-F05-02) y la billetera sin conexión (MOB-F03).
+ */
 interface MonitorConectividad {
     val conectado: StateFlow<Boolean>
 
-    /** Siempre conectado: el asistente envía como en #169 (pruebas y vistas previas). */
+    /** Siempre conectado (pruebas y vistas previas). */
     object Siempre : MonitorConectividad {
         override val conectado: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()
     }
@@ -20,7 +23,8 @@ interface MonitorConectividad {
 
 /**
  * `NetworkCallback` sobre la red por defecto. Solo cuenta como conectada la que tiene
- * `NET_CAPABILITY_VALIDATED`: un wifi sin internet o un portal cautivo no disparan el envío.
+ * `NET_CAPABILITY_VALIDATED`: un wifi sin internet o un portal cautivo no disparan el envío ni la
+ * sincronización.
  */
 class MonitorConectividadAndroid(contexto: Context) : MonitorConectividad {
     private val gestor = contexto.getSystemService(ConnectivityManager::class.java)

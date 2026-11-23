@@ -52,7 +52,8 @@ private val GRIS = Color(0xFF6B7280)
 
 /**
  * Barra superior con volver (opcional), título y, con [onActualizar], el botón «Actualizar» y el gesto
- * de deslizar hacia abajo sobre el contenido. El botón existe para quien no use el gesto.
+ * de deslizar hacia abajo sobre el contenido. El botón existe para quien no use el gesto. [franja] va
+ * fija arriba de todo (MOB-F03).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,9 +63,12 @@ internal fun PlantillaPolizas(
     modifier: Modifier = Modifier,
     actualizando: Boolean = false,
     onActualizar: (() -> Unit)? = null,
+    franja: (@Composable () -> Unit)? = null,
     contenido: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxSize()) {
+        // La franja de sin conexión (MOB-F03) va fija arriba, fuera del desplazamiento.
+        franja?.invoke()
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().heightIn(min = SolventaSpacing.touchTarget)
@@ -120,11 +124,12 @@ internal fun BotonPrincipal(
     modifier: Modifier = Modifier,
     cargando: Boolean = false,
     textoCargando: String? = null,
+    habilitado: Boolean = true,
     icono: (@Composable () -> Unit)? = null,
 ) {
     Button(
         onClick = onClick,
-        enabled = !cargando,
+        enabled = !cargando && habilitado,
         modifier = modifier.fillMaxWidth().heightIn(min = SolventaSpacing.touchTarget),
     ) {
         if (cargando) {
@@ -141,8 +146,17 @@ internal fun BotonPrincipal(
 }
 
 @Composable
-internal fun BotonSecundario(texto: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    OutlinedButton(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = SolventaSpacing.touchTarget)) {
+internal fun BotonSecundario(
+    texto: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    habilitado: Boolean = true,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = habilitado,
+        modifier = modifier.fillMaxWidth().heightIn(min = SolventaSpacing.touchTarget),
+    ) {
         Text(texto)
     }
 }

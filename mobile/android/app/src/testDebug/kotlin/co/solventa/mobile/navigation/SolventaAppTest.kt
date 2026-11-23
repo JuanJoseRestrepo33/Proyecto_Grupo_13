@@ -243,11 +243,13 @@ class SolventaAppTest {
             listOf(contador, DebugMockInterceptor(MockBffMovil { Instant.parse("2026-11-15T15:00:00Z") })),
             tokenAcceso = { token },
         )
-        token = runBlocking { api.iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO)).tokenAcceso }
+        val sesion = runBlocking { api.iniciarSesion(Credenciales(CORREO_DEMO, CONTRASENA_DEMO)) }
+        token = sesion.tokenAcceso
         val dependencias = DependenciasPolizas(
             api = api,
             documentos = { _, _ -> error("no se descarga en esta prueba") },
             urlCotizacion = "https://web.prueba/cotizacion",
+            billetera = BilleteraDePrueba(api, CuentaFija(sesion.cliente.id)).sincronizador,
         )
         lateinit var nav: NavHostController
         compose.setContent {
@@ -275,6 +277,42 @@ class SolventaAppTest {
         compose.onNodeWithContentDescription("Volver").performClick()
         esperar("pantalla-mis-polizas")
         assertEquals(TopLevelDestination.POLICIES.route, nav.currentDestination?.route)
+    }
+
+    @Test
+    fun `ver credencial abre la credencial de ese numero con Polizas marcada y volver regresa a la lista`() {
+        val (nav, _) = conPolizas()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("credencial-POL-2026-001101")
+
+        compose.onNodeWithTag("credencial-POL-2026-001101").performClick()
+
+        esperar("credencial")
+        assertEquals(RUTA_CREDENCIAL, nav.currentDestination?.route)
+        assertEquals("POL-2026-001101", nav.currentBackStackEntry?.arguments?.getString("numero"))
+        compose.onNode(tab("Pólizas")).assertIsSelected()
+        compose.onNodeWithTag("credencial-numero").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Volver").performClick()
+        esperar("pantalla-mis-polizas")
+        assertEquals(TopLevelDestination.POLICIES.route, nav.currentDestination?.route)
+    }
+
+    @Test
+    fun `desde el detalle de una vigente se abre su credencial y volver regresa al detalle`() {
+        val (nav, _) = conPolizas()
+        compose.onNode(tab("Pólizas")).performClick()
+        esperar("poliza-POL-2026-001101")
+        compose.onNodeWithTag("poliza-POL-2026-001101").performClick()
+        esperar("ver-credencial")
+
+        compose.onNodeWithTag("ver-credencial").performScrollTo().performClick()
+
+        esperar("credencial")
+        assertEquals(RUTA_CREDENCIAL, nav.currentDestination?.route)
+        compose.onNodeWithContentDescription("Volver").performClick()
+        esperar("encabezado")
+        assertEquals(RUTA_DETALLE_POLIZA, nav.currentDestination?.route)
     }
 
     @Test

@@ -22,16 +22,21 @@ import co.solventa.feature.notificaciones.consumirApertura
 import co.solventa.feature.notificaciones.intentoApertura
 import co.solventa.feature.onboarding.DependenciasOnboarding
 import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.billetera.AlmacenBilletera
+import co.solventa.feature.polizas.billetera.CuentaVigente
+import co.solventa.feature.polizas.billetera.SincronizadorBilletera
 import co.solventa.feature.polizas.detalle.DocumentosPolizaAndroid
+import co.solventa.core.almacen.ArchivoCifrado
 import co.solventa.feature.onboarding.biometria.AlmacenTokenKeystore
 import co.solventa.feature.onboarding.biometria.BiometriaAndroid
+import co.solventa.feature.onboarding.biometria.DesbloqueoTelefonoAndroid
 import co.solventa.feature.onboarding.sesion.GestorSesion
 import co.solventa.feature.onboarding.sesion.ObservadorCuenta
 import co.solventa.feature.siniestros.borrador.AlmacenBorradoresCifrado
-import co.solventa.feature.siniestros.borrador.CifradoAesGcm
+import co.solventa.core.almacen.CifradoAesGcm
 import co.solventa.feature.siniestros.borrador.EnviadorBorradores
-import co.solventa.feature.siniestros.borrador.LlaveKeystore
-import co.solventa.feature.siniestros.borrador.MonitorConectividadAndroid
+import co.solventa.core.almacen.LlaveKeystore
+import co.solventa.core.almacen.MonitorConectividadAndroid
 import co.solventa.feature.siniestros.DependenciasSiniestros
 import co.solventa.feature.siniestros.evidencia.AlmacenEvidenciasAndroid
 import co.solventa.feature.siniestros.evidencia.LectorUbicacionAndroid
@@ -47,6 +52,7 @@ class MainActivity : FragmentActivity() {
             sesion = proceso.sesion,
             almacen = proceso.almacen,
             biometria = BiometriaAndroid(this),
+            desbloqueo = DesbloqueoTelefonoAndroid(this),
         )
         val dependenciasConsentimiento = DependenciasConsentimiento(
             api = proceso.bffApi,
@@ -66,6 +72,7 @@ class MainActivity : FragmentActivity() {
             api = proceso.bffApi,
             documentos = DocumentosPolizaAndroid(applicationContext),
             urlCotizacion = BuildConfig.WEB_URL + "cotizacion",
+            billetera = proceso.billetera,
         )
         recibirApertura(intent)
         setContent {
@@ -124,10 +131,34 @@ private class Proceso(context: Context) {
             api = bffApi,
             almacen = AlmacenBorradoresCifrado(
                 File(context.noBackupFilesDir, "borradores"),
-                CifradoAesGcm(LlaveKeystore()),
+                CifradoAesGcm(LlaveKeystore(LlaveKeystore.ALIAS_BORRADORES)),
             ),
-            monitor = MonitorConectividadAndroid(context),
+            monitor = monitor,
             clienteVigente = { sesion.clienteId },
+            alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+    }
+
+    val monitor by lazy { MonitorConectividadAndroid(context) }
+
+    /**
+     * Billetera de pólizas sin conexión (MOB-F03): una sola por teléfono, cifrada con su propia llave y
+     * fuera de las copias de seguridad. Vive lo que el proceso, como el envío de borradores.
+     */
+    val billetera: SincronizadorBilletera by lazy {
+        SincronizadorBilletera(
+            api = bffApi,
+            almacen = AlmacenBilletera(
+                ArchivoCifrado(
+                    File(File(context.noBackupFilesDir, "billetera"), "billetera.bin"),
+                    CifradoAesGcm(LlaveKeystore(LlaveKeystore.ALIAS_BILLETERA)),
+                ),
+            ),
+            monitor = monitor,
+            cuenta = object : CuentaVigente {
+                override val clienteId: String? get() = sesion.sesion?.cliente?.id
+                override val nombreCompleto: String? get() = sesion.sesion?.cliente?.nombreCompleto
+            },
             alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
     }
@@ -148,14 +179,18 @@ private class Proceso(context: Context) {
 
     init {
         // El envío y el push del anterior se cancelan antes de reemplazar la sesión; los del nuevo empiezan
-        // después. Al iniciar sesión se registra el dispositivo (MOB-F06, criterio 4).
+        // después. Al iniciar sesión se registra el dispositivo (MOB-F06, criterio 4). La billetera (MOB-F03)
+        // descarta una sincronización en curso de la cuenta anterior y, si entra otra cuenta, borra la
+        // billetera de otro dueño.
         sesion.observador = object : ObservadorCuenta {
             override fun antes(nuevoCliente: String?) {
+                billetera.cambioDeCuenta()
                 enviador.detener()
                 receptor.detener()
             }
 
             override fun despues(cliente: String?) {
+                billetera.cuentaCambiada(cliente)
                 cliente?.let {
                     enviador.activar(it)
                     receptor.activar(it)

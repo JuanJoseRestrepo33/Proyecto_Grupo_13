@@ -654,7 +654,9 @@ class Ambiente:
         """
         completado = []
         formato = "--format=json(lifecycle_config)"
+        # Un bucket sin ciclo de vida (uno recién creado) se describe como `null`, no como `{}`.
         actual = json.loads(self.gcloud("storage", "buckets", "describe", destino, formato) or "{}")
+        actual = actual or {}
         if ciclo is not None and actual.get("lifecycle_config") != ciclo:
             with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as archivo:
                 json.dump(ciclo, archivo)
@@ -666,8 +668,12 @@ class Ambiente:
             finally:
                 os.unlink(archivo.name)
             completado.append("el ciclo de vida")
-        politica = json.loads(
-            self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json") or "{}"
+        politica = (
+            json.loads(
+                self.gcloud("storage", "buckets", "get-iam-policy", destino, "--format=json")
+                or "{}"
+            )
+            or {}
         )
         miembro = f"serviceAccount:{self.cuenta(self.run('run-nucleo'))}"
         # Crear y leer, sin borrar: ni la evidencia de un siniestro ni el documento de una póliza
@@ -895,6 +901,12 @@ def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int
     parser.add_argument("--ambiente", choices=list(SUFIJOS), default="staging")
     parser.add_argument("--confirmar", default="", help="destruir: el ID del proyecto")
     parser.add_argument(
+        "--si-existe",
+        action="store_true",
+        help="encender/apagar: sin instancia, solo avisa (el apagado nocturno de un ambiente "
+        "que todavía no se aprovisionó)",
+    )
+    parser.add_argument(
         "--github-output", default=os.environ.get("GITHUB_OUTPUT", ""), help=argparse.SUPPRESS
     )
     args = parser.parse_args(argv)
@@ -920,7 +932,13 @@ def main(argv: list[str] | None = None, ambiente: Ambiente | None = None) -> int
                 print("::error::Para destruir, --confirmar debe ser el ID del proyecto.")
                 return 2
             ambiente.destruir()
-    except (GcloudError, FaltaAccesoError, SinInstanciaError) as error:
+    except SinInstanciaError as error:
+        if args.si_existe:
+            print(f"::notice::{error}; no hay nada que {args.accion}.")
+            return 0
+        print(f"::error::{error}")
+        return 1
+    except (GcloudError, FaltaAccesoError) as error:
         if args.accion == "verificar":
             # Verificar solo avisa: un fallo al consultar no debe poner el CD en rojo.
             print(f"::warning::No se pudo verificar el ambiente: {error}")

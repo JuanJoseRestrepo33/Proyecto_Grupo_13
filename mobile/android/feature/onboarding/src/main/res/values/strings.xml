@@ -89,6 +89,8 @@
     <string name="biometria_fallida">No reconocimos tu huella o rostro. Ingresa con tu contraseña; tu cuenta sigue activa.</string>
     <string name="biometria_no_disponible">La biometría no está disponible en este momento. Ingresa con tu contraseña.</string>
     <string name="biometria_invalidada">Cambiaron las huellas o rostros registrados en este teléfono. Por seguridad, ingresa con tu contraseña y vuelve a activar la biometría.</string>
+    <string name="ingreso_sin_conexion">No tienes conexión.</string>
+    <string name="ingreso_ver_sin_conexion">Ver mis pólizas sin conexión</string>
     <string name="biometria_vencida">Tu acceso con huella o rostro venció. Ingresa con tu contraseña para renovarlo.</string>
 
     <!-- Oferta de biometría -->
@@ -106,4 +108,8 @@
     <string name="prompt_titulo_activar">Activa tu huella o rostro</string>
     <string name="prompt_subtitulo">Usa la huella o el rostro registrados en este teléfono</string>
     <string name="prompt_usar_contrasena">Usar contraseña</string>
+
+    <!-- Desbloqueo del teléfono para la billetera sin sesión (MOB-F03, entrega 2) -->
+    <string name="desbloqueo_titulo">Ver mis pólizas</string>
+    <string name="desbloqueo_subtitulo">Usa tu huella o el PIN del teléfono</string>
 </resources>

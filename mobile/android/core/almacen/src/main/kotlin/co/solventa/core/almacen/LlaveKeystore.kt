@@ -1,4 +1,4 @@
-package co.solventa.feature.siniestros.borrador
+package co.solventa.core.almacen
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -7,12 +7,14 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
 /**
- * Llave AES-256-GCM `solventa.borradores` del Android Keystore (por hardware cuando el equipo lo tiene).
- * No exige autenticación ni `setUnlockedDeviceRequired`: el envío ocurre también con la pantalla
- * bloqueada, y la misma política vale desde API 26. La protección viene del aislamiento de la app, de
- * la llave ligada al Keystore y de que la carpeta queda fuera de las copias de seguridad.
+ * Llave AES-256-GCM [alias] del Android Keystore (por hardware cuando el equipo lo tiene). Cada almacén
+ * tiene la suya: [ALIAS_BORRADORES] y [ALIAS_BILLETERA]. No exige autenticación ni
+ * `setUnlockedDeviceRequired`: el envío de borradores ocurre también con la pantalla bloqueada, la
+ * billetera se abre sin pedir la huella cada vez, y la misma política vale desde API 26. La protección
+ * viene del aislamiento de la app, de la llave ligada al Keystore y de que los archivos quedan fuera de
+ * las copias de seguridad.
  */
-class LlaveKeystore(private val alias: String = ALIAS) : FuenteLlave {
+class LlaveKeystore(private val alias: String) : FuenteLlave {
     private val candado = Any()
 
     override fun paraCifrar(): SecretKey = synchronized(candado) { existente() ?: crear() }
@@ -40,7 +42,11 @@ class LlaveKeystore(private val alias: String = ALIAS) : FuenteLlave {
     }
 
     companion object {
-        const val ALIAS = "solventa.borradores"
+        /** Borradores de siniestros (MOB-F05-02). */
+        const val ALIAS_BORRADORES = "solventa.borradores"
+
+        /** Billetera de pólizas (MOB-F03). */
+        const val ALIAS_BILLETERA = "solventa.billetera"
         private const val PROVEEDOR = "AndroidKeyStore"
         private const val BITS_LLAVE = 256
     }

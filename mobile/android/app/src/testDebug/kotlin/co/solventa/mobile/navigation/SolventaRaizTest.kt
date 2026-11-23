@@ -1,5 +1,7 @@
 package co.solventa.mobile.navigation
 
+import androidx.compose.ui.test.junit4.StateRestorationTester
+import co.solventa.feature.onboarding.biometria.DesbloqueoTelefono
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,8 +36,10 @@ import co.solventa.feature.onboarding.biometria.DisponibilidadBiometrica
 import co.solventa.feature.onboarding.biometria.PropositoBiometrico
 import co.solventa.feature.onboarding.biometria.ResultadoBiometrico
 import co.solventa.feature.onboarding.sesion.GestorSesion
+import co.solventa.feature.polizas.DependenciasPolizas
+import co.solventa.feature.polizas.billetera.CuentaVigente
 import co.solventa.feature.siniestros.DependenciasSiniestros
-import co.solventa.feature.siniestros.borrador.MonitorConectividad
+import co.solventa.core.almacen.MonitorConectividad
 import co.solventa.mobile.BuildConfig
 import co.solventa.mobile.DebugMockInterceptor
 import co.solventa.mobile.mock.CODIGO_OTP
@@ -48,6 +52,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -87,6 +92,225 @@ class SolventaRaizTest {
         dependencias.api,
         enviadorDePrueba(dependencias.api, red) { sesion.clienteId },
     )
+
+    /** La billetera (MOB-F03) del cliente que ingresó. */
+    private val billetera = BilleteraDePrueba(
+        dependencias.api,
+        object : CuentaVigente {
+            override val clienteId: String? get() = sesion.clienteId
+            override val nombreCompleto: String? get() = sesion.sesion?.cliente?.nombreCompleto
+        },
+    )
+
+    private val polizas = DependenciasPolizas(
+        api = dependencias.api,
+        documentos = { _, _ -> error("no se descarga en esta prueba") },
+        urlCotizacion = "https://web.prueba/cotizacion",
+        billetera = billetera.sincronizador,
+    )
+
+    /** Ingresa con la cuenta demo, abre Pólizas y espera a que la billetera quede sincronizada. */
+    private fun conBilleteraSincronizada() {
+        biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
+        compose.setContent {
+            SolventaTheme {
+                SolventaRaiz(dependencias, dependenciasSiniestros = siniestros, dependenciasPolizas = polizas)
+            }
+        }
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("screen-home"))
+        compose.onNode(isSelectable() and hasText("Pólizas")).performClick()
+        compose.esperar(hasTestTag("billetera-disponible"))
+        assertTrue(billetera.archivo.exists())
+    }
+
+    @Test
+    fun `cerrar sesion avisa que las polizas dejan de estar disponibles sin conexion y borra la billetera`() {
+        conBilleteraSincronizada()
+        compose.onNode(isSelectable() and hasText("Perfil")).performClick()
+        compose.onNodeWithTag("cerrar-sesion").performClick()
+
+        compose.onNodeWithText("Tus pólizas dejarán de estar disponibles sin conexión en este teléfono.")
+            .assertIsDisplayed()
+        compose.onNodeWithTag("confirmar-cerrar-sesion").performClick()
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.waitUntil(timeoutMillis = 5_000) { !billetera.archivo.exists() }
+        assertNull(billetera.sincronizador.estado.value.guardada)
+    }
+
+    @Test
+    fun `si la sesion vence la billetera sigue guardada al volver a Ingreso`() {
+        conBilleteraSincronizada()
+
+        compose.runOnIdle { sesion.alVencer(tokenRechazado = false) }
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.waitForIdle()
+        assertTrue(billetera.archivo.exists())
+    }
+
+    // ── Entrada sin conexión desde Ingreso (MOB-F03, entrega 2) ─────────────────────────────
+
+    private val desbloqueo = DesbloqueoFalso()
+
+    /** La billetera con la red de la prueba, que se puede cortar. */
+    private val billeteraConRed by lazy {
+        BilleteraDePrueba(
+            dependencias.api,
+            object : CuentaVigente {
+                override val clienteId: String? get() = sesion.clienteId
+                override val nombreCompleto: String? get() = sesion.sesion?.cliente?.nombreCompleto
+            },
+            red,
+        )
+    }
+
+    private val polizasConRed by lazy {
+        DependenciasPolizas(
+            api = dependencias.api,
+            documentos = { _, _ -> error("no se descarga en esta prueba") },
+            urlCotizacion = "https://web.prueba/cotizacion",
+            billetera = billeteraConRed.sincronizador,
+        )
+    }
+
+    private val conDesbloqueo by lazy {
+        DependenciasOnboarding(dependencias.api, sesion, almacen, biometria, desbloqueo = desbloqueo)
+    }
+
+    /** Ingresa, sincroniza la billetera en Pólizas y vuelve a Ingreso sin sesión, como tras cerrar el proceso. */
+    private fun sincronizarYQuedarSinSesion(
+        cerrandoSesion: Boolean = false,
+        restauracion: StateRestorationTester? = null,
+    ) {
+        biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
+        val contenido = @androidx.compose.runtime.Composable {
+            SolventaTheme {
+                SolventaRaiz(conDesbloqueo, dependenciasSiniestros = siniestros, dependenciasPolizas = polizasConRed)
+            }
+        }
+        if (restauracion != null) restauracion.setContent(contenido) else compose.setContent(contenido)
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("screen-home"))
+        compose.onNode(isSelectable() and hasText("Pólizas")).performClick()
+        compose.esperar(hasTestTag("billetera-disponible"))
+        if (cerrandoSesion) {
+            compose.onNode(isSelectable() and hasText("Perfil")).performClick()
+            compose.onNodeWithTag("cerrar-sesion").performClick()
+            compose.onNodeWithTag("confirmar-cerrar-sesion").performClick()
+        } else {
+            compose.runOnIdle { sesion.alVencer(tokenRechazado = false) }
+        }
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.runOnIdle { red.conectado.value = false }
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `sin red Ingreso ofrece ver las polizas sin conexion y tras el desbloqueo las muestra sin sesion`() {
+        sincronizarYQuedarSinSesion()
+
+        compose.esperar(hasTestTag("ver-sin-conexion"))
+        compose.onNodeWithText("No tienes conexión.").assertIsDisplayed()
+        compose.onNodeWithTag("ver-sin-conexion").performClick()
+
+        compose.esperar(hasTestTag("billetera-sin-sesion"))
+        assertEquals(1, desbloqueo.pedidos)
+        compose.onNodeWithTag("poliza-POL-2026-001101").assertIsDisplayed()
+        compose.onNodeWithTag("franja-sin-conexion").assertIsDisplayed()
+        compose.onNodeWithTag("nav-policies").assertDoesNotExist()
+        assertNull(sesion.sesion)
+
+        // Vuelve la red: sin sesión no se sincroniza; se invita a ingresar.
+        compose.runOnIdle { red.conectado.value = true }
+        compose.esperar(hasTestTag("franja-ingresar"))
+        compose.onNodeWithTag("franja-ingresar").performClick()
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        assertFalse(billeteraConRed.sincronizador.sinSesionDesbloqueada)
+    }
+
+    @Test
+    fun `sin bloqueo de pantalla Ingreso no ofrece ver las polizas sin conexion`() {
+        desbloqueo.conBloqueo = false
+        sincronizarYQuedarSinSesion()
+
+        compose.onNodeWithTag("ver-sin-conexion").assertDoesNotExist()
+        assertEquals(0, desbloqueo.pedidos)
+    }
+
+    @Test
+    fun `si el desbloqueo se cancela se queda en Ingreso`() {
+        desbloqueo.superado = false
+        sincronizarYQuedarSinSesion()
+
+        compose.esperar(hasTestTag("ver-sin-conexion"))
+        compose.onNodeWithTag("ver-sin-conexion").performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("billetera-sin-sesion").assertDoesNotExist()
+        compose.onNodeWithTag("ingreso-contrasena").assertIsDisplayed()
+    }
+
+    @Test
+    fun `tras cerrar sesion Ingreso ya no ofrece ver las polizas sin conexion`() {
+        sincronizarYQuedarSinSesion(cerrandoSesion = true)
+
+        compose.onNodeWithTag("ver-sin-conexion").assertDoesNotExist()
+        assertFalse(billeteraConRed.archivo.exists())
+    }
+
+    @Test
+    fun `si Android cerro el proceso la navegacion restaurada sin sesion vuelve a Ingreso`() {
+        biometria.disponible = DisponibilidadBiometrica.SIN_SENSOR
+        val restauracion = StateRestorationTester(compose)
+        restauracion.setContent { SolventaTheme { SolventaRaiz(dependencias, dependenciasSiniestros = siniestros) } }
+        escribir("ingreso-correo", CORREO_DEMO)
+        escribir("ingreso-contrasena", CONTRASENA_DEMO)
+        compose.onNodeWithText("Iniciar sesión").performClick()
+        compose.esperar(hasTestTag("screen-home"))
+
+        // El proceso nuevo no tiene la sesión, que vivía en memoria; la navegación sí se restaura.
+        compose.runOnIdle { sesion.sesion = null }
+        restauracion.emulateSavedInstanceStateRestore()
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.onNodeWithTag("screen-home").assertDoesNotExist()
+    }
+
+    @Test
+    fun `la billetera sin sesion restaurada tras cerrar el proceso vuelve a Ingreso sin el desbloqueo`() {
+        val restauracion = StateRestorationTester(compose)
+        sincronizarYQuedarSinSesion(restauracion = restauracion)
+        compose.esperar(hasTestTag("ver-sin-conexion"))
+        compose.onNodeWithTag("ver-sin-conexion").performClick()
+        compose.esperar(hasTestTag("billetera-sin-sesion"))
+
+        // Un proceso nuevo empieza sin el desbloqueo, que vive en memoria; la navegación sí se restaura.
+        compose.runOnIdle { billeteraConRed.sincronizador.cerrarSinSesion() }
+        restauracion.emulateSavedInstanceStateRestore()
+
+        compose.esperar(hasTestTag("ingreso-contrasena"))
+        compose.onNodeWithTag("billetera-sin-sesion").assertDoesNotExist()
+    }
+
+    @Test
+    fun `volver a Ingreso desde la billetera sin sesion pide otra vez el desbloqueo`() {
+        sincronizarYQuedarSinSesion()
+        compose.esperar(hasTestTag("ver-sin-conexion"))
+        compose.onNodeWithTag("ver-sin-conexion").performClick()
+        compose.esperar(hasTestTag("sin-sesion-ingresar"))
+        compose.onNodeWithTag("sin-sesion-ingresar").performClick()
+
+        compose.esperar(hasTestTag("ver-sin-conexion"))
+        compose.onNodeWithTag("ver-sin-conexion").performClick()
+        compose.esperar(hasTestTag("billetera-sin-sesion"))
+        assertEquals(2, desbloqueo.pedidos)
+    }
 
     private fun mostrar() = compose.setContent {
         SolventaTheme { key(apertura) { SolventaRaiz(dependencias, dependenciasSiniestros = siniestros) } }
@@ -348,5 +572,19 @@ private class BiometriaSimulada : Biometria {
     override fun autenticar(cipher: Cipher, proposito: PropositoBiometrico, alTerminar: (ResultadoBiometrico) -> Unit) {
         propositos += proposito
         alTerminar(ResultadoBiometrico.Desbloqueado(cipher))
+    }
+}
+
+/** El desbloqueo del teléfono: [conBloqueo] es si el teléfono tiene bloqueo de pantalla. */
+private class DesbloqueoFalso : DesbloqueoTelefono {
+    var conBloqueo = true
+    var superado = true
+    var pedidos = 0
+
+    override fun disponible() = conBloqueo
+
+    override fun desbloquear(alTerminar: (Boolean) -> Unit) {
+        pedidos += 1
+        alTerminar(superado)
     }
 }

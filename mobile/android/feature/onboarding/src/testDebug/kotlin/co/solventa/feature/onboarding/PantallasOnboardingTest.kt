@@ -270,4 +270,29 @@ class PantallasOnboardingTest {
         assertTrue(terminado)
         assertEquals(null, almacen.token)
     }
+
+    // --- Entrada sin conexión (MOB-F03, entrega 2) ---
+
+    @Test
+    fun `sin conexion y con billetera ingreso avisa y ofrece ver las polizas sin conexion`() {
+        var vistas = 0
+        val dependencias = DependenciasOnboarding(api, gestor, AlmacenFalso(), BiometriaFalsa()) { ahora }
+        val viewModel = IngresoViewModel(api, gestor, AlmacenFalso(), DisponibilidadBiometrica.SIN_SENSOR)
+        compose.setContent {
+            SolventaTheme { PantallaIngreso(viewModel, dependencias, {}, {}, onVerSinConexion = { vistas += 1 }) }
+        }
+
+        compose.onNodeWithTag("ingreso-sin-conexion").assertIsDisplayed()
+        compose.onNodeWithText("No tienes conexión.").assertIsDisplayed()
+        compose.onNodeWithText("Ver mis pólizas sin conexión").assertHeightIsAtLeast(48.dp).performClick()
+        assertEquals(1, vistas)
+    }
+
+    @Test
+    fun `sin la opcion ingreso no ofrece ver las polizas sin conexion`() {
+        mostrarIngreso(AlmacenFalso())
+
+        compose.onNodeWithTag("ver-sin-conexion").assertDoesNotExist()
+        compose.onNodeWithTag("ingreso-sin-conexion").assertDoesNotExist()
+    }
 }

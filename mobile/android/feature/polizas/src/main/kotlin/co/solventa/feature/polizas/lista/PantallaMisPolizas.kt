@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Tab
@@ -38,6 +39,12 @@ import co.solventa.feature.polizas.R
 import co.solventa.feature.polizas.comun.BotonPrincipal
 import co.solventa.feature.polizas.comun.Cargando
 import co.solventa.feature.polizas.comun.ErrorConsulta
+import co.solventa.feature.polizas.comun.FranjaBilletera
+import co.solventa.feature.polizas.comun.LineaSincronizacion
+import co.solventa.feature.polizas.comun.Mensaje
+import co.solventa.feature.polizas.comun.RequiereConexion
+import co.solventa.feature.polizas.comun.BotonSecundario
+import co.solventa.feature.polizas.comun.franjaDe
 import co.solventa.feature.polizas.comun.InsigniaEstado
 import co.solventa.feature.polizas.comun.Pestana
 import co.solventa.feature.polizas.comun.PlantillaPolizas
@@ -48,6 +55,7 @@ import co.solventa.feature.polizas.comun.nombrePoliza
 import co.solventa.feature.polizas.comun.textoFallo
 import co.solventa.feature.polizas.comun.textoPrima
 import co.solventa.feature.polizas.comun.textoVigencia
+import java.time.ZoneId
 
 /**
  * «Mis pólizas» con su ViewModel, en la pestaña Pólizas de la barra inferior.
@@ -55,16 +63,23 @@ import co.solventa.feature.polizas.comun.textoVigencia
  * @param entrada sube cada vez que el cliente selecciona la pestaña: la lista se vuelve a consultar
  * (política de refresco, §2). Una recomposición con el mismo valor no consulta.
  * @param onAbrir abre el detalle del número de la póliza.
+ * @param onCredencial abre la credencial del número de la póliza (MOB-F03).
  */
 @Composable
 fun RutaMisPolizas(
     dependencias: DependenciasPolizas,
     entrada: Int,
     onAbrir: (String) -> Unit,
+    onCredencial: (String) -> Unit = {},
     onSesionVencida: () -> Unit = {},
 ) {
-    val viewModel = viewModel { MisPolizasViewModel(dependencias.api, entrada) }
+    val viewModel = viewModel {
+        MisPolizasViewModel(dependencias.api, dependencias.billetera, entrada, dependencias.reloj)
+    }
     LaunchedEffect(entrada) { viewModel.alEntrar(entrada) }
+    // Solo mientras la pestaña está en pantalla: sin red pasa a la billetera y al volver la red se sincroniza
+    // sola (MOB-F03, §2).
+    LaunchedEffect(viewModel) { viewModel.vigilarConexion() }
     val estado = viewModel.estado
     LaunchedEffect(estado.sesionVencida) {
         if (estado.sesionVencida) {
@@ -80,6 +95,8 @@ fun RutaMisPolizas(
         onAbrir = onAbrir,
         // Sin navegador instalado no hay a dónde llevarlo; el botón no hace nada en lugar de cerrar la app.
         onCotizar = { runCatching { navegador.openUri(dependencias.urlCotizacion) } },
+        onCredencial = onCredencial,
+        zona = dependencias.reloj.zone,
     )
 }
 
@@ -91,22 +108,30 @@ fun PantallaMisPolizas(
     onElegir: (Pestana) -> Unit,
     onAbrir: (String) -> Unit,
     onCotizar: () -> Unit,
+    onCredencial: (String) -> Unit = {},
+    zona: ZoneId = ZoneId.systemDefault(),
+    soloLectura: Boolean = false,
 ) {
-    val polizas = estado.polizas
+    val polizas = estado.mostradas
+    // Sin sesión (MOB-F03, entrega 2) la franja la pone el marco y no hay nada que actualizar.
+    val franja = estado.franja().takeUnless { soloLectura }
     PlantillaPolizas(
         titulo = stringResource(R.string.lista_titulo),
         onVolver = null,
         actualizando = estado.actualizando,
-        onActualizar = onActualizar,
+        onActualizar = onActualizar.takeUnless { soloLectura },
         modifier = Modifier.testTag("pantalla-mis-polizas"),
+        franja = franja?.let { { FranjaBilletera(it, estado.billetera?.momento, zona, onReintentar = onActualizar) } },
     ) {
         val error = estado.error
+        if (estado.muestraLineaSincronizacion) LineaSincronizacion(estado.billetera?.momento, estado.hoy, zona)
         when {
+            estado.modo == ModoPolizas.SIN_BILLETERA -> SinBilletera(onActualizar)
             polizas == null && error != null -> ErrorConsulta(textoFallo(error, R.string.lista_error), onActualizar)
             polizas == null -> Cargando(stringResource(R.string.lista_cargando))
             polizas.isEmpty() -> {
                 if (error != null) ErrorConsulta(textoFallo(error, R.string.lista_error), onActualizar)
-                SinPolizas(onCotizar)
+                SinPolizas(onCotizar, conConexion = !estado.sinConexion)
             }
             else -> {
                 if (error != null) ErrorConsulta(textoFallo(error, R.string.lista_error), onActualizar)
@@ -119,10 +144,33 @@ fun PantallaMisPolizas(
                         modifier = Modifier.testTag("pestana-vacia"),
                     )
                 }
-                visibles.forEach { TarjetaPoliza(it, onAbrir) }
+                visibles.forEach { poliza ->
+                    TarjetaPoliza(
+                        poliza,
+                        onAbrir,
+                        onCredencial = { onCredencial(poliza.numero) }.takeIf { estado.ofreceCredencial(poliza) },
+                    )
+                }
             }
         }
     }
+}
+
+private fun EstadoMisPolizas.franja() = franjaDe(
+    sinConexion = sinConexion,
+    sinActualizar = modo == ModoPolizas.SIN_ACTUALIZAR,
+    sincronizando = sincronizando,
+)
+
+/** Sin conexión y sin una sincronización completa guardada. */
+@Composable
+private fun SinBilletera(onReintentar: () -> Unit) {
+    Mensaje(stringResource(R.string.sin_billetera), modifier = Modifier.testTag("sin-billetera"), esError = false)
+    BotonSecundario(
+        stringResource(R.string.reintentar),
+        onClick = onReintentar,
+        modifier = Modifier.testTag("reintentar"),
+    )
 }
 
 @Composable
@@ -151,9 +199,12 @@ private fun Pestana.texto() = when (this) {
     Pestana.TODAS -> R.string.pestana_todas
 }
 
-/** El cliente aún no tiene pólizas: se le lleva a cotizar en la web, que es donde está el cotizador. */
+/**
+ * El cliente aún no tiene pólizas: se le lleva a cotizar en la web, que es donde está el cotizador. Sin
+ * conexión el botón queda inactivo y se explica por qué.
+ */
 @Composable
-private fun SinPolizas(onCotizar: () -> Unit) {
+private fun SinPolizas(onCotizar: () -> Unit, conConexion: Boolean) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(SolventaSpacing.md),
@@ -172,12 +223,21 @@ private fun SinPolizas(onCotizar: () -> Unit) {
         )
         Text(stringResource(R.string.vacio_texto), style = MaterialTheme.typography.bodyLarge)
     }
-    BotonPrincipal(stringResource(R.string.vacio_cotizar), onClick = onCotizar, modifier = Modifier.testTag("cotizar"))
+    BotonPrincipal(
+        stringResource(R.string.vacio_cotizar),
+        onClick = onCotizar,
+        habilitado = conConexion,
+        modifier = Modifier.testTag("cotizar"),
+    )
+    if (!conConexion) RequiereConexion(stringResource(R.string.cotizar_requiere_conexion), "cotizar-requiere-conexion")
 }
 
-/** Toda la tarjeta abre el detalle; TalkBack la lee como un solo control con todo su contenido. */
+/**
+ * Toda la tarjeta abre el detalle; TalkBack la lee como un solo control con todo su contenido. Con
+ * [onCredencial], «Ver credencial» va como un control aparte.
+ */
 @Composable
-private fun TarjetaPoliza(poliza: PolizaResumen, onAbrir: (String) -> Unit) {
+private fun TarjetaPoliza(poliza: PolizaResumen, onAbrir: (String) -> Unit, onCredencial: (() -> Unit)?) {
     val nombre = nombrePoliza(poliza)
     val estado = stringResource(poliza.estado.etiqueta())
     val prima = textoPrima(poliza)
@@ -222,6 +282,17 @@ private fun TarjetaPoliza(poliza: PolizaResumen, onAbrir: (String) -> Unit) {
                 )
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
+        if (onCredencial != null) {
+            val descripcionCredencial = stringResource(R.string.ver_credencial_descripcion, poliza.numero)
+            OutlinedButton(
+                onClick = onCredencial,
+                modifier = Modifier
+                    .padding(start = SolventaSpacing.md, end = SolventaSpacing.md, bottom = SolventaSpacing.md)
+                    .heightIn(min = SolventaSpacing.touchTarget)
+                    .testTag("credencial-${poliza.numero}")
+                    .semantics { contentDescription = descripcionCredencial },
+            ) { Text(stringResource(R.string.ver_credencial)) }
         }
     }
 }

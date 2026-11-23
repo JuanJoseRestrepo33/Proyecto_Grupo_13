@@ -137,14 +137,17 @@ o de hotfix, y el tag se crea automáticamente en `main` al fusionarla. Nadie cr
 |---|---|---|---|
 | Cierre de sprint | `release/vX.Y.0` | MENOR | `v0.1.0` → `v0.2.0` |
 | Corrección urgente en producción | `hotfix/vX.Y.Z` | PARCHE | `v0.2.0` → `v0.2.1` |
-| Primera versión entregable completa | `release/v1.0.0` | MAYOR | `v1.0.0` al final del Proyecto Final II |
+| Primera versión entregable completa | `release/v1.0.0` | MAYOR | `v1.0.0` en la entrega final (23 al 29 nov 2026) |
 
-| Sprint | Release prevista |
-|---|---|
-| Sprint 1 | `v0.1.0` |
-| Sprint 2 | `v0.2.0` |
-| Sprint 3 | `v0.3.0` |
-| Sprint 4 (entrega final) | `v1.0.0` |
+| Sprint | Release prevista | Publicada |
+|---|---|---|
+| Sprint 1 | `v0.1.0` | No: el Sprint 1 no tuvo release propio |
+| Sprint 2 | `v0.2.0` | Salió como **`v0.1.0`** (19 oct 2026, #146), el primer release a `main` |
+| Sprint 3 | `v0.3.0` | `v0.3.0` (22 nov 2026, #325) |
+| Entrega final | `v1.0.0` | Del 23 al 29 nov 2026 |
+
+**`v0.2.0` no existe:** en GitHub se pasa de `v0.1.0` a `v0.3.0`. Los tags no se reescriben ni se
+crean a mano, así que el hueco se deja como está y se menciona en las notas de `v1.0.0`.
 
 | Ambiente | Rama | Imágenes (`solventa-nucleo`, `solventa-bff`, `solventa-web`) |
 |---|---|---|

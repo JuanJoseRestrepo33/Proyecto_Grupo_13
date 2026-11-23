@@ -48,10 +48,10 @@ def integridad(nucleo: str) -> dict:
     return pedir(nucleo, "GET", "/auditoria/integridad")
 
 
-def credenciales(proyecto: str) -> tuple[str, str, str]:
+def credenciales(proyecto: str, sufijo: str = "") -> tuple[str, str, str]:
     """(conexión de la instancia, usuario, clave) del dueño, sin imprimir nada."""
     cadena = subprocess.run(
-        ["gcloud", "secrets", "versions", "access", "latest", f"--secret={SECRETO}",
+        ["gcloud", "secrets", "versions", "access", "latest", f"--secret={SECRETO}{sufijo}",
          f"--project={proyecto}"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()  # fmt: skip
@@ -64,10 +64,10 @@ def credenciales(proyecto: str) -> tuple[str, str, str]:
     )
 
 
-def conectar(proyecto: str):  # pragma: no cover - red real
+def conectar(proyecto: str, sufijo: str = ""):  # pragma: no cover - red real
     from google.cloud.sql.connector import Connector
 
-    instancia, usuario, clave = credenciales(proyecto)
+    instancia, usuario, clave = credenciales(proyecto, sufijo)
     return Connector().connect(instancia, "pg8000", user=usuario, password=clave, db=BASE)
 
 
@@ -87,6 +87,8 @@ def main() -> int:
     argumentos = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     argumentos.add_argument("--nucleo", required=True)
     argumentos.add_argument("--proyecto", required=True)
+    # "" en staging y "-prd" en producción: el secreto del dueño de cada base.
+    argumentos.add_argument("--sufijo", default="")
     opciones = argumentos.parse_args()
     nucleo = opciones.nucleo
 
@@ -118,7 +120,7 @@ def main() -> int:
     original = registro["resultado"]
     print(f"Cotización {cotizacion['id_cotizacion']} → decisión en la secuencia {secuencia}")
 
-    con = conectar(opciones.proyecto)
+    con = conectar(opciones.proyecto, opciones.sufijo)
     fallos: list[str] = []
     try:
         # 2. Sin apagar el trigger, la base rechaza el cambio.
@@ -155,7 +157,7 @@ def main() -> int:
 
     for fallo in fallos:
         print(f"::error::{fallo}")
-    print("RC-08 verificado en staging" if not fallos else "RC-08 NO verificado")
+    print(f"RC-08 verificado en {nucleo}" if not fallos else f"RC-08 NO verificado en {nucleo}")
     return 1 if fallos else 0
 
 

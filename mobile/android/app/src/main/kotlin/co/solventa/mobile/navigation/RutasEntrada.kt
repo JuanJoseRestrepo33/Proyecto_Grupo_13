@@ -11,5 +11,8 @@ object RutasEntrada {
     const val BIOMETRIA = "biometria"
     const val INICIO = "inicio"
 
+    /** La billetera sin sesión (MOB-F03, entrega 2): solo después del desbloqueo del teléfono. */
+    const val BILLETERA_SIN_SESION = "sin-sesion/polizas"
+
     fun otp(id: String, reenvioDisponibleEn: Instant) = "otp/$id/${reenvioDisponibleEn.epochSecond}"
 }

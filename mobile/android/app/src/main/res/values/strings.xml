@@ -19,4 +19,6 @@
         <item quantity="other">Tienes %1$d reportes sin enviar</item>
     </plurals>
     <string name="cerrar_pendientes_texto">Seguirá guardado y cifrado en este teléfono y se enviará cuando vuelvas a ingresar. Otra cuenta no podrá verlo.</string>
+    <string name="cerrar_titulo">¿Cerrar sesión?</string>
+    <string name="cerrar_billetera_texto">Tus pólizas dejarán de estar disponibles sin conexión en este teléfono.</string>
 </resources>

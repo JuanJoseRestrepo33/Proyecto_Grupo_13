@@ -65,4 +65,35 @@
     <string name="aviso_descarga_sin_red">No pudimos descargar el PDF: no tienes conexión.</string>
     <string name="aviso_descarga_fallida">No pudimos descargar el PDF. Intenta de nuevo.</string>
     <string name="aviso_sin_visor">No hay una app para abrir el PDF.</string>
+    <!-- Billetera sin conexión (MOB-F03) -->
+    <string name="billetera_disponible_hoy">Disponible sin conexión · sincronizada hoy %1$s</string>
+    <string name="billetera_disponible_el">Disponible sin conexión · sincronizada el %1$s</string>
+    <string name="billetera_no_disponible">Aún no disponible sin conexión</string>
+    <string name="franja_sin_conexion">Sin conexión · datos del %1$s</string>
+    <string name="franja_sin_actualizar">No pudimos actualizar · datos del %1$s</string>
+    <string name="franja_sincronizando">Conexión recuperada · actualizando tus pólizas…</string>
+    <string name="franja_solo_sin_conexion">Sin conexión</string>
+    <string name="franja_ya_conectado">Ya tienes conexión · Ingresa para actualizar</string>
+    <string name="sin_sesion_ingresar">Ingresar</string>
+    <string name="sin_billetera">Necesitas conexión una vez para guardar tus pólizas en este teléfono.</string>
+    <string name="cotizar_requiere_conexion">Necesitas conexión para cotizar.</string>
+    <string name="detalle_no_guardado">Necesitas conexión para ver este detalle.</string>
+    <string name="descarga_requiere_conexion">Necesitas conexión para descargar el documento.</string>
+    <string name="ver_credencial">Ver credencial</string>
+    <string name="ver_credencial_descripcion">Ver la credencial de la póliza %1$s</string>
+
+    <!-- Credencial digital (MOB-F03) -->
+    <string name="credencial_titulo">Credencial</string>
+    <string name="credencial_encabezado">Credencial digital · Solventa</string>
+    <string name="credencial_numero">Número de póliza</string>
+    <string name="credencial_titular">Titular</string>
+    <string name="credencial_vigencia">Vigencia</string>
+    <string name="credencial_segun_datos">según datos del %1$s</string>
+    <string name="credencial_estado_descripcion">Estado: %1$s según datos del %2$s</string>
+    <string name="credencial_pie">Datos sincronizados el %1$s</string>
+    <string name="credencial_contraste">Copia informativa: contrasta la cobertura con la aseguradora usando el número de póliza.</string>
+    <string name="credencial_cargando">Abriendo la credencial…</string>
+    <string name="credencial_necesita_conexion">Necesitas conexión para guardar esta póliza en el teléfono y ver su credencial.</string>
+    <string name="credencial_no_guardada">Esta póliza no tiene una credencial disponible.</string>
+    <string name="credencial_no_vigente">La credencial solo está disponible para pólizas vigentes.</string>
 </resources>

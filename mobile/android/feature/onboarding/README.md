@@ -49,6 +49,16 @@ de darla por activa. Cualquier fallo del Keystore borra el sobre y vuelve a la c
 JVM: cancela al tercer `onAuthenticationFailed`, trata el bloqueo del sensor como fallo y entrega un
 solo resultado aunque el sistema avise después de la cancelación.
 
+## Ver mis pólizas sin conexión (MOB-F03, entrega 2)
+
+`RutaIngreso` recibe `onVerSinConexion`. Con él, Ingreso avisa «No tienes conexión.» y ofrece «Ver mis
+pólizas sin conexión»; la app lo pasa solo sin red, con una billetera guardada y con bloqueo de pantalla
+(ver el README de `feature/polizas`). `DesbloqueoTelefono` pide el desbloqueo del teléfono con
+`BiometricPrompt`: huella, rostro, PIN o patrón (`BIOMETRIC_STRONG or DEVICE_CREDENTIAL`; en Android 9 y
+10, `BIOMETRIC_WEAK or DEVICE_CREDENTIAL`, porque la librería no admite la otra combinación). No desbloquea
+ninguna llave: solo confirma que quien tiene el teléfono conoce su bloqueo. Sin bloqueo de pantalla
+(`KeyguardManager.isDeviceSecure`), la opción no se ofrece.
+
 ## Pruebas
 
 - **JVM** (`src/test`): validación, ViewModels con un `BffApi` falso (`Dobles.kt`), reglas del
